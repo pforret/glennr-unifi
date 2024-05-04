@@ -69,7 +69,14 @@ function Script:main() {
     get)
       #TIP: use «$script_prefix get» to ...
       #TIP:> $script_prefix get
-      wget
+      wget "https://glennr.nl/s/unifi-network-controller" -O - 2>/dev/null \
+      | awk -F'"' '/get.glennr.nl/ {print $2}' \
+      | while read -r url; do
+            IO:progress "Download $(basename "$url")"
+          wget -N -q -nd "$url" -P ./scripts
+        done
+        git add ./scripts
+
       ;;
 
     action2)
