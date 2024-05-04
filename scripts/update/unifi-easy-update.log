@@ -1,0 +1,4101 @@
+ # UniFi Easy Update Script changelog
+
+ # Author   | Glenn Rietveld
+ # Email    | glennrietveld8@hotmail.nl
+ # Website  | https://GlennR.nl
+
+
+###################################################################################################################################################################################################
+#                                                                                                                                                                                                 #
+#                                                                                            Changelog                                                                                            #
+#                                                                                                                                                                                                 #
+###################################################################################################################################################################################################
+
+ |  UniFi Easy Update Script  |  Version 8.4.1
+ 
+ - Improved the deb file download check.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 8.4.0
+ 
+ - Fixed required MongoDB package check failing on setups using MongoDB Compiled by Glenn R.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 8.3.9
+ 
+ - Improved download logging.
+ - Fixed an issue where an secure curl argument was set while it should use the insecure option.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 8.3.8
+ 
+ - Fixed installation failures on distributions running apt 1.0 or older.
+ - Fixed MongoDB Upgrade failures when the system doesn't have it's default repository list.
+ - Fixed MongoDB Upgrade issues if the system.properties file was modified.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 8.3.7
+ 
+ - Added error logging for download locating failures.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 8.3.6
+ 
+ - Improved setting curl arguments.
+ - Improved UniFi Update logging.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 8.3.5
+ 
+ - Added service override check after cleaning up previous overrides for setups running systemd version 230 or older.
+ - Only prompt to uninstall unsupported/outdated Java versions after upgrading the Network Application.
+ - Improved the service override check.
+ - Include unifi systemd service in the support file.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 8.3.4
+ 
+ - Fixed mongodb-org-tools installation if mongo-tools is installed.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 8.3.3
+ 
+ - Fixed an issue where a cat error was printed if an file was missing during apt-get update.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 8.3.2
+ 
+ - Further improve the curl arguments check.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 8.3.1
+ 
+ - Fixed an issue where curl arguments could have the same argument twice, resulting in a failure.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 8.3.0
+ 
+ - Improved libsll installation on older distributions.
+ - Fixed installation failures when HTTPS couldn't be used.
+ - Replaced all wget tasks with curl.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 8.2.9
+ 
+ - Fixed wget failures introduced in version 8.2.8.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 8.2.8
+ 
+ - Added a check if we need to use --insecure flag for curl commands.
+ - Added live database migration details when updating the Network Application.
+ - Added Java home check during the MongoDB Upgrade process.
+ - Fixed an issue where setups without AVX support aren't downgraded back to MongoDB 4.4.18 while running anything newer.
+ - Fixed an issue where disk-usage.json was invalid on setups with older JQ versions.
+ - Fixed adoptium Java failures on Ubuntu Mantic Minotaur.
+ - Run daemon-reexec after the OS Upgrade process.
+ - Prevent the MongoDB Upgrade process from starting while the Network Application is already performing a migration.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 8.2.7
+ 
+ - Fixed apt failures when users are messing up their repository files.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 8.2.6
+ 
+ - Fixed an issue that could cause zgrep errors to popup.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 8.2.5
+ 
+ - Added support for updating to 8.1.127 Offical/Stable.
+ - Replaced 8.1.113 with 8.1.127.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 8.2.4
+ 
+ - Use curl instead of wget when downloading the updated script version.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 8.2.3
+ 
+ - Improved running apt-get update, this should resolve some users their MongoDB Upgrade failures.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 8.2.2
+ 
+ - Fixed errors during the script version check if curl is not yet installed.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 8.2.1
+ 
+ - Improved the MongoDB Downgrade check in case the logs are rotated to .gz files.
+ - Rewrote the script version check to prepare for when we hit version 10.x.x.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 8.2.0
+ 
+ - Fixed an rare issue where the script might add invalid repositories.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 8.1.9
+ 
+ - Added malformed repository cleanup function.
+ - Improved setting the MongoDB Install version.
+ - Improved the MongoDB Downgrade check, it was attempting to downgrade packages that were not avaialble in older repositories.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 8.1.8
+ 
+ - Fixed mongod-armv8 (Glenn R. Compiled MongoDB) downgrade process incase it detected an unsupported upgrade (shouldn't be possible when only using the script).
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 8.1.7
+ 
+ - Improved MongoDB Upgrade abort function when using MongoDB Compiled by Glenn R.
+ - Improved the MongoDB Downgrade required check.
+ - Improved the MongoDB Upgrade process for arm64 systems that choose to use MongoDB Compiled by Glenn R.
+ - Improved setting PATH.
+ - Fixed an issue where the script would still attempt to create a backup when choosen to skip.
+ - Fixed an issue where users could install an older UniFi Network Application version compared to what their current migrated database supports after they messed around with updating incorrectly.
+ - Fixed startup issues on systems using systemd version 230 or older.
+ - Fixed an issue where the script could add the wrong MongoDB Repository in rare cases.
+ - Fixed an issue where the script still sets signed by version while it's using apt-key.
+ - Fixed an issue where the script could get stuck if the repository key already existed.
+ - Fixed JQ errors during abort when JQ is not yet installed.
+ - Correct invalid xmx, xms and xss values if they are incorrectly configured by the user.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 8.1.6
+ 
+ - Fixed an issue where the MongoDB downgrade process could fail.
+ - Fixed an issue where the script couldn't obtain all previous MongoDB versions if the log file was a binary. 
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 8.1.5
+ 
+ - Fixed an issue where the script could spam "dpkg interrupted" messages while it already cleaned those up.
+ - Downgrade MongoDB to the last known good versions if it detects unsupported upgrades.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 8.1.4
+ 
+ - Improved the JAVA installation process.
+ - Improved messaging when free disk space is low.
+ - Improved the dpkg interrupted check.
+ - Improved the libssl installation process.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 8.1.3
+ 
+ - Include dpkg log in support files.
+ - Improved the JAVA installation process.
+ - Fixed MongoDB Upgrade issues when certain packages are "held" back and it attempts to remove those.
+ - Fixed an endless loop when apt keys are missing.
+ - Fixed an issue where some commands were creating noise in the terminal.
+ - Don't abort when dist-upgrade or upgrade fail.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 8.1.2
+ 
+ - Added support for upgrading to Release Canidate 8.1.127.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 8.1.1
+ 
+ - Added a retry for installating dependencies for MongoDB Compiled by Glenn R.
+ - Improved setting the MongoDB command variable.
+ - Fixed JQ errors on setups using JQ version 1.5 or older.
+ - Fixed unable to install OpenJDK 17 on arm64 ubuntu setups when repositories are missing.
+ - Fixed unable to upgrade MongoDB from version 2.4 or 3.0 due to problematic prerm MongoDB scripts.
+ - Fixed an issue were some parameters were not set if mongodb-org-tools wasn't avaialable at the starts of the MongoDB Upgrade process.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 8.1.0
+
+ - Fixed an issue where invalid support files were created.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 8.0.9
+
+ - Added support for Elementary OS Odin, Jolnir and Horus.
+ - Fixed an issue where some steps in the script were marked as "success" while part of it failed.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 8.0.8
+
+ - Added /tmp permission check, it will set it to 1777 if it isn't already 1777.
+ - Added a second attempt when purging MongoDB Packages fails during the MongoDB Upgrade process.
+ - Improved setting system language to English when the script is running.
+ - Improved the libssl installation process.
+ - Improved setting JAVA_HOME.
+ - Rewrote the unsupported JAVA uninstallation task.
+ - Include more debugging information to support files.
+ - Fixed an issue where commenting out unavailable repositories was not being logged.
+ - Fixed an issue where the script could add repositories multiple times in rare cases.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 8.0.7
+
+ - Fixed an issue where the script could add an incorrect repository combination on Debian Stretch/Buster.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 8.0.6
+
+ - Fixed an issue where the script could get in an constant loop with itself.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 8.0.5
+
+ - Added a second attempt when purging MongoDB Packages fails during the MongoDB Upgrade process.
+ - Rewrote the JAVA Installation/Check process.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 8.0.4
+
+ - Improved setting JAVA_HOME.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 8.0.3
+
+ - Fixed an issue where the MongoDB Upgrade process would fail for setups using mongodb-10gen.
+ - Fixed an issue where certain errors are printed to the terminal.
+ - Fixed an issue where the script could report that it failed to start a service while it actually did start.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 8.0.2
+
+ - Fixed an issue where the script was using unsupported options during the MongoDB Upgrade process for setups using 2.4.x mongodb-10gen.
+ - Added free space warning at the start of the script.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 8.0.1
+
+ - Improved the libssl3 check for Ubuntu development branches, such as Noble.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 8.0.0
+
+ - Fixed an issue where the script could throw some errors when certain logs are missing.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 7.9.9
+
+ - Fixed certain mongod-armv8 checks failing on Ubuntu versions.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 7.9.8
+
+ - Fixed an issue where the script tries to write to it's database while it's not there yet on fresh installs.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 7.9.7
+
+ - Added netstat results to support files.
+ - Added repository duplicate cleanup, it will comment out any that are found.
+ - Added repository Signed-By conflict cleanup, it will comment out any that are found.
+ - Added repository Trusted conflict cleanup, it will comment out any that are found.
+ - Added more logging to start the UniFi Network Application database.
+ - Added disk space warning to the OS Upgrade process, to many users are running setups with no free disk space...
+ - Added an copy of the system.properties file to support files, mongodb passwords are removed from the file.
+ - Always update the architecture in the EUS database.
+ - Always check if dpkg was interrupted.
+ - Improved the temurin JDK to JRE check.
+ - Remove sysstat usage in support files, it will now only generate my own JSON with system statistics.
+ - Fixed an issue where the architecture was missing in the EUS database.
+ - Fixed an issue where the MongoDB Upgrade process might not appear when using mongodb-10gen.
+ - Fixed an issue where the Network Application couldn't start after an upgrade MongoDB Upgrade to 4.4/7.0 due to unsupported variables specified in the system.properties file.
+ - Fixed installation failures due to some systems having 404 or 401 errors on some repositories, the script will now comment out any problematic repository.
+ - Fixed inability to start the Network Application after upgrade the application or performing the MongoDB Upgrade process on systems running systemd version 230 or older.
+ - Fixed an issue where MongoDB 4.4.19 or newer was being installed on systems with CPU's that don't report AVX support.
+ - Yes is now the default answer for the compiled MongoDB by Glenn R.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 7.9.6
+
+ - Don't log directory creation if the logs folder doesn't exist.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 7.9.5
+
+ - Fixed an issue where the script could be having issues creating tmp directories due to logging introduced in 7.9.4.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 7.9.4
+
+ - Added logging to the directory creation process.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 7.9.3
+
+ - Rewrote adding repositories.
+ - Improved the MongoDB upgrade process.
+   - Attempt to create an UniFi Network Application directory if it's missing.
+   - Attempt HTTP if HTTPS returns an empty value.
+ - Improved Adoptium Java installation for Ubuntu Impish.
+ - Improved required package installation process.
+ - Use deb.debian.org instead of ftp.debian.org.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 7.9.2
+
+ - Fixed grep error when starting the script when the system does not use systemd-resolv.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 7.9.1
+
+ - Added information to EUS database if the system is running within docker.
+ - Added system init information to support files.
+ - Added runlevel information to support files.
+ - Improved systemd/init check.
+ - Fixed error introduced in 7.9.0.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 7.9.0
+
+ - Added debug information for folder permissions before and after the MongoDB upgrade process, in hope to catch a reason why the application can't start afterwards in rare cases.
+ - Added more debug information for MongoDB repository adding during the upgrade process to 7.0, as sometimes it seems to fail to see 7.0 packages being available.
+ - Fixed an issue where perl was being installed instead of procps when procps was missing.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 7.8.9
+
+ - Fixed an issue where the total script runs were not being updates in the EUS database.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 7.8.8
+
+ - Added a check to see if dpkg was interrupted, if detected it will try to recover.
+ - Added DNS check, it will try to resolve add domains the script uses. It will add 1.1.1.1/8.8.8.8 to /etc/resolv.conf if it failed to resolve a domain.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 7.8.7
+
+ - Improved Adoptium Java installation for Ubuntu Eoan/Disco/Cosmic.
+ - Fixed an issue where the EUS database was not appending support files/tasks to it's database.
+ - Fixed an issue where the script could add an empty value to the EUS database.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 7.8.6
+
+ - Added running process information to the support files.
+ - Rewrote the dpkg lock check, it will now also run each time it tries to install an package.
+ - Remove UniFi Repositories if more than 1 is found, users are running into issues where they added tens of different repositories all with different signed-by values (not caused by my script).
+ - Fixed an issue where abort_reason could be empty.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 7.8.5
+
+ - Fixed unsupported JAVA check.
+ - Improved adding MongoDB Repository.
+ - Improved script quality.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 7.8.4
+
+ - Added more debug information for the MongoDB Upgrade process.
+ - Improved adding repositories.
+ - Improved adding MongoDB Repository.
+ - Improved MongoDB Downgrade process.
+ - Improved OpenJDK-17 installation on Lunar.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 7.8.3
+
+ - Fixed typo.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 7.8.2
+
+ - Fixed an issue where the downgrade to 4.4.19 wasn't work when an variable was not set.
+ - Fixed eus_database_move errors during support file generating while running the script with --support-file.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 7.8.1
+
+ - Added extra check to downgrade MongoDB 4.4.19 or newer to version 4.4.18 on arm64.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 7.8.0
+
+ - Added free disk space information to script abort message if it's less than 5GB.
+ - Fixed an issue where the MongoDB package installation process could fail if "dpkg --configure -a" was required.
+ - Fixed an issue where the script could add an invalid repository entry on older distributions.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 7.7.9
+
+ - Added EUS database.
+ - Added more detailed information to script aborts.
+ - Added ability to automatically upload support files to a private server owned by Glenn R.
+ - Added procps as required package.
+ - Improved support file creation.
+ - Improved creating script directories.
+ - Improved key download logging.
+ - Improved script quality.
+ - Fixed inability to create libssl/mongodb debug json in rare cases.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 7.7.8
+
+ - Improved libssl installation required check.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 7.7.7
+
+ - Improved MongoDB Compiled by Glenn R. install process.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 7.7.6
+
+ - Improved adding MongoDB Repositories.
+ - Improved the libssl installation process to prevent failures on older distributions, this should also address the Raspberry Pi MongoDB Upgrade issues.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 7.7.5
+
+ - Fixed an issue where the script could add the incorrect raspbian repository on some arm64 systems.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 7.7.4
+
+ - Improved space required check for the MongoDB Upgrade process.
+ - Allow users to delete autobackup files if the script detected not enough free space during the MongoDB Upgrade process.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 7.7.3
+
+ - Fixed an issue where the Web UI wasn't reachable after an upgrade if the user configured a invalid keystore, the script will remove those and log it.
+ - Fixed an issue where the script didn't abort when it couldn't obtain the MongoDB Repository key due to upstream SSL Inspection.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 7.7.2
+
+ - Fixed MongoDB Upgrade process when mongodb-org-server is held back via a preference file.
+ - Further improve the arm64 MongoDB Upgrade process.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 7.7.1
+
+ - Further improve the MongoDB Upgrade process when using mongod-armv8.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 7.7.0
+
+ - Added journalctl output to support files.
+ - Improved MongoDB Upgrade process on Raspberry Pi's running older Debian Distributions.
+ - Improved logging.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 7.6.9
+
+ - Further improved the MongoDB Upgrade prevent checks.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 7.6.8
+
+ - Improved MongoDB Upgrade prevent checks.
+
+ ###
+
+ |  UniFi Easy Update Script  |  Version 7.6.7
+
+ - Inform users that the upgrade may take longer when upgrading from 8.0 or older to 8.1 or newer.
+ - Only check for mail server recommendation if the UniFi Network Application database is ready for connections.
+
+ ###
+
+ |  UniFi Easy Update Script  |  Version 7.6.6
+
+ - Fixed login checks introduced in 7.6.5 due to a typo.
+
+ ###
+
+ |  UniFi Easy Update Script  |  Version 7.6.5
+
+ - Improved admin check when it returns empty ID's in rare cases.
+
+ ###
+
+ |  UniFi Easy Update Script  |  Version 7.6.4
+
+ - Fixed MongoDB Upgrade process failing if another mongodb-mongosh package is installed.
+ - Improved MongoDB Upgrade abort steps.
+
+ ###
+
+ |  UniFi Easy Update Script  |  Version 7.6.3
+
+ - Added the ability to upgrade to 8.1.113 Stable.
+ - Check if Application version is the same when doing an custom upgrade.
+
+ ###
+
+ |  UniFi Easy Update Script  |  Version 7.6.2
+
+ - Further improve the MongoDB Upgrade process for older distribution versions.
+
+ ###
+
+ |  UniFi Easy Update Script  |  Version 7.6.1
+
+ - Improved MongoDB Upgrade process for older distribution versions.
+ - Improved MongoDB Upgrade prevention during the OS Upgrade process.
+
+ ###
+
+ |  UniFi Easy Update Script  |  Version 7.6.0
+
+ - Fixed not supported message for those already running 8.1.
+
+ ###
+
+ |  UniFi Easy Update Script  |  Version 7.5.9
+
+ - Prevent installation of mongodb-org-server on systems that are upgraded to mongod-armv8.
+
+ ###
+
+ |  UniFi Easy Update Script  |  Version 7.5.8
+
+ - Added support for updating to 8.1.113 RC.
+
+ ###
+
+ |  UniFi Easy Update Script  |  Version 7.5.7
+
+ - Added fallback for removing UniFi during the MongoDB upgrade process.
+
+ ###
+
+ |  UniFi Easy Update Script  |  Version 7.5.6
+
+ - Fixed an issue where the UniFi Network Application is unable to start after an upgrade due to an empty file.
+
+ ###
+
+ |  UniFi Easy Update Script  |  Version 7.5.5
+
+ - Improved MongoDB 4.4 installation on arm64.
+
+ ###
+
+ |  UniFi Easy Update Script  |  Version 7.5.4
+
+ - Disable UniFi repositories on setups running mongod-armv8 (compiled by Glenn R.).
+ - Prevent "CPU not supported by MongoDB" message from appearing on setups that have already migrated to MongoDB compiled by Glenn R.
+
+ ###
+
+ |  UniFi Easy Update Script  |  Version 7.5.3
+
+ - Improved getting apt options.
+
+ ###
+
+ |  UniFi Easy Update Script  |  Version 7.5.2
+
+ - Added repository cleanup when script aborts.
+ - Improved libssl3 installation on Ubuntu Focal/Debian Bullseye and older.
+
+ ###
+
+ |  UniFi Easy Update Script  |  Version 7.5.1
+
+ - Fixed MongoDB version checks when using MongoDB compiled by Glenn R.
+
+ ###
+
+ |  UniFi Easy Update Script  |  Version 7.5.0
+
+ - Fixed endless waiting for MongoDB to initilize loop introduced in 7.4.9.
+
+ ###
+
+ |  UniFi Easy Update Script  |  Version 7.4.9
+
+ - Fixed an issue where the script could abort during export if MongoDB didn't respond in time before attempting recovery/repairs.
+
+ ###
+
+ |  UniFi Easy Update Script  |  Version 7.4.8
+
+ - Improved the MongoDB Upgrade process for arm64 upgrading to mongod from the Glenn R. APT Repository.
+
+ ###
+
+ |  UniFi Easy Update Script  |  Version 7.4.7
+ 
+ - Fixed typo.
+
+ ###
+
+ |  UniFi Easy Update Script  |  Version 7.4.6
+ 
+ - Added support for repackaging files when the system doesn't support zstd while they are compressed with zstd.
+ - Improved setup recovery during an abort.
+ - Improved adding repositories on bullseye and older.
+ - Improved retry attempts for installing packages.
+
+ ###
+
+ |  UniFi Easy Update Script  |  Version 7.4.5
+ 
+ - Fixed an issue where it could add the incorrect Glenn R. APT Repository.
+
+ ###
+
+ |  UniFi Easy Update Script  |  Version 7.4.4
+ 
+ - Updated Glenn R. APT Repository. Those with existing Glenn R. APT Repositories should re-run the script, it will auto update them.
+
+ ###
+
+ |  UniFi Easy Update Script  |  Version 7.4.3
+ 
+ - Limit functionality on systems using "init" instead of "systemd".
+
+ ###
+
+ |  UniFi Easy Update Script  |  Version 7.4.2
+ 
+ - Added CPU information to support files.
+ - Added my own (Glenn R.) APT Repository for mongod compiled for certain armv8 boards.
+ - Added ability for certain armv8 board owners to upgrade to MongoDB 7.0 if they answer an additional question.
+ - Added ability to create a support file via --support-file.
+ - Fixed issue where MongoDB key fallback would abort on success.
+ - Attempt to fix rare key missing loop.
+
+ ###
+
+ |  UniFi Easy Update Script  |  Version 7.4.1
+ 
+ - Improved getting distribution.
+
+ ###
+
+ |  UniFi Easy Update Script  |  Version 7.4.0
+ 
+ - Fixed a potentional cause where the script adds the 7.0 repository and attempts to install 4.4.
+
+ ###
+
+ |  UniFi Easy Update Script  |  Version 7.3.9
+ 
+ - Fixed the inability to upgrade to MongoDB 7.0 on ARMv8.2-A or later microarchitecture due to them not reporting AVX support.
+
+ ###
+
+ |  UniFi Easy Update Script  |  Version 7.3.8
+ 
+ - Improved jq installation for systems running EOL OS.
+ - Fixed an issue where arm64 setups would always be downgraded back to MongoDB 4.4.18.
+
+ ###
+
+ |  UniFi Easy Update Script  |  Version 7.3.7
+ 
+ - Allow upgrading to MongoDB 7.0 on ARMv8.2-A or later microarchitecture.
+ - Improved cleaning up old/expired/invalid repositories.
+ - Improved adding repositories on EOL OS systems such as Debian Jessie.
+
+ ###
+
+ |  UniFi Easy Update Script  |  Version 7.3.6
+ 
+ - Added auto downgrade recovery in case of import failures, to keep users up and running in case of import failures.
+ - Added auto MongoDB Repair in case of export failures.
+ - Allow performing the MongoDB Upgrade without any statistics in case of export failures.
+ - Improved starting the UniFi Network Application database.
+ - Prevent users from upgrading to MongoDB 7.0 if the CPU doesn't report AVX support.
+ - Fixed MongoDB Upgrade issues on extremely slow systems.
+
+ ###
+
+ |  UniFi Easy Update Script  |  Version 7.3.5
+ 
+ - Rewrite old backup removal part.
+
+ ###
+
+ |  UniFi Easy Update Script  |  Version 7.3.4
+ 
+ - Fixed inability to login after MongoDB Upgrades when upgrading from 3.4 to 3.6. This was introduced in 7.1.9
+   - Let me know if you're affected, can help fix these cases manually.
+
+ ###
+
+ |  UniFi Easy Update Script  |  Version 7.3.3
+ 
+ - Improved checks to attempt to always properly install MongoDB in the first run, instead of requiring 2 when repositories are missing.
+
+ ###
+
+ |  UniFi Easy Update Script  |  Version 7.3.2
+ 
+ - Fixed MongoDB Upgrade failure when users created a MongoDB versioning mess on their setups, e.g. 3.6 server and 7.0 tools.
+
+ ###
+
+ |  UniFi Easy Update Script  |  Version 7.3.1
+ 
+ - Added support for updating to 8.0.28 Offical/Stable.
+ - Replaced 8.0.26 with 8.0.28.
+
+ ###
+
+ |  UniFi Easy Update Script  |  Version 7.3.0
+ 
+ - Fixed UniFi Device required firmware version check, introduced in 7.2.5.
+
+ ###
+
+ |  UniFi Easy Update Script  |  Version 7.2.9
+ 
+ - Added more information to support files.
+ - Improved resiliency of the MongoDB Upgrade process.
+
+ ###
+
+ |  UniFi Easy Update Script  |  Version 7.2.8
+ 
+ - Added support for Linux Mint 6 Faye.
+ - Added support for Linux Mint 21.3 Virginia.
+
+ ###
+
+ |  UniFi Easy Update Script  |  Version 7.2.7
+ 
+ - Fixed MongoDB Upgrade failing when some packages are not available for older versions.
+
+ ###
+
+ |  UniFi Easy Update Script  |  Version 7.2.6
+ 
+ - Added support for updating to 8.0.28 RC.
+
+ ###
+
+ |  UniFi Easy Update Script  |  Version 7.2.5
+ 
+ - Added ability to enable UI Cloud Email if Remote Access is enabled and no mail server is configured.
+ - Improved user experience when the script is attempting to login to the Console/Server.
+ - Improved script latency by only calling specific keys during some MongoDB calls.
+ - Fixed mail server recommendation only working on 5.12.x upgrades.
+ - Fixed the inability to use the script on upcoming releases.
+
+ ###
+
+ |  UniFi Easy Update Script  |  Version 7.2.4
+ 
+ - Fixed MongoDB Upgrade failing due to missing directory in rare cases.
+
+ ###
+
+ |  UniFi Easy Update Script  |  Version 7.2.3
+ 
+ - Fixed stupid typo during JQ installation.
+
+ ###
+
+ |  UniFi Easy Update Script  |  Version 7.2.2
+ 
+ - Fixed incorrect repositories getting adding due to missing architecture value during early stages of the script.
+
+ ###
+
+ |  UniFi Easy Update Script  |  Version 7.2.1
+
+ - Improved JQ installation.
+
+ ###
+
+ |  UniFi Easy Update Script  |  Version 7.2.0
+
+ - Fixed JQ installation on Ubuntu Groovy, Focal, Hirsute, Impish.
+
+ ###
+
+ |  UniFi Easy Update Script  |  Version 7.1.9
+
+ - Added support for upcoming versions.
+ - Added support for Parrot OS Lory.
+ - Rewrote the MongoDB Upgrade process.
+ - Fixed a rare race condition that could lead to multiple default networks within the Network Application during the MongoDB Upgrade process.
+ - Fixed an issue where dynamic libssl detection always falled back to hardcoded values.
+ - Fixed an issue where you could upgrade to MongoDB 4.4 while already running MongoDB 4.4 if older repository lists exited on the system.
+
+ ###
+
+ |  UniFi Easy Update Script  |  Version 7.1.8
+
+ - Fixed an issue where incorrect repositories were added if a package cannot be located on existing repositories on arm64 (and other non-amd64/i386) Ubuntu systems.
+
+ ###
+
+ |  UniFi Easy Update Script  |  Version 7.1.7
+
+ - Updated error mesages for MongoDB installation.
+
+ ###
+
+ |  UniFi Easy Update Script  |  Version 7.1.6
+
+ - Fixed script aborting if /etc/apt/keyrings doesn't already exist.
+
+ ###
+
+ |  UniFi Easy Update Script  |  Version 7.1.5
+
+ - The script will now store all newly created keys in /etc/apt/keyrings.
+
+ ###
+
+ |  UniFi Easy Update Script  |  Version 7.1.4
+
+ - Improved MongoDB Upgrade option by force installing latest supported version.
+ - Fixed log spam from settings featureCompatibilityVersion.
+
+ ###
+
+ |  UniFi Easy Update Script  |  Version 7.1.3
+
+ - Fixed MongoDB key recovery loop when key file exists but is empty.
+
+ ###
+
+ |  UniFi Easy Update Script  |  Version 7.1.2
+
+ - Added support for updating to 8.0.26 Offical/Stable.
+ - Replaced 8.0.24 with 8.0.26.
+
+ ###
+
+ |  UniFi Easy Update Script  |  Version 7.1.1
+
+ - Improved checking MongoDB key expiration, it will now check against a file hosted on get.glennr.nl that includes the latest MongoDB key details for all MongoDB versions.
+
+ ###
+
+ |  UniFi Easy Update Script  |  Version 7.1.0
+
+ - Fixed unable to upgrade MongoDB packages in rare cases.
+
+ ###
+
+ |  UniFi Easy Update Script  |  Version 7.0.9
+
+ - Improved libssl installation and detection.
+
+ ###
+
+ |  UniFi Easy Update Script  |  Version 7.0.8
+
+ - Added support for updating to 8.0.26 RC.
+
+ ###
+
+ |  UniFi Easy Update Script  |  Version 7.0.7
+
+ - Added retry for MongoDB keys.
+ - Improved getting MongoDB keys when IPv6 is used.
+
+ ###
+
+ |  UniFi Easy Update Script  |  Version 7.0.6
+
+ - Improved required MongoDB packages installation process by removing all older MongoDB repositories before adding new ones.
+
+ ###
+
+ |  UniFi Easy Update Script  |  Version 7.0.5
+
+ - Added more libssl and mongodb last attempt failure information.
+
+ ###
+
+ |  UniFi Easy Update Script  |  Version 7.0.4
+
+ - Improved the device upgrade part, it constantly was getting information that was already set/available.
+
+ ###
+
+ |  UniFi Easy Update Script  |  Version 7.0.3
+
+ - Improved getting the hostname of the Network Application Server.
+
+ ###
+
+ |  UniFi Easy Update Script  |  Version 7.0.2
+
+ - Fixed MongoDB upgrade issues in rare cases due to libssl issues.
+
+ ###
+
+ |  UniFi Easy Update Script  |  Version 7.0.1
+
+ - Ensure required libssl versions are installed prior to installing MongoDB packages during MongoDB Upgrades (while required packages are missing).
+
+ ###
+
+ |  UniFi Easy Update Script  |  Version 7.0.0
+
+ - Also comment out archived raspbian repositories.
+
+ ###
+
+ |  UniFi Easy Update Script  |  Version 6.9.9
+
+ - Run systemctl daemon-reexec on script startup to fix causes where the Application couldn't startup.
+
+ ###
+
+ |  UniFi Easy Update Script  |  Version 6.9.8
+
+ - Added support for Ubuntu Noble Numbat 24.04.
+
+ ###
+
+ |  UniFi Easy Update Script  |  Version 6.9.7
+
+ - Always check for expired keys when adding MongoDB repositories.
+
+ ###
+
+ |  UniFi Easy Update Script  |  Version 6.9.6
+
+ - Don't always use trusted for the MongoDB repository when adding new repositories.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.9.5
+
+ - Don't attempt to restart the UniFi Network Application when running the Database manually during the MongoDB Upgrade process.
+ - Improved attempt to self heal on abort during MongoDB upgrades.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.9.4
+
+ - Added support for updating to 8.0.24 Offical/Stable.
+ - Replaced 8.0.7 with 8.0.24.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.9.3
+
+ - Added support for updating to 8.0.24 RC.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.9.2
+
+ - Move the Expired key check to a different location.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.9.1
+
+ - Improved the expired MongoDB keys check.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.9.0
+
+ - Fixed adding new MongoDB key loop if it detected an expired one.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.8.9
+
+ - Attempt to update MongoDB repository keys when expired.
+ - Fixed unable to install MongoDB incase of an expired repository.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.8.8
+
+ - Improved catching outdated repositories.
+ - Improved JQ installation.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.8.7
+
+ - Fixed an issue where the script would start the Network Application Update process during the MongoDB Upgrade process after installing libssl. (this was re-introduced in 6.8.2)
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.8.6
+
+ - Revert uninstalling MongoDB packages when version mismatch is detected and instead attempt to downgrade the packages.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.8.5
+
+ - Uninstall all MongoDB packages during the MongoDB upgrade process if there is a version mismatch (the script will install the upgrade to version).
+ - Only remove temurin-17-jdk if temurin-17-jre is actually installed.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.8.4
+
+ - Exclude /tmp/EUS/downloads from support files.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.8.3
+
+ - Improved catching outdated repositories.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.8.2
+
+ - Improved the MongoDB Upgrade process.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.8.1
+
+ - Enabled the use of --allow-change-held-packages on arm64 devices, else they cannot properly perform the MongoDB upgrade if some packages are held.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.8.0
+
+ - Fixed an issue where the script attempted to download the mongo-tools and mongodb-clients from the wrong repo.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.7.9
+
+ - Improved mongo-tools and mongodb-clients installation.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.7.8
+
+ - Only install temurin-17-jre if it can be found in apt-cache, else stick to temurin-17-jdk.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.7.7
+
+ - Fixed an issue where the script would continue to attempt to export/import the UniFi Network Application database if the first attempt failed and second/thirth/fourth succeeded.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.7.6
+
+ - Fixed upgrade option ordering for users that are upgrading from 7.5.187.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.7.5
+
+ - Install temurin JRE instead of temurin JDK.
+ - Skip custom UniFi Network Application building when systems uses temurin-17-jre and UniFi Network Application 8.0 or newer.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.7.4
+
+ - Fixed temurin-17-jdk installation on Stretch.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.7.3
+
+ - Improved catching outdated repositories.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.7.2
+
+ - Improved Adoptium Java installation.
+ - Comment out all repositories entries that are moved to old-releases or archive.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.7.1
+
+ - Fixed issue where it reported that 7.5.187 was the latest.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.7.0
+
+ - Added support for updating to 8.0.7 Offical/Stable.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.6.9
+
+ - Only update the UniFi Repository file if the Release Stage is Stable.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.6.8
+
+ - Fixed update options for setups that are already on 8.0.x.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.6.7
+
+ - Fixed case where the UniFi Network Application database couldn't start after upgrading the MongoDB.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.6.6
+
+ - Fixed unable to choose Release Candidates as option.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.6.5
+
+ - Added support for updating to 8.0.7 RC.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.6.4
+
+ - Fixed an issue where the scripts add wrong repositories leading to OpenJDK 8 installation failures on some distros.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.6.3
+
+ - Fixed unable to install required packages when multiple different MongoDB repositories exist on the system.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.6.2
+
+ - Fixed unable to install JQ on certain distros.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.6.1
+
+ - Fixed an issue where the script would start the Network Application Update process during the MongoDB Upgrade process after installing libssl.
+ - Improved the MongoDB Restore process (in the 3rd attempt).
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.6.0
+
+ - Use signed-by value in repositories that the script adds.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.5.9
+
+ - Fixed error introduced in 6.5.8.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.5.8
+
+ - Only use "numParallelCollections" for the MongoDB Upgrade process if supported.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.5.7
+
+ - Added retry attempts to the MongoDB Export process.
+ - Improved MongoDB Upgrade process for setups with low free memory.
+ - Only use one source file for the scripts.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.5.6
+
+ - Improved adoptium installation when repos are missing.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.5.5
+
+ - Downgrade all arm64 devices to MongoDB 4.4.18 if 4.4.19 or newer is installed.
+ - Improved the MongoDB Upgrade process for arm64 devices, forgot to prevent MongoDB from upgrading to 4.4.19 or newer.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.5.4
+
+ - Fixed missing failed to install Adoptium Java messages.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.5.3
+
+ - Improved script quality.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.5.2
+
+ - Fixed an issue where the MongoDB restore would already abort after the second attempt.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.5.1
+
+ - Added 3 more attempts for restoring the MongoDB.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.5.0
+
+ - Fixed missing messaging when installing libssl.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.4.9
+
+ - Added logging for when the script is waiting for MongoDB to initialize.
+ - Updated the wording while cycling between attempts for MongoDB initialization.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.4.8
+
+ - Add support for updating to 7.5.187 Official/Stable.
+ - Replace 7.5.176 with 7.5.187.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.4.7
+
+ - Fixed unable to call function, introduced in 6.4.6.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.4.6
+
+ - Fixed an issue where required_java_version might not be set during MongoDB upgrades.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.4.5
+
+ - Added support for updating to 7.5.187 RC.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.4.4
+
+ - Added ability to stop the UniFi Network Application post upgrade via script argument "--do-not-start-unifi".
+ - Don't show MongoDB Upgrade for armhf or 32-bit systems.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.4.3
+
+ - Fixed UniFi Network Application upgrade issue if setup uses Temurin JAVA.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.4.2
+
+ - Fixed an issue where it would attempt to download the "upgrade to" version for UniFi when performing a MongoDB upgrade thru the Application Update Process.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.4.1
+
+ - Improved adding repositories.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.4.0
+
+ - Fixed support file extension for tar.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.3.9
+
+ - Use HTTP repositories if apt-transport-https is not yet installed, the script will use HTTPS (if applicable) once apt-transport-https is installed.
+ - Improved downloading UniFi Network Application versions, sometimes it would attempt to download "null".
+ - Fixed adding key loop, in case dirmngr is not installed.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.3.8
+
+ - Added source files to the support file.
+ - Added fourth retry for MongoDB packages, this will try HTTP instead of HTTPS.
+ - Allow users to proceed with updating UniFi after updating MongoDB if they started the Network Application upgrade process.
+ - Fixed missing escape for upgrade to version for MongoDB.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.3.7
+
+ - Add support for updating to 7.5.176 Official/Stable.
+ - Replace 7.5.174 with 7.5.176.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.3.6
+
+ - Improved libssl installation on arm64.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.3.5
+
+ - Removed attempt to use bookworm repository on buster to download openjdk-17-jre-headless.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.3.4
+
+ - Added support for upgrading MongoDB from 4.2 to 4.4.
+ - Added support for upgrading MongoDB from 4.0 to 4.4.
+ - Added support for upgrading MongoDB from 3.0 to 3.6. (untested)
+ - Added support for upgrading MongoDB from 2.4 to 3.6. (untested)
+ - Added MongoDB 4.2 repository information.
+ - Added MongoDB 4.0 repository information.
+ - Improved MongoDB Upgrade process.
+ - Improved MongoDB Restore process in case of a failure.
+ - Improved obtaining UniFi Network Application download links in the MongoDB Upgrade process.
+ - Improved messaging in script aborting.
+ - Improved cancelling the script.
+ - Replace ubnt.com domain with ui.com.
+ - Removed --allow-change-held-packages for OS Upgrade.
+ - Fixed an issue where it adds the MongoDB repository without signing key when the key is already on the system.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.3.3
+
+ - Fixed libssl installation on some older distributions.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.3.2
+
+ - Improved configuring JAVA_HOME.
+ - Fixed MongoDB 3.6 to 4.4 migration if setup uses mongodb-server instead of mongodb-org-server.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.3.1
+
+ - Revert any service overrides made by system admins when updating/installing the UniFi Network Application.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.3.0
+
+ - Fixed adding repositories in case a package fails to install.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.2.9
+
+ - Improved mongodb-org-server and mongodb-server installed check.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.2.8
+
+ - Added support for updating to 7.5.176 RC.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.2.7
+
+ - Improved MongoDB installation process for arm64.
+ - Improved checking if OpenJDK/Temurin is installed.
+ - Improved adding MongoDB keys.
+ - Fixed OpenJDK/Temurin installation for Debian Trixie/Forky.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.2.6
+
+ - Improved MongoDB installation process.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.2.5
+
+ - Added a simple check if DST_Root certificate exist and remove it.
+ - Added installation of Adoptium Temurin if OpenJDK fails.
+ - Improved MongoDB installation process.
+ - Fixed archived repository check for Ubuntu.
+ - Fixed MongoDB 4.4 installation on Debian Stretch.
+ - Cleanup script.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.2.4
+
+ - Added support for MongoDB upgrades that are not stored in the default location.
+ - Remove added repositories if they dont match the OS Distribution when script finishes.
+ - Updated the way update-ca-certificates is ran.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.2.3
+
+ - Added support for upgrading MongoDB 2.6 to 3.6.
+ - Improved messaging during MongoDB migration.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.2.2
+
+ - Improved MongoDB 3.2 to 3.6 process when using mongodb-server instead of mongodb-org-server.
+ - Improved installing mongodb-clients when using mongodb-server.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.2.1
+
+ - Improved adding MongoDB Repositories.
+ - Improved required MongoDB packages checks.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.2.0
+
+ - Fixed check if mongodb-org-shell and mongodb-org-tools is installed.
+ - Improved the way MongoDB repositories are added.
+ - Ensure mongodb-org-shell and mongodb-org-tools are installed at the start of the migration process.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.1.9
+
+ - Added a check to ensure that mongodb-org-shell is installed.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.1.8
+
+ - Added fallback to UniFi Database import failures, it will attempt 3 times in total before aborting.
+ - Added some date/time logging to UniFi Database Export/Import process.
+ - Added support for upgrading mongodb-server 3.2 to mongodb-org-server 3.6.
+ - Restart the UniFi Network Application in case the database files are migrated back during abort.
+ - Improved UniFi Video checking for MongoDB 3.2 to 3.6 upgrade.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.1.7
+
+ - Improved checking if libssl needs to be installed.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.1.6
+
+ - Added option to upgrade MongoDB from version 3.2 to 3.6.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.1.5
+
+ - Fixed incomplete libssl fix for arm64.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.1.4
+
+ - Fixed an issue where the script would download libssl twice on Debian installs running on arm64.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.1.3
+
+ - Fixed incorrect messaging if database import fails.
+ - Fixed libssl failing to install on Debian installs running on arm64.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.1.2
+
+ - Disabled the use of --allow-change-held-packages for arm64 due to issues with MongoDB on latest 4.4 versions.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.1.1
+
+ - Added fallback to different MongoDB Repositories for Debian installs if MongoDB 4.4 installation fails.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.1.0
+
+ - Added fallback to different MongoDB Repositories for Debian installs if mongodb-org-tools installation fails.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.0.9
+
+ - Fixed unable to upgrade to 7.5.174 Stable while you're on 7.4.162.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.0.8
+
+ - Add support for updating to 7.5.174 Official/Stable.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.0.7
+
+ - Fixed typo.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.0.6
+
+ - Improved getting the right libssl package.
+
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.0.5
+
+ - Only install libssl if the required version is not found.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.0.4
+
+ - Added support for updating to 7.5.174 RC.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.0.3
+
+ - Fixed an issue where the original UniFi Network Application database was moved back after updating the MongoDB packages if the script aborted.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.0.2
+
+ - Stick UniFi OS Consoles to the Stable release channel if their console does not have access to the RC release channel.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.0.1
+
+ - Use apt-get install on UniFi OS Consoles.
+ - Prevent MongoDB checks on UniFi OS Consoles, they exist on Ubiquiti their repository.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 6.0.0
+
+ - Improved checking UniFi Network Application downloads provided via --custom-url.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.9.9
+
+ - Added compression to exporting the UniFi Network Application database.
+ - Added a free disk space check to the MongoDB 4.4 upgrade option.
+ - Improved checking if user used the right UniFi Network Application for UniFi OS Consoles (non-Native ones).
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.9.8
+
+ - Improved MongoDB package holding.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.9.7
+
+ - Fixed MongoDB Upgrade issue on arm64 devices, there appears to be some issue with the latest MongoDB 4.4 version on arm64. The script will stick them to 4.4.18.
+ - Fixed upgrade to 7.5 failing for users who still use MongoDB 3.4, now will correctly print a message with option to update to 3.6 if supported.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.9.6
+
+ - Fixed incorrect link for downloading libssl on arm64 devices.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.9.5
+
+ - Fixed 7.5.172 appearing as 2 options for users that already run 7.5.x.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.9.4
+
+ - Added support for using the right package on UniFi OS Consoles.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.9.3
+
+ - Added support for updating to 7.5.172 RC.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.9.2
+
+ - Fixed unable to migrate from MongoDB 3.6 to 4.4, it would error out due to a change released in 5.9.1.
+ - Improved messaging when removing old MongoDB repos.
+ - Improved messaging when the UniFi Network Application is not running, users previously thoughts that the script stalled.
+ - Move old UniFi Network Application database back when the script aborts during migration failure.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.9.1
+
+ - Added question to cleanup old UniFi Database migration files.
+ - Prevent being unable to login to the Network Application in case it fails to upgrade the MongoDB package during the migration from 3.6 to 4.4.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.9.0
+
+ - Ensure the latest libssl version is getting downloaded for MongoDB 4.4.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.8.9
+
+ - Fixed logging for OpenJDK installation and MongoDB package upgrades.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.8.8
+
+ - Improved script version check. If your script does not update, please remove the file and re-download it.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.8.7
+
+ - Added support for Ubuntu Mantic Minotaur 23.10.
+ - Added option to upgrade MongoDB from version 3.6 to 4.4 when the Network Application is on 7.5 or newer.
+ - Improved support file generation.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.8.6
+
+ - Add support for Linux Mint 21.2 Victora.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.8.5
+
+ - Add UniFi Network Application logs in EUS support file.
+ - Improved script quality.
+ - Fix --allow-change-held-packages check.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.8.4
+
+ - Fix unable to run script due to typo introduced in 5.8.3.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.8.3
+
+ - Add support for Debian Trixie and Forky.
+ - Replace 7.4.156 with 7.4.162.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.8.2
+
+ - Prevent curl error while running get_repo if it's not yet installed.
+ - Run get_repo after installing curl.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.8.1
+
+ - Improve messaging.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.8.0
+
+ - Fix MongoDB missing signed by details when gnupg package was not installed at start of the script.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.7.9
+
+ - Fix MongoDB repo got added before getting signed by information from other functions.
+ - Add signed by for MongoDB repo when migrating from MongoDB 3.4 to 3.6.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.7.8
+
+ - Fix unable to install openjdk-11-jre-headless on Debian Bookworm.
+ - Add support for updating to 7.4.156 Official/Stable.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.7.7
+
+ - Fix ability to choose for RC releases, introduced in 5.6.8.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.7.6
+
+ - Add support for updating to 7.4.156 RC.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.7.5
+
+ - Automatically check if script needs to add old-releases ubuntu repos.
+ - Notify user about unsupported/EOL OS when adding archived/old-releases repos.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.7.4
+
+ - The script will no longer add NL specific repos.
+ - Automatically check if script needs to add archived debian repos.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.7.3
+
+ - Fix small typo.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.7.2
+
+ - Add support for updating to 7.2.97 Official/Stable.
+ - Add support for updating to 7.3.73 Official/Stable.
+ - Replace 7.2.95 with 7.2.97.
+ - Replace 7.3.76 with 7.3.83.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.7.1
+
+ - Add simple check to see if the unifi service is active/running.
+ - Only use --allow-change-held-packages if apt version is 1.1 or newer.
+ - Check if MongoDB is newer than 2.6 when updating to UniFi Network application 7.4.x.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.7.0
+
+ - Add support for updating to 7.3.83 RC.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.6.9
+
+ - Add support for Linux Mint 21.1 Vera.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.6.8
+
+ - Add support for updating to 7.3.81 RC.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.6.7
+
+ - Add support for ParrotOS 5.1 Electro Ara.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.6.6
+
+ - Add support for Ubuntu Lunar Lobster ( 23.04 ).
+ - Improve get_distro function.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.6.5
+
+ - Add --allow-change-held-packages to apt-get commands.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.6.4
+
+ - Add debian stretch-backports fallback for openjdk-11-jre-headless installation.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.6.3
+
+ - Fix message for UC-CK not being supported in 7.3.x and newer.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.6.2
+
+ - Add support for upgrading to 7.3.76.
+ - Promote 7.3.76 to Stable.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.6.1
+
+ - Add support for upgrading to 7.3.76 RC.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.6.0
+
+ - Add support for upgrading to 7.2.95.
+ - Replace 7.2.94 with 7.2.95.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.5.9
+
+ - Promote 7.2.94 to stable.
+ - Replace 7.2.92 with 7.2.94.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.5.8
+
+ - Add support for updating to 7.2.94 RC.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.5.7
+
+ - Remove installation of haveged.
+ - Add support for updating to 7.2.93 RC.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.5.6
+
+ - Promote 7.2.92 to stable.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.5.5
+
+ - Add support for updating to 7.2.92 RC.
+ - Replace 7.2.91 with 7.2.92.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.5.4
+
+ - Add support for Ubuntu Kinetic Kudu.
+ - Add support for Linux Mint 5 Elsie.
+ - Add support for Linux Mint 21 Vanessa.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.5.3
+
+ - Add support for updating to 7.2.91 RC.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.5.2
+
+ - Replace "service" commands with "systemctl".
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.5.1
+
+ - Replace 7.1.67 with 7.1.68.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.5.0
+
+ - Script/code cleanup.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.4.9
+
+ - Replace 7.1.66 with 7.1.67.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.4.8
+
+ - Promote 7.1.66 to stable.
+ - Replace 7.1.65 with 7.1.66.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.4.7
+
+ - Add support for updating to 7.1.66 RC.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.4.6
+
+ - Promote 7.1.65 to stable.
+ - Replace 7.1.61 with 7.1.65.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.4.5
+
+ - Add support for updating to 7.1.65 RC.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.4.4
+
+ - Add support for updating to 7.1.61.
+ - Fix UniFi Network Application backup if user decices to upgrade devices and update the Network application.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.4.3
+
+ - Promote 7.1.61 to stable.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.4.2
+ 
+ - Fix noisy apt-get update due to apt-key deprecation. 
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.4.1
+ 
+ - Add support for updating to 7.1.61 RC.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.4.0
+ 
+ - Update settings paths according to UniFi Network Application 7.1.x
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.3.9
+ 
+ - Only install apt-transport-https if apt version is lower than 1.4.x.
+ - Promote 7.0.25 to stable.
+ - Replace 7.0.23 with 7.0.25.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.3.8
+ 
+ - Add support for updating to 7.0.25 RC.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.3.7
+ 
+ - Add support for updating to 7.0.23.
+ - Replace 7.0.22 with 7.0.23.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.3.6
+ 
+ - Improve firmware caching for models with the same base model.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.3.5
+ 
+ - Add support for Linux Mint 20.3 (UNA).
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.3.4
+ 
+ - Add support for updating to 7.0.22.
+ - Replace 7.0.21 with 7.0.22.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.3.3
+ 
+ - Add support for updating to 7.0.21
+ - Replace 7.0.20 with 7.0.21.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.3.2
+ 
+ - Add support for updating 7.0.20.
+ - Decrease the amount of default update options, force 6.5.55 or newer.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.3.1
+ 
+ - Add retry to setFeatureCompatibilityVersion for MongoDB upgrade.
+ - Improve cancel script part, it would clear cancel details when using skip.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.3.0
+ 
+ - Add logging for UniFi Network Application downloading.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.2.9
+ 
+ - Add support for Ubuntu Jammy Jellyfish 22.04.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.2.8
+ 
+ - Support custom UniFi Network versions stating with 7.x.x.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.2.7
+ 
+ - Promote 6.5.55 to stable.
+ - Replace 6.5.54 upgrade to 6.5.55.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.2.6
+ 
+ - Add support for updating to 6.5.55 RC.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.2.5
+ 
+ - Promote 6.5.54 to stable.
+ - Replace 6.5.53 upgrade to 6.5.54.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.2.4
+ 
+ - Add support for upgrading to 6.5.54 RC.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.2.3
+ 
+ - Fix minor number issue in text output.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.2.2
+ 
+ - Promote 6.5.53 to Stable.
+ - Add support for upgrading to 6.5.53.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.2.1
+ 
+ - Also update/downgrade USP-Plug/USP-Strip/USW-Flex-Mini when running upgrade/downgrade.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.2.0
+ 
+ - Fix minor issue with available versions for installs with 6.5.51.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.1.9
+ 
+ - Add support for upgrading to 6.5.52 RC.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.1.8
+ 
+ - Add support for upgrading to 6.5.51 RC.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.1.7
+ 
+ - Add support for Debian 12 (Bookworm).
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.1.6
+ 
+ - Add custom UniFi Download logging.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.1.5
+ 
+ - Add support for Ubuntu 21.10 (Impish Indri).
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.1.4
+ 
+ - Fix issue where it did not properly pass along script_options to the script.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.1.3
+ 
+ - Fix issue where it removes any 0 from month/date instead of only leading 0.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.1.2
+ 
+ - Add special FW update for U6-Pro/Mesh (if required).
+ - Improve overall script quality.
+ - Improve unifi_firmware_requirement check.
+ - Remove U6 BETA message.
+ - Fix 5.14.x/6.3.x update options.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.1.1
+ 
+ - Update UniFi version specific repository source files on upgrade.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.1.0
+ 
+ - Fix 6.2.26 coming back as latest.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.0.9
+ 
+ - Promote 6.4.54 to Stable.
+ - Add support for upgrading to 6.4.54.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.0.8
+ 
+ - Add 6.4.54 as RC.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.0.7
+ 
+ - Remove reference to "controller" and replace with "application" to follow UniFi Terminology.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.0.6
+ 
+ - Add support for Linux Mint Uma.
+ 
+ ###
+ 
+ |  UniFi Easy Update Script  |  Version 5.0.5
+ 
+ - Add support for upgrading to 6.2.26 Stable.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 5.0.4
+ 
+ - Add 6.2.26 as Release Candidate.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 5.0.3
+ 
+ - Add support for Deepin Linux.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 5.0.2
+ 
+ - Update to 6.2.25 instead of 6.2.17/6.2.23.
+ - Increase DB migration timeout check.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 5.0.1
+ 
+ - Update to 6.2.17 before 6.2.23 as workaround for UniFi Network upgrade issue.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 5.0.0
+ 
+ - Add support for upgrading to 6.2.23 Stable.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.9.9
+ 
+ - Add support for upgrading to 6.2.23 RC.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.9.8
+ 
+ - Add --allow-downgrade for package if package needs to be downgraded ( libssl issue fix ).
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.9.7
+ 
+ - Remove 6.0.45 from "no new stable" list.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.9.6
+ 
+ - Add support for upgrading to 6.2.17 RC.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.9.5
+ 
+ - Move 6.1.71 to Stable Official.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.9.4
+ 
+ - Add support for upgrading to 6.1.71 RC.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.9.3
+ 
+ - Add support for upgrading to 6.1.70 RC.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.9.2
+ 
+ - Add support for Ubuntu Hirsute Hippo ( 21.04 ).
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.9.1
+ 
+ - Add support for upgrading to 6.1.67 RC.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.9.0
+ 
+ - Add support for upgrading to 6.1.65 RC.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.8.9
+ 
+ - Add support for upgrading to 6.1.61 RC.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.8.8
+ 
+ - Add 6.0.45 Official ( replaces 6.0.43 ).
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.8.7
+ 
+ - Add support for Linux Mint 20.1 ( Ulyssa ).
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.8.6
+ 
+ - Add support for Kali Linux ( rolling ).
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.8.5
+ 
+ - Fix 2FA login issue introduced in 4.8.4.
+ - Fix minor grep issue ( harmless ).
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.8.4
+ 
+ - Fix login issue when using characters that need an escape.
+ - Fix issue with debug_check where site variable was missing.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.8.3
+ 
+ - Promote 6.0.43 to Official Stable. ( replaced 6.0.41 )
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.8.2
+ 
+ - Add 6.0.43 as RC.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.8.1
+ 
+ - Fix christmass_new_year.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.8.0
+ 
+ - Improve getting device model for UDM's.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.7.9
+ 
+ - Add 6.0.41 Official. ( replaced 6.0.36 )
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.7.8
+ 
+ - Move abort to earlier in the script.
+ - Error out if script cannot delete it's previous tmp directory.
+ - Error out if script cannot create it's required tmp directories.
+ - Add support for '/sdcard/' backups for UCKG2/UCKP with UniFi OS.
+ - Improve older backup removal.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.7.7
+ 
+ - Fix MongoDB 3.6 upgrade showing up for pre 5.13.10 controllers.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.7.6
+ 
+ - Add 6.0.36 Official. ( replaced 6.0.28 )
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.7.5
+ 
+ - Improve quality of the script.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.7.4
+ 
+ - (Requested) Add option to get controller statistics per site ( adopted LAN/WLAN/WAN devices ). ( JSON include clients too )
+ - Fix extra cancel option if system runs mongodb 3.4.
+ - Ensure no "system.properties" error messages pop up if file does not exist.
+ - Update username_text for UniFi OS systems.
+ - Update password_text for UniFi OS systems.
+ - Cleanup white lines in unifi_login_check.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.7.3
+ 
+ - Promote 6.0.28 to Stable. ( replaced 6.0.23 )
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.7.2
+ 
+ - Add 6.0.28 as RC.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.7.1
+ 
+ - Add support for Ubuntu 20.10 (Groovy Gorilla).
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.7.0
+ 
+ - Rework unifi_firmware_requirement checks and options.
+ - Prevent firmware for UP6 from being cached.
+ - Remove cached firmware for UP6 if cached.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.6.9
+ 
+ - Add 6.0.27 as RC.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.6.8
+ 
+ - Improve text for controller login events.
+ - Add 6.0.26 as RC.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.6.7
+ 
+ - Fix latest stable/release candidate.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.6.6
+ 
+ - Replaced UniFi repository removal with prevent_unifi_upgrade. ( prevents UniFi/Ubiquiti packages from accidentally being updated )
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.6.5
+ 
+ - Add 6.0.24 as RC.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.6.4
+ 
+ - Improve EUS log cleanup.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.6.3
+ 
+ - Promote 6.0.23 to Stable. ( replaced 6.0.22 )
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.6.2
+ 
+ - Add 6.0.23 as RC.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.6.1
+ 
+ - Promote 6.0.22 to Stable. ( replaced 6.0.20 )
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.6.0
+ 
+ - Improve UniFi Version grabbing from custom URL's.
+ - Add 6.0.22 as RC.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.5.9
+ 
+ - Promote 6.0.20 to Stable.
+ - Add required firmware check for U6-Series devices.
+ - Add support for changing release channels to BETA ( for U6-Series, if required ).
+ - Add check to ensure that user is not downgrading the controller.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.5.8
+ 
+ - Add 6.0.20 as RC.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.5.7
+ 
+ - Add 6.0.18 as RC.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.5.6
+ 
+ - Add support for UniFi NeXt-Gen Gateway upgrades.
+ - Improved messaging.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.5.5
+ 
+ - Fix custom upgrade with stable link.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.5.4
+ 
+ - Add 6.0.15 as RC.
+ - Add 5.14.23 STABLE.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.5.3
+ 
+ - Add 6.0.13 as RC.
+ - Move 5.14.22 to stable.
+ - Allow upgrading to 5.13.32 from 5.0-12.x.
+ - Allow upgrading to 5.14.22 from 5.0-12.x.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.5.2
+ 
+ - Fix not showing 5.14.22 if user runs 5.13.32 Stable.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.5.1
+ 
+ - Add support for upgrading to 5.14.22 RC.
+ - Do not show MongoDB upgrade if MongoDB is already on version 3.6.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.5.0
+ 
+ - Fix installing MongoDB 3.6 if anything higher then 5.13.10 is getting installed.
+ - Fix not showing MongoDB upgrade if 6.x.x controllers are used.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.4.9
+ 
+ - Fix parsing issue when device has EOL/LTS date.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.4.8
+ 
+ - Fix error introduced in 4.4.7.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.4.7
+ 
+ - Improved mongodb-org upgrade ( 3.4 to 3.6 ).
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.4.6
+ 
+ - Fix script lockup when script is sourced.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.4.5
+
+ - Add logging for '--custom-url' upgrades.
+ - Cleanup '--custom-url' upgrades.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.4.4
+
+ - Allow installing 6.x.x controllers via '--custom-url'.
+ - Allow '--custom-url' to use local HTTP/FTP servers.
+ - Improve '--custom-url' check.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.4.3
+
+ - Promote 5.13.32 to stable.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.4.2
+
+ - Improved get_distro.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.4.1
+
+ - Add support for Linux Mint 20 ( Ulyana ).
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.4.0
+
+ - Fix UniFi OS 2FA login.
+ - Improve unifi_login_cleanup.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.3.9
+
+ - Fix missing release_wanted for 5.13 upgrades.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.3.8
+
+ - Add 5.13.32 as RC.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.3.7
+ 
+ - Fix error when /usr/lib/version does not exist.
+ - Add `--skip` option to skip manual input to automate option '--archive-alerts' and '--delete-events'.
+ - Add `--archive-alerts` option to archive all alerts. ( it will only do this if you use this option )
+ - Add `--delete-events` option to delete all events. ( it will only do this if you use this option )
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.3.6
+ 
+ - Make 'adduser' a required package.
+ - Make 'logrotate' a required package.
+ - Fix spacing issue.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.3.5
+ 
+ - Add 5.12.72 as previous stable.
+ - Promote 5.13.29 to stable.
+ - Fix some numbering issues.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.3.4
+ 
+ - Add support for Progress-Linux ( Engywuck ).
+ - Add `--skip-install-haveged` option to skip the installation of haveged.
+ - Add `--custom-url [argument]` option. ( can also be used without argument )
+ - Add '--help' output.
+ - Improve get_distro.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.3.3
+ 
+ - Fix upgrade if users chooses Stable channel when already running 5.13.x.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.3.2
+ 
+ - Fix device upgrade schedule.
+ - Fix firmware remove script already scheduled message.
+ - Improved device upgrade schedule name.
+ - Improved device upgrade schedule message.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.3.1
+ 
+ - Add support for upgrading from/to 5.13.x
+ - Add 5.13.29 as RC.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.3.0
+ 
+ - Fix upgrade issues if controller is on 5.12.66.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.2.9
+ 
+ - Promote 5.12.72 to Stable.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.2.8
+ 
+ - Made some changes to make my life easier.
+ - Added 5.12.72 as RC.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.2.7
+ 
+ - Fix script already scheduled check.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.2.6
+ 
+ - Fix UniFi is not installed check.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.2.5
+ 
+ - Fix firmware cache removal.
+ - Fix color output of some messages.
+ - Improved firmware caching and removal.
+ - Improved firmware removal script.
+ - Improved language output.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.2.5
+ 
+ - Fix firmware cache removal.
+ - Fix color output of some messages.
+ - Improved firmware caching and removal.
+ - Improved firmware removal script.
+ - Improved language output.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.2.4
+ 
+ - Improve system update.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.2.3
+ 
+ - Improve CloudKey detection.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.2.2
+ 
+ - Adjust en_US check.
+ - Add support for UniFi OS systems.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.2.1
+ 
+ - Improved cloudkey detection.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.2.0
+ 
+ - Fix script cronjob scheduling.
+ - Improve already scheduled message.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.1.9
+ 
+ - Fix MongoDB upgrade if UniFi-Video is not installed.
+ - Improved MongoDB 3.4 upgrade to MongoDB 3.6.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.1.8
+ 
+ - Fix controller version downloading.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.1.7
+ 
+ - Check if --show-progress is supported by installed version of wget.
+ - Improved controller download information.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.1.6
+ 
+ - Add more information to support files.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.1.5
+ 
+ - Improved unifi update logging.
+ - Cleaned up unifi update printing.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.1.4
+ 
+ - Improved device model checking.
+ - Fixed issue where script would show invalid update paths.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.1.3
+ 
+ - Prevent firmware for UP1 and USMINI from being cached.
+ - Remove cached firmware for UP1 and USMINI if cached.
+ - Add option to schedule downgrades.
+ - Add option to downgrade devices.
+ - Move 5.12.66 to stable instead of release candidate.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.1.2
+ 
+ - The script will now use fw-update to get the latest firmware.
+ - Add option to upgrade MongoDB from version 3.4 to 3.6 when controller is on 5.13.10 or newer.
+ - Add support for Linux Mint 4 Debbie.
+ - Add log rotate ( logs that script creates ).
+ - Rework the script options reminding part.
+ - Rework script version check.
+ - Rework openjdk 8 installation.
+ - Rework required packages installations.
+ - Rework distribution update.
+ - Rework OS update.
+ - Rework package hold ( mongodb/unifi ).
+ - Create support file during script errors.
+ - Fix installation checks if you a package is set to hold.
+ - Fix script exit when UniFi is not installed.
+ - Fix USL16P and USL24P upgrades.
+ - Reduce script size with 1000+ lines.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.1.1
+ 
+ - Add support for upgrading to 5.12.66 RC.
+ - Remember use of --custom-url if script has to be updated.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.1.0
+ 
+ - Fixed spelling mistakes.
+ - Improved text output.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.0.9
+ 
+ - Added support for Ubuntu Focal Fossa  ( 20.04 ).
+ - Added support for Elementary OS.
+ - Improved some checks.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.0.8
+ 
+ - Added extra method when script fails to add the key.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.0.7
+ 
+ - Fixed the cached firmware remove script that the user can schedule.
+ - Improved language output.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.0.6
+ 
+ - Add fancry script start message.
+ - Improved more checks and language output.
+ - Adjust ca-certificates update.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.0.5
+ 
+ - Added more output to the device firmware downloading ( people could think the script stopped ).
+ - Add run_apt_get_update that will add missing pubkeys.
+ - Fixed device upgrade scheduler ( had a typo ).
+ - Improved checks so they run with less commands.
+ - Improved device upgrade ( faster ).
+ - Improved firmware cache downloading/removing ( faster ).
+ - Improved more checks and language output.
+ - Improved mail_server_recommendation.
+ - Improved override_inform_host ( will now also show up if it has never been configured ).
+ - General improvements.
+ - Removed ~50 lines.
+ - Speeudp the script.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.0.4
+ 
+ - Add option for user to use a custom URL to upgrade their controller. ( controller will stop when version is older then current )
+ - Changed PATH in script.
+ - Fixed no header error.
+ - Improved language check.
+ - Improved almost all checks.
+ - Speeudp the script.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.0.3
+ 
+ - Stop writing to files that aren't used anyway.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.0.2
+ 
+ - Set language to english ( temporarily ) to prevent script issues. ( if lang is not en_US )
+ - Changed remove_yourself.
+ - Changed directory removal.
+ - Changed file removal.
+ - Adjust MongoDB key check.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.0.1
+ 
+ - Allow users to schedule device upgrades and run them right away.
+ - Include more information of what the script is doing. ( people would get the feeling that the script stopped while it's checking stuff ).
+ - Adjusted the firmware remove script ( seperate script that the Easy Update Script uses ).
+ - Improved script output.
+ - Speeudp the script.
+ - Fixed typos.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 4.0.0
+ 
+ - Add option to Archive/Delete all alerts/events.
+ - Script will now prompt alert_event_cleanup without checking the database first ( people would get the feeling that the script stopped while it checks the database ).
+ - Change the method on how the script checks for backup creation.
+ - Script will now also prompt if the backup didn't finish yet.
+ - Speeudp the backup checking process.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 3.9.9
+ 
+ - Fixed issue where script would stay on catching sites when controller doesn't respond on api.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 3.9.8
+ 
+ - Adjusted MongoDB key adding.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 3.9.7
+ 
+ - Improved '127.0.0.1       localhost' check.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 3.9.6
+ 
+ - Improve OpenJDK detection on Debian Jessie.
+ - Added missing gpg keys when using jessie-backports.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 3.9.5
+ 
+ - Add repository if old OpenJDK 8 version is detected.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 3.9.4
+ 
+ - Fixed issue where script would use wrong variable.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 3.9.3
+ 
+ - Adjusted java version check.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 3.9.2
+ 
+ - Improved showing of Classic and New Settings.
+ - Improve Hostname/IP override warning.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 3.9.1
+ 
+ - Added support for Linux Mint 19.3 ( Tricia )
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 3.9.0
+ 
+ - Ask user to run Easy Installation Script when UniFi is not installed.
+ - Added wishes to the script.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 3.8.9
+ 
+ - Script will now only add a new JAVA_HOME if JAVA_HOME is different.
+ - Adjusted some checks.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 3.8.8
+ 
+ - Fixed free disk space check for the firmware caching.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 3.8.7
+ 
+ - Reworked unsupported java check.
+   - Now defaults answer to NO when asking to uninstall.
+   - Greps all the unsupported java versions instead  of global removal.
+   - Logs the unsupported java removal.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 3.8.6
+ 
+ - Changed distribution check.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 3.8.5
+ 
+ - Script will now check for OpenJDK 8 instead of Oracle Java 8 and OpenJDK 8.
+ - Script will now make sure OpenJDK 8 is the default java runtime.
+ - Added OpenJDK 8 version check.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 3.8.4
+ 
+ - Added a check to see if '127.0.0.1       localhost' exists in /etc/hosts.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 3.8.3
+ 
+ - Added support for Parrot OS/Linux.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 3.8.2
+ 
+ - Fixed 5.12 check, would prompt that there is no update when the controller was on 5.12 release candidates.
+ - Cleaned up 5.12 check.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 3.8.1
+ 
+ - Improved 5.12 check, it was suggesting people to downgrade from 5.12.35 or newer to 5.12.35.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 3.8.0
+ 
+ - Moved 5.12.35 to Stable.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 3.7.9
+ 
+ - Added support for upgrading to 5.11.50. ( previous stable )
+ - Changed ubnt.com to ui.com.
+ - Changed script version check.
+ - Cleaned up the 5.11.x controller upgrades. ( menu )
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 3.7.8
+ 
+ - Added support to upgrade to 5.12.35 ( RC ).
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 3.7.7
+ 
+ - Script will now also check for firmware updates if firmware is not getting cached.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 3.7.6
+ 
+ - Change HTTP to HTTPS for the MongoDB repository.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 3.7.5
+ 
+ - Moved 5.12.22 to Stable.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 3.7.4
+ 
+ - Added support to upgrade to 5.12.22 ( RC ).
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 3.7.3
+ 
+ - Fixed an issue where the script would prompt incorrect information/multiple the same admin accounts.
+ - Improved the login process.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 3.7.2
+ 
+ - Script now won't login multiple times when it's already logged in.
+ - Cleaned up the login process.
+ - Fixed an issue where the backup creation would time out. ( when log level for system was set to warn )
+ - Improved debug_check and debug_check_no_upgrade.
+ - Fixed an issue where the script would find the sites multiple times, sometimes ending up with 3 the same sites.
+ - Speed up the script in general.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 3.7.1
+ 
+ - Added support to upgrade to 5.12.19 ( RC ).
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 3.7.0
+ 
+ - Print new settings and classic settings paths when controller version is 5.11.x or newer.
+ - Improved the mail server recommendation. ( it comes back with feedback faster )
+ - debug_check now doesn't need to restart the controller, it handles the changes through the API.
+ - Speed up the script in general.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 3.6.9
+ 
+ - Added mail server recommendation when a mail server isn't configured/enabled. ( only on 5.12 or newer controller upgrades )
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 3.6.8
+ 
+ - Added support to upgrade to 5.12.16 ( RC ).
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 3.6.7
+ 
+ - Script would show up that multiple firmware versions ( when multiple were cached ), it will now only show the newest and remove the older firmware version.
+ - Script will now print all the site ID's that it finds.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 3.6.6
+ 
+ - Fixed upgrade loop when a device is upgradable and not adopted.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 3.6.5
+ 
+ - Moved 5.11.50 to Stable.
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 3.6.4
+ 
+ - Added support for upgrading to 5.11.50 ( RC ).
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 3.6.3
+ 
+ - Slight adjustment to get distro. ( mostly affects Debian Buster & Bullseye  )
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 3.6.2
+ 
+ - Moved 5.11.47 to Stable.
+ - Added support for upgrading to 5.11.48 ( RC ).
+ 
+ ###
+
+ |  UniFi Easy Update Script  |  Version 3.6.1
+ 
+ - Fixed issues where users couldn't upgrade to 5.11.47
+ - Cleaned up script to remove cached firmware.
+ - Cleaned up script schedule to remove cached firmware.
+ - Prompt at what time the script is scheduled.
+ - The firmware cache removal script will now be scheduled exactly 1 hour after upgrading the devices. ( if users take this option )
+ - Users can now choose to take the risk of not upgrading to the required firmware releases.
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 3.6.0
+ 
+ - Added upgrade option to 5.11.47.
+ - Minor adjustments to Release Candidate/Stable question.
+ - Moved all TEMP files to a directory in the /tmp folder to clean thigns up.
+ - Minor adjustments to the dead mongodb repository check.
+ - Minor adjustments to Required Packages check.
+ - Removed unused variables.
+ - Script will now work with controllers that don't use the default 8443 port for the UI.
+ - Script will now work with controllers that don't have the default site.
+ - Minor adjustments to devices_update_finish.
+ - The script wil now check by itself if 2FA is needed for login instead of asking the user. ( cleanup user experience )
+ - Add option to cache firmware on the controller prior to device upgrades. ( Highly recommended )
+   - It will check if there are newer versions are available, it will delete the old cached firmware if so.
+   - You can schedule a script to remove cached firmware after 2 hours when devices are upgrading. ( controllers without 2FA )
+ - Rewrite of the Device Upgrade options/function.
+   - Devices with firmware older then 3.8 will use the cached firmware. ( if you cached the firmware )
+   - Devices will now upgrade to the latest stable ( 4.0.54 ) instead of 4.0.10
+   - UGW ( USG/UniFi Security Gateways ) will now get custom upgraded if the firmware is older than 4.4.20 instead of 3.8
+   - Prompt when a device starts upgrading/is upgrading already.
+   - Prompt if there were 0 devices that required an upgrade.
+ - Rewrite firmware requirement for 5.6.42 and 5.10+ controllers.
+   - Script will now check itself if there are devices that have unsupported firmware. ( required controller login )
+ - Improved UniFi Repository removal.
+ - Speed up the script in general.
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 3.5.9
+ 
+ - Moved 5.11.46 to Stable.
+ - Script will now prompt the Release Stage.
+ - Recommend user to enable Controller Hostname/IP override when upgrading alot of devices.
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 3.5.8
+ 
+ - alert_event_cleanup will now also work for systems running mongodb-server.
+ - You can now choose between release stage. ( Stable and Release Candidate )
+ - Fixed an issue where the script got a wrong os_codename when lsb-release was missing.
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 3.5.7
+ 
+ - Added upgrade to 5.11.46.
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 3.5.6
+ 
+ - Added upgrade to 5.11.45.
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 3.5.5
+ 
+ - Improved the script version check.
+ - Slight adjustment to unifi_firmware_requirement.
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 3.5.4
+ 
+ - Install haveged if not installed.
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 3.5.3
+ 
+ - Small adjustment to unifi_update_latest.
+ - Small adjustment to username_case_sensitive_check.
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 3.5.2
+ 
+ - Added support for Ubuntu Eoan Ermine.  ( 19.10 )
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 3.5.1
+ 
+ - Miscellaneous changes.
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 3.5.0
+ 
+ - Improve repo removal. ( downloads-distro.mongodb.org/ui.com/ubnt.com )
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 3.4.9
+ 
+ - Added upgrade to 5.11.39.
+ - Remove downloads-distro.mongodb.org from the repo lists if existing.
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 3.4.8
+ 
+ - Fixed getting PRETTY_NAME.
+ - Changed root's PATH ( would come back with missing /usr/local/sbin, /usr/sbin and /sbin ).
+ - Added bullseye support ( Debian 11 ).
+ - Usernames are not Case Sensitive anymore.. some users had issues with this. ( Script will check for Case Sensitivity itself )
+ - Improve file cleanup.
+ - Fixed issue where account lookups would continue to fail.
+ - Fixed backup failure when `debug.system=warn` or `debug.mgmt=warn` is used.
+ - Removed unifi_backup_fail, got replace with another check a long time ago.
+ - Cleaned up OS_UPGRADE.
+ - Remove old temp files if they were still on the system.
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 3.4.7
+ 
+ - Fixed 5.10.27 download link.
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 3.4.6
+ 
+ - Added upgrade to 5.11.38.
+ - Fixed numbering for 5.5.x and earlier controllers.
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 3.4.5
+ 
+ - Changed mongodb_org_v check.
+ - Check if mongodb-org-shell or mongodb-clients is installed.
+ - Removed unifi_firmware_requirement check for 5.6.42 and 5.10 controller upgrades/updates.
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 3.4.4
+ 
+ - Change method of getting MongoDB key if first one fails.
+ - Added upgrade to 5.10.27
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 3.4.3
+ 
+ - Check if controller is running before running the last checks.
+ - Download .deb files in the /tmp directory
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 3.4.2
+ 
+ - Change 5.10.26 from Release Candidate to Stable.
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 3.4.1
+ 
+ - Allow email logins.
+ - Changed White/Gray colors. ( for the white terminal users )
+ - Added 2FA SSO login support.
+ - Fixed issue where the log file wouldn't be deleted.
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 3.4.0
+ 
+ - Added upgrade to 5.10.26
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 3.3.9
+ 
+ - Improved DPKG lock check.
+ - Prompt user with question to keep the script after completion or not.
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 3.3.8
+ 
+ - Fixed /sbin check
+ - Fixed auto_backup_write_warning
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 3.3.7
+ 
+ - Changed to root requirement message.
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 3.3.6
+ 
+ - Fixed dpkg lock loop for Debian Stretch/Buster
+ - Removed Ubuntu Artful.
+ - Recommend user to turn on autobackups if it's disabled.
+ - Show backup location when script ends with unsupported controller version message.
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 3.3.5
+ 
+ - Fixed backup for 5.11 controllers.
+ - Fixed write permission check for 5.11 controllers.
+ - Fixed permission set for 5.11 controllers.
+ - Fixed old backup erase on UCKs. ( backups created by the Easy Update Script )
+ - Fixed typo.. ( sc_card was used instead of sd_card )
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 3.3.4
+ 
+ - Fixed backup for pre 5.4.2 controllers.
+ - Fixed permission set for pre 5.6.4 controllers.
+ - Added installation of lsb-release.
+ - Backup to custom location if configured and writable.
+ - Improved free up disk space check.
+ - Prompt user when autobackups are set to a directory that the user ( UniFi ) can't access.
+ - Miscellaneous changes.
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 3.3.3
+ 
+ - Fixed login check.
+ - Check if user is Super Administrator
+ - Check if user exists in the database.
+ - Check if username/password is blank.
+ - Removed unifi_sysvinit_all.deb file check.
+ - Changed UniFi Network Controller installation. ( random file name )
+ - Miscellaneous changes.
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 3.3.2
+ 
+ - Changed the backup to a settings only backup.
+ - Added an option to erase older backup files created by the Easy Update Script. ( only shows if you have more than 5 backup files )
+ - Cleaned up os_upgrade option.
+ - Miscellaneous changes to text output.
+ - Fixed backup check timeout when `debug.system=warn` or `debug.mgmt=warn` is used.
+ - Check if directory '/etc/apt/sources.list.d' is present
+ - Show your choice when option menu pops up.
+ - Added an option to delete localhost ( 127.0.0.1 - 0:0:0:0:0:0:0:1 ) login alert/events.
+ - Fixed source list check.
+ - Check if psmisc is installed.
+ - Check if dpkg is locked. ( with force remove lock after 60 seconds )
+ - Fixed script version check.
+ 
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 3.3.1
+ 
+ - Fixed a typo.
+ 
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 3.3.0
+ 
+ - Added HTTP_PROXY support.
+ 
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 3.2.8
+ 
+ - Changed 5.10.25 from Stable Candidate to Stable.
+ 
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 3.2.7
+ 
+ - Changed OpenJDK-8 install for Debian Jessie
+ - Cleaned up the script.
+ 
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 3.2.6
+ 
+ - Added upgrade to 5.10.25
+ 
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 3.2.5
+ 
+ - Removed all the pulled downloads.
+ 
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 3.2.4
+ 
+ - Fixed backup name for the backup to the SD card.
+ - Changed the backup location.
+ 
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 3.2.3
+ 
+ - Changed 5.10.24 from Stable Candidate to Stable.
+ 
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 3.2.2
+ 
+ - Added upgrade to 5.10.24
+ - Added upgrade to 5.10.24 for 5.6.42
+ 
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 3.2.1
+ 
+ - Fixed OS update/upgrade option.
+ 
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 3.2.0
+ 
+ - Show backup location at the end of the script ( requested by @KimchiGUN  ).
+ - Added check if dirmngr is installed.
+ - Added device firmware check for 5.6.42 upgrades.
+ - Added OS update/upgrade option.
+ - Improved script removal. 
+ - Improved upgrades from 5.6.40.
+ 
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 3.1.9
+ 
+ - G1 UAPs will not upgrade to 4.0.10.9653 instead of 3.9.54.9373
+ 
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 3.1.8
+ 
+ - Added upgrade to 5.6.42
+ - Added upgrade to 5.10.23
+ 
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 3.1.7
+ 
+ - Added check if JAVA is outdated.
+ - Improved JAVA installations
+ - Miscellaneous changes to text output.
+ - Removed unnecessary check for controllers that are already on 5.10
+ 
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 3.1.6
+ 
+ - Added support for Ubuntu Precise Pangolin ( 12.04 ).
+ - Added support for Ubuntu Trusty Tahr ( 14.04 ).
+ - Added support for Ubuntu Artful Aardvark ( 17.10 ).
+ - Added support for Ubuntu Disco Dingo ( 19.04 ).
+ - Added support for Debian Buster ( 10 ).
+ 
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 3.1.5
+ 
+ - Miscellaneous changes.
+ - Improved JAVA_HOME check.
+ 
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 3.1.4
+ 
+ - Improved required packages check.
+ - Moved UniFi Installated check up.
+ - Added an extra check.
+ 
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 3.1.3
+ 
+ - Added a check for curl.
+ 
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 3.1.2
+ 
+ - Added upgrade to 5.10.21
+ 
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 3.1.1
+ 
+ - Improved script version check.
+ 
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 3.1.0
+ 
+ - Script version check.
+ 
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 3.0.12
+ 
+ - Added upgrade to 5.10.21
+ 
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 3.0.11
+ 
+ - Added apt-transport-https installation.
+ 
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 3.0.10
+ 
+ - Added upgrade to 5.10.21
+ 
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 3.0.9
+ 
+ - Y is now default.
+ 
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 3.0.8
+ 
+ - Fixed check for anything higher then 5.9.29 ( for example 5.9.32 )
+ 
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 3.0.7
+ 
+ - Added upgrade to 5.10.17
+ 
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 3.0.6
+ 
+ - Added upgrade to 5.10.16
+ 
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 3.0.5
+ 
+ - Modifications to the 5.10.x check.
+ - Fixed a typo.
+ 
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 3.0.4
+ 
+ - Added upgrade to 5.10.15
+ - Modified text output for checks.
+ 
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 3.0.3
+ 
+ - Fixed abort.
+ 
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 3.0.2
+ 
+ - Added required packages installation.
+ 
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 3.0.1
+ 
+ - Text output for device upgrades and backups.
+ 
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 3.0
+ 
+ - Added device upgrades as an option.
+ - Added 5.10.x upgrade support.
+ 
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 2.9.1
+ 
+ - Improved Database migration check.
+ - Cleaned up text output.
+ 
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 2.9.0
+ 
+ - Added UniFi Network Controller Backup before upgrading.
+ - Added database migration check.
+ - Cleaned up the update process.
+ 
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 2.8.1
+ 
+ - Improved source file detection.
+ 
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 2.8.0
+ 
+ - Improved JAVA detection.
+ - Improved source file detection.
+ - Improved setting JAVA_HOME.
+ - Added support for the UniFi Cloud Keys.
+ - Miscellaneous changes.
+ 
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 2.7.4
+ 
+ - Improved JAVA detection.
+ 
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 2.7.3
+ 
+ - Improved JAVA detection.
+ 
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 2.7.2
+ 
+ - Added support for Linux MX 18.
+ 
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 2.7.1
+ 
+ - Added support for Mint 18/19.
+ - Improved JAVA Detection.
+ 
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 2.7.0
+ 
+ - Added support for Ubuntu 14.04 ( Trusty )
+ - Miscellaneous changes. 
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 2.6.1
+ 
+ - Miscellaneous changes.
+ 
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 2.6.0
+ 
+ - JAVA 7 Detection/uninstall option.
+ 
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 2.5.2
+ 
+ - Fixed Architecture check.
+ - Minor change to the UniFi Installation File Check.
+ 
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 2.5.1
+ 
+ - Changed OpenJDK install.
+ 
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 2.5.0
+ 
+ - General Improvements.
+ 
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 2.4.4
+ 
+ - Minor changes to the script.
+ 
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 2.4.3
+ 
+ - Script will now pause 60 seconds instead of 30.
+ 
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 2.4.2
+ 
+ - Removed unnecessary lines.
+ 
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 2.4.1
+ 
+ - Improved a check.
+ 
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 2.4.0
+ 
+ - Script now doesn't touch the original sources.list.
+ - Improved package check.
+ - Improved JAVA check.
+ 
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 2.3.1
+ 
+ - Fix JAVA HOME for 32 bit systems.
+ 
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 2.3
+ 
+ - Added a fallback for java.
+ 
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 2.2
+ 
+ - Now only displays 1 IP if the server has multiple.
+ 
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 2.1
+ 
+ - Fixed checks
+ 
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 2.0
+ 
+ - Rewrote the Easy Update Script
+ - Added version menu
+ 
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 1.1
+ 
+ - Improved checks
+ 
+ 
+ ###
+
+
+ |  UniFi Easy Update Script  |  Version 1.0
+ 
+ - Released the Easy Update Script
+ 
+ 

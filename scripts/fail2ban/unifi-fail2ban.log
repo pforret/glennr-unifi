@@ -1,0 +1,54 @@
+ # UniFi Network Application Easy Fail2Ban Script changelog
+
+ # Author   | Glenn Rietveld
+ # Email    | glennrietveld8@hotmail.nl
+ # Website  | https://GlennR.nl
+
+
+###################################################################################################################################################################################################
+#                                                                                                                                                                                                 #
+#                                                                                            Changelog                                                                                            #
+#                                                                                                                                                                                                 #
+###################################################################################################################################################################################################
+
+ |  UniFi Network Application Easy Fail2Ban Script  |  Version 2.0.6
+ 
+ - Improved getting distribution.
+
+ ###
+
+ |  UniFi Network Application Easy Fail2Ban Script  |  Version 2.0.5
+ 
+ - Added support for Linux Mint 6 Faye.
+ - Added support for Linux Mint 21.3 Virginia.
+ - Added support for Parrot OS Lory.
+
+ ###
+
+ |  UniFi Network Application Easy Fail2Ban Script  |  Version 2.0.4
+ 
+ - Fixed an issue where incorrect repositories were added if a package cannot be located on existing repositories on arm64 (and other non-amd64/i386) Ubuntu systems.
+
+ ###
+
+ |  UniFi Network Application Easy Fail2Ban Script  |  Version 2.0.3
+ 
+ - Fixed script aborting if /etc/apt/keyrings doesn't already exist.
+
+ ###
+
+ |  UniFi Network Application Easy Fail2Ban Script  |  Version 2.0.2
+ 
+ - The script will now store all newly created keys in /etc/apt/keyrings.
+
+ ###
+
+ |  UniFi Network Application Easy Fail2Ban Script  |  Version 2.0.1
+ 
+ - Use signed-by value in repositories that the script adds.
+
+ ###
+
+ |  UniFi Network Application Easy Fail2Ban Script  |  Version 2.0.0
+ 
+ - Re-wrote the entire script.

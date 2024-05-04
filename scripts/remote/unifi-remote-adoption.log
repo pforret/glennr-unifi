@@ -1,0 +1,16 @@
+ # UniFi Easy Remote Adoption Script changelog
+
+ # Author   | Glenn Rietveld
+ # Email    | glennrietveld8@hotmail.nl
+ # Website  | https://GlennR.nl
+
+
+###################################################################################################################################################################################################
+#                                                                                                                                                                                                 #
+#                                                                                            Changelog                                                                                            #
+#                                                                                                                                                                                                 #
+###################################################################################################################################################################################################
+
+ |  UniFi Easy Remote Adoption Script  |  Version 1.0.0
+ 
+ - Initial release of the script, it allows you to scan your local subnet, find UniFi Devices and point them to your (Remote) Network Application Server.

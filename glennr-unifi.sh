@@ -69,13 +69,14 @@ function Script:main() {
     get)
       #TIP: use «$script_prefix get» to ...
       #TIP:> $script_prefix get
-      wget "https://glennr.nl/s/unifi-network-controller" -O - 2>/dev/null \
-      | awk -F'"' '/get.glennr.nl/ {print $2}' \
-      | while read -r url; do
-            IO:progress "Download $(basename "$url")"
-          wget -N -q -nd "$url" -P ./scripts
-        done
-        git add ./scripts
+      download_from_glennr "https://glennr.nl/s/unifi-network-controller" "./scripts/controller"
+      download_from_glennr "https://glennr.nl/s/unifi-easy-update" "./scripts/update"
+      download_from_glennr "https://glennr.nl/s/unifi-fail2ban" "./scripts/fail2ban"
+      download_from_glennr "https://glennr.nl/s/unifi-lets-encrypt" "./scripts/encrypt"
+      download_from_glennr "https://glennr.nl/s/unifi-remote-adoption" "./scripts/remote"
+      download_from_glennr "https://glennr.nl/s/unifi-video" "./scripts/video"
+      git add ./scripts
+      setver auto
 
       ;;
 
@@ -114,13 +115,18 @@ function Script:main() {
 ## Put your helper scripts here
 #####################################################################
 
-function do_get() {
-  IO:log "get"
-  # Examples of required binaries/scripts and how to install them
-  # Os:require "ffmpeg"
-  # Os:require "convert" "imagemagick"
-  # Os:require "IO:progressbar" "basher install pforret/IO:progressbar"
-  # (code)
+function download_from_glennr() {
+  Os:require "wget"
+  local url="$1"
+  local folder="$2"
+  [[ ! -d "$2" ]] && mkdir -p "$2"
+  wget "$url" -O - 2>/dev/null \
+  | awk -F'"' '/get.glennr.nl/ {print $2}' \
+  | while read -r url; do
+        IO:progress "Download $(basename "$url")"
+      wget -N -q -nd "$url" -P "$folder"
+    done
+
 }
 
 function do_action2() {

@@ -1,0 +1,1185 @@
+ # UniFi Let's Encrypt Script changelog
+
+ # Author   | Glenn Rietveld
+ # Email    | glennrietveld8@hotmail.nl
+ # Website  | https://GlennR.nl
+
+
+###################################################################################################################################################################################################
+#                                                                                                                                                                                                 #
+#                                                                                            Changelog                                                                                            #
+#                                                                                                                                                                                                 #
+###################################################################################################################################################################################################
+
+ |  UniFi Easy Encrypt Script  |  Version 2.6.2
+ 
+ - Fixed Ubuntu Noble support.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 2.6.1
+ 
+ - Prevent running iptables commands on non-UniFi Gateway Consoles.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 2.6.0
+ 
+ - Fixed an rare case where the certificates arent applied on UniFi Consoles.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 2.5.9
+ 
+ - Fixed typo.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 2.5.8
+ 
+ - Fixed certbot installation when using recently added DNS Providers.
+ - Dropped support for recently added DNS providers for UniFi Consoles, due to limited space.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 2.5.7
+ 
+ - Fixed typo.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 2.5.6
+ 
+ - Fixed the inability to use Go Daddy as DNS Provider.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 2.5.5
+ 
+ - Fixed an issue where the script could get stuck on removing certbot.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 2.5.4
+ 
+ - Added checks for missing fields/configuration for auto DNS Credentials files.
+ - Updated script help text.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 2.5.3
+ 
+ - Improved certbot installation for setups using automated DNS Challenges.
+ - Added support for the following DNS Providers for the automatic DNS Challenges (untested):
+   - Akamai-EdgeDNS, Alibaba-Cloud-DNS, all-inkl, Amazon-Lightsail, ArvanCloud, Aurora-DNS, Autodns, Azure-DNS, Bindman, Bluecat, Brandit, Bunny, Checkdomain, Civo, Cloud.ru, CloudDNS, ClouDNS, CloudXNS, ConoHa, Constellix, Derak-Cloud, deSEC.io, Designate-DNSaaS-for-Openstack, dnsHome.de, Domain-Offensive, Domeneshop, DreamHost, Duck-DNS, Dyn, Dynu, EasyDNS, Efficient-IP, Epik, Exoscale, External-program, freemyip.com, G-Core, Gandi, Gandi-Live-DNS, Glesys, GoDaddy, Hetzner, Hosting.de, Hosttech, HTTP-request, http.net, Hurricane-Electric-DNS, HyperOne, IBM-Cloud, IIJ-DNS-Platform-Service, Infoblox, Infomaniak, Internet-Initiative-Japan, Internet.bs, INWX, Ionos, IPv64, iwantmyname, Joker, Joohois-ACME-DNS, Liara, Liquid-Web, Loopia, Manual, Metaname, MyDNS.jp, MythicBeasts, Name.com, Namecheap, Namesilo, NearlyFreeSpeech.NET, Netcup, Netlify, Nicmanager, NIFCloud, Njalla, Nodion, NS1, Open-Telekom-Cloud, Oracle-Cloud, plesk.com, Porkbun, PowerDNS, Rackspace, RcodeZero, reg.ru, RimuHosting, Scaleway, Selectel, Servercow, Simply.com, Sonic, Stackpath, Tencent-Cloud-DNS, TransIP, UKFast-SafeDNS, Ultradns, Variomedia, VegaDNS, Vercel, Versio.nl, Versio.eu, Versio.uk, VinylDNS, VK-Cloud, Vscale, Vultr, Webnames, Websupport, WEDOS, Yandex-360, Yandex-Cloud, Yandex-PDD, Zone.ee, Zonomi
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 2.5.2
+ 
+ - Improved getting distribution.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 2.5.1
+ 
+ - Improved jq and dnsutils installation for systems running EOL OS.
+ - Improved cleaning up old/expired/invalid repositories.
+ - Improved adding repositories on EOL OS systems such as Debian Jessie.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 2.5.0
+ 
+ - Added support for Linux Mint 6 Faye.
+ - Added support for Linux Mint 21.3 Virginia.
+ - Added support for Parrot OS Lory.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 2.4.9
+ 
+ - Improved the automatic DNS Challenge.
+ - Improved messaging during the DNS Challenge.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 2.4.8
+ 
+ - Added support for automatic DNS Challenges for the DNS Providers listed below.
+   - cloudflare, digitalocean, dnsimple, dnsmadeeasy, gehirn, google, linode, luadns, nsone, ovh, rfc2136, route53, sakuracloud
+ - Improved error printing to user.
+ - Fixed script failing if a directory existed with a left over file.
+ - Ensure certbot is re-installed on UniFi Consoles.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 2.4.7
+ 
+ - Fixed stupid typo during JQ installation.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 2.4.6
+ 
+ - Fixed incorrect repositories getting adding due to missing architecture value during early stages of the script.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 2.4.5
+ 
+ - Improved JQ installation.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 2.4.4
+ 
+ - Fixed JQ installation on Ubuntu Groovy, Focal, Hirsute, Impish.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 2.4.3
+ 
+ - Fixed an issue where incorrect repositories were added if a package cannot be located on existing repositories on arm64 (and other non-amd64/i386) Ubuntu systems.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 2.4.2
+ 
+ - Fixed script aborting if /etc/apt/keyrings doesn't already exist.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 2.4.1
+ 
+ - The script will now store all newly created keys in /etc/apt/keyrings.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 2.4.0
+ 
+ - Revert change made in version 2.3.9.
+ - Default to RSA keys on UniFi OS Consoles.
+ - Fixed an issue where certbot wasn't re-installed on UniFi OS Consoles after updating it's FW on UniFi OS 3.x and newer.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 2.3.9
+ 
+ - Quick hotfix for UniFi OS certificates issues on 3.2.7.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 2.3.8
+ 
+ - Add JQ as required package.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 2.3.7
+ 
+ - Use signed-by value in repositories that the script adds.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 2.3.6
+ 
+ - Fixed Ubuntu Mantic support.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 2.3.5
+ 
+ - Improved script quality.
+ - Use HTTP repositories if apt-transport-https is not yet installed, the script will use HTTPS (if applicable) once apt-transport-https is installed.
+ - Fixed adding key loop, in case dirmngr is not installed.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 2.3.4
+ 
+ - Fixed issue getting the right UniFi OS version for UniFi OS 3.2 setups.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 2.3.3
+ 
+ - Fixed certificate issues on UniFi OS 3.2.
+ - Added migration for setups that are on UniFi OS 3.1 or older, this will run once running UniFi OS 3.2 to prevent this issue.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 2.3.2
+ 
+ - Improved script version check. If your script does not update, please remove the file and re-download it.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 2.3.1
+ 
+ - Added feature to automatically open port 80 for HTTP challenge on UniFi Gateway Consoles that support Direct Connections in UniFi OS.
+ - Added `--prevent-modify-firewall` to allow user to prevent automatically opening port 80.
+ - Fixed error if /data/udapi-config/raddb/certs/ does not exists.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 2.3.0
+ 
+ - Fixed incorrect argument for the `--custom-acme-server` option.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 2.2.9
+ 
+ - Added `--custom-acme-server [argument]` to specify a custom ACME Server.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 2.2.8
+ 
+ - Add support for Linux Mint 21.2 Victora.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 2.2.7
+ 
+ - Add UniFi Network Application logs in EUS support file.
+ - Improved script quality.
+ - Fix --allow-change-held-packages check.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 2.2.6
+ 
+ - Add support for Debian Trixie and Forky.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 2.2.5
+ 
+ - Automatically check if script needs to add old-releases ubuntu repos.
+ - Notify user about unsupported/EOL OS when adding archived/old-releases repos.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 2.2.4
+ 
+ - The script will no longer add NL specific repos.
+ - Automatically check if script needs to add archived debian repos.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 2.2.3
+ 
+ - Add a certificate migration script for when consoles update to UniFi OS 3.1 or newer.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 2.2.2
+ 
+ - Fix certificates not applying certificates to UniFi OS Consoles running UniFi OS 3.1 or newer.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 2.2.1
+ 
+ - Add OpenSSL Legacy flag to attempt to detect ECDSA certificates.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 2.2.0
+ 
+ - Only use --allow-change-held-packages if apt version is 1.1 or newer.
+ - Attempt to detect ECDSA certificates and apply custom unifi.https.ciphers and unifi.https.sslEnabledProtocols in system.properties.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 2.1.9
+ 
+ - Add support for Linux Mint 21.1 Vera.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 2.1.8
+ 
+ - Add support for ParrotOS 5.1 Electro Ara.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 2.1.7
+ 
+ - Add support for replacing RADIUS certificates on UniFi OS consoles running 2.x and newer.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 2.1.6
+ 
+ - Add support for Ubuntu Lunar Lobster ( 23.04 ).
+ - Improve get_distro function.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 2.1.5
+ 
+ - Add --allow-change-held-packages to apt-get commands.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 2.1.4
+ 
+ - Fix minor typo.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 2.1.3
+ 
+ - Add support for Ubuntu Kinetic Kudu.
+ - Add support for Linux Mint 5 Elsie.
+ - Add support for Linux Mint 21 Vanessa.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 2.1.2
+ 
+ - Add missing script for UC-CK when using paid certificates.
+ - Update UC-CK certbot install script to use github download for certbot-auto instead of old/not working dl.eff.org link.
+ - Fix missing author message when running script for paid certificates.
+ - Replace "service" commands with "systemctl".
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 2.1.1
+ 
+ - Add second stop/start attempt for services in post hook script.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 2.1.0
+ 
+ - Fix getting OpenSSL version in some "rare" cases.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 2.0.9
+ 
+ - Fix issue with importing certificates that caused web UI to be unresponsive.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 2.0.8
+ 
+ - Use "-legacy" for pkcs12 if openSSL version is 3.x.x.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 2.0.7
+ 
+ - Add support for Linux Mint 20.3 (UNA).
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 2.0.6
+ 
+ - Improve valid days check.
+ - Check for unexpected errors in certificates file, abort if found.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 2.0.5
+ 
+ - Add option "--skip-network-application" to skip importing into the Network application, only applies to UniFi OS Consoles.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 2.0.4
+ 
+ - Fix RADIUS certificate copy.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 2.0.3
+ 
+ - Check if UID is configured rather than just installed.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 2.0.2
+ 
+ - Actually replace RADIUS certificates, rather than just backing up.
+ - Skip RADIUS certificate overwrite option if UID is installed.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 2.0.1
+ 
+ - Improve cancel script part, it would clear cancel details when using skip.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 2.0.0
+ 
+ - Add support for Ubuntu Jammy Jellyfish 22.04.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 1.9.9
+ 
+ - Fix issue where script continues when it fails to import.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 1.9.8
+ 
+ - Add support for Debian 12 (Bookworm).
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 1.9.7
+ 
+ - Use github download for certbot-auto instead of old/not working dl.eff.org link.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 1.9.6
+ 
+ - Add support for Ubuntu 21.10 (Impish Indri).
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 1.9.5
+ 
+ - Fix issue where it did not properly pass along script_options to the script.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 1.9.4
+ 
+ - Fix issue where it removes any 0 from month/date instead of only leading 0.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 1.9.3
+ 
+ - Improve overall script quality.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 1.9.2
+ 
+ - Remove reference to "controller" and replace with "application" to follow UniFi Terminology.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 1.9.1
+ 
+ - Add support for Linux Mint Uma.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 1.9.0
+ 
+ - Revert change from previous script version that broke secure portals on some browsers.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 1.8.9
+ 
+ - Fix WiFiman not working on UDM-Pro/UDM due to having imported to many certificates.
+ - Fix not setting resolved_ip properly.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 1.8.8
+ 
+ - Add 'invalid response from' check when LE fails.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 1.8.7
+ 
+ - Fix /tmp/EUS directory not being created in hook scripts.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 1.8.6
+ 
+ - Add support for Deepin Linux.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 1.8.5
+ 
+ - Add "Invalid response from" checking.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 1.8.4
+ 
+ - Fix issue where script would get stuck on a "cat" if port 80 for example is now opened.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 1.8.3
+ 
+ - Also create .p12 when Private Key and Signed Cert are provided for paid certificates.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 1.8.2
+ 
+ - Add support for Ubuntu Hirsute Hippo ( 21.04 ).
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 1.8.1
+ 
+ - Add support for Linux Mint 20.1 ( Ulyssa ).
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 1.8.0
+ 
+ - Add support for Kali Linux ( rolling ).
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 1.7.9
+ 
+ - Fix issue where file is not populated with FQDN for install script.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 1.7.8
+ 
+ - Fix certbot-auto updating on unsupported systems.
+ - Add no TXT record found error checking.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 1.7.7
+ 
+ - Fix issue where script tries to SSH into localhost on non UDM systems.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 1.7.6
+ 
+ - Fix missing " in post script.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 1.7.5
+ 
+ - Fix christmass_new_year.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 1.7.4
+ 
+ - Add option to change radius certificates on UDM's. ( please backup before doing so )
+ - Allow restoring previous radius certificates for UDM's.
+ - Fix missing hashtags.
+ - Fix incorrect sentences.
+ - Fix issue where script would error out if any type of error was in import log.
+ - Fix inconsistency with using dots.
+ - Fix not importing certificates into UniFi Network controller keystore.
+ - Fix issue where restore to default would fail when config is already is default state.
+ - Improve getting device model for UDM's.
+ - Improve service restarting after import.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 1.7.3
+ 
+ - Fix logging for required packages.
+ - Fix logging for certbot installation.
+ - Improve some language output.
+ - Improve script speed for Jessie systems.
+ - Install certbot via snapd if snapd is available on system.
+ - Use older certbot-auto script if system is no longer supported in newer scripts.
+ - Enable YELLOW color.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 1.7.2
+ 
+ - Update certbot version check, should only check if digit 2 is lower then 27 if digit 1 is 0.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 1.7.1
+ 
+ - Backup paid-certificates that get made by script.
+ - Allow removing paid-certificates backup if more then 10.
+ - Allow restoring UniFi OS certificates to default.
+ - Allow restoring UniFi Network Keystore to default.
+ - Allow restoring UniFi Video certificates to default.
+ - Allow restoring Cloudkey Web Interface certificates to default.
+ - Remove left over debug.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 1.7.0
+ 
+ - Change script name to UniFi Easy Encrypt.
+ - Add UniFi OS config backup.
+ - Add option to import your own paid certificates.
+ - Add `--private-key [argument]` to specify path to your private key (paid certificate).
+ - Add `--signed-certificate [argument]` to specify path to your signed certificate (paid certificate).
+ - Add `--chain-certificate [argument]` to specify path to your chain certificate (paid certificate).
+ - Add `--own-certificate` option is required to import your own paid certificates with `--skip`.
+ - Add `--restore` option to restore previous certificate/config files.
+ - Update email_reg to allow more email types.
+ - Update default for delete_certs_question.
+ - Improve UniFi OS config handling.
+ - Improve quality of script.
+ - Fix UniFi Video certificate backup.
+ 
+ ###
+
+ |  UniFi Let's Encrypt Script  |  Version 1.6.9
+ 
+ - Add support for Ubuntu 20.10 (Groovy Gorilla).
+ 
+ ###
+
+ |  UniFi Let's Encrypt Script  |  Version 1.6.8
+ 
+ - Improve EUS log cleanup.
+ - Improve multiple_fqdn_resolve.
+ - Improve le_import_failed.
+ - Allow user to remove older post/pre hook scripts.
+ - Update post/pre hook script ( EUS log cleanup ).
+ 
+ ###
+
+ |  UniFi Let's Encrypt Script  |  Version 1.6.7
+ 
+ - Add net-tools as required package.
+ 
+ ###
+
+ |  UniFi Let's Encrypt Script  |  Version 1.6.6
+ 
+ - Improved error reporting for incorrect DNS challenge.
+ - Improved error reporting for to many requests.
+ - Improved DNS challenge logging.
+ - Fixed issue where script would continue on error.
+ 
+ ###
+
+ |  UniFi Let's Encrypt Script  |  Version 1.6.5
+ 
+ - Allow user to specify their own DNS server through `--external-dns [argument]`.
+ - Add Cisco Umbrella as DNS server.
+ - Removed GlennR DNS.
+ 
+ ###
+
+ |  UniFi Let's Encrypt Script  |  Version 1.6.4
+ 
+ - Improved email regex.
+ 
+ ###
+
+ |  UniFi Let's Encrypt Script  |  Version 1.6.3
+ 
+ - Fix script lockup when script is sourced.
+ 
+ ###
+
+ |  UniFi Let's Encrypt Script  |  Version 1.6.2
+ 
+ - Fix `Do you want to run the script in DNS mode` question.
+ 
+ ###
+
+ |  UniFi Let's Encrypt Script  |  Version 1.6.1
+ 
+ - Improved get_distro.
+ 
+ ###
+
+ |  UniFi Let's Encrypt Script  |  Version 1.6.0
+ 
+ - Add support for Linux Mint 20 ( Ulyana ).
+ 
+ ###
+
+ |  UniFi Let's Encrypt Script  |  Version 1.5.9
+ 
+ - Add TXT resolve information if DNS mode fails.
+ - Improved error reporting for DNS mode.
+ - Improved error reporting.
+ 
+ ###
+
+ |  UniFi Let's Encrypt Script  |  Version 1.5.8
+ 
+ - Add support for Progress-Linux ( Engywuck ).
+ - Fix error when '--external-dns' is used.
+ - Add '--help' output.
+ - Improve get_distro.
+ 
+ ###
+
+ |  UniFi Let's Encrypt Script  |  Version 1.5.7
+ 
+ - Add IP that the script resolved if it does not resolve to the server IP.
+ - Add connection timed out error.
+ 
+ ###
+
+ |  UniFi Let's Encrypt Script  |  Version 1.5.6
+ 
+ - Add `--retry [argument]` option for unattended mode to retry the challenge X amount of times. ( interval is 15 minutes )
+ 
+ ###
+
+ |  UniFi Let's Encrypt Script  |  Version 1.5.5
+ 
+ - Add unattended mode. ( only works if `--fqdn` and `--skip` is used )
+ - Add `--help` option to display all script options/information.
+ - Add `--skip` option to bypass all manual input.
+ - Add `--fqdn [argument]` option to support unattended Let's Encrypt. ( you can specify multiple FQDN's by using : as seperator )
+ - Add `--server-ip [argument]` option to manually provide the server IP address.
+ - Add `--email [argument]` option to specify what email address will be used for Let's Encrypt renewal notifcations.
+ - Improve keystore permissions.
+ - Improve language check.
+ - Fix typos.
+ 
+ ###
+
+ |  UniFi Let's Encrypt Script  |  Version 1.5.4
+ 
+ - Add support for stopping and starting docker containers.
+ - Fix UniFi-Video certificate permissions.
+ - Improve pre-hook script.
+ - Improve post-hook script.
+ 
+ ###
+
+ |  UniFi Let's Encrypt Script  |  Version 1.5.3
+ 
+ - Add support for stopping and starting snap projects.
+ - Improve pre-hook script.
+ - Improve post-hook script.
+ 
+ ###
+
+ |  UniFi Let's Encrypt Script  |  Version 1.5.2
+ 
+ - Improve UniFi-Protect detection on UniFi CloudKey Gen2 Plus.
+ 
+ ###
+
+ |  UniFi Let's Encrypt Script  |  Version 1.5.1
+ 
+ - Improve CloudKey detection.
+ 
+ ###
+
+ |  UniFi Let's Encrypt Script  |  Version 1.5.0
+ 
+ - Adjust en_US check.
+ - Fix some double spaces.
+ - Add support for UniFi OS systems.
+ - Improve language output.
+ 
+ ###
+
+ |  UniFi Let's Encrypt Script  |  Version 1.4.9
+ 
+ - Improved cloudkey detection.
+ 
+ ###
+
+ |  UniFi Let's Encrypt Script  |  Version 1.4.8
+ 
+ - Fixed checksum errors if file doesn't exist.
+ 
+ ###
+
+ |  UniFi Let's Encrypt Script  |  Version 1.4.7
+ 
+ - Add more information to support files.
+ 
+ ###
+
+ |  UniFi Let's Encrypt Script  |  Version 1.4.6
+ 
+ - Only reapply certificates if md5sum and sha256sum is different.
+ - Add certificate md5 and sha256 checks.
+ - Add support for Linux Mint 4 Debbie.
+ - Add log rotate ( logs that script creates ).
+ - Rework the script options reminding part.
+ - Rework script version check.
+ - Rework required packages installations.
+ - Create support file during script errors.
+ - Fix installation checks if you a package is set to hold.
+ - Fix email check issues when for example using .support.
+ - Improve pre-hook and post-hook script.
+ - Reduce script size with 70+ lines.
+ 
+ ###
+
+ |  UniFi Let's Encrypt Script  |  Version 1.4.5
+ 
+ - Added support for Ubuntu Focal Fossa  ( 20.04 ).
+ - Added support for Elementary OS.
+ - Improved some checks.
+ 
+ ###
+
+ |  UniFi Let's Encrypt Script  |  Version 1.4.4
+ 
+ - Added extra method when script fails to add the key.
+ 
+ ###
+
+ |  UniFi Let's Encrypt Script  |  Version 1.4.3
+ 
+ - Add DPKG lock check to the script.
+ - Add DPKG lock check to the UCK Scripts.
+ - Add email verification check to le_email.
+ - Improved UCK scripts to prevent issues when installing required packages after reboots/upgrades.
+ - Improved UCK Script logging.
+ - Improved text output.
+ - Fixed issue where package wouldn't get installed preventing auto renewal on UC-CK's.
+ 
+ ###
+
+ |  UniFi Let's Encrypt Script  |  Version 1.4.2
+ 
+ - Fixed time_zone not showing correctly.
+ - Added fancy script statup.
+ 
+ ###
+
+ |  UniFi Let's Encrypt Script  |  Version 1.4.1
+ 
+ - Add run_apt_get_update that will add missing pubkeys.
+ - Improved more checks and language output.
+ 
+ ###
+
+ |  UniFi Let's Encrypt Script  |  Version 1.4.0
+ 
+ - Fixed issues with UniFi-LED detection.
+ - Fixed no header error.
+ - Improved language check.
+ - Improved almost all checks in the script.
+ 
+ ###
+
+ |  UniFi Let's Encrypt Script  |  Version 1.3.9
+ 
+ - Set language to english ( temporarily ) to prevent script issues. ( if lang is not en_US )
+ - Changed file removal.
+ 
+ ###
+
+ |  UniFi Let's Encrypt Script  |  Version 1.3.8
+ 
+ - Fixed an issue with DNS mode, it was missing some variables.
+ 
+ ###
+
+ |  UniFi Let's Encrypt Script  |  Version 1.3.7
+ 
+ - Script will now only print if certbot is installed and if it's to old.
+ - Print certbot to old for jessie only when it's installed.
+ 
+ ###
+
+ |  UniFi Let's Encrypt Script  |  Version 1.3.6
+ 
+ - Print if script failed to import SSL certificates.
+ - Changed the way the script handles the UAS service.
+ 
+ ###
+
+ |  UniFi Let's Encrypt Script  |  Version 1.3.5
+ 
+ - Improved UniFi-LED controller detection on UAS XG.
+ 
+ ###
+
+ |  UniFi Let's Encrypt Script  |  Version 1.3.4
+ 
+ - Improved http service logging.
+ - Script is now able to find the UniFi-LED container on systems with docker.io ( UAS XG )
+ - Adjusted pre-hook script.
+ - Adjusted post-hook script.
+ 
+ ###
+
+ |  UniFi Let's Encrypt Script  |  Version 1.3.3
+ 
+ - Improved the way the script gets the le_var.
+ - Get the last fullchain and privatekey path instead of first.
+ - Adjusted post-hook script.
+ - Adjusted UC-CK script.
+ 
+ ###
+
+ |  UniFi Let's Encrypt Script  |  Version 1.3.2
+ 
+ - Post hook script wasn't deleting older keystores if user choose to do so.
+ 
+ ###
+
+ |  UniFi Let's Encrypt Script  |  Version 1.3.1
+ 
+ - Added support for Linux Mint 19.3 ( Tricia )
+ 
+ ###
+
+ |  UniFi Let's Encrypt Script  |  Version 1.3.0
+ 
+ - Delete some left over files at the end of the script.
+ - Include successful script completion message with author.
+ - Added wishes to the script.
+ 
+ ###
+
+ |  UniFi Let's Encrypt Script  |  Version 1.2.9
+ 
+ - Added --force-renew option to the script, be aware that Let's Encrypt has it's limits as well.
+ 
+ ###
+
+ |  UniFi Let's Encrypt Script  |  Version 1.2.8
+ 
+ - Changed script options, -v6 is now --v6 and -dns is now --dns.
+ - Added --external-dns option to force external DNS from the start.
+ - Changed the command that the script runs when it downloads and updated version of the script.
+ - Delete some old files to make sure the script doesn't error out.
+ - Removed a variable.
+ - You can now add multiple FQDNs, for example controller.domain.com, unifi.domain.com and wifi.domain.com. ( script will ask if you want to add more )
+ - change_controller_hostname is now a seperate question.
+ - Fixed typos.
+ 
+ ###
+
+ |  UniFi Let's Encrypt Script  |  Version 1.2.7
+ 
+ - Changed eus_certbot script.
+ - Improved post-hook script logging.
+ 
+ ###
+
+ |  UniFi Let's Encrypt Script  |  Version 1.2.6
+ 
+ - Rewrote the pre-hook script.
+   - Would error out if netcat wasn't installed.
+   - Would fail to open port 80 if UFW was active.
+   - Improved logging.
+ - Add autoremove and autoclean to certbot removal.
+ 
+ ###
+
+ |  UniFi Let's Encrypt Script  |  Version 1.2.5
+ 
+ - Added certbot-auto permission check.
+ - Added certbot-auto permission check to UC-CK script.
+ - Give information why we remove certbot on jessie and switch to certbot-auto.
+ 
+ ###
+
+ |  UniFi Let's Encrypt Script  |  Version 1.2.4
+ 
+ - Users can now manually set their server IP. ( for users with multiple IP addresses )
+ - Changed distribution check.
+ 
+ ###
+
+ |  UniFi Let's Encrypt Script  |  Version 1.2.3
+ 
+ - Script now won't error out if it can't find the UniFi LED container.
+ 
+ ###
+
+ |  UniFi Let's Encrypt Script  |  Version 1.2.2
+ 
+ - Reworked certbot installed check.
+ - Certbot check will now also check the version of certbot and switches to certbot-auto if the version is to old.
+ - Advise users to contact GlennR ( AmazedMender16 ) if import fails.
+ - Add ACMEv1 error prompting.
+ 
+ ###
+
+ |  UniFi Let's Encrypt Script  |  Version 1.2.1
+ 
+ - Changed the way how the script runs itself in DNS mode. ( users can force DNS mode by using '-dns' as option )
+ 
+ ###
+
+ |  UniFi Let's Encrypt Script  |  Version 1.2.0
+ 
+ - Fixed issues people ran into on the UC-CK.
+ - Made adjustments to the UC-CK scripts.
+ - Improved certbot check.
+ 
+ ###
+
+ |  UniFi Let's Encrypt Script  |  Version 1.1.9
+ 
+ - Remove certbot on Debian Jessie systems ( if installed ) since we now use certbot-auto on Debian Jessie.
+ 
+ ###
+
+ |  UniFi Let's Encrypt Script  |  Version 1.1.8
+ 
+ - Fixed typos.
+ - Improved certbot check.
+ - Changed script version check.
+ - Reworked Debian Jessie support. ( UC-CK )
+ - Fixed expire_date variable.
+ - Added curl as required package.
+ - Added support for Parrot OS/Linux.
+ 
+ ###
+
+ |  UniFi Let's Encrypt Script  |  Version 1.1.7
+ 
+ - Improved use of some commands.
+ - Added IPv6 support to the script ( use -v6 as option when running the script )
+ - Improved docker checks.
+ 
+ ###
+
+ |  UniFi Let's Encrypt Script  |  Version 1.1.6
+ 
+ - Fixed post hook script, wouldn't apply certificates with post script.
+ - Reworked the way the script gets -xxxx ( if it's there ).
+ - Added some options for the install scripts ( to get the FQDN easier )
+ 
+ ###
+
+ |  UniFi Let's Encrypt Script  |  Version 1.1.5
+ 
+ - Script will now always use a lowercase server_fqdn.
+ - Script should now successfully import SSL certificates if they are stored in unifi.yourdomain.com-xxxx.
+ - Fixed issue where the script would error out if there is a valid and invalid certificate.
+ 
+ ###
+
+ |  UniFi Let's Encrypt Script  |  Version 1.1.4
+ 
+ - Add option to resolve with external DNS servers.
+ - Fixed error when service comamnd was not found.
+ - Set PATH correctly.
+ 
+ ###
+
+ |  UniFi Let's Encrypt Script  |  Version 1.1.3
+ 
+ - Fixed script syntax error when certificates are already expired.
+ - Fixed expire_date variable.
+ 
+ ###
+
+ |  UniFi Let's Encrypt Script  |  Version 1.1.2
+ 
+ - Fixed missing bracket at line 985..
+ 
+ ###
+
+ |  UniFi Let's Encrypt Script  |  Version 1.1.1
+ 
+ - Added DNS challenge when HTTP challenge fails. ( only recommend for users were the ISP blocks port 80 )
+ 
+ ###
+
+ |  UniFi Let's Encrypt Script  |  Version 1.1.0
+ 
+ - Added extra script for UC-CK's to re-apply certificates after upgrades.
+ - Added UC-CK firmware logging.
+ - Changed log file size check.
+ - Added user question to keep or delete old certificate files.
+ - Added option 3 ( cancel script ) to delete_certs_question.
+ - Prompt users when they use an inavlid option ( delete_certs_question ).
+ 
+ ###
+
+ |  UniFi Let's Encrypt Script  |  Version 1.0.9
+ 
+ - Fixed output of server_fqdn when the UniFi Network Controller was installed on UC-CK.
+ - Changed directory of the http_service logging.
+ - Added date and time to http_service logging.
+ - Script now won't prompt that you have to install controlers when you don't have any installed on an UCK/UAS.
+ 
+ ###
+
+ |  UniFi Let's Encrypt Script  |  Version 1.0.8
+ 
+ - Changed the text output.
+ - Only restart UniFi-Protect when the service is active.
+ - Fixed cronjob for Cloudkeys.
+ - Placed files into directories.
+ - Cleanup cronjob script for Cloudkeys.
+ - Add a user question to confirm that the server_fqdn is correct.
+ 
+ ###
+
+ |  UniFi Let's Encrypt Script  |  Version 1.0.7
+ 
+ - Fixed UniFi-Video cert move errors.
+ 
+ ###
+
+ |  UniFi Let's Encrypt Script  |  Version 1.0.6
+ 
+ - Fixed a typo.
+ 
+ ###
+
+ |  UniFi Let's Encrypt Script  |  Version 1.0.5
+ 
+ - Changed directory when using a cloudkey.
+ - Added cronjob for Cloudkeys to install certbot after upgrades.
+ 
+ ###
+
+ |  UniFi Let's Encrypt Script  |  Version 1.0.5
+ 
+ - Changed directory when using a cloudkey.
+ - Added cronjob for Cloudkeys to install certbot after upgrades.
+ 
+ ###
+
+ |  UniFi Let's Encrypt Script  |  Version 1.0.4
+ 
+ - Added support for the UniFi-LED Controller on the Cloudkey.
+ - Added support for the UniFi-LED Controller on the UniFi Application Server.
+ - Added support for the UniFi-LED Controller on the Ubuntu and Debian installs.
+ - Added support for the UniFi Protect NVR on the CloudKey Gen2 Plus.
+ - Added support for the UniFi Video NVR.
+ - Added force renewal support when the certs are valid for less than 30 days.
+ 
+ ###
+
+ |  UniFi Let's Encrypt Script  |  Version 1.0.3
+ 
+ - Added support for the UniFi Application Server User Interface.
+ 
+ ###
+
+ |  UniFi Let's Encrypt Script  |  Version 1.0.2
+ 
+ - Added support for the Cloud Key User Interface.
+ 
+ ###
+
+ |  UniFi Let's Encrypt Script  |  Version 1.0.1
+ 
+ - Fixed some errors when files don't exist.
+ 
+ ###
+
+ |  UniFi Let's Encrypt Script  |  Version 1.0.0
+ 
+ - Released the Let's Encrypt Script
+ 
+ 
