@@ -2,9 +2,8 @@
 
 UNIFI NETWORK APPLICATION SCRIPTS
 
-Ubiquiti install scripts from glennr.nl
-
-* [glennr.nl/s/unifi-network-controller](https://glennr.nl/s/unifi-network-controller)
+* This is a backup of the Ubiquiti install scripts from [glennr.nl/scripts](https://glennr.nl/scripts)
+* they are used to install the Ubiquiti Network Controller on a Raspberry Pi or Ubuntu server, as mentioned in [community.ui.com](https://community.ui.com/questions/UniFi-Installation-Scripts-or-UniFi-Easy-Update-Script-or-UniFi-Lets-Encrypt-or-UniFi-Easy-Encrypt-/ccbc7530-dd61-40a7-82ec-22b17f027776)
 
 ## REMARK
 
