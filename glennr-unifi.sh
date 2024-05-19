@@ -96,7 +96,9 @@ function download_from_glennr() {
   wget "$url" -O - 2>/dev/null |
     awk -F'"' '/get.glennr.nl/ {print $2}' |
     while read -r url; do
-      IO:progress "Download $(basename "$url")"
+      file=$(basename "$url")
+      [[ -z "$file" ]] && continue
+      IO:progress "Download $file"
       wget -N -q -nd "$url" -P "$folder"
     done
 
