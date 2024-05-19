@@ -1,5 +1,6 @@
-[![Weekly Update](https://github.com/pforret/glennr-unifi/actions/workflows/weekly.yml/badge.svg)](https://github.com/pforret/glennr-unifi/actions/workflows/weekly.yml)
-[![Weekly Update](https://github.com/pforret/glennr-unifi/actions/workflows/weekly.yml/badge.svg?event=workflow_run)](https://github.com/pforret/glennr-unifi/actions/workflows/weekly.yml)
+[![Daily Update](https://github.com/pforret/glennr-unifi/actions/workflows/daily.yml/badge.svg)](https://github.com/pforret/glennr-unifi/actions/workflows/daily.yml)
+[![Daily Update](https://github.com/pforret/glennr-unifi/actions/workflows/daily.yml/badge.svg?event=workflow_run)](https://github.com/pforret/glennr-unifi/actions/workflows/daily.yml)
+[![Daily Update](https://github.com/pforret/glennr-unifi/actions/workflows/daily.yml/badge.svg?event=schedule)](https://github.com/pforret/glennr-unifi/actions/workflows/daily.yml)
 
 # glennr-unifi
 
