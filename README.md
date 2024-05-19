@@ -1,3 +1,6 @@
+[![Weekly Update](https://github.com/pforret/glennr-unifi/actions/workflows/weekly.yml/badge.svg)](https://github.com/pforret/glennr-unifi/actions/workflows/weekly.yml)
+[![Weekly Update](https://github.com/pforret/glennr-unifi/actions/workflows/weekly.yml/badge.svg?event=workflow_run)](https://github.com/pforret/glennr-unifi/actions/workflows/weekly.yml)
+
 # glennr-unifi
 
 ![](assets/logo.jpg)
