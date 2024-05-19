@@ -69,7 +69,7 @@ YELLOW='\033[1;33m'
 #WHITE='\033[1;37m'
 GRAY_R='\033[39m'
 WHITE_R='\033[39m'
-RED='\033[1;31m' # Light Red.
+RED='\033[1;31m'   # Light Red.
 GREEN='\033[1;32m' # Light Green.
 #BOLD='\e[1m'
 
@@ -80,12 +80,18 @@ GREEN='\033[1;32m' # Light Green.
 ###################################################################################################################################################################################################
 
 header() {
-  if [[ "${script_option_debug}" != 'true' ]]; then clear; clear; fi
+  if [[ "${script_option_debug}" != 'true' ]]; then
+    clear
+    clear
+  fi
   echo -e "${GREEN}#########################################################################${RESET}\\n"
 }
 
 header_red() {
-  if [[ "${script_option_debug}" != 'true' ]]; then clear; clear; fi
+  if [[ "${script_option_debug}" != 'true' ]]; then
+    clear
+    clear
+  fi
   echo -e "${RED}#########################################################################${RESET}\\n"
 }
 
@@ -114,29 +120,29 @@ if ! env | grep "LC_ALL\\|LANG" | grep -iq "en_US\\|C.UTF-8"; then
   echo -e "${WHITE_R}#${RESET} Information: This is done to prevent issues in the script.."
   original_lang="$LANG"
   original_lcall="$LC_ALL"
-  if ! locale -a | grep -iq "C.UTF-8\\|en_US.UTF-8"; then locale-gen en_US.UTF-8 &> /dev/null; fi
-  if locale -a | grep -iq "^C.UTF-8$"; then eus_lts="C.UTF-8"; elif locale -a | grep -iq "^en_US.UTF-8$"; then eus_lts="en_US.UTF-8"; else  eus_lts="en_US.UTF-8"; fi
-  export LANG="${eus_lts}" &> /dev/null
-  export LC_ALL=C &> /dev/null
+  if ! locale -a | grep -iq "C.UTF-8\\|en_US.UTF-8"; then locale-gen en_US.UTF-8 &>/dev/null; fi
+  if locale -a | grep -iq "^C.UTF-8$"; then eus_lts="C.UTF-8"; elif locale -a | grep -iq "^en_US.UTF-8$"; then eus_lts="en_US.UTF-8"; else eus_lts="en_US.UTF-8"; fi
+  export LANG="${eus_lts}" &>/dev/null
+  export LC_ALL=C &>/dev/null
   set_lc_all="true"
   sleep 3
 fi
 
 cleanup_codename_mismatch_repos() {
   if [[ -f "/etc/apt/sources.list.d/glennr-install-script.list" ]]; then
-    awk '{print $3}' /etc/apt/sources.list.d/glennr-install-script.list | awk '!a[$0]++' | sed "/${os_codename}/d" | sed 's/ //g' &> /tmp/EUS/sourcelist
+    awk '{print $3}' /etc/apt/sources.list.d/glennr-install-script.list | awk '!a[$0]++' | sed "/${os_codename}/d" | sed 's/ //g' &>/tmp/EUS/sourcelist
     while read -r sourcelist_os_codename; do
-      sed -i "/${sourcelist_os_codename}/d" /etc/apt/sources.list.d/glennr-install-script.list &> /dev/null
-    done < /tmp/EUS/sourcelist
-    rm --force /tmp/EUS/sourcelist &> /dev/null
+      sed -i "/${sourcelist_os_codename}/d" /etc/apt/sources.list.d/glennr-install-script.list &>/dev/null
+    done </tmp/EUS/sourcelist
+    rm --force /tmp/EUS/sourcelist &>/dev/null
     if ! [[ -s "/etc/apt/sources.list.d/glennr-install-script.list" ]]; then
-      rm --force /etc/apt/sources.list.d/glennr-install-script.list &> /dev/null
+      rm --force /etc/apt/sources.list.d/glennr-install-script.list &>/dev/null
     fi
   fi
 }
 
 cleanup_unifi_repos() {
-  repo_file_patterns=( "ui.com\\/downloads" "ubnt.com\\/downloads" )
+  repo_file_patterns=("ui.com\\/downloads" "ubnt.com\\/downloads")
   while read -r repo_file; do
     for pattern in "${repo_file_patterns[@]}"; do
       sed -e "/${pattern}/ s/^#*/#/g" -i "${repo_file}"
@@ -148,18 +154,18 @@ if [[ "$(find /etc/apt/ -type f -name "*.list" -exec grep -lE '^[^#]*\b(ui|ubnt)
 check_dns() {
   system_dns_servers="($(grep -s '^nameserver' /etc/resolv.conf /run/systemd/resolve/resolv.conf | awk '{print $2}'))"
   local domains=("mongodb.com" "repo.mongodb.org" "pgp.mongodb.com" "ubuntu.com" "ui.com" "ubnt.com" "glennr.nl" "raspbian.org" "adoptium.org")
-  if command -v host &> /dev/null; then dns_check_command="host"; elif command -v ping &> /dev/null; then dns_check_command="ping -c 1 -W2"; fi
+  if command -v host &>/dev/null; then dns_check_command="host"; elif command -v ping &>/dev/null; then dns_check_command="ping -c 1 -W2"; fi
   if [[ -n "${dns_check_command}" ]]; then
     for domain in "${domains[@]}"; do
-      if ! ${dns_check_command} "${domain}" &> /dev/null; then
-        echo -e "Failed to resolve ${domain}..." &>> "${eus_dir}/logs/dns-check.log"
+      if ! ${dns_check_command} "${domain}" &>/dev/null; then
+        echo -e "Failed to resolve ${domain}..." &>>"${eus_dir}/logs/dns-check.log"
         local dns_servers=("1.1.1.1" "8.8.8.8")
         for dns_server in "${dns_servers[@]}"; do
           if ! grep -qF "${dns_server}" /etc/resolv.conf; then
             if echo "nameserver ${dns_server}" | tee -a /etc/resolv.conf >/dev/null; then
-              echo -e "Added ${dns_server} to /etc/resolv.conf..." &>> "${eus_dir}/logs/dns-check.log"
-              if ${dns_check_command} "${domain}" &> /dev/null; then
-                echo -e "Successfully resolved ${domain} after adding ${dns_server}." &>> "${eus_dir}/logs/dns-check.log"
+              echo -e "Added ${dns_server} to /etc/resolv.conf..." &>>"${eus_dir}/logs/dns-check.log"
+              if ${dns_check_command} "${domain}" &>/dev/null; then
+                echo -e "Successfully resolved ${domain} after adding ${dns_server}." &>>"${eus_dir}/logs/dns-check.log"
                 return 0
               fi
             fi
@@ -183,98 +189,123 @@ set_curl_arguments() {
   fi
   if [[ -z "${curl_args}" ]]; then curl_args="--silent"; elif [[ "${curl_args}" != *"--silent"* ]]; then curl_args+=" --silent"; fi
   if [[ "${curl_args}" != *"--show-error"* ]]; then curl_args+=" --show-error"; fi
-  IFS=' ' read -r -a curl_argument <<< "${curl_args}"
+  IFS=' ' read -r -a curl_argument <<<"${curl_args}"
   trimmed_args="${curl_args//--silent/}"
   trimmed_args="$(echo "$trimmed_args" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
-  IFS=' ' read -r -a nos_curl_argument <<< "${trimmed_args}"
+  IFS=' ' read -r -a nos_curl_argument <<<"${trimmed_args}"
 }
 if [[ "$(command -v curl)" ]]; then set_curl_arguments; fi
 
 check_docker_setup() {
   if [[ -f /.dockerenv ]] || grep -q '/docker/' /proc/1/cgroup || { command -v pgrep &>/dev/null && (pgrep -f "^dockerd" &>/dev/null || pgrep -f "^containerd" &>/dev/null); }; then docker_setup="true"; else docker_setup="false"; fi
-  if [[ -n "$(command -v jq)" ]]; then jq '."database" += {"docker-container": "'"${docker_setup}"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"; eus_database_move; fi
+  if [[ -n "$(command -v jq)" ]]; then
+    jq '."database" += {"docker-container": "'"${docker_setup}"'"}' "${eus_dir}/db/db.json" >"${eus_dir}/db/db.json.tmp" 2>>"${eus_dir}/logs/eus-database-management.log"
+    eus_database_move
+  fi
 }
 
 update_eus_db() {
   if [[ -n "$(command -v jq)" ]]; then
     if [[ -n "${script_local_version_dots}" ]]; then
-      jq '.scripts."'"${script_name}"'" |= if .["versions-ran"] | index("'"${script_local_version_dots}"'") | not then .["versions-ran"] += ["'"${script_local_version_dots}"'"] else . end' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+      jq '.scripts."'"${script_name}"'" |= if .["versions-ran"] | index("'"${script_local_version_dots}"'") | not then .["versions-ran"] += ["'"${script_local_version_dots}"'"] else . end' "${eus_dir}/db/db.json" >"${eus_dir}/db/db.json.tmp" 2>>"${eus_dir}/logs/eus-database-management.log"
       eus_database_move
     fi
     if [[ -z "${abort_reason}" ]]; then
       script_success="$(jq -r '.scripts."'"${script_name}"'".success' "${eus_dir}/db/db.json")"
-      ((script_success=script_success+1))
-      jq --arg script_success "${script_success}" '."scripts"."'"${script_name}"'" += {"success": "'"${script_success}"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+      ((script_success = script_success + 1))
+      jq --arg script_success "${script_success}" '."scripts"."'"${script_name}"'" += {"success": "'"${script_success}"'"}' "${eus_dir}/db/db.json" >"${eus_dir}/db/db.json.tmp" 2>>"${eus_dir}/logs/eus-database-management.log"
       eus_database_move
     fi
-    jq '."scripts"."'"${script_name}"'" += {"last-run": "'"$(date +%s)"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+    jq '."scripts"."'"${script_name}"'" += {"last-run": "'"$(date +%s)"'"}' "${eus_dir}/db/db.json" >"${eus_dir}/db/db.json.tmp" 2>>"${eus_dir}/logs/eus-database-management.log"
     eus_database_move
     script_total_runs="$(jq -r '.scripts."'"${script_name}"'"."total-runs"' "${eus_dir}/db/db.json")"
-    ((script_total_runs=script_total_runs+1))
-    jq --arg script_total_runs "${script_total_runs}" '."scripts"."'"${script_name}"'" += {"total-runs": "'"${script_total_runs}"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+    ((script_total_runs = script_total_runs + 1))
+    jq --arg script_total_runs "${script_total_runs}" '."scripts"."'"${script_name}"'" += {"total-runs": "'"${script_total_runs}"'"}' "${eus_dir}/db/db.json" >"${eus_dir}/db/db.json.tmp" 2>>"${eus_dir}/logs/eus-database-management.log"
     eus_database_move
-    jq '."database" += {"name-servers": "'"${system_dns_servers}"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+    jq '."database" += {"name-servers": "'"${system_dns_servers}"'"}' "${eus_dir}/db/db.json" >"${eus_dir}/db/db.json.tmp" 2>>"${eus_dir}/logs/eus-database-management.log"
     eus_database_move
   fi
   check_docker_setup
 }
 
 eus_database_move() {
-  if [[ -z "${eus_database_move_file}" ]]; then eus_database_move_file="${eus_dir}/db/db.json"; eus_database_move_log_file="${eus_dir}/logs/eus-database-management.log"; fi
+  if [[ -z "${eus_database_move_file}" ]]; then
+    eus_database_move_file="${eus_dir}/db/db.json"
+    eus_database_move_log_file="${eus_dir}/logs/eus-database-management.log"
+  fi
   if [[ -s "${eus_database_move_file}.tmp" ]] && jq . "${eus_database_move_file}.tmp" >/dev/null 2>&1; then
-    mv "${eus_database_move_file}.tmp" "${eus_database_move_file}" &>> "${eus_database_move_log_file}"
+    mv "${eus_database_move_file}.tmp" "${eus_database_move_file}" &>>"${eus_database_move_log_file}"
   else
     if ! [[ -s "${eus_database_move_file}.tmp" ]]; then
-      echo -e "$(date +%F-%R) | \"${eus_database_move_file}.tmp\" is empty." >> "${eus_database_move_log_file}"
+      echo -e "$(date +%F-%R) | \"${eus_database_move_file}.tmp\" is empty." >>"${eus_database_move_log_file}"
     else
-      echo -e "$(date +%F-%R) | \"${eus_database_move_file}.tmp\" does not contain valid JSON. Contents:" >> "${eus_database_move_log_file}"
-      cat "${eus_database_move_file}.tmp" >> "${eus_database_move_log_file}"
+      echo -e "$(date +%F-%R) | \"${eus_database_move_file}.tmp\" does not contain valid JSON. Contents:" >>"${eus_database_move_log_file}"
+      cat "${eus_database_move_file}.tmp" >>"${eus_database_move_log_file}"
     fi
   fi
   unset eus_database_move_file
 }
 
 get_timezone() {
-  if command -v timedatectl >/dev/null 2>&1; then timezone="$(timedatectl | grep -i 'Time zone' | awk '{print $3}')"; if [[ -n "$timezone" ]]; then return; fi; fi
-  if [[ -L /etc/localtime ]]; then timezone="$(readlink /etc/localtime | awk -F'/zoneinfo/' '{print $2}')"; if [[ -n "$timezone" ]]; then return; fi; fi
-  if [[ -f /etc/timezone ]]; then timezone="$(cat /etc/timezone)"; if [[ -n "$timezone" ]]; then return; fi; fi
-  timezone="$(date +"%Z")"; if [[ -n "$timezone" ]]; then return; fi
+  if command -v timedatectl >/dev/null 2>&1; then
+    timezone="$(timedatectl | grep -i 'Time zone' | awk '{print $3}')"
+    if [[ -n "$timezone" ]]; then return; fi
+  fi
+  if [[ -L /etc/localtime ]]; then
+    timezone="$(readlink /etc/localtime | awk -F'/zoneinfo/' '{print $2}')"
+    if [[ -n "$timezone" ]]; then return; fi
+  fi
+  if [[ -f /etc/timezone ]]; then
+    timezone="$(cat /etc/timezone)"
+    if [[ -n "$timezone" ]]; then return; fi
+  fi
+  timezone="$(date +"%Z")"
+  if [[ -n "$timezone" ]]; then return; fi
 }
 
 support_file() {
   get_timezone
   check_docker_setup
-  if [[ "${set_lc_all}" == 'true' ]]; then if [[ -n "${original_lang}" ]]; then export LANG="${original_lang}"; else unset LANG; fi; if [[ -n "${original_lcall}" ]]; then export LC_ALL="${original_lcall}"; else unset LC_ALL; fi; fi
+  if [[ "${set_lc_all}" == 'true' ]]; then
+    if [[ -n "${original_lang}" ]]; then export LANG="${original_lang}"; else unset LANG; fi
+    if [[ -n "${original_lcall}" ]]; then export LC_ALL="${original_lcall}"; else unset LC_ALL; fi
+  fi
   if [[ "${script_option_support_file}" == 'true' ]]; then header; fi
   echo -e "${WHITE_R}#${RESET} Creating support file..."
   eus_directory_location="/tmp/EUS"
   eus_create_directories "support"
-  if "$(which dpkg)" -l lsb-release 2> /dev/null | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then lsb_release -a &> "/tmp/EUS/support/lsb-release"; else cat /etc/os-release &> "/tmp/EUS/support/os-release"; fi
+  if "$(which dpkg)" -l lsb-release 2>/dev/null | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then lsb_release -a &>"/tmp/EUS/support/lsb-release"; else cat /etc/os-release &>"/tmp/EUS/support/os-release"; fi
   if [[ -n "$(command -v jq)" && "$(dpkg-query --showformat='${Version}' --show jq | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
-    df -hP | awk 'BEGIN {print"{\"disk-usage\":["}{if($1=="Filesystem")next;if(a)print",";print"{\"mount\":\""$6"\",\"size\":\""$2"\",\"used\":\""$3"\",\"avail\":\""$4"\",\"use%\":\""$5"\"}";a++;}END{print"]}";}' | jq &> "/tmp/EUS/support/disk-usage.json"
+    df -hP | awk 'BEGIN {print"{\"disk-usage\":["}{if($1=="Filesystem")next;if(a)print",";print"{\"mount\":\""$6"\",\"size\":\""$2"\",\"used\":\""$3"\",\"avail\":\""$4"\",\"use%\":\""$5"\"}";a++;}END{print"]}";}' | jq &>"/tmp/EUS/support/disk-usage.json"
   else
-    df -h &> "/tmp/EUS/support/df"
+    df -h &>"/tmp/EUS/support/df"
   fi
-  uname -a &> "/tmp/EUS/support/uname-results"
-  lscpu &> "/tmp/EUS/support/lscpu-results"
-  ps -p $$ -o command= &> "/tmp/EUS/support/script-usage"
-  echo "$PATH" &> "/tmp/EUS/support/PATH"
-  "$(which dpkg)" -l | grep "mongo\\|oracle\\|openjdk\\|unifi\\|temurin" &> "/tmp/EUS/support/unifi-packages-list"
-  "$(which dpkg)" -l &> "/tmp/EUS/support/dpkg-packages-list"
-  journalctl -u unifi -p debug --since "1 week ago" --no-pager &> "/tmp/EUS/support/ujournal.log"
-  journalctl --since yesterday &> "/tmp/EUS/support/journal.log"
+  uname -a &>"/tmp/EUS/support/uname-results"
+  lscpu &>"/tmp/EUS/support/lscpu-results"
+  ps -p $$ -o command= &>"/tmp/EUS/support/script-usage"
+  echo "$PATH" &>"/tmp/EUS/support/PATH"
+  "$(which dpkg)" -l | grep "mongo\\|oracle\\|openjdk\\|unifi\\|temurin" &>"/tmp/EUS/support/unifi-packages-list"
+  "$(which dpkg)" -l &>"/tmp/EUS/support/dpkg-packages-list"
+  journalctl -u unifi -p debug --since "1 week ago" --no-pager &>"/tmp/EUS/support/ujournal.log"
+  journalctl --since yesterday &>"/tmp/EUS/support/journal.log"
   if [[ "$(command -v timedatectl)" ]]; then
     {
       echo -e "-----( timedatectl )----- \n"
-      if timedatectl --help | grep -ioq "\--all" 2> /dev/null; then timedatectl --all --no-pager 2> /dev/null; else timedatectl --no-pager 2> /dev/null; fi
-      if timedatectl --help | grep -ioq "show-timesync" 2> /dev/null; then echo -e "\n-----( timedatectl show-timesync )----- \n"; timedatectl show-timesync --no-pager 2> /dev/null; fi
-      if timedatectl --help | grep -ioq "timesync-status" 2> /dev/null; then echo -e "\n-----( timedatectl timesync-status )----- \n"; timedatectl timesync-status --no-pager 2> /dev/null; fi
-    } >> "/tmp/EUS/support/timedatectl"
+      if timedatectl --help | grep -ioq "\--all" 2>/dev/null; then timedatectl --all --no-pager 2>/dev/null; else timedatectl --no-pager 2>/dev/null; fi
+      if timedatectl --help | grep -ioq "show-timesync" 2>/dev/null; then
+        echo -e "\n-----( timedatectl show-timesync )----- \n"
+        timedatectl show-timesync --no-pager 2>/dev/null
+      fi
+      if timedatectl --help | grep -ioq "timesync-status" 2>/dev/null; then
+        echo -e "\n-----( timedatectl timesync-status )----- \n"
+        timedatectl timesync-status --no-pager 2>/dev/null
+      fi
+    } >>"/tmp/EUS/support/timedatectl"
   fi
-  ps axjf &> "/tmp/EUS/support/process-tree"
-  if [[ "$(command -v netstat)" ]]; then netstat -tulp &> "/tmp/EUS/support/netstat-results"; fi
+  ps axjf &>"/tmp/EUS/support/process-tree"
+  if [[ "$(command -v netstat)" ]]; then netstat -tulp &>"/tmp/EUS/support/netstat-results"; fi
   #
-  lsblk -iJ -fs &> "/tmp/EUS/support/disk-layout.json"
+  lsblk -iJ -fs &>"/tmp/EUS/support/disk-layout.json"
   if [[ -n "$(command -v jq)" ]]; then
     system_hostname="$(uname --nodename)"
     system_kernel_name="$(uname --kernel-name)"
@@ -286,7 +317,10 @@ support_file() {
     if [[ -n "$(command -v runlevel)" ]]; then system_runlevel="$(runlevel | awk '{print $2}')"; else system_runlevel="command not found"; fi
     process_with_pid_1="$(ps -p 1 -o comm=)"
     cpu_cores="$(grep -ic processor /proc/cpuinfo)"
-    cpu_usage="$(awk '{u=$2+$4; t=$2+$4+$5; if (NR==1){u1=u; t1=t;} else print ($2+$4-u1) * 100 / (t-t1) "%"; }' <(grep 'cpu ' /proc/stat) <(sleep 1;grep 'cpu ' /proc/stat))"
+    cpu_usage="$(awk '{u=$2+$4; t=$2+$4+$5; if (NR==1){u1=u; t1=t;} else print ($2+$4-u1) * 100 / (t-t1) "%"; }' <(grep 'cpu ' /proc/stat) <(
+      sleep 1
+      grep 'cpu ' /proc/stat
+    ))"
     cpu_cores="$(grep -ic processor /proc/cpuinfo)"
     cpu_architecture="$("$(which dpkg)" --print-architecture)"
     cpu_type="$(uname -p)"
@@ -306,9 +340,9 @@ support_file() {
     swap_cached="$(grep "^SwapCached:" /proc/meminfo | awk '{print $2}')"
     if [[ "$(dpkg-query --showformat='${Version}' --show jq | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
       jq -n \
-        --argjson "system-stats" "$( 
+        --argjson "system-stats" "$(
           jq -n \
-            --argjson "system" "$( 
+            --argjson "system" "$(
               jq -n \
                 --arg system_hostname "${system_hostname}" \
                 --arg system_kernel_name "${system_kernel_name}" \
@@ -322,10 +356,10 @@ support_file() {
                 --arg process_with_pid_1 "${process_with_pid_1}" \
                 "{ \"hostname\" : \"$system_hostname\", \"kernel-name\" : \"$system_kernel_name\", \"kernel-release\" : \"$system_kernel_release\", \"kernel-version\" : \"$system_kernel_version\", \"machine\" : \"$system_machine\", \"hardware\" : \"$system_hardware\", \"operating-system\" : \"$system_os\", \"timezone\" : \"$timezone\", \"runlevel\" : \"$system_runlevel\", \"init\" : \"$process_with_pid_1\" }" \
                 '$ARGS.named'
-              )" \
+            )" \
             '$ARGS.named' \
-          jq -n \
-            --argjson "cpu" "$( 
+            jq -n \
+            --argjson "cpu" "$(
               jq -n \
                 --arg cpu_usage "${cpu_usage}" \
                 --arg cpu_cores "${cpu_cores}" \
@@ -333,10 +367,10 @@ support_file() {
                 --arg cpu_type "${cpu_architecture}" \
                 "{ \"usage\" : \"$cpu_usage\", \"cores\" : \"$cpu_cores\", \"architecture\" : \"$cpu_architecture\", \"type\" : \"$cpu_type\" }" \
                 '$ARGS.named'
-              )" \
+            )" \
             '$ARGS.named' \
-          jq -n \
-            --argjson "memory" "$( 
+            jq -n \
+            --argjson "memory" "$(
               jq -n \
                 --arg mem_total "${mem_total}" \
                 --arg mem_free "${mem_free}" \
@@ -350,10 +384,10 @@ support_file() {
                 --arg mem_dirty "${mem_dirty}" \
                 "{ \"total\" : \"$mem_total\", \"free\" : \"$mem_free\", \"available\" : \"$mem_available\", \"used\" : \"$mem_used\", \"used_percentage\" : \"$mem_used_percentage\", \"buffers\" : \"$mem_buffers\", \"cached\" : \"$mem_cached\", \"active\" : \"$mem_active\", \"inactive\" : \"$mem_inactive\", \"dirty\" : \"$mem_dirty\" }" \
                 '$ARGS.named'
-              )" \
+            )" \
             '$ARGS.named' \
-          jq -n \
-            --argjson "swap" "$( 
+            jq -n \
+            --argjson "swap" "$(
               jq -n \
                 --arg swap_total "${swap_total}" \
                 --arg swap_free "${swap_free}" \
@@ -361,10 +395,10 @@ support_file() {
                 --arg swap_cached "${swap_cached}" \
                 "{ \"total\" : \"$swap_total\", \"free\" : \"$swap_free\", \"used\" : \"$swap_used\", \"cached\" : \"$swap_cached\" }" \
                 '$ARGS.named'
-              )" \
+            )" \
             '$ARGS.named'
-          )" \
-        '$ARGS.named' &> "/tmp/EUS/support/sysstat.json"
+        )" \
+        '$ARGS.named' &>"/tmp/EUS/support/sysstat.json"
     else
       jq -n \
         --arg system_hostname "${system_hostname}" \
@@ -432,49 +466,55 @@ support_file() {
             used: $swap_used,
             cached: $swap_cached
           }
-        }' &> "/tmp/EUS/support/sysstat.json"
+        }' &>"/tmp/EUS/support/sysstat.json"
     fi
   fi
   # shellcheck disable=SC2129
-  sed -n '3p' "${script_location}" &>> "/tmp/EUS/support/script"
-  grep "# Version" "${script_location}" | head -n1 &>> "/tmp/EUS/support/script"
-  find "${eus_dir}" -type d,f &> "/tmp/EUS/support/dirs_and_files"
-  if [[ -n "$(command -v jq)" && -f "${eus_dir}/db/db.json" ]]; then jq '."database" += {"name-servers": "'"${system_dns_servers}"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"; eus_database_move; fi
+  sed -n '3p' "${script_location}" &>>"/tmp/EUS/support/script"
+  grep "# Version" "${script_location}" | head -n1 &>>"/tmp/EUS/support/script"
+  find "${eus_dir}" -type d,f &>"/tmp/EUS/support/dirs_and_files"
+  if [[ -n "$(command -v jq)" && -f "${eus_dir}/db/db.json" ]]; then
+    jq '."database" += {"name-servers": "'"${system_dns_servers}"'"}' "${eus_dir}/db/db.json" >"${eus_dir}/db/db.json.tmp" 2>>"${eus_dir}/logs/eus-database-management.log"
+    eus_database_move
+  fi
   # Create a copy of the system.properties file and remove any mongodb PII
   if [[ -e "/usr/lib/unifi/data/system.properties" ]]; then
     while read -r system_properties_files; do
       {
         echo -e "\n-----( ${system_properties_files} )----- \n"
         cat "${system_properties_files}"
-      } >> "/tmp/EUS/support/unifi.system.properties"
+      } >>"/tmp/EUS/support/unifi.system.properties"
     done < <(find /usr/lib/unifi/data/ -name "system.properties*" -type f)
-    if grep -qE 'mongo\.password|mongo\.uri' "/tmp/EUS/support/unifi.system.properties"; then sed -i -e '/mongo.password/d' -e '/mongo.uri/d' "/tmp/EUS/support/unifi.system.properties"; echo "# Removed mongo.password and mongo.uri for privacy reasons" >> "/tmp/EUS/support/unifi.system.properties"; fi
+    if grep -qE 'mongo\.password|mongo\.uri' "/tmp/EUS/support/unifi.system.properties"; then
+      sed -i -e '/mongo.password/d' -e '/mongo.uri/d' "/tmp/EUS/support/unifi.system.properties"
+      echo "# Removed mongo.password and mongo.uri for privacy reasons" >>"/tmp/EUS/support/unifi.system.properties"
+    fi
   fi
   support_file_time="$(date +%Y%m%d-%H%M-%S%N)"
   if [[ -n "$(command -v jq)" && -f "${eus_dir}/db/db.json" ]]; then support_file_uuid="$(jq -r '.database.uuid' ${eus_dir}/db/db.json)-"; fi
-  if "$(which dpkg)" -l tar 2> /dev/null | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+  if "$(which dpkg)" -l tar 2>/dev/null | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
     support_file="/tmp/eus-support-${support_file_uuid}${support_file_time}.tar.gz"
     support_file_name="$(basename "${support_file}")"
     if [[ -n "$(command -v jq)" && -f "${eus_dir}/db/db.json" ]]; then
-      jq '.scripts."'"${script_name}"'" |= . + {"support": (.support + {("'"${support_file_name}"'"): {"abort-reason": "'"${abort_reason}"'","upload-results": ""}})}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+      jq '.scripts."'"${script_name}"'" |= . + {"support": (.support + {("'"${support_file_name}"'"): {"abort-reason": "'"${abort_reason}"'","upload-results": ""}})}' "${eus_dir}/db/db.json" >"${eus_dir}/db/db.json.tmp" 2>>"${eus_dir}/logs/eus-database-management.log"
       eus_database_move
     fi
-    tar czvfh "${support_file}" --exclude="${eus_dir}/unifi_db" --exclude="/tmp/EUS/downloads" --exclude="/usr/lib/unifi/logs/remote" "/tmp/EUS" "${eus_dir}" "/usr/lib/unifi/logs" "/etc/apt/sources.list" "/etc/apt/sources.list.d/" "/etc/apt/preferences" "/etc/apt/keyrings" "/etc/apt/preferences.d/" "/etc/default/unifi" "/etc/environment" "/var/log/dpkg.log" "/etc/systemd/system/unifi.service.d/" "/lib/systemd/system/unifi.service" &> /dev/null
-  elif "$(which dpkg)" -l zip 2> /dev/null | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+    tar czvfh "${support_file}" --exclude="${eus_dir}/unifi_db" --exclude="/tmp/EUS/downloads" --exclude="/usr/lib/unifi/logs/remote" "/tmp/EUS" "${eus_dir}" "/usr/lib/unifi/logs" "/etc/apt/sources.list" "/etc/apt/sources.list.d/" "/etc/apt/preferences" "/etc/apt/keyrings" "/etc/apt/preferences.d/" "/etc/default/unifi" "/etc/environment" "/var/log/dpkg.log" "/etc/systemd/system/unifi.service.d/" "/lib/systemd/system/unifi.service" &>/dev/null
+  elif "$(which dpkg)" -l zip 2>/dev/null | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
     support_file="/tmp/eus-support-${support_file_uuid}${support_file_time}.zip"
     support_file_name="$(basename "${support_file}")"
     if [[ -n "$(command -v jq)" && -f "${eus_dir}/db/db.json" ]]; then
-      jq '.scripts."'"${script_name}"'" |= . + {"support": (.support + {("'"${support_file_name}"'"): {"abort-reason": "'"${abort_reason}"'","upload-results": ""}})}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+      jq '.scripts."'"${script_name}"'" |= . + {"support": (.support + {("'"${support_file_name}"'"): {"abort-reason": "'"${abort_reason}"'","upload-results": ""}})}' "${eus_dir}/db/db.json" >"${eus_dir}/db/db.json.tmp" 2>>"${eus_dir}/logs/eus-database-management.log"
       eus_database_move
     fi
-    zip -r "${support_file}" "/tmp/EUS/" "${eus_dir}/" "/usr/lib/unifi/logs/" "/etc/apt/sources.list" "/etc/apt/sources.list.d/" "/etc/apt/preferences" "/etc/apt/keyrings" "/etc/apt/preferences.d/" "/etc/default/unifi" "/etc/environment" "/var/log/dpkg.log" "/etc/systemd/system/unifi.service.d/" "/lib/systemd/system/unifi.service" -x "${eus_dir}/unifi_db/*" -x "/tmp/EUS/downloads" -x "/usr/lib/unifi/logs/remote" &> /dev/null
+    zip -r "${support_file}" "/tmp/EUS/" "${eus_dir}/" "/usr/lib/unifi/logs/" "/etc/apt/sources.list" "/etc/apt/sources.list.d/" "/etc/apt/preferences" "/etc/apt/keyrings" "/etc/apt/preferences.d/" "/etc/default/unifi" "/etc/environment" "/var/log/dpkg.log" "/etc/systemd/system/unifi.service.d/" "/lib/systemd/system/unifi.service" -x "${eus_dir}/unifi_db/*" -x "/tmp/EUS/downloads" -x "/usr/lib/unifi/logs/remote" &>/dev/null
   fi
   if [[ -n "${support_file}" ]]; then
     echo -e "${WHITE_R}#${RESET} Support file has been created here: ${support_file} \\n"
     if [[ -n "$(command -v jq)" && -f "${eus_dir}/db/db.json" ]]; then
       if [[ "$(jq -r '.database."support-file-upload"' "${eus_dir}/db/db.json")" == 'true' ]]; then
         upload_result="$(curl "${curl_argument[@]}" -X POST -F "file=@${support_file}" "https://api.glennr.nl/api/eus-support" | jq -r '.[]')"
-        jq '.scripts."'"${script_name}"'".support."'"${support_file_name}"'"."upload-results" = "'"${upload_result}"'"' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+        jq '.scripts."'"${script_name}"'".support."'"${support_file_name}"'"."upload-results" = "'"${upload_result}"'"' "${eus_dir}/db/db.json" >"${eus_dir}/db/db.json.tmp" 2>>"${eus_dir}/logs/eus-database-management.log"
         eus_database_move
       fi
     fi
@@ -486,24 +526,27 @@ abort() {
   if [[ -n "${abort_reason}" && "${abort_function_skip_reason}" != 'true' ]]; then echo -e "${RED}#${RESET} ${abort_reason}.. \\n"; fi
   if [[ -n "$(command -v jq)" && -f "${eus_dir}/db/db.json" ]]; then
     script_aborts="$(jq -r '.scripts."'"${script_name}"'".aborts' "${eus_dir}/db/db.json")"
-    ((script_aborts=script_aborts+1))
-    jq --arg script_aborts "${script_aborts}" '."scripts"."'"${script_name}"'" += {"aborts": "'"${script_aborts}"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+    ((script_aborts = script_aborts + 1))
+    jq --arg script_aborts "${script_aborts}" '."scripts"."'"${script_name}"'" += {"aborts": "'"${script_aborts}"'"}' "${eus_dir}/db/db.json" >"${eus_dir}/db/db.json.tmp" 2>>"${eus_dir}/logs/eus-database-management.log"
     eus_database_move
   fi
-  if [[ "${set_lc_all}" == 'true' ]]; then if [[ -n "${original_lang}" ]]; then export LANG="${original_lang}"; else unset LANG; fi; if [[ -n "${original_lcall}" ]]; then export LC_ALL="${original_lcall}"; else unset LC_ALL; fi; fi
+  if [[ "${set_lc_all}" == 'true' ]]; then
+    if [[ -n "${original_lang}" ]]; then export LANG="${original_lang}"; else unset LANG; fi
+    if [[ -n "${original_lcall}" ]]; then export LC_ALL="${original_lcall}"; else unset LC_ALL; fi
+  fi
   if [[ -f /tmp/EUS/services/stopped_list && -s /tmp/EUS/services/stopped_list ]]; then
     while read -r service; do
       echo -e "\\n${WHITE_R}#${RESET} Starting ${service}.."
       if [[ "${limited_functionality}" == 'true' ]]; then
-        if service "${service}" start &>> "${eus_dir}/logs/abort-script-service-start.log"; then echo -e "${GREEN}#${RESET} Successfully started ${service}!"; else echo -e "${RED}#${RESET} Failed to start ${service}!"; fi
+        if service "${service}" start &>>"${eus_dir}/logs/abort-script-service-start.log"; then echo -e "${GREEN}#${RESET} Successfully started ${service}!"; else echo -e "${RED}#${RESET} Failed to start ${service}!"; fi
       else
-        if systemctl start "${service}" &>> "${eus_dir}/logs/abort-script-service-start.log"; then echo -e "${GREEN}#${RESET} Successfully started ${service}!"; else echo -e "${RED}#${RESET} Failed to start ${service}!"; fi
+        if systemctl start "${service}" &>>"${eus_dir}/logs/abort-script-service-start.log"; then echo -e "${GREEN}#${RESET} Successfully started ${service}!"; else echo -e "${RED}#${RESET} Failed to start ${service}!"; fi
       fi
-    done < /tmp/EUS/services/stopped_list
+    done </tmp/EUS/services/stopped_list
   fi
   echo -e "\\n\\n${RED}#########################################################################${RESET}\\n"
   if [[ "$(df -B1 / | awk 'NR==2{print $4}')" -le '5368709120' ]]; then echo -e "${YELLOW}#${RESET} You only have $(df -B1 / | awk 'NR==2{print $4}' | awk '{ split( "B KB MB GB TB PB EB ZB YB" , v ); s=1; while( $1>1024 && s<9 ){ $1/=1024; s++ } printf "%.1f %s", $1, v[s] }') of disk space available on \"/\"... \\n"; fi
-  if [[ -e "/usr/lib/unifi/logs/server.log" ]]; then if grep -ioq "Invalid access at address.*Bus error" "/usr/lib/unifi/logs/server.log"; then  echo -e "${WHITE_R}#${RESET} You've got \"Invalid access at address\" messages in your logs, this is often caused by bad storage or bad memory... \\n"; fi; fi
+  if [[ -e "/usr/lib/unifi/logs/server.log" ]]; then if grep -ioq "Invalid access at address.*Bus error" "/usr/lib/unifi/logs/server.log"; then echo -e "${WHITE_R}#${RESET} You've got \"Invalid access at address\" messages in your logs, this is often caused by bad storage or bad memory... \\n"; fi; fi
   echo -e "${WHITE_R}#${RESET} An error occurred. Aborting script..."
   echo -e "${WHITE_R}#${RESET} Please contact Glenn R. (AmazedMender16) on the UI Community Forums!"
   echo -e "${WHITE_R}#${RESET} UI Community Thread: https://community.ui.com/questions/ccbc7530-dd61-40a7-82ec-22b17f027776 \\n"
@@ -515,16 +558,20 @@ abort() {
 
 eus_create_directories() {
   for dir_name in "$@"; do
-    if ! [[ -d "${eus_directory_location}/${dir_name}" ]]; then 
-      if ! [[ -d "${eus_dir}/logs" ]]; then 
-        if ! mkdir -p "${eus_directory_location}/${dir_name}"; then 
-          abort_reason="Failed to create directory ${eus_directory_location}/${dir_name}."; header_red; abort
-        fi 
-      else 
-        if ! mkdir -p "${eus_directory_location}/${dir_name}" &>> "${eus_dir}/logs/create-directories.log"; then 
-          abort_reason="Failed to create directory ${eus_directory_location}/${dir_name}."; header_red; abort
-       fi 
-      fi 
+    if ! [[ -d "${eus_directory_location}/${dir_name}" ]]; then
+      if ! [[ -d "${eus_dir}/logs" ]]; then
+        if ! mkdir -p "${eus_directory_location}/${dir_name}"; then
+          abort_reason="Failed to create directory ${eus_directory_location}/${dir_name}."
+          header_red
+          abort
+        fi
+      else
+        if ! mkdir -p "${eus_directory_location}/${dir_name}" &>>"${eus_dir}/logs/create-directories.log"; then
+          abort_reason="Failed to create directory ${eus_directory_location}/${dir_name}."
+          header_red
+          abort
+        fi
+      fi
     fi
   done
   eus_directory_location="${eus_dir}"
@@ -534,7 +581,7 @@ eus_directories() {
   if uname -a | tr '[:upper:]' '[:lower:]' | grep -iq "cloudkey\\|uck\\|ubnt-mtk"; then
     eus_dir='/srv/EUS'
     is_cloudkey="true"
-  elif grep -iq "UCKP\\|UCKG2\\|UCK" /usr/lib/version &> /dev/null; then
+  elif grep -iq "UCKP\\|UCKG2\\|UCK" /usr/lib/version &>/dev/null; then
     eus_dir='/srv/EUS'
     is_cloudkey="true"
   else
@@ -543,19 +590,35 @@ eus_directories() {
   fi
   eus_directory_location="${eus_dir}"
   eus_create_directories "logs"
-  if ! rm -rf /tmp/EUS &> /dev/null; then abort_reason="Failed to remove /tmp/EUS."; header_red; abort; fi
+  if ! rm -rf /tmp/EUS &>/dev/null; then
+    abort_reason="Failed to remove /tmp/EUS."
+    header_red
+    abort
+  fi
   eus_directory_location="/tmp/EUS"
   eus_create_directories "upgrade" "dpkg" "repository"
-  grep -sriIl "unifi-[0-9].[0-9]" /etc/apt/sources.list* &> /tmp/EUS/repository/unifi-repo-file
-  if [[ "${is_cloudkey}" == "true" ]]; then if grep -iq "UCK.mtk7623" /usr/lib/version &> /dev/null; then cloudkey_generation="1"; fi; fi
-  if ! [[ -d "/etc/apt/keyrings" ]]; then if ! install -m "0755" -d "/etc/apt/keyrings" &>> "${eus_dir}/logs/keyrings-directory-creation.log"; then if ! mkdir -p "/etc/apt/keyrings" &>> "${eus_dir}/logs/keyrings-directory-creation.log"; then abort_reason="Failed to create /etc/apt/keyrings."; abort; fi; fi; if ! [[ -s "${eus_dir}/logs/keyrings-directory-creation.log" ]]; then rm --force "${eus_dir}/logs/keyrings-directory-creation.log"; fi; fi
-  if [[ "$(command -v stat)" ]]; then tmp_permissions="$(stat -c '%a' /tmp)"; echo -e "$(date +%F-%R) | \"/tmp\" has permissions \"${tmp_permissions}\"..." &>> "${eus_dir}/logs/update-tmp-permissions.log"; fi
+  grep -sriIl "unifi-[0-9].[0-9]" /etc/apt/sources.list* &>/tmp/EUS/repository/unifi-repo-file
+  if [[ "${is_cloudkey}" == "true" ]]; then if grep -iq "UCK.mtk7623" /usr/lib/version &>/dev/null; then cloudkey_generation="1"; fi; fi
+  if ! [[ -d "/etc/apt/keyrings" ]]; then
+    if ! install -m "0755" -d "/etc/apt/keyrings" &>>"${eus_dir}/logs/keyrings-directory-creation.log"; then if ! mkdir -p "/etc/apt/keyrings" &>>"${eus_dir}/logs/keyrings-directory-creation.log"; then
+      abort_reason="Failed to create /etc/apt/keyrings."
+      abort
+    fi; fi
+    if ! [[ -s "${eus_dir}/logs/keyrings-directory-creation.log" ]]; then rm --force "${eus_dir}/logs/keyrings-directory-creation.log"; fi
+  fi
+  if [[ "$(command -v stat)" ]]; then
+    tmp_permissions="$(stat -c '%a' /tmp)"
+    echo -e "$(date +%F-%R) | \"/tmp\" has permissions \"${tmp_permissions}\"..." &>>"${eus_dir}/logs/update-tmp-permissions.log"
+  fi
   # shellcheck disable=SC2012
-  if [[ "${tmp_permissions}" != '1777' ]]; then if [[ -z "${tmp_permissions}" ]]; then echo -e "$(date +%F-%R) | \"/tmp\" has permissions \"$(ls -ld /tmp | awk '{print $1}')\"..." &>> "${eus_dir}/logs/update-tmp-permissions.log"; fi; chmod 1777 /tmp &>> "${eus_dir}/logs/update-tmp-permissions.log"; fi
+  if [[ "${tmp_permissions}" != '1777' ]]; then
+    if [[ -z "${tmp_permissions}" ]]; then echo -e "$(date +%F-%R) | \"/tmp\" has permissions \"$(ls -ld /tmp | awk '{print $1}')\"..." &>>"${eus_dir}/logs/update-tmp-permissions.log"; fi
+    chmod 1777 /tmp &>>"${eus_dir}/logs/update-tmp-permissions.log"
+  fi
 }
 
 script_logo() {
-  cat << "EOF"
+  cat <<"EOF"
 
   _______________ ___  _________  .___                 __         .__  .__   
   \_   _____/    |   \/   _____/  |   | ____   _______/  |______  |  | |  |  
@@ -569,7 +632,11 @@ EOF
 
 start_script() {
   script_location="${BASH_SOURCE[0]}"
-  if ! [[ -f "${script_location}" ]]; then header_red; echo -e "${YELLOW}#${RESET} The script needs to be saved on the disk in order to work properly, please follow the instructions...\\n${YELLOW}#${RESET} Usage: curl -sO https://get.glennr.nl/unifi/install/install_latest/unifi-latest.sh && bash unifi-latest.sh\\n\\n"; exit 1; fi
+  if ! [[ -f "${script_location}" ]]; then
+    header_red
+    echo -e "${YELLOW}#${RESET} The script needs to be saved on the disk in order to work properly, please follow the instructions...\\n${YELLOW}#${RESET} Usage: curl -sO https://get.glennr.nl/unifi/install/install_latest/unifi-latest.sh && bash unifi-latest.sh\\n\\n"
+    exit 1
+  fi
   script_file_name="$(basename "${BASH_SOURCE[0]}")"
   script_name="$(grep -i "# Script" "${script_location}" | head -n 1 | cut -d'|' -f2 | sed -e 's/^ //g')"
   eus_directories
@@ -584,7 +651,10 @@ start_script
 check_dns
 
 help_script() {
-  if [[ "${script_option_help}" == 'true' ]]; then header; script_logo; else echo -e "${WHITE_R}----${RESET}\\n"; fi
+  if [[ "${script_option_help}" == 'true' ]]; then
+    header
+    script_logo
+  else echo -e "${WHITE_R}----${RESET}\\n"; fi
   echo -e "    Easy UniFi Network Application Install Script assistance\\n"
   echo -e "
   Script usage:
@@ -645,8 +715,8 @@ help_script() {
   exit 0
 }
 
-rm --force /tmp/EUS/script_options &> /dev/null
-rm --force /tmp/EUS/le_script_options &> /dev/null
+rm --force /tmp/EUS/script_options &>/dev/null
+rm --force /tmp/EUS/le_script_options &>/dev/null
 script_option_list=(-skip --skip --skip-swap --add-repository --local --local-controller --local-install --custom-url --help --v6 --ipv6 --email --mail --fqdn --domain-name --server-ip --server-address --retry --external-dns --force-renew --renew --dns --dns-challenge --dns-provider --dns-provider-credentials --debug --run-easy-encrypt --support-file)
 dns_provider_list=(cloudflare digitalocean dnsimple dnsmadeeasy gehirn google linode luadns nsone ovh rfc2136 route53 sakuracloud)
 dns_multi_provider_list=(akamaiedgedns alibabaclouddns allinkl amazonlightsail arvancloud auroradns autodns azuredns bindman bluecat brandit bunny checkdomain civo cloudru clouddns cloudns cloudxns conoha constellix derakcloud desecio designatednsaasforopenstack dnshomede domainoffensive domeneshop dreamhost duckdns dyn dynu easydns efficientip epik exoscale externalprogram freemyip gcore gandi gandilivedns glesys godaddy hetzner hostingde hosttech httprequest httpnet hurricaneelectricdns hyperone ibmcloud iijdnsplatformservice infoblox infomaniak internetinitiativejapan internetbs inwx ionos ipv64 iwantmyname joker joohoisacmedns liara liquidweb loopia metaname mydnsjp mythicbeasts namecom namecheap namesilo nearlyfreespeechnet netcup netlify nicmanager nifcloud njalla nodion opentelekomcloud oraclecloud pleskcom porkbun powerdns rackspace rcodezero regru rimuhosting scaleway selectel servercow simplycom sonic stackpath tencentclouddns transip ukfastsafedns ultradns variomedia vegadns vercel versionl versioeu versiouk vinyldns vkcloud vscale vultr webnames websupport wedos yandex360 yandexcloud yandexpdd zoneee zonomi)
@@ -654,119 +724,201 @@ dns_multi_provider_list=(akamaiedgedns alibabaclouddns allinkl amazonlightsail a
 while [ -n "$1" ]; do
   case "$1" in
   -skip | --skip)
-       script_option_skip="true"
-       echo "--skip" &>> /tmp/EUS/script_options
-       echo "--skip" &>> /tmp/EUS/le_script_options;;
+    script_option_skip="true"
+    echo "--skip" &>>/tmp/EUS/script_options
+    echo "--skip" &>>/tmp/EUS/le_script_options
+    ;;
   --skip-swap)
-       script_option_skip_swap="true"
-       echo "--skip-swap" &>> /tmp/EUS/script_options;;
+    script_option_skip_swap="true"
+    echo "--skip-swap" &>>/tmp/EUS/script_options
+    ;;
   --add-repository)
-       script_option_add_repository="true"
-       echo "--add-repository" &>> /tmp/EUS/script_options;;
+    script_option_add_repository="true"
+    echo "--add-repository" &>>/tmp/EUS/script_options
+    ;;
   --local | --local-controller | --local-install)
-       script_option_local_install="true"
-       echo "--local-install" &>> /tmp/EUS/script_options;;
+    script_option_local_install="true"
+    echo "--local-install" &>>/tmp/EUS/script_options
+    ;;
   --custom-url)
-       if [[ -n "${2}" ]]; then if echo "${2}" | grep -ioq ".deb"; then custom_url_down_provided="true"; custom_download_url="${2}"; else header_red; echo -e "${RED}#${RESET} Provided URL does not have the 'deb' extension...\\n"; help_script; fi; fi
-       script_option_custom_url="true"
-       if [[ "${custom_url_down_provided}" == 'true' ]]; then echo "--custom-url ${2}" &>> /tmp/EUS/script_options; else echo "--custom-url" &>> /tmp/EUS/script_options; fi;;
+    if [[ -n "${2}" ]]; then if echo "${2}" | grep -ioq ".deb"; then
+      custom_url_down_provided="true"
+      custom_download_url="${2}"
+    else
+      header_red
+      echo -e "${RED}#${RESET} Provided URL does not have the 'deb' extension...\\n"
+      help_script
+    fi; fi
+    script_option_custom_url="true"
+    if [[ "${custom_url_down_provided}" == 'true' ]]; then echo "--custom-url ${2}" &>>/tmp/EUS/script_options; else echo "--custom-url" &>>/tmp/EUS/script_options; fi
+    ;;
   --help)
-       script_option_help="true"
-       help_script;;
+    script_option_help="true"
+    help_script
+    ;;
   --v6 | --ipv6)
-       echo "--v6" &>> /tmp/EUS/le_script_options;;
+    echo "--v6" &>>/tmp/EUS/le_script_options
+    ;;
   --email | --mail)
-       for option in "${script_option_list[@]}"; do
-         if [[ "${2}" == "${option}" ]]; then header_red; echo -e "${WHITE_R}#${RESET} Option ${1} requires a command argument... \\n\\n"; help_script; fi
-       done
-       echo -e "--email ${2}" &>> /tmp/EUS/le_script_options
-       shift;;
+    for option in "${script_option_list[@]}"; do
+      if [[ "${2}" == "${option}" ]]; then
+        header_red
+        echo -e "${WHITE_R}#${RESET} Option ${1} requires a command argument... \\n\\n"
+        help_script
+      fi
+    done
+    echo -e "--email ${2}" &>>/tmp/EUS/le_script_options
+    shift
+    ;;
   --fqdn | --domain-name)
-       for option in "${script_option_list[@]}"; do
-         if [[ "${2}" == "${option}" ]]; then header_red; echo -e "${WHITE_R}#${RESET} Option ${1} requires a command argument... \\n\\n"; help_script; fi
-       done
-       echo -e "--fqdn ${2}" &>> /tmp/EUS/le_script_options
-       fqdn_specified="true"
-       shift;;
+    for option in "${script_option_list[@]}"; do
+      if [[ "${2}" == "${option}" ]]; then
+        header_red
+        echo -e "${WHITE_R}#${RESET} Option ${1} requires a command argument... \\n\\n"
+        help_script
+      fi
+    done
+    echo -e "--fqdn ${2}" &>>/tmp/EUS/le_script_options
+    fqdn_specified="true"
+    shift
+    ;;
   --server-ip | --server-address)
-       for option in "${script_option_list[@]}"; do
-         if [[ "${2}" == "${option}" ]]; then header_red; echo -e "${WHITE_R}#${RESET} Option ${1} requires a command argument... \\n\\n"; help_script; fi
-       done
-       echo -e "--server-ip ${2}" &>> /tmp/EUS/le_script_options
-       shift;;
+    for option in "${script_option_list[@]}"; do
+      if [[ "${2}" == "${option}" ]]; then
+        header_red
+        echo -e "${WHITE_R}#${RESET} Option ${1} requires a command argument... \\n\\n"
+        help_script
+      fi
+    done
+    echo -e "--server-ip ${2}" &>>/tmp/EUS/le_script_options
+    shift
+    ;;
   --retry)
-       for option in "${script_option_list[@]}"; do
-         if [[ "${2}" == "${option}" ]]; then header_red; echo -e "${WHITE_R}#${RESET} Option ${1} requires a command argument... \\n\\n"; help_script; fi
-       done
-       echo -e "--retry ${2}" &>> /tmp/EUS/le_script_options
-       shift;;
+    for option in "${script_option_list[@]}"; do
+      if [[ "${2}" == "${option}" ]]; then
+        header_red
+        echo -e "${WHITE_R}#${RESET} Option ${1} requires a command argument... \\n\\n"
+        help_script
+      fi
+    done
+    echo -e "--retry ${2}" &>>/tmp/EUS/le_script_options
+    shift
+    ;;
   --external-dns)
-       for option in "${script_option_list[@]}"; do
-         if [[ "${2}" == "${option}" ]]; then echo -e "--external-dns" &>> /tmp/EUS/le_script_options; else echo -e "--external-dns ${2}" &>> /tmp/EUS/le_script_options; fi
-       done;;
+    for option in "${script_option_list[@]}"; do
+      if [[ "${2}" == "${option}" ]]; then echo -e "--external-dns" &>>/tmp/EUS/le_script_options; else echo -e "--external-dns ${2}" &>>/tmp/EUS/le_script_options; fi
+    done
+    ;;
   --force-renew | --renew)
-       echo -e "--force-renew" &>> /tmp/EUS/le_script_options;;
+    echo -e "--force-renew" &>>/tmp/EUS/le_script_options
+    ;;
   --dns | --dns-challenge)
-       echo -e "--dns-challenge" &>> /tmp/EUS/le_script_options;;
+    echo -e "--dns-challenge" &>>/tmp/EUS/le_script_options
+    ;;
   --dns-provider)
-       for option in "${script_option_list[@]}"; do
-         if [[ "${2}" == "${option}" ]]; then header_red; echo -e "${WHITE_R}#${RESET} Option ${1} requires a command argument... \\n\\n"; help_script; fi
-       done
-       for dns_provider_check in "${dns_provider_list[@]}"; do if [[ "${dns_provider_check}" == "$2" ]]; then supported_provider="true"; break; fi; done
-       for dns_provider_check in "${dns_multi_provider_list[@]}"; do if [[ "${dns_provider_check}" == "$2" ]]; then supported_provider="true"; break; fi; done
-       if [[ "${supported_provider}" != 'true' ]]; then header_red; echo -e "${WHITE_R}#${RESET} DNS Provider ${2} is not supported... \\n\\n"; help_script; fi
-       echo "--dns-provider ${2}" &>> /tmp/EUS/le_script_options;;
+    for option in "${script_option_list[@]}"; do
+      if [[ "${2}" == "${option}" ]]; then
+        header_red
+        echo -e "${WHITE_R}#${RESET} Option ${1} requires a command argument... \\n\\n"
+        help_script
+      fi
+    done
+    for dns_provider_check in "${dns_provider_list[@]}"; do if [[ "${dns_provider_check}" == "$2" ]]; then
+      supported_provider="true"
+      break
+    fi; done
+    for dns_provider_check in "${dns_multi_provider_list[@]}"; do if [[ "${dns_provider_check}" == "$2" ]]; then
+      supported_provider="true"
+      break
+    fi; done
+    if [[ "${supported_provider}" != 'true' ]]; then
+      header_red
+      echo -e "${WHITE_R}#${RESET} DNS Provider ${2} is not supported... \\n\\n"
+      help_script
+    fi
+    echo "--dns-provider ${2}" &>>/tmp/EUS/le_script_options
+    ;;
   --dns-provider-credentials)
-       for option in "${script_option_list[@]}"; do
-         if [[ "${2}" == "${option}" ]]; then header_red; echo -e "${WHITE_R}#${RESET} Option ${1} requires a command argument... \\n\\n"; help_script; fi
-       done
-       echo "--dns-provider-credentials ${2}" &>> /tmp/EUS/le_script_options;;
+    for option in "${script_option_list[@]}"; do
+      if [[ "${2}" == "${option}" ]]; then
+        header_red
+        echo -e "${WHITE_R}#${RESET} Option ${1} requires a command argument... \\n\\n"
+        help_script
+      fi
+    done
+    echo "--dns-provider-credentials ${2}" &>>/tmp/EUS/le_script_options
+    ;;
   --priv-key | --private-key)
-       for option in "${script_option_list[@]}"; do
-         if [[ "${2}" == "${option}" ]]; then header_red; echo -e "${WHITE_R}#${RESET} Option ${1} requires a command argument... \\n\\n"; help_script; fi
-       done
-       echo "--private-key ${2}" &>> /tmp/EUS/le_script_options
-       shift;;
+    for option in "${script_option_list[@]}"; do
+      if [[ "${2}" == "${option}" ]]; then
+        header_red
+        echo -e "${WHITE_R}#${RESET} Option ${1} requires a command argument... \\n\\n"
+        help_script
+      fi
+    done
+    echo "--private-key ${2}" &>>/tmp/EUS/le_script_options
+    shift
+    ;;
   --signed-crt | --signed-certificate)
-       for option in "${script_option_list[@]}"; do
-         if [[ "${2}" == "${option}" ]]; then header_red; echo -e "${WHITE_R}#${RESET} Option ${1} requires a command argument... \\n\\n"; help_script; fi
-       done
-       echo "--signed-certificate ${2}" &>> /tmp/EUS/le_script_options
-       shift;;
+    for option in "${script_option_list[@]}"; do
+      if [[ "${2}" == "${option}" ]]; then
+        header_red
+        echo -e "${WHITE_R}#${RESET} Option ${1} requires a command argument... \\n\\n"
+        help_script
+      fi
+    done
+    echo "--signed-certificate ${2}" &>>/tmp/EUS/le_script_options
+    shift
+    ;;
   --chain-crt | --chain-certificate)
-       for option in "${script_option_list[@]}"; do
-         if [[ "${2}" == "${option}" ]]; then header_red; echo -e "${WHITE_R}#${RESET} Option ${1} requires a command argument... \\n\\n"; help_script; fi
-       done
-       echo "--chain-certificate ${2}" &>> /tmp/EUS/le_script_options
-       shift;;
+    for option in "${script_option_list[@]}"; do
+      if [[ "${2}" == "${option}" ]]; then
+        header_red
+        echo -e "${WHITE_R}#${RESET} Option ${1} requires a command argument... \\n\\n"
+        help_script
+      fi
+    done
+    echo "--chain-certificate ${2}" &>>/tmp/EUS/le_script_options
+    shift
+    ;;
   --intermediate-crt | --intermediate-certificate)
-       for option in "${script_option_list[@]}"; do
-         if [[ "${2}" == "${option}" ]]; then header_red; echo -e "${WHITE_R}#${RESET} Option ${1} requires a command argument... \\n\\n"; help_script; fi
-       done
-       echo "--intermediate-certificate ${2}" &>> /tmp/EUS/le_script_options
-       shift;;
+    for option in "${script_option_list[@]}"; do
+      if [[ "${2}" == "${option}" ]]; then
+        header_red
+        echo -e "${WHITE_R}#${RESET} Option ${1} requires a command argument... \\n\\n"
+        help_script
+      fi
+    done
+    echo "--intermediate-certificate ${2}" &>>/tmp/EUS/le_script_options
+    shift
+    ;;
   --own-certificate)
-       echo "--own-certificate" &>> /tmp/EUS/le_script_options;;
+    echo "--own-certificate" &>>/tmp/EUS/le_script_options
+    ;;
   --run-easy-encrypt)
-       run_easy_encrypt="true";;
+    run_easy_encrypt="true"
+    ;;
   --debug)
-       script_option_debug="true";;
+    script_option_debug="true"
+    ;;
   --support-file)
-       script_option_support_file="true"
-       support_file;;
+    script_option_support_file="true"
+    support_file
+    ;;
   esac
   shift
 done
 
 # Check script options.
-if [[ -f /tmp/EUS/script_options && -s /tmp/EUS/script_options ]]; then IFS=" " read -r script_options <<< "$(tr '\r\n' ' ' < /tmp/EUS/script_options)"; fi
+if [[ -f /tmp/EUS/script_options && -s /tmp/EUS/script_options ]]; then IFS=" " read -r script_options <<<"$(tr '\r\n' ' ' </tmp/EUS/script_options)"; fi
 
 # Create EUS database.
 create_eus_database() {
   eus_create_directories "db"
   if [[ -z "$(command -v jq)" ]]; then return "1"; fi
-  if ! [[ -s "${eus_dir}/db/db.json" ]] || ! jq empty "${eus_dir}/db/db.json" > /dev/null 2>&1; then
-    uuid="$(cat /proc/sys/kernel/random/uuid 2>> /dev/null)"; if [[ -z "${uuid}" ]]; then uuid="$(uuidgen -r 2>> /dev/null)"; fi
+  if ! [[ -s "${eus_dir}/db/db.json" ]] || ! jq empty "${eus_dir}/db/db.json" >/dev/null 2>&1; then
+    uuid="$(cat /proc/sys/kernel/random/uuid 2>>/dev/null)"
+    if [[ -z "${uuid}" ]]; then uuid="$(uuidgen -r 2>>/dev/null)"; fi
     architecture="$("$(which dpkg)" --print-architecture)"
     jq -n \
       --arg uuid "${uuid}" \
@@ -809,7 +961,7 @@ create_eus_database() {
         else
           .
         end
-    ' &> "${eus_dir}/db/db.json"
+    ' &>"${eus_dir}/db/db.json"
   else
     jq --arg script_name "${script_name}" '
       .scripts |=
@@ -834,20 +986,20 @@ create_eus_database() {
           end
         )
       end
-    '  "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+    ' "${eus_dir}/db/db.json" >"${eus_dir}/db/db.json.tmp" 2>>"${eus_dir}/logs/eus-database-management.log"
     eus_database_move
   fi
 }
 create_eus_database
 
 if [[ "$(find /etc/apt/ -name "*.list" -type f -print0 | xargs -0 cat | grep -c "downloads-distro.mongodb.org")" -gt 0 ]]; then
-  grep -riIl "downloads-distro.mongodb.org" /etc/apt/ &>> /tmp/EUS/repository/dead_mongodb_repository
+  grep -riIl "downloads-distro.mongodb.org" /etc/apt/ &>>/tmp/EUS/repository/dead_mongodb_repository
   while read -r glennr_mongo_repo; do
-    sed -i '/downloads-distro.mongodb.org/d' "${glennr_mongo_repo}" 2> /dev/null
-	if ! [[ -s "${glennr_mongo_repo}" ]]; then
-      rm --force "${glennr_mongo_repo}" 2> /dev/null
+    sed -i '/downloads-distro.mongodb.org/d' "${glennr_mongo_repo}" 2>/dev/null
+    if ! [[ -s "${glennr_mongo_repo}" ]]; then
+      rm --force "${glennr_mongo_repo}" 2>/dev/null
     fi
-  done < /tmp/EUS/repository/dead_mongodb_repository
+  done </tmp/EUS/repository/dead_mongodb_repository
   rm --force /tmp/EUS/repository/dead_mongodb_repository
 fi
 
@@ -856,7 +1008,7 @@ if grep -siq "^mozilla/DST_Root" /etc/ca-certificates.conf; then
   echo -e "${WHITE_R}#${RESET} Detected DST_Root certificate..."
   if sed -i '/^mozilla\/DST_Root_CA_X3.crt$/ s/^/!/' /etc/ca-certificates.conf; then
     echo -e "${GREEN}#${RESET} Successfully commented out the DST_Root certificate! \\n"
-    update-ca-certificates &> /dev/null
+    update-ca-certificates &>/dev/null
   else
     echo -e "${RED}#${RESET} Failed to comment out the DST_Root certificate... \\n"
   fi
@@ -870,54 +1022,54 @@ aptkey_depreciated() {
 }
 aptkey_depreciated
 
-find "${eus_dir}/logs/" -printf "%f\\n" | grep '.*.log' | awk '!a[$0]++' &> /tmp/EUS/log_files
+find "${eus_dir}/logs/" -printf "%f\\n" | grep '.*.log' | awk '!a[$0]++' &>/tmp/EUS/log_files
 while read -r log_file; do
   if [[ -f "${eus_dir}/logs/${log_file}" ]]; then
     log_file_size=$(stat -c%s "${eus_dir}/logs/${log_file}")
     if [[ "${log_file_size}" -gt "10485760" ]]; then
-      tail -n1000 "${eus_dir}/logs/${log_file}" &> "${log_file}.tmp"
+      tail -n1000 "${eus_dir}/logs/${log_file}" &>"${log_file}.tmp"
       mv "${eus_dir}/logs/${log_file}.tmp" "${eus_dir}/logs/${log_file}"
     fi
   fi
-done < /tmp/EUS/log_files
+done </tmp/EUS/log_files
 rm --force /tmp/EUS/log_files
 
 check_package_cache_file_corruption() {
-  if ls /tmp/EUS/apt/*.log 1> /dev/null 2>&1; then
+  if ls /tmp/EUS/apt/*.log 1>/dev/null 2>&1; then
     if grep -ioqE '^E: The package cache file is corrupted' /tmp/EUS/apt/*.log; then
-      rm -r /var/lib/apt/lists/* &> "${eus_dir}/logs/package-cache-corruption.log"
-      mkdir /var/lib/apt/lists/partial &> "${eus_dir}/logs/package-cache-corruption.log"
+      rm -r /var/lib/apt/lists/* &>"${eus_dir}/logs/package-cache-corruption.log"
+      mkdir /var/lib/apt/lists/partial &>"${eus_dir}/logs/package-cache-corruption.log"
       repository_changes_applied="true"
     fi
   fi
 }
 
 check_time_date_for_repositories() {
-  if ls /tmp/EUS/apt/*.log 1> /dev/null 2>&1; then
+  if ls /tmp/EUS/apt/*.log 1>/dev/null 2>&1; then
     if grep -ioqE '^E: Release file for .* is not valid yet \(invalid for another' /tmp/EUS/apt/*.log; then
       get_timezone
-      if command -v jq &> /dev/null; then current_api_time="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/current-time?timezone=${timezone}" | jq -r '."current_time_ns"' | sed '/null/d')"; else current_api_time="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/current-time?timezone=${timezone}" | grep -o '"current_time_ns":"[^"]*"' | cut -d'"' -f4)"; fi
+      if command -v jq &>/dev/null; then current_api_time="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/current-time?timezone=${timezone}" | jq -r '."current_time_ns"' | sed '/null/d')"; else current_api_time="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/current-time?timezone=${timezone}" | grep -o '"current_time_ns":"[^"]*"' | cut -d'"' -f4)"; fi
       if [[ "${current_api_time}" != "$(date +"%Y-%m-%d %H:%M")" ]]; then
-        if command -v timedatectl &> /dev/null; then
-          ntp_status="$(timedatectl show --property=NTP 2> /dev/null | awk -F '[=]' '{print $2}')"
-          if [[ -z "${ntp_status}" ]]; then ntp_status="$(timedatectl status 2> /dev/null | grep -i ntp | cut -d':' -f2 | sed -e 's/ //g')"; fi
-          if [[ -z "${ntp_status}" ]]; then ntp_status="$(timedatectl status 2> /dev/null | grep "systemd-timesyncd" | awk -F '[:]' '{print$2}' | sed -e 's/ //g')"; fi
+        if command -v timedatectl &>/dev/null; then
+          ntp_status="$(timedatectl show --property=NTP 2>/dev/null | awk -F '[=]' '{print $2}')"
+          if [[ -z "${ntp_status}" ]]; then ntp_status="$(timedatectl status 2>/dev/null | grep -i ntp | cut -d':' -f2 | sed -e 's/ //g')"; fi
+          if [[ -z "${ntp_status}" ]]; then ntp_status="$(timedatectl status 2>/dev/null | grep "systemd-timesyncd" | awk -F '[:]' '{print$2}' | sed -e 's/ //g')"; fi
           if [[ "${ntp_status}" != 'yes' ]]; then
-            if command -v jq &> /dev/null; then
-              timedatectl set-time "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/current-time?timezone=${timezone}" | jq -r '."current_time"' | sed '/null/d')" &>> "${eus_dir}/logs/invalid-time.log"
+            if command -v jq &>/dev/null; then
+              timedatectl set-time "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/current-time?timezone=${timezone}" | jq -r '."current_time"' | sed '/null/d')" &>>"${eus_dir}/logs/invalid-time.log"
             else
-              timedatectl set-time "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/current-time?timezone=${timezone}" | grep -o '"current_time":"[^"]*"' | cut -d'"' -f4)" &>> "${eus_dir}/logs/invalid-time.log"
+              timedatectl set-time "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/current-time?timezone=${timezone}" | grep -o '"current_time":"[^"]*"' | cut -d'"' -f4)" &>>"${eus_dir}/logs/invalid-time.log"
             fi
-            if "$(which dpkg)" -l systemd-timesyncd 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then timedatectl set-ntp true &>> "${eus_dir}/logs/invalid-time.log"; fi
+            if "$(which dpkg)" -l systemd-timesyncd 2>/dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then timedatectl set-ntp true &>>"${eus_dir}/logs/invalid-time.log"; fi
             repository_changes_applied="true"
           fi
-        elif command -v date &> /dev/null; then
-          if command -v jq &> /dev/null; then
-            date +%Y%m%d -s "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/current-time?timezone=${timezone}" | jq -r '."current_time"' | sed '/null/d' | cut -d' ' -f1)" &>> "${eus_dir}/logs/invalid-time.log"
-            date +%T -s "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/current-time?timezone=${timezone}" | jq -r '."current_time"' | sed '/null/d' | cut -d' ' -f2)" &>> "${eus_dir}/logs/invalid-time.log"
+        elif command -v date &>/dev/null; then
+          if command -v jq &>/dev/null; then
+            date +%Y%m%d -s "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/current-time?timezone=${timezone}" | jq -r '."current_time"' | sed '/null/d' | cut -d' ' -f1)" &>>"${eus_dir}/logs/invalid-time.log"
+            date +%T -s "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/current-time?timezone=${timezone}" | jq -r '."current_time"' | sed '/null/d' | cut -d' ' -f2)" &>>"${eus_dir}/logs/invalid-time.log"
           else
-            date +%Y%m%d -s "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/current-time?timezone=${timezone}" | grep -o '"current_time":"[^"]*"' | cut -d'"' -f4 | cut -d' ' -f1)" &>> "${eus_dir}/logs/invalid-time.log"
-            date +%T -s "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/current-time?timezone=${timezone}" | grep -o '"current_time":"[^"]*"' | cut -d'"' -f4 | cut -d' ' -f2)" &>> "${eus_dir}/logs/invalid-time.log"
+            date +%Y%m%d -s "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/current-time?timezone=${timezone}" | grep -o '"current_time":"[^"]*"' | cut -d'"' -f4 | cut -d' ' -f1)" &>>"${eus_dir}/logs/invalid-time.log"
+            date +%T -s "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/current-time?timezone=${timezone}" | grep -o '"current_time":"[^"]*"' | cut -d'"' -f4 | cut -d' ' -f2)" &>>"${eus_dir}/logs/invalid-time.log"
           fi
           repository_changes_applied="true"
         fi
@@ -927,64 +1079,88 @@ check_time_date_for_repositories() {
 }
 
 cleanup_malformed_repositories() {
-  if ls /tmp/EUS/apt/*.log 1> /dev/null 2>&1; then
+  if ls /tmp/EUS/apt/*.log 1>/dev/null 2>&1; then
     while IFS= read -r line; do
-      if [[ "${cleanup_malformed_repositories_found_message}" != 'true' ]]; then echo -e "${WHITE_R}#${RESET} There appear to be malformed repositories..."; cleanup_malformed_repositories_found_message="true"; fi
+      if [[ "${cleanup_malformed_repositories_found_message}" != 'true' ]]; then
+        echo -e "${WHITE_R}#${RESET} There appear to be malformed repositories..."
+        cleanup_malformed_repositories_found_message="true"
+      fi
       cleanup_malformed_repositories_file_path="$(echo "${line}" | sed -n 's/.*in list file \([^ ]*\) .*/\1/p')"
       cleanup_malformed_repositories_line_number="$(echo "${line}" | cut -d':' -f2 | cut -d' ' -f1)"
       if [[ -f "${cleanup_malformed_repositories_file_path}" ]]; then
         if sed -i "${cleanup_malformed_repositories_line_number}s/^/#/" "${cleanup_malformed_repositories_file_path}" &>/dev/null; then cleanup_malformed_repositories_changes_made="true"; fi
-        echo "Duplicates commented out in '${cleanup_malformed_repositories_file_path}' at line $cleanup_malformed_repositories_line_number" &>> "${eus_dir}/logs/cleanup-malformed-repository-lists.log"
+        echo "Duplicates commented out in '${cleanup_malformed_repositories_file_path}' at line $cleanup_malformed_repositories_line_number" &>>"${eus_dir}/logs/cleanup-malformed-repository-lists.log"
       else
-        echo "Warning: Invalid file path '${cleanup_malformed_repositories_file_path}'. Skipping." &>> "${eus_dir}/logs/cleanup-malformed-repository-lists.log"
+        echo "Warning: Invalid file path '${cleanup_malformed_repositories_file_path}'. Skipping." &>>"${eus_dir}/logs/cleanup-malformed-repository-lists.log"
       fi
-    done < <(grep -E '^E: Malformed entry |^E: Type .* is not known on line' /tmp/EUS/apt/*.log | awk -F': Malformed entry |: Type .*is not known on line ' '{print $2}' | sort -u 2>> /dev/null)
-    if [[ "${cleanup_malformed_repositories_changes_made}" = 'true' ]]; then echo -e "${GREEN}#${RESET} The malformed repositories have been commented out! \\n"; repository_changes_applied="true"; fi
+    done < <(grep -E '^E: Malformed entry |^E: Type .* is not known on line' /tmp/EUS/apt/*.log | awk -F': Malformed entry |: Type .*is not known on line ' '{print $2}' | sort -u 2>>/dev/null)
+    if [[ "${cleanup_malformed_repositories_changes_made}" = 'true' ]]; then
+      echo -e "${GREEN}#${RESET} The malformed repositories have been commented out! \\n"
+      repository_changes_applied="true"
+    fi
     unset cleanup_malformed_repositories_found_message
     unset cleanup_malformed_repositories_changes_made
   fi
 }
 
 cleanup_duplicated_repositories() {
-  if ls /tmp/EUS/apt/*.log 1> /dev/null 2>&1; then
+  if ls /tmp/EUS/apt/*.log 1>/dev/null 2>&1; then
     while IFS= read -r line; do
-      if [[ "${cleanup_duplicated_repositories_found_message}" != 'true' ]]; then echo -e "${WHITE_R}#${RESET} There appear to be duplicated repositories..."; cleanup_duplicated_repositories_found_message="true"; fi
+      if [[ "${cleanup_duplicated_repositories_found_message}" != 'true' ]]; then
+        echo -e "${WHITE_R}#${RESET} There appear to be duplicated repositories..."
+        cleanup_duplicated_repositories_found_message="true"
+      fi
       cleanup_duplicated_repositories_file_path="$(echo "${line}" | cut -d':' -f1)"
       cleanup_duplicated_repositories_line_number="$(echo "${line}" | cut -d':' -f2 | cut -d' ' -f1)"
       if [[ -f "${cleanup_duplicated_repositories_file_path}" ]]; then
         if sed -i "${cleanup_duplicated_repositories_line_number}s/^/#/" "${cleanup_duplicated_repositories_file_path}" &>/dev/null; then cleanup_duplicated_repositories_changes_made="true"; fi
-        echo "Duplicates commented out in '${cleanup_duplicated_repositories_file_path}' at line $cleanup_duplicated_repositories_line_number" &>> "${eus_dir}/logs/cleanup-duplicate-repository-lists.log"
+        echo "Duplicates commented out in '${cleanup_duplicated_repositories_file_path}' at line $cleanup_duplicated_repositories_line_number" &>>"${eus_dir}/logs/cleanup-duplicate-repository-lists.log"
       else
-        echo "Warning: Invalid file path '${cleanup_duplicated_repositories_file_path}'. Skipping." &>> "${eus_dir}/logs/cleanup-duplicate-repository-lists.log"
+        echo "Warning: Invalid file path '${cleanup_duplicated_repositories_file_path}'. Skipping." &>>"${eus_dir}/logs/cleanup-duplicate-repository-lists.log"
       fi
-    done < <(grep -E '^W: Target .+ is configured multiple times in ' "/tmp/EUS/apt/"*.log | awk -F' is configured multiple times in ' '{print $2}' | sort -u 2>> /dev/null)
-    if [[ "${cleanup_duplicated_repositories_changes_made}" = 'true' ]]; then echo -e "${GREEN}#${RESET} The duplicated repositories have been commented out! \\n"; repository_changes_applied="true"; fi
+    done < <(grep -E '^W: Target .+ is configured multiple times in ' "/tmp/EUS/apt/"*.log | awk -F' is configured multiple times in ' '{print $2}' | sort -u 2>>/dev/null)
+    if [[ "${cleanup_duplicated_repositories_changes_made}" = 'true' ]]; then
+      echo -e "${GREEN}#${RESET} The duplicated repositories have been commented out! \\n"
+      repository_changes_applied="true"
+    fi
     unset cleanup_duplicated_repositories_found_message
     unset cleanup_duplicated_repositories_changes_made
   fi
 }
 
 cleanup_unavailable_repositories() {
-  if ls /tmp/EUS/apt/*.log 1> /dev/null 2>&1; then
+  if ls /tmp/EUS/apt/*.log 1>/dev/null 2>&1; then
     if ! [[ -e "${eus_dir}/logs/upgrade.log" ]]; then return; fi
     while read -r domain; do
       if ! grep -q "^#.*${domain}" /etc/apt/sources.list /etc/apt/sources.list.d/*.list; then
-        if [[ "${cleanup_unavailable_repositories_found_message}" != 'true' ]]; then echo -e "${WHITE_R}#${RESET} There are repositories that are causing issues..."; cleanup_unavailable_repositories_found_message="true"; fi
-        if sed -i -e "/^[^#].*${domain}/ s|^deb|# deb|g" /etc/apt/sources.list /etc/apt/sources.list.d/*.list &>/dev/null; then cleanup_unavailable_repositories_changes_made="true"; echo "Unavailable repository with domain ${domain} has been commented out" &>> "${eus_dir}/logs/cleanup-unavailable-repository-lists.log"; fi
+        if [[ "${cleanup_unavailable_repositories_found_message}" != 'true' ]]; then
+          echo -e "${WHITE_R}#${RESET} There are repositories that are causing issues..."
+          cleanup_unavailable_repositories_found_message="true"
+        fi
+        if sed -i -e "/^[^#].*${domain}/ s|^deb|# deb|g" /etc/apt/sources.list /etc/apt/sources.list.d/*.list &>/dev/null; then
+          cleanup_unavailable_repositories_changes_made="true"
+          echo "Unavailable repository with domain ${domain} has been commented out" &>>"${eus_dir}/logs/cleanup-unavailable-repository-lists.log"
+        fi
       fi
-    done < <(awk '/Unauthorized|Failed/ {for (i=1; i<=NF; i++) if ($i ~ /^https?:\/\/([^\/]+)/) {split($i, parts, "/"); print parts[3]}}' "/tmp/EUS/apt/"*.log | sort -u 2>> /dev/null)
-    if [[ "${cleanup_unavailable_repositories_changes_made}" = 'true' ]]; then echo -e "${GREEN}#${RESET} Repositories causing errors have been commented out! \\n"; repository_changes_applied="true"; fi
+    done < <(awk '/Unauthorized|Failed/ {for (i=1; i<=NF; i++) if ($i ~ /^https?:\/\/([^\/]+)/) {split($i, parts, "/"); print parts[3]}}' "/tmp/EUS/apt/"*.log | sort -u 2>>/dev/null)
+    if [[ "${cleanup_unavailable_repositories_changes_made}" = 'true' ]]; then
+      echo -e "${GREEN}#${RESET} Repositories causing errors have been commented out! \\n"
+      repository_changes_applied="true"
+    fi
     unset cleanup_unavailable_repositories_found_message
     unset cleanup_unavailable_repositories_changes_made
   fi
 }
 
 cleanup_conflicting_repositories() {
-  if ls /tmp/EUS/apt/*.log 1> /dev/null 2>&1; then
+  if ls /tmp/EUS/apt/*.log 1>/dev/null 2>&1; then
     while IFS= read -r logfile; do
       while IFS= read -r line; do
         if [[ ${line} == *"Conflicting values set for option Trusted regarding source"* ]]; then
-          if [[ "${cleanup_conflicting_repositories_found_message_1}" != 'true' ]]; then echo -e "${WHITE_R}#${RESET} There appear to be repositories with conflicting details..."; cleanup_conflicting_repositories_found_message_1="true"; fi
+          if [[ "${cleanup_conflicting_repositories_found_message_1}" != 'true' ]]; then
+            echo -e "${WHITE_R}#${RESET} There appear to be repositories with conflicting details..."
+            cleanup_conflicting_repositories_found_message_1="true"
+          fi
           # Extract the conflicting source URL and remove trailing slash
           source_url="$(echo "${line}" | grep -oP 'source \Khttps?://[^ /]*' | sed 's/ //g')"
           # Extract package name and version from the conflicting source URL
@@ -992,7 +1168,10 @@ cleanup_conflicting_repositories() {
           version="$(echo "${line}" | awk -F'/' '{print $NF}' | sed 's/ //g')"
           # Loop through each file and awk to comment out the conflicting source
           while read -r file_with_conflict; do
-            if [[ "${cleanup_conflicting_repositories_message_1}" != 'true' ]]; then echo "Conflicting Trusted values for ${source_url}" &>> "${eus_dir}/logs/trusted-repository-conflict.log"; cleanup_conflicting_repositories_message_1="true"; fi
+            if [[ "${cleanup_conflicting_repositories_message_1}" != 'true' ]]; then
+              echo "Conflicting Trusted values for ${source_url}" &>>"${eus_dir}/logs/trusted-repository-conflict.log"
+              cleanup_conflicting_repositories_message_1="true"
+            fi
             if awk -v source="${source_url}" -v package="${package_name}" -v ver="${version}" '
               $0 ~ source && $0 ~ package && $0 ~ ver {
                 if ($0 !~ /^#/) {
@@ -1002,32 +1181,48 @@ cleanup_conflicting_repositories() {
                 }
                 next
               } 
-              1' "${file_with_conflict}" &> tmpfile; then mv tmpfile "${file_with_conflict}" &> /dev/null; cleanup_conflicting_repositories_changes_made="true"; fi
-            echo "awk command executed for ${file_with_conflict}" &>> "${eus_dir}/logs/trusted-repository-conflict.log"
+              1' "${file_with_conflict}" &>tmpfile; then
+              mv tmpfile "${file_with_conflict}" &>/dev/null
+              cleanup_conflicting_repositories_changes_made="true"
+            fi
+            echo "awk command executed for ${file_with_conflict}" &>>"${eus_dir}/logs/trusted-repository-conflict.log"
           done < <(grep -l "^deb.*${source_url}.*${package_name}.*${version}" /etc/apt/sources.list /etc/apt/sources.list.d/*)
           break
         elif [[ ${line} == *"Conflicting values set for option Signed-By regarding source"* ]]; then
-          if [[ "${cleanup_conflicting_repositories_found_message_2}" != 'true' ]]; then echo -e "${WHITE_R}#${RESET} There appear to be repositories with conflicting details..."; cleanup_conflicting_repositories_found_message_2="true"; fi
+          if [[ "${cleanup_conflicting_repositories_found_message_2}" != 'true' ]]; then
+            echo -e "${WHITE_R}#${RESET} There appear to be repositories with conflicting details..."
+            cleanup_conflicting_repositories_found_message_2="true"
+          fi
           # Extract the conflicting source URL and keys
-          conflicting_source="$(echo "${line}" | grep -oP 'https?://[^ ]+' | sed 's/\/$//')"  # Remove trailing slash
+          conflicting_source="$(echo "${line}" | grep -oP 'https?://[^ ]+' | sed 's/\/$//')" # Remove trailing slash
           key1="$(echo "${line}" | grep -oP '/\S+\.gpg' | head -n 1 | sed 's/ //g')"
           key2="$(echo "${line}" | grep -oP '!= \S+\.gpg' | sed 's/!= //g' | sed 's/ //g')"
           # Loop through each file and awk to comment out the conflicting source
           while read -r file_with_conflict; do
-            if [[ "${cleanup_conflicting_repositories_message_2}" != 'true' ]]; then echo "Conflicting Signed-By values for ${conflicting_source}" &>> "${eus_dir}/logs/signed-by-repository-conflict.log"; echo "Conflicting keys: ${key1} != ${key2}" &>> "${eus_dir}/logs/signed-by-repository-conflict.log"; cleanup_conflicting_repositories_message_2="true"; fi
+            if [[ "${cleanup_conflicting_repositories_message_2}" != 'true' ]]; then
+              echo "Conflicting Signed-By values for ${conflicting_source}" &>>"${eus_dir}/logs/signed-by-repository-conflict.log"
+              echo "Conflicting keys: ${key1} != ${key2}" &>>"${eus_dir}/logs/signed-by-repository-conflict.log"
+              cleanup_conflicting_repositories_message_2="true"
+            fi
             if awk -v source="${conflicting_source}" -v key1="${key1}" -v key2="${key2}" '
               !/^#/ && $0 ~ source && ($0 ~ key1 || $0 ~ key2) {
                 print "#" $0;
                 next
               } 
-              1' "${file_with_conflict}" &> tmpfile; then mv tmpfile "${file_with_conflict}" &> /dev/null; cleanup_conflicting_repositories_changes_made="true"; fi
-            echo "awk command executed for ${file_with_conflict}" &>> "${eus_dir}/logs/signed-by-repository-conflict.log"
+              1' "${file_with_conflict}" &>tmpfile; then
+              mv tmpfile "${file_with_conflict}" &>/dev/null
+              cleanup_conflicting_repositories_changes_made="true"
+            fi
+            echo "awk command executed for ${file_with_conflict}" &>>"${eus_dir}/logs/signed-by-repository-conflict.log"
           done < <(grep -l "^deb.*${conflicting_source}" /etc/apt/sources.list /etc/apt/sources.list.d/*)
           break
         fi
-      done < "${logfile}"
-    done < <(grep -il "Conflicting values set for option Trusted regarding source\|Conflicting values set for option Signed-By regarding source" "/tmp/EUS/apt/"*.log 2>> /dev/null)
-    if [[ "${cleanup_conflicting_repositories_changes_made}" = 'true' ]]; then echo -e "${GREEN}#${RESET} Repositories causing errors have been commented out! \\n"; repository_changes_applied="true"; fi
+      done <"${logfile}"
+    done < <(grep -il "Conflicting values set for option Trusted regarding source\|Conflicting values set for option Signed-By regarding source" "/tmp/EUS/apt/"*.log 2>>/dev/null)
+    if [[ "${cleanup_conflicting_repositories_changes_made}" = 'true' ]]; then
+      echo -e "${GREEN}#${RESET} Repositories causing errors have been commented out! \\n"
+      repository_changes_applied="true"
+    fi
     unset cleanup_conflicting_repositories_found_message_1
     unset cleanup_conflicting_repositories_found_message_2
     unset cleanup_conflicting_repositories_changes_made
@@ -1037,52 +1232,59 @@ cleanup_conflicting_repositories() {
 run_apt_get_update() {
   eus_directory_location="/tmp/EUS"
   eus_create_directories "apt"
-  if [[ "${apt_fix_missing}" == 'true' ]] || [[ -z "${afm_first_run}" ]]; then apt_fix_option="--fix-missing"; afm_first_run="1"; unset apt_fix_missing; fi
+  if [[ "${apt_fix_missing}" == 'true' ]] || [[ -z "${afm_first_run}" ]]; then
+    apt_fix_option="--fix-missing"
+    afm_first_run="1"
+    unset apt_fix_missing
+  fi
   echo -e "${WHITE_R}#${RESET} Running apt-get update..."
   # shellcheck disable=SC2086
-  if apt-get update ${apt_fix_option} 2>&1 | tee -a "${eus_dir}/logs/apt-update.log" > /tmp/EUS/apt/apt-update.log; then if [[ "${PIPESTATUS[0]}" -eq "0" ]]; then echo -e "${GREEN}#${RESET} Successfully ran apt-get update! \\n"; else echo -e "${YELLOW}#${RESET} Something went wrong during running apt-get update! \\n"; fi; fi
-  if grep -ioq "fix-missing" /tmp/EUS/apt/apt-update.log; then apt_fix_missing="true"; return; else unset apt_fix_option; fi
-  grep -o 'NO_PUBKEY.*' /tmp/EUS/apt/apt-update.log | sed 's/NO_PUBKEY //g' | tr ' ' '\n' | awk '!a[$0]++' &> /tmp/EUS/apt/missing_keys
+  if apt-get update ${apt_fix_option} 2>&1 | tee -a "${eus_dir}/logs/apt-update.log" >/tmp/EUS/apt/apt-update.log; then if [[ "${PIPESTATUS[0]}" -eq "0" ]]; then echo -e "${GREEN}#${RESET} Successfully ran apt-get update! \\n"; else echo -e "${YELLOW}#${RESET} Something went wrong during running apt-get update! \\n"; fi; fi
+  if grep -ioq "fix-missing" /tmp/EUS/apt/apt-update.log; then
+    apt_fix_missing="true"
+    return
+  else unset apt_fix_option; fi
+  grep -o 'NO_PUBKEY.*' /tmp/EUS/apt/apt-update.log | sed 's/NO_PUBKEY //g' | tr ' ' '\n' | awk '!a[$0]++' &>/tmp/EUS/apt/missing_keys
   if [[ -s "/tmp/EUS/apt/missing_keys_done" ]]; then
     while read -r key_done; do
       if grep -ioq "${key_done}" /tmp/EUS/apt/missing_keys; then sed -i "/${key_done}/d" /tmp/EUS/apt/missing_keys; fi
-    done < <(cat /tmp/EUS/apt/missing_keys_done /tmp/EUS/apt/missing_keys_failed 2> /dev/null)
+    done < <(cat /tmp/EUS/apt/missing_keys_done /tmp/EUS/apt/missing_keys_failed 2>/dev/null)
   fi
   if [[ -s /tmp/EUS/apt/missing_keys ]]; then
-    if "$(which dpkg)" -l dirmngr 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+    if "$(which dpkg)" -l dirmngr 2>/dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
       while read -r key; do
         echo -e "${WHITE_R}#${RESET} Key ${key} is missing.. adding!"
         http_proxy="$(env | grep -i "http.*Proxy" | cut -d'=' -f2 | sed 's/[";]//g')"
         if [[ -n "$http_proxy" ]]; then
-          if apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --keyserver-options http-proxy="${http_proxy}" --recv-keys "$key" &> /dev/null; then echo -e "${GREEN}#${RESET} Successfully added key ${key}!\\n"; else fail_key="true"; fi
+          if apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --keyserver-options http-proxy="${http_proxy}" --recv-keys "$key" &>/dev/null; then echo -e "${GREEN}#${RESET} Successfully added key ${key}!\\n"; else fail_key="true"; fi
         elif [[ -f /etc/apt/apt.conf ]]; then
           apt_http_proxy="$(grep "http.*Proxy" /etc/apt/apt.conf | awk '{print $2}' | sed 's/[";]//g')"
           if [[ -n "${apt_http_proxy}" ]]; then
-            if apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --keyserver-options http-proxy="${apt_http_proxy}" --recv-keys "$key" &> /dev/null; then echo -e "${GREEN}#${RESET} Successfully added key ${key}!\\n"; else fail_key="true"; fi
+            if apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --keyserver-options http-proxy="${apt_http_proxy}" --recv-keys "$key" &>/dev/null; then echo -e "${GREEN}#${RESET} Successfully added key ${key}!\\n"; else fail_key="true"; fi
           fi
         else
-          if apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv "$key" &> /dev/null && echo -e "${GREEN}#${RESET} Successfully added key ${key}!\\n"; then echo "${key}" &>> /tmp/EUS/apt/missing_keys_done; else fail_key="true"; fi
+          if apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv "$key" &>/dev/null && echo -e "${GREEN}#${RESET} Successfully added key ${key}!\\n"; then echo "${key}" &>>/tmp/EUS/apt/missing_keys_done; else fail_key="true"; fi
         fi
         if [[ "${fail_key}" == 'true' ]]; then
           echo -e "${RED}#${RESET} Failed to add key ${key}... \\n"
           echo -e "${WHITE_R}#${RESET} Trying different method to get key: ${key}"
-          gpg -vvv --debug-all --keyserver keyserver.ubuntu.com --recv-keys "${key}" &> /tmp/EUS/apt/failed_key
+          gpg -vvv --debug-all --keyserver keyserver.ubuntu.com --recv-keys "${key}" &>/tmp/EUS/apt/failed_key
           debug_key="$(grep "KS_GET" /tmp/EUS/apt/failed_key | grep -io "0x.*")"
-          if curl "${curl_argument[@]}" "https://keyserver.ubuntu.com/pks/lookup?op=get&search=${debug_key}" | gpg --dearmor --yes > "/tmp/EUS/apt/EUS-${key}.gpg"; then
-            mv "/tmp/EUS/apt/EUS-${key}.gpg" /etc/apt/trusted.gpg.d/ && echo -e "${GREEN}#${RESET} Successfully added key ${key}!\\n" && echo "${key}" &>> /tmp/EUS/apt/missing_keys_done
+          if curl "${curl_argument[@]}" "https://keyserver.ubuntu.com/pks/lookup?op=get&search=${debug_key}" | gpg --dearmor --yes >"/tmp/EUS/apt/EUS-${key}.gpg"; then
+            mv "/tmp/EUS/apt/EUS-${key}.gpg" /etc/apt/trusted.gpg.d/ && echo -e "${GREEN}#${RESET} Successfully added key ${key}!\\n" && echo "${key}" &>>/tmp/EUS/apt/missing_keys_done
           else
             echo -e "${RED}#${RESET} Failed to add key ${key}... \\n"
-            echo "${key}" &>> /tmp/EUS/apt/missing_keys_failed
+            echo "${key}" &>>/tmp/EUS/apt/missing_keys_failed
           fi
         fi
         sleep 1
-      done < /tmp/EUS/apt/missing_keys
+      done </tmp/EUS/apt/missing_keys
     else
       echo -e "${WHITE_R}#${RESET} Keys appear to be missing..." && sleep 1
       echo -e "${YELLOW}#${RESET} Required package dirmngr is missing... cannot recover keys... \\n"
     fi
-    apt-get update &> /tmp/EUS/apt/apt-update.log
-    if "$(which dpkg)" -l dirmngr 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then if grep -qo 'NO_PUBKEY.*' /tmp/EUS/apt/apt-update.log; then run_apt_get_update; fi; fi
+    apt-get update &>/tmp/EUS/apt/apt-update.log
+    if "$(which dpkg)" -l dirmngr 2>/dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then if grep -qo 'NO_PUBKEY.*' /tmp/EUS/apt/apt-update.log; then run_apt_get_update; fi; fi
   fi
   check_package_cache_file_corruption
   check_time_date_for_repositories
@@ -1090,14 +1292,17 @@ run_apt_get_update() {
   cleanup_duplicated_repositories
   cleanup_unavailable_repositories
   cleanup_conflicting_repositories
-  if [[ "${repository_changes_applied}" == 'true' ]]; then unset repository_changes_applied; run_apt_get_update; fi
-  rm --force "/tmp/EUS/apt/"*.log &> /dev/null
+  if [[ "${repository_changes_applied}" == 'true' ]]; then
+    unset repository_changes_applied
+    run_apt_get_update
+  fi
+  rm --force "/tmp/EUS/apt/"*.log &>/dev/null
 }
 
 check_add_mongodb_repo_variable() {
-  if [[ -e "/tmp/EUS/mongodb/check_add_mongodb_repo_variable" ]]; then rm --force "/tmp/EUS/mongodb/check_add_mongodb_repo_variable" &> /dev/null; fi
-  check_add_mongodb_repo_variables=( "add_mongodb_30_repo" "add_mongodb_32_repo" "add_mongodb_34_repo" "add_mongodb_36_repo" "add_mongodb_40_repo" "add_mongodb_42_repo" "add_mongodb_44_repo" "add_mongodb_50_repo" "add_mongodb_60_repo" "add_mongodb_70_repo" "add_mongod_70_repo" )
-  for mongodb_repo_variable in "${check_add_mongodb_repo_variables[@]}"; do if [[ "${!mongodb_repo_variable}" == 'true' ]]; then if echo "${mongodb_repo_variable}" &>> /tmp/EUS/mongodb/check_add_mongodb_repo_variable; then unset "${mongodb_repo_variable}"; fi; fi; done
+  if [[ -e "/tmp/EUS/mongodb/check_add_mongodb_repo_variable" ]]; then rm --force "/tmp/EUS/mongodb/check_add_mongodb_repo_variable" &>/dev/null; fi
+  check_add_mongodb_repo_variables=("add_mongodb_30_repo" "add_mongodb_32_repo" "add_mongodb_34_repo" "add_mongodb_36_repo" "add_mongodb_40_repo" "add_mongodb_42_repo" "add_mongodb_44_repo" "add_mongodb_50_repo" "add_mongodb_60_repo" "add_mongodb_70_repo" "add_mongod_70_repo")
+  for mongodb_repo_variable in "${check_add_mongodb_repo_variables[@]}"; do if [[ "${!mongodb_repo_variable}" == 'true' ]]; then if echo "${mongodb_repo_variable}" &>>/tmp/EUS/mongodb/check_add_mongodb_repo_variable; then unset "${mongodb_repo_variable}"; fi; fi; done
 }
 
 reverse_check_add_mongodb_repo_variable() {
@@ -1107,7 +1312,7 @@ reverse_check_add_mongodb_repo_variable() {
       declare -n add_mongodb_xx_repo="$add_mongodb_repo_variable"
       # shellcheck disable=SC2034
       add_mongodb_xx_repo="true"
-    done < "/tmp/EUS/mongodb/check_add_mongodb_repo_variable"
+    done <"/tmp/EUS/mongodb/check_add_mongodb_repo_variable"
   fi
 }
 
@@ -1140,7 +1345,7 @@ add_glennr_mongod_repo() {
       echo -e "${WHITE_R}#${RESET} Adding key for the Glenn R. APT Repository..."
       aptkey_depreciated
       if [[ "${apt_key_deprecated}" == 'true' ]]; then
-        if curl "${curl_argument[@]}" -fSL "${repo_http_https}://get.glennr.nl/apt/keys/apt-glennr.asc" 2>&1 | tee -a "${eus_dir}/logs/repository-keys.log" | gpg -o "/etc/apt/keyrings/apt-glennr.gpg" --dearmor --yes &> /dev/null; then
+        if curl "${curl_argument[@]}" -fSL "${repo_http_https}://get.glennr.nl/apt/keys/apt-glennr.asc" 2>&1 | tee -a "${eus_dir}/logs/repository-keys.log" | gpg -o "/etc/apt/keyrings/apt-glennr.gpg" --dearmor --yes &>/dev/null; then
           glennr_curl_exit_status="${PIPESTATUS[0]}"
           glennr_gpg_exit_status="${PIPESTATUS[2]}"
           if [[ "${glennr_curl_exit_status}" -eq "0" && "${glennr_gpg_exit_status}" -eq "0" && -s "/etc/apt/keyrings/apt-glennr.gpg" ]]; then
@@ -1152,7 +1357,7 @@ add_glennr_mongod_repo() {
           fi
         fi
       else
-        if curl "${curl_argument[@]}" -fSL "${repo_http_https}://get.glennr.nl/apt/keys/apt-glennr.asc" 2>&1 | tee -a "${eus_dir}/logs/repository-keys.log" | apt-key add - &> /dev/null; then
+        if curl "${curl_argument[@]}" -fSL "${repo_http_https}://get.glennr.nl/apt/keys/apt-glennr.asc" 2>&1 | tee -a "${eus_dir}/logs/repository-keys.log" | apt-key add - &>/dev/null; then
           glennr_curl_exit_status="${PIPESTATUS[0]}"
           glennr_apt_key_exit_status="${PIPESTATUS[2]}"
           if [[ "${glennr_curl_exit_status}" -eq "0" && "${glennr_apt_key_exit_status}" -eq "0" ]]; then
@@ -1168,7 +1373,7 @@ add_glennr_mongod_repo() {
     fi
     echo -e "${WHITE_R}#${RESET} Adding the Glenn R. APT reposity for mongod ${mongod_version_major_minor}..."
     if [[ "${architecture}" == 'arm64' ]]; then arch="arch=arm64"; elif [[ "${architecture}" == 'amd64' ]]; then arch="arch=amd64"; else arch="arch=amd64,arm64"; fi
-    if echo "deb [ ${arch}${signed_by_value} ] ${repo_http_https}://apt.glennr.nl/${mongod_codename} ${mongod_repo_type}" &> "/etc/apt/sources.list.d/glennr-mongod-${mongod_version_major_minor}.list"; then
+    if echo "deb [ ${arch}${signed_by_value} ] ${repo_http_https}://apt.glennr.nl/${mongod_codename} ${mongod_repo_type}" &>"/etc/apt/sources.list.d/glennr-mongod-${mongod_version_major_minor}.list"; then
       echo -e "${GREEN}#${RESET} Successfully added the Glenn R. APT reposity for mongod ${mongod_version_major_minor}!\\n" && sleep 2
       if [[ "${mongodb_key_update}" != 'true' ]]; then
         run_apt_get_update
@@ -1217,7 +1422,7 @@ add_extra_repo_mongodb() {
 add_mongodb_repo() {
   if [[ "${glennr_compiled_mongod}" == 'true' ]]; then add_glennr_mongod_repo; fi
   # if any "add_mongodb_xx_repo" is true, (set skip_mongodb_org_v to true, this is disabled).
-  mongodb_add_repo_variables=( "add_mongodb_30_repo" "add_mongodb_32_repo" "add_mongodb_34_repo" "add_mongodb_36_repo" "add_mongodb_40_repo" "add_mongodb_42_repo" "add_mongodb_44_repo" "add_mongodb_50_repo" "add_mongodb_60_repo" "add_mongodb_70_repo" "add_mongod_70_repo" )
+  mongodb_add_repo_variables=("add_mongodb_30_repo" "add_mongodb_32_repo" "add_mongodb_34_repo" "add_mongodb_36_repo" "add_mongodb_40_repo" "add_mongodb_42_repo" "add_mongodb_44_repo" "add_mongodb_50_repo" "add_mongodb_60_repo" "add_mongodb_70_repo" "add_mongod_70_repo")
   for add_repo_variable in "${mongodb_add_repo_variables[@]}"; do if [[ "${!add_repo_variable}" == 'true' ]]; then mongodb_add_repo_variables_true_statements+=("${add_repo_variable}"); fi; done
   if [[ "${mongodb_key_update}" == 'true' ]]; then skip_mongodb_org_v="true"; fi
   if [[ "${skip_mongodb_org_v}" != 'true' ]]; then
@@ -1225,7 +1430,10 @@ add_mongodb_repo() {
   fi
   repo_http_https="https"
   if [[ "${mongodb_org_v::2}" == '30' ]] || [[ "${add_mongodb_30_repo}" == 'true' ]]; then
-    if [[ "${architecture}" == "arm64" ]]; then add_mongodb_34_repo="true"; unset add_mongodb_30_repo; fi
+    if [[ "${architecture}" == "arm64" ]]; then
+      add_mongodb_34_repo="true"
+      unset add_mongodb_30_repo
+    fi
     mongodb_version_major_minor="3.0"
     if [[ "${os_codename}" =~ (precise) ]]; then
       mongodb_codename="ubuntu precise"
@@ -1242,7 +1450,10 @@ add_mongodb_repo() {
     fi
   fi
   if [[ "${mongodb_org_v::2}" == '32' ]] || [[ "${add_mongodb_32_repo}" == 'true' ]]; then
-    if [[ "${architecture}" == "arm64" ]]; then add_mongodb_34_repo="true"; unset add_mongodb_32_repo; fi
+    if [[ "${architecture}" == "arm64" ]]; then
+      add_mongodb_34_repo="true"
+      unset add_mongodb_32_repo
+    fi
     mongodb_version_major_minor="3.2"
     if [[ "${os_codename}" =~ (trusty|qiana|rebecca|rafaela|rosa) ]]; then
       mongodb_codename="ubuntu trusty"
@@ -1532,23 +1743,36 @@ add_mongodb_repo() {
   fi
   if [[ "$(curl "${curl_argument[@]}" https://get.glennr.nl/unifi/releases/mongodb-versions.json | jq -r '.versions."'"${mongodb_version_major_minor}"'".expired')" == 'true' ]]; then trusted_mongodb_repo=" trusted=yes"; fi
   mongodb_key_check_time="$(date +%s)"
-  jq --arg mongodb_key_check_time "${mongodb_key_check_time}" '."database" += {"mongodb-key-last-check": "'"${mongodb_key_check_time}"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+  jq --arg mongodb_key_check_time "${mongodb_key_check_time}" '."database" += {"mongodb-key-last-check": "'"${mongodb_key_check_time}"'"}' "${eus_dir}/db/db.json" >"${eus_dir}/db/db.json.tmp" 2>>"${eus_dir}/logs/eus-database-management.log"
   eus_database_move
-  if [[ "${try_different_mongodb_repo}" == 'true' ]]; then try_different_mongodb_repo_test="a different"; try_different_mongodb_repo_test_2="different "; else try_different_mongodb_repo_test="the"; try_different_mongodb_repo_test_2=""; fi
-  if [[ "${try_http_mongodb_repo}" == 'true' ]]; then repo_http_https="http"; try_different_mongodb_repo_test="a HTTP instead of HTTPS"; try_different_mongodb_repo_test_2="HTTP "; else try_different_mongodb_repo_test="the"; try_different_mongodb_repo_test_2=""; fi
+  if [[ "${try_different_mongodb_repo}" == 'true' ]]; then
+    try_different_mongodb_repo_test="a different"
+    try_different_mongodb_repo_test_2="different "
+  else
+    try_different_mongodb_repo_test="the"
+    try_different_mongodb_repo_test_2=""
+  fi
+  if [[ "${try_http_mongodb_repo}" == 'true' ]]; then
+    repo_http_https="http"
+    try_different_mongodb_repo_test="a HTTP instead of HTTPS"
+    try_different_mongodb_repo_test_2="HTTP "
+  else
+    try_different_mongodb_repo_test="the"
+    try_different_mongodb_repo_test_2=""
+  fi
   if [[ -n "${mongodb_version_major_minor}" ]]; then
     if ! [[ -s "/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg" ]] || [[ "${mongodb_key_update}" == 'true' ]] || [[ "${try_different_mongodb_repo}" == 'true' ]] || [[ "${try_http_mongodb_repo}" == 'true' ]]; then
       echo -e "${WHITE_R}#${RESET} Adding key for MongoDB ${mongodb_version_major_minor}..."
       aptkey_depreciated
       if [[ "${apt_key_deprecated}" == 'true' ]]; then
-        if curl "${curl_argument[@]}" -fSL "${repo_http_https}://pgp.mongodb.com/server-${mongodb_version_major_minor}.asc" 2>&1 | tee -a "${eus_dir}/logs/repository-keys.log" | gpg --dearmor --yes | tee -a "/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg" &> /dev/null; then
+        if curl "${curl_argument[@]}" -fSL "${repo_http_https}://pgp.mongodb.com/server-${mongodb_version_major_minor}.asc" 2>&1 | tee -a "${eus_dir}/logs/repository-keys.log" | gpg --dearmor --yes | tee -a "/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg" &>/dev/null; then
           mongodb_curl_exit_status="${PIPESTATUS[0]}"
           mongodb_gpg_exit_status="${PIPESTATUS[2]}"
           if [[ "${mongodb_curl_exit_status}" -eq "0" && "${mongodb_gpg_exit_status}" -eq "0" && -s "/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg" ]]; then
             echo -e "${GREEN}#${RESET} Successfully added the key for MongoDB ${mongodb_version_major_minor}! \\n"
             signed_by_value=" signed-by=/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg"
           else
-            if curl "${curl_argument[@]}" -fSL "${repo_http_https}://www.mongodb.org/static/pgp/server-${mongodb_version_major_minor}.asc" 2>&1 | tee -a "${eus_dir}/logs/repository-keys.log" | gpg --dearmor --yes | tee -a "/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg" &> /dev/null; then
+            if curl "${curl_argument[@]}" -fSL "${repo_http_https}://www.mongodb.org/static/pgp/server-${mongodb_version_major_minor}.asc" 2>&1 | tee -a "${eus_dir}/logs/repository-keys.log" | gpg --dearmor --yes | tee -a "/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg" &>/dev/null; then
               mongodb_curl_exit_status="${PIPESTATUS[0]}"
               mongodb_gpg_exit_status="${PIPESTATUS[2]}"
               if [[ "${mongodb_curl_exit_status}" -eq "0" && "${mongodb_gpg_exit_status}" -eq "0" && -s "/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg" ]]; then
@@ -1562,20 +1786,20 @@ add_mongodb_repo() {
           fi
         fi
       else
-        if curl "${curl_argument[@]}" -fSL "${repo_http_https}://pgp.mongodb.com/server-${mongodb_version_major_minor}.asc" 2>&1 | tee -a "${eus_dir}/logs/repository-keys.log" | apt-key add - &> /dev/null; then
+        if curl "${curl_argument[@]}" -fSL "${repo_http_https}://pgp.mongodb.com/server-${mongodb_version_major_minor}.asc" 2>&1 | tee -a "${eus_dir}/logs/repository-keys.log" | apt-key add - &>/dev/null; then
           mongodb_curl_exit_status="${PIPESTATUS[0]}"
           mongodb_apt_key_exit_status="${PIPESTATUS[2]}"
           if [[ "${mongodb_curl_exit_status}" -eq "0" && "${mongodb_apt_key_exit_status}" -eq "0" ]]; then
             echo -e "${GREEN}#${RESET} Successfully added the key for MongoDB ${mongodb_version_major_minor}! \\n"
           else
-            if curl "${curl_argument[@]}" -fSL "${repo_http_https}://www.mongodb.org/static/pgp/server-${mongodb_version_major_minor}.asc" 2>&1 | tee -a "${eus_dir}/logs/repository-keys.log" | apt-key add - &> /dev/null; then
+            if curl "${curl_argument[@]}" -fSL "${repo_http_https}://www.mongodb.org/static/pgp/server-${mongodb_version_major_minor}.asc" 2>&1 | tee -a "${eus_dir}/logs/repository-keys.log" | apt-key add - &>/dev/null; then
               mongodb_curl_exit_status="${PIPESTATUS[0]}"
               mongodb_apt_key_exit_status="${PIPESTATUS[2]}"
               if [[ "${mongodb_curl_exit_status}" -eq "0" && "${mongodb_apt_key_exit_status}" -eq "0" ]]; then
                 echo -e "${GREEN}#${RESET} Successfully added the key for MongoDB ${mongodb_version_major_minor}! \\n"
               else
                 abort_reason="Failed to add the key for MongoDB ${mongodb_version_major_minor}."
-              abort
+                abort
               fi
             fi
           fi
@@ -1586,7 +1810,7 @@ add_mongodb_repo() {
     fi
     echo -e "${WHITE_R}#${RESET} Adding ${try_different_mongodb_repo_test} MongoDB ${mongodb_version_major_minor} repository..."
     if [[ "${architecture}" == 'arm64' ]]; then arch="arch=arm64"; elif [[ "${architecture}" == 'amd64' ]]; then arch="arch=amd64"; else arch="arch=amd64,arm64"; fi
-    if echo "deb [ ${arch}${signed_by_value}${trusted_mongodb_repo} ] ${repo_http_https}://repo.mongodb.org/apt/${mongodb_codename}/mongodb-org/${mongodb_version_major_minor} ${mongodb_repo_type}" &> "/etc/apt/sources.list.d/mongodb-org-${mongodb_version_major_minor}.list"; then
+    if echo "deb [ ${arch}${signed_by_value}${trusted_mongodb_repo} ] ${repo_http_https}://repo.mongodb.org/apt/${mongodb_codename}/mongodb-org/${mongodb_version_major_minor} ${mongodb_repo_type}" &>"/etc/apt/sources.list.d/mongodb-org-${mongodb_version_major_minor}.list"; then
       echo -e "${GREEN}#${RESET} Successfully added the ${try_different_mongodb_repo_test_2}MongoDB ${mongodb_version_major_minor} repository!\\n" && sleep 2
       if [[ "${mongodb_key_update}" != 'true' ]]; then
         run_apt_get_update
@@ -1598,7 +1822,10 @@ add_mongodb_repo() {
           if [[ -z "${mongodb_org_upgrade_to_version_with_dot}" ]]; then mongodb_org_upgrade_to_version_with_dot="$(apt-cache policy mongodb-org-server | grep -i "${previous_mongodb_version_with_dot}" | sed -e 's/500//g' -e 's/-1//g' -e 's/100//g' -e 's/ //g' -e '/http/d' -e 's/*//g' | cut -d':' -f2 | sed '/mongodb/d' | sort -r -V | head -n 1)"; fi
         fi
         mongodb_org_upgrade_to_version="${mongodb_org_upgrade_to_version_with_dot//./}"
-        if [[ -n "${mongo_version_locked}" ]]; then install_mongodb_version="${mongo_version_locked}"; install_mongodb_version_with_equality_sign="=${mongo_version_locked}"; fi
+        if [[ -n "${mongo_version_locked}" ]]; then
+          install_mongodb_version="${mongo_version_locked}"
+          install_mongodb_version_with_equality_sign="=${mongo_version_locked}"
+        fi
         if [[ "${mongodb_org_upgrade_to_version::2}" == "${mongo_version_max}" ]] || [[ "${mongodb_downgrade_process}" == "true" ]]; then
           if [[ -z "${mongo_version_locked}" ]]; then
             install_mongodb_version="${mongodb_org_upgrade_to_version_with_dot}"
@@ -1616,7 +1843,7 @@ add_mongodb_repo() {
 }
 
 # Check if system runs Unifi OS
-if "$(which dpkg)" -l unifi-core 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+if "$(which dpkg)" -l unifi-core 2>/dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
   unifi_core_system="true"
   if grep -sq unifi-native /mnt/.rofs/var/lib/dpkg/status; then unifi_native_system="true"; fi
   if [[ -f /proc/ubnthal/system.info ]]; then if grep -iq "shortname" /proc/ubnthal/system.info; then unifi_core_device="$(grep "shortname" /proc/ubnthal/system.info | sed 's/shortname=//g')"; fi; fi
@@ -1637,7 +1864,10 @@ else
 fi
 
 cancel_script() {
-  if [[ "${set_lc_all}" == 'true' ]]; then if [[ -n "${original_lang}" ]]; then export LANG="${original_lang}"; else unset LANG; fi; if [[ -n "${original_lcall}" ]]; then export LC_ALL="${original_lcall}"; else unset LC_ALL; fi; fi
+  if [[ "${set_lc_all}" == 'true' ]]; then
+    if [[ -n "${original_lang}" ]]; then export LANG="${original_lang}"; else unset LANG; fi
+    if [[ -n "${original_lcall}" ]]; then export LC_ALL="${original_lcall}"; else unset LC_ALL; fi
+  fi
   if [[ "${script_option_skip}" == 'true' ]]; then
     echo -e "\\n${WHITE_R}#########################################################################${RESET}\\n"
   else
@@ -1657,8 +1887,11 @@ http_proxy_found() {
 }
 
 remove_yourself() {
-  if [[ "${set_lc_all}" == 'true' ]]; then if [[ -n "${original_lang}" ]]; then export LANG="${original_lang}"; else unset LANG; fi; if [[ -n "${original_lcall}" ]]; then export LC_ALL="${original_lcall}"; else unset LC_ALL; fi; fi
-  if [[ "${delete_script}" == 'true' || "${script_option_skip}" == 'true' ]]; then if [[ -e "${script_location}" ]]; then rm --force "${script_location}" 2> /dev/null; fi; fi
+  if [[ "${set_lc_all}" == 'true' ]]; then
+    if [[ -n "${original_lang}" ]]; then export LANG="${original_lang}"; else unset LANG; fi
+    if [[ -n "${original_lcall}" ]]; then export LC_ALL="${original_lcall}"; else unset LC_ALL; fi
+  fi
+  if [[ "${delete_script}" == 'true' || "${script_option_skip}" == 'true' ]]; then if [[ -e "${script_location}" ]]; then rm --force "${script_location}" 2>/dev/null; fi; fi
 }
 
 christmass_new_year() {
@@ -1710,7 +1943,10 @@ author() {
 # Set architecture
 architecture="$("$(which dpkg)" --print-architecture)"
 if [[ "${architecture}" == 'i686' ]]; then architecture="i386"; fi
-if [[ -n "$(command -v jq)" && -e "${eus_dir}/db/db.json" ]]; then jq '."database" += {"architecture": "'"${architecture}"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"; eus_database_move; fi
+if [[ -n "$(command -v jq)" && -e "${eus_dir}/db/db.json" ]]; then
+  jq '."database" += {"architecture": "'"${architecture}"'"}' "${eus_dir}/db/db.json" >"${eus_dir}/db/db.json.tmp" 2>>"${eus_dir}/logs/eus-database-management.log"
+  eus_database_move
+fi
 
 # Get distro.
 get_distro() {
@@ -1733,35 +1969,61 @@ get_distro() {
       return
     fi
   fi
-  if [[ "${os_codename}" =~ ^(precise|maya|luna)$ ]]; then repo_codename=precise; os_codename=precise
-  elif [[ "${os_codename}" =~ ^(trusty|qiana|rebecca|rafaela|rosa|freya)$ ]]; then repo_codename=trusty; os_codename=trusty
-  elif [[ "${os_codename}" =~ ^(xenial|sarah|serena|sonya|sylvia|loki)$ ]]; then repo_codename=xenial; os_codename=xenial
-  elif [[ "${os_codename}" =~ ^(bionic|tara|tessa|tina|tricia|hera|juno)$ ]]; then repo_codename=bionic; os_codename=bionic
-  elif [[ "${os_codename}" =~ ^(focal|ulyana|ulyssa|uma|una|odin|jolnir)$ ]]; then repo_codename=focal; os_codename=focal
-  elif [[ "${os_codename}" =~ ^(jammy|vanessa|vera|victoria|virginia|horus)$ ]]; then repo_codename=jammy; os_codename=jammy
-  elif [[ "${os_codename}" =~ ^(stretch|continuum)$ ]]; then repo_codename=stretch; os_codename=stretch
-  elif [[ "${os_codename}" =~ ^(buster|debbie|parrot|engywuck-backports|engywuck|deepin)$ ]]; then repo_codename=buster; os_codename=buster
-  elif [[ "${os_codename}" =~ ^(bullseye|kali-rolling|elsie|ara)$ ]]; then repo_codename=bullseye; os_codename=bullseye
-  elif [[ "${os_codename}" =~ ^(bookworm|lory|faye)$ ]]; then repo_codename=bookworm; os_codename=bookworm
+  if [[ "${os_codename}" =~ ^(precise|maya|luna)$ ]]; then
+    repo_codename=precise
+    os_codename=precise
+  elif [[ "${os_codename}" =~ ^(trusty|qiana|rebecca|rafaela|rosa|freya)$ ]]; then
+    repo_codename=trusty
+    os_codename=trusty
+  elif [[ "${os_codename}" =~ ^(xenial|sarah|serena|sonya|sylvia|loki)$ ]]; then
+    repo_codename=xenial
+    os_codename=xenial
+  elif [[ "${os_codename}" =~ ^(bionic|tara|tessa|tina|tricia|hera|juno)$ ]]; then
+    repo_codename=bionic
+    os_codename=bionic
+  elif [[ "${os_codename}" =~ ^(focal|ulyana|ulyssa|uma|una|odin|jolnir)$ ]]; then
+    repo_codename=focal
+    os_codename=focal
+  elif [[ "${os_codename}" =~ ^(jammy|vanessa|vera|victoria|virginia|horus)$ ]]; then
+    repo_codename=jammy
+    os_codename=jammy
+  elif [[ "${os_codename}" =~ ^(stretch|continuum)$ ]]; then
+    repo_codename=stretch
+    os_codename=stretch
+  elif [[ "${os_codename}" =~ ^(buster|debbie|parrot|engywuck-backports|engywuck|deepin)$ ]]; then
+    repo_codename=buster
+    os_codename=buster
+  elif [[ "${os_codename}" =~ ^(bullseye|kali-rolling|elsie|ara)$ ]]; then
+    repo_codename=bullseye
+    os_codename=bullseye
+  elif [[ "${os_codename}" =~ ^(bookworm|lory|faye)$ ]]; then
+    repo_codename=bookworm
+    os_codename=bookworm
   else
     repo_codename="${os_codename}"
   fi
-  if [[ -n "$(command -v jq)" && "$(jq -r '.database.distribution' "${eus_dir}/db/db.json")" != "${os_codename}" ]]; then jq '."database" += {"distribution": "'"${os_codename}"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"; eus_database_move; fi
+  if [[ -n "$(command -v jq)" && "$(jq -r '.database.distribution' "${eus_dir}/db/db.json")" != "${os_codename}" ]]; then
+    jq '."database" += {"distribution": "'"${os_codename}"'"}' "${eus_dir}/db/db.json" >"${eus_dir}/db/db.json.tmp" 2>>"${eus_dir}/logs/eus-database-management.log"
+    eus_database_move
+  fi
 }
 get_distro
 
 get_repo_url() {
   unset archived_repo
-  if [[ "${os_codename}" != "${repo_codename}" ]]; then os_codename="${repo_codename}"; os_codename_changed="true"; fi
-  if "$(which dpkg)" -l apt-transport-https 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+  if [[ "${os_codename}" != "${repo_codename}" ]]; then
+    os_codename="${repo_codename}"
+    os_codename_changed="true"
+  fi
+  if "$(which dpkg)" -l apt-transport-https 2>/dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
     http_or_https="https"
     add_repositories_http_or_https="http[s]*"
     if [[ "${copied_source_files}" == 'true' ]]; then
       while read -r revert_https_repo_needs_http_file; do
         if [[ "${revert_https_repo_needs_http_file}" == 'source.list' ]]; then
-          mv "${revert_https_repo_needs_http_file}" "/etc/apt/source.list" &>> "${eus_dir}/logs/revert-https-repo-needs-http.log"
+          mv "${revert_https_repo_needs_http_file}" "/etc/apt/source.list" &>>"${eus_dir}/logs/revert-https-repo-needs-http.log"
         else
-          mv "${revert_https_repo_needs_http_file}" "/etc/apt/source.list.d/$(basename "${revert_https_repo_needs_http_file}")" &>> "${eus_dir}/logs/revert-https-repo-needs-http.log"
+          mv "${revert_https_repo_needs_http_file}" "/etc/apt/source.list.d/$(basename "${revert_https_repo_needs_http_file}")" &>>"${eus_dir}/logs/revert-https-repo-needs-http.log"
         fi
       done < <(find "${eus_dir}/repositories" -type f -name "*.list")
     fi
@@ -1769,25 +2031,25 @@ get_repo_url() {
     http_or_https="http"
     add_repositories_http_or_https="http"
   fi
-  if "$(which dpkg)" -l curl 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+  if "$(which dpkg)" -l curl 2>/dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
     if [[ "${os_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then
-      if curl "${curl_argument[@]}" "${http_or_https}://old-releases.ubuntu.com/ubuntu/dists/" 2> /dev/null | grep -iq "${os_codename}" 2> /dev/null; then archived_repo="true"; fi
+      if curl "${curl_argument[@]}" "${http_or_https}://old-releases.ubuntu.com/ubuntu/dists/" 2>/dev/null | grep -iq "${os_codename}" 2>/dev/null; then archived_repo="true"; fi
       if [[ "${architecture}" =~ (amd64|i386) ]]; then
         if [[ "${archived_repo}" == "true" ]]; then repo_url="${http_or_https}://old-releases.ubuntu.com/ubuntu"; else repo_url="http://archive.ubuntu.com/ubuntu"; fi
       else
         if [[ "${archived_repo}" == "true" ]]; then repo_url="${http_or_https}://old-releases.ubuntu.com/ubuntu"; else repo_url="http://ports.ubuntu.com"; fi
       fi
     elif [[ "${os_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
-      if curl "${curl_argument[@]}" "${http_or_https}://archive.debian.org/debian/dists/" 2> /dev/null | grep -iq "${os_codename}" 2> /dev/null; then archived_repo="true"; fi
+      if curl "${curl_argument[@]}" "${http_or_https}://archive.debian.org/debian/dists/" 2>/dev/null | grep -iq "${os_codename}" 2>/dev/null; then archived_repo="true"; fi
       if [[ "${archived_repo}" == "true" ]]; then repo_url="${http_or_https}://archive.debian.org/debian"; else repo_url="${http_or_https}://deb.debian.org/debian"; fi
       if [[ "${architecture}" == 'armhf' ]]; then
         repo_arch_value="arch=armhf"
-        if curl "${curl_argument[@]}" "${http_or_https}://legacy.raspbian.org/raspbian/dists/" 2> /dev/null | grep -iq "${os_codename}" 2> /dev/null; then archived_raspbian_repo="true"; fi
+        if curl "${curl_argument[@]}" "${http_or_https}://legacy.raspbian.org/raspbian/dists/" 2>/dev/null | grep -iq "${os_codename}" 2>/dev/null; then archived_raspbian_repo="true"; fi
         if [[ "${archived_raspbian_repo}" == "true" ]]; then raspbian_repo_url="${http_or_https}://legacy.raspbian.org/raspbian"; else raspbian_repo_url="${http_or_https}://archive.raspbian.org/raspbian"; fi
       fi
       if [[ "${use_raspberrypi_repo}" == 'true' ]]; then
         if [[ "${architecture}" == 'arm64' ]]; then repo_arch_value="arch=arm64"; fi
-        if curl "${curl_argument[@]}" "${http_or_https}://legacy.raspbian.org/raspbian/dists/" 2> /dev/null | grep -iq "${os_codename}" 2> /dev/null; then archived_repo="true"; fi
+        if curl "${curl_argument[@]}" "${http_or_https}://legacy.raspbian.org/raspbian/dists/" 2>/dev/null | grep -iq "${os_codename}" 2>/dev/null; then archived_repo="true"; fi
         if [[ "${archived_repo}" == "true" ]]; then repo_url="${http_or_https}://legacy.raspbian.org/raspbian"; else repo_url="${http_or_https}://archive.raspberrypi.org/debian"; fi
         unset use_raspberrypi_repo
       fi
@@ -1807,13 +2069,13 @@ get_repo_url
 
 cleanup_archived_repos() {
   if [[ "${archived_repo}" == "true" ]]; then
-    repo_file_patterns=( "deb.debian.org\\/debian ${os_codename}" "deb.debian.org\\/debian\\/ ${os_codename}" "ftp.*.debian.org\\/debian ${os_codename}" "ftp.*.debian.org\\/debian ${os_codename}" "ftp.*.debian.org\\/debian\\/ ${os_codename}" "security.debian.org ${os_codename}" "security.debian.org\\/ ${os_codename}" "security.debian.org\\/debian-security ${os_codename}" "security.debian.org\\/debian-security\\/ ${os_codename}" "ftp.debian.org\\/debian ${os_codename}" "ftp.debian.org\\/debian\\/ ${os_codename}" "http.debian.net\\/debian ${os_codename}" "http.debian.net\\/debian\\/ ${os_codename}" "*.archive.ubuntu.com\\/ubuntu ${os_codename}" "*.archive.ubuntu.com\\/ubuntu\\/ ${os_codename}" "archive.ubuntu.com\\/ubuntu ${os_codename}" "archive.ubuntu.com\\/ubuntu\\/ ${os_codename}" "security.ubuntu.com\\/ubuntu ${os_codename}" "security.ubuntu.com\\/ubuntu\\/ ${os_codename}" "archive.raspbian.org\\/raspbian ${os_codename}" "archive.raspbian.org\\/raspbian\\/ ${os_codename}" "archive.raspberrypi.org\\/raspbian ${os_codename}" "archive.raspberrypi.org\\/raspbian\\/ ${os_codename}" "httpredir.debian.org\\/debian ${os_codename}" "httpredir.debian.org\\/debian\\/ ${os_codename}" )
+    repo_file_patterns=("deb.debian.org\\/debian ${os_codename}" "deb.debian.org\\/debian\\/ ${os_codename}" "ftp.*.debian.org\\/debian ${os_codename}" "ftp.*.debian.org\\/debian ${os_codename}" "ftp.*.debian.org\\/debian\\/ ${os_codename}" "security.debian.org ${os_codename}" "security.debian.org\\/ ${os_codename}" "security.debian.org\\/debian-security ${os_codename}" "security.debian.org\\/debian-security\\/ ${os_codename}" "ftp.debian.org\\/debian ${os_codename}" "ftp.debian.org\\/debian\\/ ${os_codename}" "http.debian.net\\/debian ${os_codename}" "http.debian.net\\/debian\\/ ${os_codename}" "*.archive.ubuntu.com\\/ubuntu ${os_codename}" "*.archive.ubuntu.com\\/ubuntu\\/ ${os_codename}" "archive.ubuntu.com\\/ubuntu ${os_codename}" "archive.ubuntu.com\\/ubuntu\\/ ${os_codename}" "security.ubuntu.com\\/ubuntu ${os_codename}" "security.ubuntu.com\\/ubuntu\\/ ${os_codename}" "archive.raspbian.org\\/raspbian ${os_codename}" "archive.raspbian.org\\/raspbian\\/ ${os_codename}" "archive.raspberrypi.org\\/raspbian ${os_codename}" "archive.raspberrypi.org\\/raspbian\\/ ${os_codename}" "httpredir.debian.org\\/debian ${os_codename}" "httpredir.debian.org\\/debian\\/ ${os_codename}")
     #repo_file_patterns=( "debian.org\\/debian ${os_codename}" "debian.org\\/debian\\/ ${os_codename}" "debian.net\\/debian ${os_codename}" "debian.net\\/debian\\/ ${os_codename}" "ubuntu.com\\/ubuntu ${os_codename}" "ubuntu.com\\/ubuntu\\/ ${os_codename}" )
     while read -r repo_file; do
       for pattern in "${repo_file_patterns[@]}"; do
         sed -e "/${pattern}/ s/^#*/#/g" -i "${repo_file}"
       done
-    #done < <(find /etc/apt/ -type f -name "*.list" -exec grep -ilE 'deb.debian.org/debian|security.debian.org|ftp.[a-Z]{1,2}.debian.org/debian|ftp.debian.org/debian|[a-Z]{1,2}.archive.ubuntu.com/ubuntu|archive.ubuntu.com/ubuntu|security.ubuntu.com/ubuntu' {} +)
+      #done < <(find /etc/apt/ -type f -name "*.list" -exec grep -ilE 'deb.debian.org/debian|security.debian.org|ftp.[a-Z]{1,2}.debian.org/debian|ftp.debian.org/debian|[a-Z]{1,2}.archive.ubuntu.com/ubuntu|archive.ubuntu.com/ubuntu|security.ubuntu.com/ubuntu' {} +)
     done < <(find /etc/apt/ -type f -name "*.list" -exec grep -ilE 'debian.org|debian.net|ubuntu.com|raspbian.org|raspberrypi.org' {} +)
   fi
 }
@@ -1826,11 +2088,11 @@ add_repositories() {
     unset repo_url_arguments
     unset repo_arguments
     unset signed_by_value_repo_key
-    return  # Repository already added, exit function
+    return # Repository already added, exit function
   fi
   # Add repository key if required
   if [[ "${apt_key_deprecated}" == 'true' && -n "${repo_key}" && -n "${repo_key_name}" ]]; then
-    if gpg --no-default-keyring --keyring "/etc/apt/keyrings/${repo_key_name}.gpg" --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys "${repo_key}" &> /dev/null; then
+    if gpg --no-default-keyring --keyring "/etc/apt/keyrings/${repo_key_name}.gpg" --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys "${repo_key}" &>/dev/null; then
       signed_by_value_repo_key=" signed-by=/etc/apt/keyrings/${repo_key_name}.gpg"
     else
       abort_reason="Failed to add repository key ${repo_key}."
@@ -1841,41 +2103,41 @@ add_repositories() {
   if [[ "${os_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) && "$(command -v jq)" ]]; then
     os_version_number="$(lsb_release -rs | tr '[:upper:]' '[:lower:]' | cut -d'.' -f1)"
     check_debian_version="${os_version_number}"
-    if echo "${repo_url}" | grep -ioq "archive.debian"; then 
+    if echo "${repo_url}" | grep -ioq "archive.debian"; then
       check_debian_version="${os_version_number}-archive"
-    elif echo "${repo_url_arguments}" | grep -ioq "security.debian"; then 
+    elif echo "${repo_url_arguments}" | grep -ioq "security.debian"; then
       check_debian_version="${os_version_number}-security"
     fi
-    if [[ "$(curl "${curl_argument[@]}" https://get.glennr.nl/unifi/releases/debian-versions.json | jq -r '.versions."'"${check_debian_version}"'".expired')" == 'true' ]]; then 
+    if [[ "$(curl "${curl_argument[@]}" https://get.glennr.nl/unifi/releases/debian-versions.json | jq -r '.versions."'"${check_debian_version}"'".expired')" == 'true' ]]; then
       signed_by_value_repo_key+=" trusted=yes"
     fi
   fi
   # Add repository to sources list
   if [[ -n "${signed_by_value_repo_key}" && -n "${repo_arch_value}" ]]; then local brackets="[${signed_by_value_repo_key}${repo_arch_value}] "; else local brackets=""; fi
   local repo_entry="deb ${brackets}${repo_url}${repo_url_arguments} ${repo_codename}${repo_arguments}"
-  if ! echo -e "${repo_entry}" >> /etc/apt/sources.list.d/glennr-install-script.list; then
+  if ! echo -e "${repo_entry}" >>/etc/apt/sources.list.d/glennr-install-script.list; then
     abort_reason="Failed to add repository."
     abort
-  fi 
+  fi
   # Handle HTTP repositories
   if [[ "${add_repositories_http_or_https}" == 'http' ]]; then
     eus_create_directories "repositories"
     while read -r https_repo_needs_http_file; do
-      if [[ -d "${eus_dir}/repositories" ]]; then 
-        cp "${https_repo_needs_http_file}" "${eus_dir}/repositories/$(basename "${https_repo_needs_http_file}")" &>> "${eus_dir}/logs/https-repo-needs-http.log"
+      if [[ -d "${eus_dir}/repositories" ]]; then
+        cp "${https_repo_needs_http_file}" "${eus_dir}/repositories/$(basename "${https_repo_needs_http_file}")" &>>"${eus_dir}/logs/https-repo-needs-http.log"
         copied_source_files="true"
       fi
-      sed -i '/https/{s/^/#/}' "${https_repo_needs_http_file}" &>> "${eus_dir}/logs/https-repo-needs-http.log"
-      sed -i 's/##/#/g' "${https_repo_needs_http_file}" &>> "${eus_dir}/logs/https-repo-needs-http.log"
+      sed -i '/https/{s/^/#/}' "${https_repo_needs_http_file}" &>>"${eus_dir}/logs/https-repo-needs-http.log"
+      sed -i 's/##/#/g' "${https_repo_needs_http_file}" &>>"${eus_dir}/logs/https-repo-needs-http.log"
     done < <(grep -ril "^deb https*://$(echo "${repo_url}" | sed -e 's/https\:\/\///g' -e 's/http\:\/\///g') ${repo_codename}${repo_arguments}" /etc/apt/sources.list /etc/apt/sources.list.d/*)
-  fi 
+  fi
   # Clean up unset variables
   unset repo_key_name
   unset repo_url_arguments
   unset repo_arguments
   unset signed_by_value_repo_key
   # Check if OS codename changed and reset variables
-  if [[ "${os_codename_changed}" == 'true' ]]; then 
+  if [[ "${os_codename_changed}" == 'true' ]]; then
     unset os_codename_changed
     get_distro
     get_repo_url
@@ -1901,14 +2163,15 @@ if ! grep -iq '^127.0.0.1.*localhost' /etc/hosts; then
   echo -e "${WHITE_R}#${RESET} You will most likely see application startup issues if it doesn't exist..\\n\\n"
   read -rp $'\033[39m#\033[0m Do you want to add "127.0.0.1   localhost" to your /etc/hosts file? (Y/n) ' yes_no
   case "$yes_no" in
-      [Yy]*|"")
-          echo -e "${WHITE_R}----${RESET}\\n"
-          echo -e "${WHITE_R}#${RESET} Adding '127.0.0.1       localhost' to /etc/hosts"
-          sed  -i '1i # ------------------------------' /etc/hosts
-          sed  -i '1i 127.0.0.1       localhost' /etc/hosts
-          sed  -i '1i # Added by GlennR EUS script' /etc/hosts && echo -e "${WHITE_R}#${RESET} Done..\\n\\n"
-          sleep 3;;
-      [Nn]*) ;;
+  [Yy]* | "")
+    echo -e "${WHITE_R}----${RESET}\\n"
+    echo -e "${WHITE_R}#${RESET} Adding '127.0.0.1       localhost' to /etc/hosts"
+    sed -i '1i # ------------------------------' /etc/hosts
+    sed -i '1i 127.0.0.1       localhost' /etc/hosts
+    sed -i '1i # Added by GlennR EUS script' /etc/hosts && echo -e "${WHITE_R}#${RESET} Done..\\n\\n"
+    sleep 3
+    ;;
+  [Nn]*) ;;
   esac
 fi
 
@@ -1916,7 +2179,7 @@ check_and_add_to_path() {
   local directory="$1"
   if ! echo "${PATH}" | grep -qE "(^|:)$directory(:|$)"; then
     export PATH="$directory:$PATH"
-    echo "Added $directory to PATH" &>> "${eus_dir/logs/path.log}"
+    echo "Added $directory to PATH" &>>"${eus_dir/logs/path.log}"
   fi
 }
 check_and_add_to_path "/usr/local/sbin"
@@ -1930,38 +2193,45 @@ script_version_check() {
   version="$(grep -i "# Application version" "${script_location}" | head -n 1 | cut -d'|' -f2 | sed 's/ //g' | cut -d'-' -f1)"
   local_version="$(grep -i "# Version" "${script_location}" | head -n 1 | cut -d'|' -f2 | sed 's/ //g')"
   online_version="$(curl "${curl_argument[@]}" "https://get.glennr.nl/unifi/install/unifi-${version}.sh" | grep -i "# Version" | head -n 1 | cut -d'|' -f2 | sed 's/ //g')"
-  IFS='.' read -r -a local_parts <<< "${local_version}"
-  IFS='.' read -r -a online_parts <<< "${online_version}"
+  IFS='.' read -r -a local_parts <<<"${local_version}"
+  IFS='.' read -r -a online_parts <<<"${online_version}"
   if [[ "${#local_parts[@]}" -gt "${#online_parts[@]}" ]]; then max_length="${#local_parts[@]}"; else max_length="${#online_parts[@]}"; fi
   local local_adjusted=()
   local online_adjusted=()
-  for ((i = 0; i < max_length; i++)) do
+  for ((i = 0; i < max_length; i++)); do
     local local_segment="${local_parts[$i]:-0}"
     local online_segment="${online_parts[$i]:-0}"
     local max_segment_length="${#local_segment}"
     [[ "${#online_segment}" -gt "${max_segment_length}" ]] && max_segment_length="${#online_segment}"
     if [[ "${#local_segment}" -lt max_segment_length ]]; then
-      local_segment="$(printf "%s%s" "${local_segment}" "$(printf '0%.0s' $(seq $((max_segment_length - ${#local_segment}))) )")"
+      local_segment="$(printf "%s%s" "${local_segment}" "$(printf '0%.0s' $(seq $((max_segment_length - ${#local_segment}))))")"
     fi
     if [[ "${#online_segment}" -lt max_segment_length ]]; then
-      online_segment="$(printf "%s%s" "${online_segment}" "$(printf '0%.0s' $(seq $((max_segment_length - ${#online_segment}))) )")"
+      online_segment="$(printf "%s%s" "${online_segment}" "$(printf '0%.0s' $(seq $((max_segment_length - ${#online_segment}))))")"
     fi
     local_adjusted+=("$local_segment")
     online_adjusted+=("$online_segment")
   done
   local local_version_adjusted
   local online_version_adjusted
-  local_version_adjusted="$(IFS=; echo "${local_adjusted[*]}")"
-  online_version_adjusted="$(IFS=; echo "${online_adjusted[*]}")"
+  local_version_adjusted="$(
+    IFS=
+    echo "${local_adjusted[*]}"
+  )"
+  online_version_adjusted="$(
+    IFS=
+    echo "${online_adjusted[*]}"
+  )"
   if [[ "${local_version_adjusted}" -lt "${online_version_adjusted}" ]]; then
     header_red
     echo -e "${WHITE_R}#${RESET} You're currently running script version ${local_version} while ${online_version} is the latest!"
     echo -e "${WHITE_R}#${RESET} Downloading and executing version ${online_version} of the script...\\n\\n"
     sleep 3
-    rm --force "${script_location}" 2> /dev/null
-    rm --force "unifi-${version}.sh" 2> /dev/null
+    rm --force "${script_location}" 2>/dev/null
+    rm --force "unifi-${version}.sh" 2>/dev/null
     # shellcheck disable=SC2068
-    curl "${curl_argument[@]}" --remote-name "https://get.glennr.nl/unifi/install/unifi-${version}.sh" && bash "unifi-${version}.sh" ${script_options[@]}; exit 0
+    curl "${curl_argument[@]}" --remote-name "https://get.glennr.nl/unifi/install/unifi-${version}.sh" && bash "unifi-${version}.sh" ${script_options[@]}
+    exit 0
   fi
 }
 if [[ "$(command -v curl)" ]]; then script_version_check; fi
@@ -1969,7 +2239,7 @@ if [[ "$(command -v curl)" ]]; then script_version_check; fi
 if ! [[ -d /etc/apt/sources.list.d ]]; then mkdir -p /etc/apt/sources.list.d; fi
 
 eus_database_update_broken_install() {
-  jq '.scripts."'"$script_name"'" += {"recovery": {"broken-install": {"script-version": "'"$(grep -i "# Version" "${script_location}" | head -n 1 | cut -d'|' -f2 | sed 's/ //g' | cut -d'-' -f1)"'", "status": "'"$("$(which dpkg)" -l | grep "unifi " | awk '{print $1}')"'", "unifi-version": "'"${broken_unifi_install_version}"'", "previous-mongodb-version": "'"${last_known_good_mongodb_version}"'", "detected-date": "'"$(date +%s)"'"}}}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+  jq '.scripts."'"$script_name"'" += {"recovery": {"broken-install": {"script-version": "'"$(grep -i "# Version" "${script_location}" | head -n 1 | cut -d'|' -f2 | sed 's/ //g' | cut -d'-' -f1)"'", "status": "'"$("$(which dpkg)" -l | grep "unifi " | awk '{print $1}')"'", "unifi-version": "'"${broken_unifi_install_version}"'", "previous-mongodb-version": "'"${last_known_good_mongodb_version}"'", "detected-date": "'"$(date +%s)"'"}}}' "${eus_dir}/db/db.json" >"${eus_dir}/db/db.json.tmp" 2>>"${eus_dir}/logs/eus-database-management.log"
   eus_database_move
 }
 
@@ -1978,13 +2248,13 @@ broken_packages_check() {
   broken_packages="$(apt-get check 2>&1 | grep -i "Broken" | awk '{print $2}')"
   if [[ -n "${broken_packages}" ]] || tail -n5 "${eus_dir}/logs/"* | grep -iq "Try 'sudo apt --fix-broken install' with no packages\\|Try 'apt --fix-broken install' with no packages"; then
     echo -e "${WHITE_R}#${RESET} Broken packages found: ${broken_packages}. Attempting to fix..." | tee -a "${eus_dir}/logs/broken-packages.log"
-    if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install --fix-broken &>> "${eus_dir}/logs/broken-packages.log"; then
+    if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install --fix-broken &>>"${eus_dir}/logs/broken-packages.log"; then
       echo -e "${GREEN}#${RESET} Successfully fixed the broken packages! \\n" | tee -a "${eus_dir}/logs/broken-packages.log"
     else
       echo -e "${RED}#${RESET} Failed to fix the broken packages! \\n" | tee -a "${eus_dir}/logs/broken-packages.log"
     fi
     while read -r log_file; do
-      sed -i 's/--fix-broken install/--fix-broken install (completed)/g' "${log_file}" &> /dev/null
+      sed -i 's/--fix-broken install/--fix-broken install (completed)/g' "${log_file}" &>/dev/null
     done < <(find "${eus_dir}/logs/" -maxdepth 1 -type f -exec grep -Eil "Try 'sudo apt --fix-broken install' with no packages|Try 'apt --fix-broken install' with no packages" {} \;)
   fi
 }
@@ -1992,15 +2262,15 @@ broken_packages_check() {
 check_dpkg_interrupted() {
   if [[ -e "/var/lib/dpkg/info/*.status" ]] || tail -n5 "${eus_dir}/logs/"* | grep -iq "you must manually run 'sudo dpkg --configure -a' to correct the problem\\|you must manually run 'dpkg --configure -a' to correct the problem"; then
     echo -e "${WHITE_R}#${RESET} Looks like dpkg was interrupted... running \"dpkg --configure -a\"... \\n" | tee -a "${eus_dir}/logs/dpkg-interrupted.log"
-    DEBIAN_FRONTEND=noninteractive "$(which dpkg)" --configure -a &>> "${eus_dir}/logs/dpkg-interrupted.log"
+    DEBIAN_FRONTEND=noninteractive "$(which dpkg)" --configure -a &>>"${eus_dir}/logs/dpkg-interrupted.log"
     while read -r log_file; do
-      sed -i 's/--configure -a/--configure -a (completed)/g' "${log_file}" &> /dev/null
+      sed -i 's/--configure -a/--configure -a (completed)/g' "${log_file}" &>/dev/null
     done < <(find "${eus_dir}/logs/" -maxdepth 1 -type f -exec grep -Eil "you must manually run 'sudo dpkg --configure -a' to correct the problem|you must manually run 'dpkg --configure -a' to correct the problem" {} \;)
   fi
 }
 
 check_dpkg_lock() {
-  local lock_files=( "/var/lib/dpkg/lock" "/var/lib/apt/lists/lock" "/var/cache/apt/archives/lock" )
+  local lock_files=("/var/lib/dpkg/lock" "/var/lib/apt/lists/lock" "/var/cache/apt/archives/lock")
   local lock_owner
   for lock_file in "${lock_files[@]}"; do
     if command -v lsof &>/dev/null; then
@@ -2023,8 +2293,8 @@ check_dpkg_lock() {
           if [[ "${elapsed_time}" -ge "${timeout}" ]]; then
             process_killed="true"
             echo -e "${YELLOW}#${RESET} Timeout reached. Killing process ${lock_owner} forcefully. \\n" | tee -a "${eus_dir}/logs/dpkg-lock.log"
-            kill -9 "${lock_owner}" &>> "${eus_dir}/logs/dpkg-lock.log"
-            rm -f "${lock_file}" &>> "${eus_dir}/logs/dpkg-lock.log"
+            kill -9 "${lock_owner}" &>>"${eus_dir}/logs/dpkg-lock.log"
+            rm -f "${lock_file}" &>>"${eus_dir}/logs/dpkg-lock.log"
             break
           else
             sleep 1
@@ -2043,18 +2313,26 @@ check_dpkg_lock() {
   check_dpkg_interrupted
 }
 
-# Check if we should handle broken UniFi installation process if we found old database files. 
+# Check if we should handle broken UniFi installation process if we found old database files.
 if [[ -d "/usr/lib/unifi/logs/" ]]; then
   if [[ "$(command -v zgrep)" ]]; then grep_command="zgrep"; else grep_command="grep"; fi
   while read -r found_mongodb_version; do
     while read -r file; do
       if ! "${grep_command}" -A30 -aE "$(echo "${found_mongodb_version}" | cut -d'.' -f1)\.$(echo "${found_mongodb_version}" | cut -d'.' -f2)\.$(echo "${found_mongodb_version}" | cut -d'.' -f3)" "${file}" | grep -sqiaE "This version of MongoDB is too recent to start up on the existing data files|This may be due to an unsupported upgrade or downgrade.|UPGRADE PROBLEM"; then
-        last_known_good_mongodb_version="${found_mongodb_version}"; wait; break
+        last_known_good_mongodb_version="${found_mongodb_version}"
+        wait
+        break
       fi
     done < <(find /usr/lib/unifi/logs/ -maxdepth 1 -type f -exec "${grep_command}" -Eial "db version v${found_mongodb_version}|buildInfo\":{\"version\":\"${found_mongodb_version}\"" {} \;)
-    if [[ -n "${last_known_good_mongodb_version}" ]]; then wait; break; fi
+    if [[ -n "${last_known_good_mongodb_version}" ]]; then
+      wait
+      break
+    fi
   done < <(find /usr/lib/unifi/logs/ -maxdepth 1 -type f -print0 | xargs -0 "${grep_command}" -sEioa "db version v[0-9].[0-9].[0-9]{1,2}|buildInfo\":{\"version\":\"[0-9].[0-9].[0-9]{1,2}\"" | sed -e 's/^.*://' -e 's/db version v//g' -e 's/buildInfo":{"version":"//g' -e 's/"//g' | sort -V | uniq | sort -r)
-  if [[ -n "${last_known_good_mongodb_version}" ]]; then previous_mongodb_version="${last_known_good_mongodb_version//./}"; previous_mongodb_version_with_dot="${last_known_good_mongodb_version}"; fi
+  if [[ -n "${last_known_good_mongodb_version}" ]]; then
+    previous_mongodb_version="${last_known_good_mongodb_version//./}"
+    previous_mongodb_version_with_dot="${last_known_good_mongodb_version}"
+  fi
   if "$(which dpkg)" -l | grep "mongodb-server\\|mongodb-org-server\\|mongod-armv8" | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui" && [[ -n "${previous_mongodb_version}" ]]; then
     recovery_check_mongodb_server_version="$("$(which dpkg)" -l | grep "mongodb-server\\|mongodb-org-server\\|mongod-armv8" | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | awk '{print $3}' | sed 's/.*://' | sed 's/-.*//g' | sed 's/\.//g')"
     if [[ "${recovery_check_mongodb_server_version::2}" != "${previous_mongodb_version::2}" ]]; then recovery_required="true"; fi
@@ -2075,23 +2353,23 @@ if [[ -n "${unifi_package}" ]] || [[ "${recovery_required}" == 'true' ]]; then
       broken_unifi_install_version_first_digit="$(echo "${broken_unifi_install_version}" | cut -d"." -f1)"
       broken_unifi_install_version_second_digit="$(echo "${broken_unifi_install_version}" | cut -d"." -f2)"
       broken_unifi_install_version_third_digit="$(echo "${broken_unifi_install_version}" | cut -d"." -f3)"
-      unifi_download_link="$(curl "${curl_argument[@]}" "https://fw-update.ui.com/api/firmware-latest?filter=eq~~version_major~~${broken_unifi_install_version_first_digit}&filter=eq~~version_minor~~${broken_unifi_install_version_second_digit}&filter=eq~~version_patch~~${broken_unifi_install_version_third_digit}&filter=eq~~platform~~debian" | jq -r "._embedded.firmware[]._links.data.href" | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
+      unifi_download_link="$(curl "${curl_argument[@]}" "https://fw-update.ui.com/api/firmware-latest?filter=eq~~version_major~~${broken_unifi_install_version_first_digit}&filter=eq~~version_minor~~${broken_unifi_install_version_second_digit}&filter=eq~~version_patch~~${broken_unifi_install_version_third_digit}&filter=eq~~platform~~debian" | jq -r "._embedded.firmware[]._links.data.href" | sed '/null/d' 2>"${eus_dir}/logs/locate-download.log")"
       if [[ -z "${unifi_download_link}" ]]; then
-        unifi_download_link="$(curl "${curl_argument[@]}" https://get.glennr.nl/unifi/releases/unifi-network-application-versions.json | jq -r '.versions."'"${broken_unifi_install_version}"'"."download_link"' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
+        unifi_download_link="$(curl "${curl_argument[@]}" https://get.glennr.nl/unifi/releases/unifi-network-application-versions.json | jq -r '.versions."'"${broken_unifi_install_version}"'"."download_link"' | sed '/null/d' 2>"${eus_dir}/logs/locate-download.log")"
       fi
       if [[ -n "${unifi_download_link}" ]]; then
         echo -e "${WHITE_R}#${RESET} Checking if we need to change the version that the script will install..."
         eus_directory_location="/tmp/EUS"
         eus_create_directories "downloads"
         unifi_temp="$(mktemp --tmpdir=/tmp/EUS/downloads "unifi_sysvinit_all_${broken_unifi_install_version}_XXXXX.deb")"
-        echo -e "$(date +%F-%R) | URL used: ${unifi_download_link}" &>> "${eus_dir}/logs/unifi-broken-install-download.log"
-        if curl --retry 3 "${nos_curl_argument[@]}" --output "$unifi_temp" "${unifi_download_link}" &>> "${eus_dir}/logs/unifi-broken-install-download.log"; then
-          if command -v dpkg-deb &> /dev/null; then
-            if dpkg-deb --info "${unifi_temp}" &> /dev/null; then
+        echo -e "$(date +%F-%R) | URL used: ${unifi_download_link}" &>>"${eus_dir}/logs/unifi-broken-install-download.log"
+        if curl --retry 3 "${nos_curl_argument[@]}" --output "$unifi_temp" "${unifi_download_link}" &>>"${eus_dir}/logs/unifi-broken-install-download.log"; then
+          if command -v dpkg-deb &>/dev/null; then
+            if dpkg-deb --info "${unifi_temp}" &>/dev/null; then
               unifi_network_application_downloaded="true"
               echo -e "${GREEN}#${RESET} The script will install UniFi Network Application version ${broken_unifi_install_version}! \\n"
             else
-              echo -e "$(date +%F-%R) | The file downloaded via ${unifi_download_link} was not a debian file format..." &>> "${eus_dir}/logs/unifi_download.log"
+              echo -e "$(date +%F-%R) | The file downloaded via ${unifi_download_link} was not a debian file format..." &>>"${eus_dir}/logs/unifi_download.log"
             fi
           else
             unifi_network_application_downloaded="true"
@@ -2104,19 +2382,22 @@ if [[ -n "${unifi_package}" ]] || [[ "${recovery_required}" == 'true' ]]; then
       sleep 3
     fi
     if [[ -z "$("$(which dpkg)" -l | grep "unifi " | awk '{print $1}' | tr '[:upper:]' '[:lower:]' | cut -c 3-)" ]] && [[ "${unifi_network_application_downloaded}" == 'true' ]]; then
-      if [[ "${limited_functionality}" != 'true' ]]; then systemctl disable -q unifi &>> "${eus_dir}/logs/broken_unifi.log"; broken_unifi_service_disabled="true"; fi
+      if [[ "${limited_functionality}" != 'true' ]]; then
+        systemctl disable -q unifi &>>"${eus_dir}/logs/broken_unifi.log"
+        broken_unifi_service_disabled="true"
+      fi
       echo -e "${WHITE}#${RESET} Performing a required reinstall of the unifi package..."
       check_dpkg_lock
-      echo "unifi unifi/has_backup boolean true" 2> /dev/null | debconf-set-selections
-      if "$(which dpkg)" --force-all --no-triggers -i "${unifi_temp}" &>> "${eus_dir}/logs/broken_unifi.log"; then
+      echo "unifi unifi/has_backup boolean true" 2>/dev/null | debconf-set-selections
+      if "$(which dpkg)" --force-all --no-triggers -i "${unifi_temp}" &>>"${eus_dir}/logs/broken_unifi.log"; then
         echo -e "${GREEN}#${RESET} Successfully reinstalled the unifi package! \\n"
       else
         echo -e "${RED}#${RESET} Failed to reinstall the unifi package...\\n"
       fi
-      if [[ "${broken_unifi_service_disabled}" == 'true' ]]; then systemctl enable -q unifi &>> "${eus_dir}/logs/broken_unifi.log"; fi
+      if [[ "${broken_unifi_service_disabled}" == 'true' ]]; then systemctl enable -q unifi &>>"${eus_dir}/logs/broken_unifi.log"; fi
     fi
     echo -e "${WHITE}#${RESET} Removing the broken UniFi Network Application installation..."
-    if "$(which dpkg)" --remove --force-remove-reinstreq unifi &>> "${eus_dir}/logs/broken_unifi.log"; then
+    if "$(which dpkg)" --remove --force-remove-reinstreq unifi &>>"${eus_dir}/logs/broken_unifi.log"; then
       echo -e "${GREEN}#${RESET} Successfully removed the broken UniFi Network Application installation! \\n"
     else
       echo -e "${RED}#${RESET} Failed to remove the broken UniFi Network Application installation...\\n"
@@ -2127,11 +2408,17 @@ fi
 
 # Check if --allow-change-held-packages is supported in apt
 get_apt_options() {
-  if [[ "${remove_apt_options}" == "true" ]]; then get_apt_option_arguments="false"; unset apt_options; fi
+  if [[ "${remove_apt_options}" == "true" ]]; then
+    get_apt_option_arguments="false"
+    unset apt_options
+  fi
   if [[ "${get_apt_option_arguments}" != "false" ]]; then
-    if [[ "$("$(which dpkg)" -l apt | grep ^"ii" | awk '{print $2,$3}' | awk '{print $2}' | cut -d'.' -f1)" -gt "1" ]] || [[ "$("$(which dpkg)" -l apt | grep ^"ii" | awk '{print $2,$3}' | awk '{print $2}' | cut -d'.' -f1)" == "1" && "$("$(which dpkg)" -l apt | grep ^"ii" | awk '{print $2,$3}' | awk '{print $2}' | cut -d'.' -f2)" -ge "1" ]]; then if ! grep -q "allow-change-held-packages" /tmp/EUS/apt_option &> /dev/null; then echo "--allow-change-held-packages" &>> /tmp/EUS/apt_option; fi; fi
-    if [[ "${add_apt_option_no_install_recommends}" == "true" ]]; then if ! grep -q "--no-install-recommends" /tmp/EUS/apt_option &> /dev/null; then echo "--no-install-recommends" &>> /tmp/EUS/apt_option; fi; fi
-    if [[ -f /tmp/EUS/apt_option && -s /tmp/EUS/apt_option ]]; then IFS=" " read -r -a apt_options <<< "$(tr '\r\n' ' ' < /tmp/EUS/apt_option)"; rm --force /tmp/EUS/apt_option &> /dev/null; fi
+    if [[ "$("$(which dpkg)" -l apt | grep ^"ii" | awk '{print $2,$3}' | awk '{print $2}' | cut -d'.' -f1)" -gt "1" ]] || [[ "$("$(which dpkg)" -l apt | grep ^"ii" | awk '{print $2,$3}' | awk '{print $2}' | cut -d'.' -f1)" == "1" && "$("$(which dpkg)" -l apt | grep ^"ii" | awk '{print $2,$3}' | awk '{print $2}' | cut -d'.' -f2)" -ge "1" ]]; then if ! grep -q "allow-change-held-packages" /tmp/EUS/apt_option &>/dev/null; then echo "--allow-change-held-packages" &>>/tmp/EUS/apt_option; fi; fi
+    if [[ "${add_apt_option_no_install_recommends}" == "true" ]]; then if ! grep -q "--no-install-recommends" /tmp/EUS/apt_option &>/dev/null; then echo "--no-install-recommends" &>>/tmp/EUS/apt_option; fi; fi
+    if [[ -f /tmp/EUS/apt_option && -s /tmp/EUS/apt_option ]]; then
+      IFS=" " read -r -a apt_options <<<"$(tr '\r\n' ' ' </tmp/EUS/apt_option)"
+      rm --force /tmp/EUS/apt_option &>/dev/null
+    fi
   fi
   unset get_apt_option_arguments
   unset remove_apt_options
@@ -2146,10 +2433,12 @@ if "$(which dpkg)" -l | grep "unifi " | grep -q "^ii\\|^hi"; then
   echo -e "${WHITE_R}#${RESET} You can use my Easy Update Script to update your UniFi Network Application.${RESET}\\n\\n"
   read -rp $'\033[39m#\033[0m Would you like to download and run my Easy Update Script? (Y/n) ' yes_no
   case "$yes_no" in
-      [Yy]*|"")
-        rm --force "${script_location}" 2> /dev/null
-        curl "${curl_argument[@]}" --remote-name https://get.glennr.nl/unifi/update/unifi-update.sh && bash unifi-update.sh; exit 0;;
-      [Nn]*) exit 0;;
+  [Yy]* | "")
+    rm --force "${script_location}" 2>/dev/null
+    curl "${curl_argument[@]}" --remote-name https://get.glennr.nl/unifi/update/unifi-update.sh && bash unifi-update.sh
+    exit 0
+    ;;
+  [Nn]*) exit 0 ;;
   esac
 fi
 
@@ -2175,17 +2464,20 @@ armhf_recommendation
 old_systemd_version_check() {
   if [[ "$(dpkg-query --showformat='${Version}' --show systemd | awk -F '[.-]' '{print $1}')" -lt "231" ]]; then
     old_systemd_version="true"
-    /usr/sbin/unifi-network-service-helper create-dirs &>> "${eus_dir}/logs/old-systemd.log"
-    if ! [[ -d "/etc/systemd/system/unifi.service.d/" ]]; then eus_directory_location="/etc/systemd/system"; eus_create_directories "unifi.service.d"; fi
-    if echo -e "[Service]\nPermissionsStartOnly=true\nExecStartPre=/usr/sbin/unifi-network-service-helper init\nExecStartPre=/usr/sbin/unifi-network-service-helper init-uos\nExecStartPre=/usr/sbin/unifi-network-service-helper create-dirs\nExecStopPost=/usr/sbin/unifi-network-service-helper cleanup" &> /etc/systemd/system/unifi.service.d/override.conf; then
+    /usr/sbin/unifi-network-service-helper create-dirs &>>"${eus_dir}/logs/old-systemd.log"
+    if ! [[ -d "/etc/systemd/system/unifi.service.d/" ]]; then
+      eus_directory_location="/etc/systemd/system"
+      eus_create_directories "unifi.service.d"
+    fi
+    if echo -e "[Service]\nPermissionsStartOnly=true\nExecStartPre=/usr/sbin/unifi-network-service-helper init\nExecStartPre=/usr/sbin/unifi-network-service-helper init-uos\nExecStartPre=/usr/sbin/unifi-network-service-helper create-dirs\nExecStopPost=/usr/sbin/unifi-network-service-helper cleanup" &>/etc/systemd/system/unifi.service.d/override.conf; then
       daemon_reexec
-      systemctl daemon-reload &>> "${eus_dir}/logs/old-systemd.log"
-      systemctl reset-failed unifi.service &>> "${eus_dir}/logs/old-systemd.log"
+      systemctl daemon-reload &>>"${eus_dir}/logs/old-systemd.log"
+      systemctl reset-failed unifi.service &>>"${eus_dir}/logs/old-systemd.log"
     fi
     if [[ "${limited_functionality}" == 'true' ]]; then
-      if service unifi restart &>> "${eus_dir}/logs/old-systemd.log"; then old_systemd_version_check_unifi_restart="true"; fi
+      if service unifi restart &>>"${eus_dir}/logs/old-systemd.log"; then old_systemd_version_check_unifi_restart="true"; fi
     else
-      if systemctl restart unifi &>> "${eus_dir}/logs/old-systemd.log"; then old_systemd_version_check_unifi_restart="true"; fi
+      if systemctl restart unifi &>>"${eus_dir}/logs/old-systemd.log"; then old_systemd_version_check_unifi_restart="true"; fi
     fi
   fi
 }
@@ -2194,21 +2486,21 @@ check_service_overrides() {
   if [[ "${limited_functionality}" != 'true' ]]; then
     if [[ -e "/etc/systemd/system/unifi.service" ]] || [[ -e "/etc/systemd/system/unifi.service.d/" ]]; then
       echo -e "${WHITE_R}#${RESET} UniFi Network Application service overrides detected... Removing them..."
-      unifi_override_version="$("$(which dpkg)" -l unifi | tail -n1 |  awk '{print $3}' | cut -d'-' -f1)"
+      unifi_override_version="$("$(which dpkg)" -l unifi | tail -n1 | awk '{print $3}' | cut -d'-' -f1)"
       eus_create_directories "unifi-service-overrides"
       if [[ -d "${eus_dir}/unifi-service-overrides/${unifi_override_version}/" ]]; then
         if [[ -e "/etc/systemd/system/unifi.service" ]]; then
-          mv "/etc/systemd/system/unifi.service" "${eus_dir}/unifi-service-overrides/${unifi_override_version}/unifi.service" &>> "${eus_dir}/logs/service-override.log"
+          mv "/etc/systemd/system/unifi.service" "${eus_dir}/unifi-service-overrides/${unifi_override_version}/unifi.service" &>>"${eus_dir}/logs/service-override.log"
         fi
         if [[ -e "/etc/systemd/system/unifi.service.d/" ]]; then
           while read -r override_file; do
             override_file_name="$(basename "${override_file}")"
-            if mv "${override_file}" "${eus_dir}/unifi-service-overrides/${unifi_override_version}/${override_file_name}" &>> "${eus_dir}/logs/service-override.log"; then moved_service_override_files="true"; fi
-          done < <(find /etc/systemd/system/unifi.service.d/ -type f 2> /dev/null)
+            if mv "${override_file}" "${eus_dir}/unifi-service-overrides/${unifi_override_version}/${override_file_name}" &>>"${eus_dir}/logs/service-override.log"; then moved_service_override_files="true"; fi
+          done < <(find /etc/systemd/system/unifi.service.d/ -type f 2>/dev/null)
         fi
       fi
       if [[ "$(dpkg-query --showformat='${Version}' --show systemd | awk -F '[.-]' '{print $1}')" -ge "230" ]]; then
-        if systemctl revert unifi &>> "${eus_dir}/logs/service-override.log"; then
+        if systemctl revert unifi &>>"${eus_dir}/logs/service-override.log"; then
           echo -e "${GREEN}#${RESET} Successfully reverted the UniFi Network Application service overrides! \\n"
           check_service_overrides_reverted="true"
         else
@@ -2217,7 +2509,7 @@ check_service_overrides() {
       else
         if [[ "${moved_service_override_files}" == "true" ]]; then
           if [[ -e /etc/systemd/system/unifi.service.d/override.conf ]]; then
-            if rm --force /etc/systemd/system/unifi.service.d/override.conf &>> "${eus_dir}/logs/service-override.log"; then
+            if rm --force /etc/systemd/system/unifi.service.d/override.conf &>>"${eus_dir}/logs/service-override.log"; then
               echo -e "${GREEN}#${RESET} Successfully reverted the UniFi Network Application service overrides! \\n"
               check_service_overrides_reverted="true"
             else
@@ -2229,7 +2521,7 @@ check_service_overrides() {
           check_service_overrides_reverted="true"
         fi
       fi
-      if [[ "${check_service_overrides_reverted}" == 'true' ]]; then systemctl daemon-reload &>> "${eus_dir}/logs/service-override.log"; fi
+      if [[ "${check_service_overrides_reverted}" == 'true' ]]; then systemctl daemon-reload &>>"${eus_dir}/logs/service-override.log"; fi
       sleep 3
     fi
   fi
@@ -2239,7 +2531,7 @@ system_properties_check() {
   if [[ -e "/usr/lib/unifi/data/system.properties" ]]; then
     if grep -qE 'unifi\.x(m[xs]|ss)=[0-9]*[A-Za-z]+' "/usr/lib/unifi/data/system.properties"; then
       if sed -i 's/\(unifi\.\(xmx\|xms\|xss\)=\)\([0-9]\+\)[A-Za-z]*/\1\3/' "/usr/lib/unifi/data/system.properties"; then
-        echo "Corrected unifi.xmx, unifi.xms, and unifi.xss patterns in system.properties" &>> "${eus_dir}/logs/system-properties-update.log"
+        echo "Corrected unifi.xmx, unifi.xms, and unifi.xss patterns in system.properties" &>>"${eus_dir}/logs/system-properties-update.log"
         chown -R unifi:unifi /usr/lib/unifi/data/system.properties
       fi
     fi
@@ -2248,7 +2540,7 @@ system_properties_check() {
 
 system_properties_free_memory_check() {
   if [[ "$(awk '/MemFree/{printf "%d", $2 / 1024 / 1024}' /proc/meminfo)" -le "1" ]]; then
-    echo -e "unifi.xms=256\nunifi.xmx=512" &>> /usr/lib/unifi/data/system.properties
+    echo -e "unifi.xms=256\nunifi.xmx=512" &>>/usr/lib/unifi/data/system.properties
     chown -R unifi:unifi /usr/lib/unifi/data/system.properties
   fi
 }
@@ -2272,17 +2564,17 @@ custom_url_download_check() {
   unifi_temp="$(mktemp --tmpdir=/tmp/EUS/downloads unifi_sysvinit_all_XXXXX.deb)"
   header
   echo -e "${WHITE_R}#${RESET} Downloading the application release..."
-  echo -e "$(date +%F-%R) | URL used: ${custom_download_url}" &>> "${eus_dir}/logs/unifi_custom_url_download.log"
-  if ! curl --retry 3 "${nos_curl_argument[@]}" --output "$unifi_temp" "${custom_download_url}" &>> "${eus_dir}/logs/unifi_custom_url_download.log"; then
+  echo -e "$(date +%F-%R) | URL used: ${custom_download_url}" &>>"${eus_dir}/logs/unifi_custom_url_download.log"
+  if ! curl --retry 3 "${nos_curl_argument[@]}" --output "$unifi_temp" "${custom_download_url}" &>>"${eus_dir}/logs/unifi_custom_url_download.log"; then
     header_red
     echo -e "${WHITE_R}#${RESET} The URL you provided cannot be downloaded.. Please provide a working URL."
     sleep 3
     custom_url_question
   else
-    "$(which dpkg)" -I "${unifi_temp}" | awk '{print tolower($0)}' &> "${unifi_temp}.tmp"
+    "$(which dpkg)" -I "${unifi_temp}" | awk '{print tolower($0)}' &>"${unifi_temp}.tmp"
     package_maintainer=$(awk '/maintainer/{print$2}' "${unifi_temp}.tmp")
     unifi_clean=$(awk '/version/{print$2}' "${unifi_temp}.tmp" | grep -io "5.*\\|6.*\\|7.*\\|8.*" | cut -d'-' -f1 | cut -d'/' -f1)
-    rm --force "${unifi_temp}.tmp" &> /dev/null
+    rm --force "${unifi_temp}.tmp" &>/dev/null
     if [[ "${package_maintainer}" =~ (unifi|ubiquiti) ]]; then
       echo -e "${GREEN}#${RESET} Successfully downloaded the application release!"
       sleep 2
@@ -2292,8 +2584,8 @@ custom_url_download_check() {
       echo -e "${WHITE_R}#${RESET} You did not provide a UniFi Network Application that is maintained by Ubiquiti ( UniFi )..."
       read -rp $'\033[39m#\033[0m Do you want to provide the script with another URL? (Y/n) ' yes_no
       case "$yes_no" in
-          [Yy]*|"") custom_url_question;;
-          [Nn]*) ;;
+      [Yy]* | "") custom_url_question ;;
+      [Nn]*) ;;
       esac
     fi
   fi
@@ -2318,25 +2610,33 @@ install_required_packages() {
 }
 apt_get_install_package() {
   if [[ "${old_openjdk_version}" == 'true' ]]; then
-    apt_get_install_package_variable="update"; apt_get_install_package_variable_2="updated"
+    apt_get_install_package_variable="update"
+    apt_get_install_package_variable_2="updated"
   else
-    apt_get_install_package_variable="install"; apt_get_install_package_variable_2="installed"
+    apt_get_install_package_variable="install"
+    apt_get_install_package_variable_2="installed"
   fi
   run_apt_get_update
   check_dpkg_lock
-  echo -e "\\n------- ${required_package} installation ------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/apt.log"
+  echo -e "\\n------- ${required_package} installation ------- $(date +%F-%R) -------\\n" &>>"${eus_dir}/logs/apt.log"
   echo -e "${WHITE_R}#${RESET} Trying to ${apt_get_install_package_variable} ${required_package}..."
-  if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${required_package}" 2>&1 | tee -a "${eus_dir}/logs/apt.log" > /tmp/EUS/apt/apt.log; then
+  if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${required_package}" 2>&1 | tee -a "${eus_dir}/logs/apt.log" >/tmp/EUS/apt/apt.log; then
     if [[ "${PIPESTATUS[0]}" -eq "0" ]]; then
-      echo -e "${GREEN}#${RESET} Successfully ${apt_get_install_package_variable_2} ${required_package}! \\n"; sleep 2
+      echo -e "${GREEN}#${RESET} Successfully ${apt_get_install_package_variable_2} ${required_package}! \\n"
+      sleep 2
     else
       broken_packages_check
-      add_apt_option_no_install_recommends="true"; get_apt_options
-      if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${required_package}" 2>&1 | tee -a "${eus_dir}/logs/apt.log" > /tmp/EUS/apt/apt.log; then
+      add_apt_option_no_install_recommends="true"
+      get_apt_options
+      if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${required_package}" 2>&1 | tee -a "${eus_dir}/logs/apt.log" >/tmp/EUS/apt/apt.log; then
         if [[ "${PIPESTATUS[0]}" -eq "0" ]]; then
-          echo -e "${GREEN}#${RESET} Successfully ${apt_get_install_package_variable_2} ${required_package}! \\n"; sleep 2
+          echo -e "${GREEN}#${RESET} Successfully ${apt_get_install_package_variable_2} ${required_package}! \\n"
+          sleep 2
         else
-          if [[ -z "${java_install_attempts}" ]]; then abort_reason="Failed to ${apt_get_install_package_variable} ${required_package}."; abort; fi
+          if [[ -z "${java_install_attempts}" ]]; then
+            abort_reason="Failed to ${apt_get_install_package_variable} ${required_package}."
+            abort
+          fi
         fi
       fi
       get_apt_options
@@ -2345,11 +2645,11 @@ apt_get_install_package() {
   unset required_package
 }
 
-if ! "$(which dpkg)" -l curl 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+if ! "$(which dpkg)" -l curl 2>/dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
   if [[ "${installing_required_package}" != 'yes' ]]; then install_required_packages; fi
   check_dpkg_lock
   echo -e "${WHITE_R}#${RESET} Installing curl..."
-  if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install curl &>> "${eus_dir}/logs/required.log"; then
+  if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install curl &>>"${eus_dir}/logs/required.log"; then
     echo -e "${RED}#${RESET} Failed to install curl in the first run...\\n"
     if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then
       if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic) ]]; then repo_arguments="-security main"; fi
@@ -2369,11 +2669,11 @@ if ! "$(which dpkg)" -l curl 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^
   set_curl_arguments
   get_repo_url
 fi
-if ! "$(which dpkg)" -l sudo 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+if ! "$(which dpkg)" -l sudo 2>/dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
   if [[ "${installing_required_package}" != 'yes' ]]; then install_required_packages; fi
   check_dpkg_lock
   echo -e "${WHITE_R}#${RESET} Installing sudo..."
-  if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install sudo &>> "${eus_dir}/logs/required.log"; then
+  if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install sudo &>>"${eus_dir}/logs/required.log"; then
     echo -e "${RED}#${RESET} Failed to install sudo in the first run...\\n"
     repo_arguments=" main"
     add_repositories
@@ -2383,21 +2683,35 @@ if ! "$(which dpkg)" -l sudo 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^
     echo -e "${GREEN}#${RESET} Successfully installed sudo! \\n" && sleep 2
   fi
 fi
-if ! "$(which dpkg)" -l jq 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+if ! "$(which dpkg)" -l jq 2>/dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
   if [[ "${installing_required_package}" != 'yes' ]]; then
     install_required_packages
   fi
   check_dpkg_lock
   echo -e "${WHITE_R}#${RESET} Installing jq..."
-  if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install jq &>> "${eus_dir}/logs/required.log"; then
+  if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install jq &>>"${eus_dir}/logs/required.log"; then
     echo -e "${RED}#${RESET} Failed to install jq in the first run...\\n"
     if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then
-      if [[ "${repo_codename}" =~ (focal|groovy|hirsute|impish) ]]; then repo_arguments=" main universe"; add_repositories; fi
-      if [[ "${repo_codename}" =~ (jammy|kinetic|lunar|mantic|noble) ]]; then repo_arguments=" main"; add_repositories; fi
+      if [[ "${repo_codename}" =~ (focal|groovy|hirsute|impish) ]]; then
+        repo_arguments=" main universe"
+        add_repositories
+      fi
+      if [[ "${repo_codename}" =~ (jammy|kinetic|lunar|mantic|noble) ]]; then
+        repo_arguments=" main"
+        add_repositories
+      fi
       repo_arguments="-security main universe"
     elif [[ "${repo_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
-      if [[ "${repo_codename}" =~ (jessie|stretch|buster) ]]; then repo_url_arguments="-security/"; repo_arguments="/updates main"; add_repositories; fi
-      if [[ "${repo_codename}" =~ (bullseye|bookworm|trixie|forky) ]]; then repo_url_arguments="-security/"; repo_arguments="-security main"; add_repositories; fi
+      if [[ "${repo_codename}" =~ (jessie|stretch|buster) ]]; then
+        repo_url_arguments="-security/"
+        repo_arguments="/updates main"
+        add_repositories
+      fi
+      if [[ "${repo_codename}" =~ (bullseye|bookworm|trixie|forky) ]]; then
+        repo_url_arguments="-security/"
+        repo_arguments="-security main"
+        add_repositories
+      fi
       repo_arguments=" main"
     fi
     add_repositories
@@ -2408,13 +2722,16 @@ if ! "$(which dpkg)" -l jq 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi
   fi
   set_curl_arguments
   create_eus_database
-  if [[ "${eus_database_update_broken_install_check}" == 'true' ]]; then eus_database_update_broken_install; unset eus_database_update_broken_install_check; fi
+  if [[ "${eus_database_update_broken_install_check}" == 'true' ]]; then
+    eus_database_update_broken_install
+    unset eus_database_update_broken_install_check
+  fi
 fi
-if ! "$(which dpkg)" -l lsb-release 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+if ! "$(which dpkg)" -l lsb-release 2>/dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
   if [[ "${installing_required_package}" != 'yes' ]]; then install_required_packages; fi
   check_dpkg_lock
   echo -e "${WHITE_R}#${RESET} Installing lsb-release..."
-  if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install lsb-release &>> "${eus_dir}/logs/required.log"; then
+  if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install lsb-release &>>"${eus_dir}/logs/required.log"; then
     echo -e "${RED}#${RESET} Failed to install lsb-release in the first run...\\n"
     if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then
       repo_arguments=" main universe"
@@ -2428,11 +2745,11 @@ if ! "$(which dpkg)" -l lsb-release 2> /dev/null | awk '{print $1}' | grep -iq "
     echo -e "${GREEN}#${RESET} Successfully installed lsb-release! \\n" && sleep 2
   fi
 fi
-if ! "$(which dpkg)" -l net-tools 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+if ! "$(which dpkg)" -l net-tools 2>/dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
   if [[ "${installing_required_package}" != 'yes' ]]; then install_required_packages; fi
   check_dpkg_lock
   echo -e "${WHITE_R}#${RESET} Installing net-tools..."
-  if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install net-tools &>> "${eus_dir}/logs/required.log"; then
+  if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install net-tools &>>"${eus_dir}/logs/required.log"; then
     echo -e "${RED}#${RESET} Failed to install net-tools in the first run...\\n"
     repo_arguments=" main"
     add_repositories
@@ -2442,16 +2759,16 @@ if ! "$(which dpkg)" -l net-tools 2> /dev/null | awk '{print $1}' | grep -iq "^i
     echo -e "${GREEN}#${RESET} Successfully installed net-tools! \\n" && sleep 2
   fi
 fi
-if "$(which dpkg)" -l apt 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+if "$(which dpkg)" -l apt 2>/dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
   apt_version_1=$("$(which dpkg)" -l apt | grep ^"ii" | awk '{print $3}' | cut -d'.' -f1)
   if [[ "${apt_version_1}" -le "1" ]]; then
     apt_version_2=$("$(which dpkg)" -l apt | grep ^"ii" | awk '{print $3}' | cut -d'.' -f2)
     if [[ "${apt_version_1}" == "0" ]] || [[ "${apt_version_2}" -le "4" ]]; then
-      if ! "$(which dpkg)" -l apt-transport-https 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+      if ! "$(which dpkg)" -l apt-transport-https 2>/dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
         check_dpkg_lock
         if [[ "${installing_required_package}" != 'yes' ]]; then install_required_packages; fi
         echo -e "${WHITE_R}#${RESET} Installing apt-transport-https..."
-        if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install apt-transport-https &>> "${eus_dir}/logs/required.log"; then
+        if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install apt-transport-https &>>"${eus_dir}/logs/required.log"; then
           echo -e "${RED}#${RESET} Failed to install apt-transport-https in the first run...\\n"
           if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then
             if [[ "${repo_codename}" =~ (precise|trusty|xenial) ]]; then repo_arguments="-security main"; fi
@@ -2473,32 +2790,39 @@ if "$(which dpkg)" -l apt 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\
     fi
   fi
 fi
-if ! "$(which dpkg)" -l software-properties-common 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+if ! "$(which dpkg)" -l software-properties-common 2>/dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
   if [[ "${installing_required_package}" != 'yes' ]]; then install_required_packages; fi
   check_dpkg_lock
   echo -e "${WHITE_R}#${RESET} Installing software-properties-common..."
-  if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install software-properties-common &>> "${eus_dir}/logs/required.log"; then
+  if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install software-properties-common &>>"${eus_dir}/logs/required.log"; then
     echo -e "${RED}#${RESET} Failed to install software-properties-common in the first run...\\n"
     if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then
       if [[ "${repo_codename}" =~ (precise) ]]; then repo_arguments="-security main"; fi
       if [[ "${repo_codename}" =~ (trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then repo_arguments=" main"; fi
     elif [[ "${repo_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
-      if [[ "${repo_codename}" =~ (jessie) ]]; then repo_url_arguments="-security/"; repo_arguments="/updates main"; fi
+      if [[ "${repo_codename}" =~ (jessie) ]]; then
+        repo_url_arguments="-security/"
+        repo_arguments="/updates main"
+      fi
       if [[ "${repo_codename}" =~ (stretch|buster|bullseye|bookworm|trixie|forky) ]]; then repo_arguments=" main"; fi
     fi
     add_repositories
-    if [[ "${repo_codename}" =~ (stretch) ]]; then repo_url_arguments="-security/"; repo_arguments="/updates main"; add_repositories; fi
+    if [[ "${repo_codename}" =~ (stretch) ]]; then
+      repo_url_arguments="-security/"
+      repo_arguments="/updates main"
+      add_repositories
+    fi
     required_package="software-properties-common"
     apt_get_install_package
   else
     echo -e "${GREEN}#${RESET} Successfully installed software-properties-common! \\n" && sleep 2
   fi
 fi
-if ! "$(which dpkg)" -l dirmngr 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+if ! "$(which dpkg)" -l dirmngr 2>/dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
   if [[ "${installing_required_package}" != 'yes' ]]; then install_required_packages; fi
   check_dpkg_lock
   echo -e "${WHITE_R}#${RESET} Installing dirmngr..."
-  if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install dirmngr &>> "${eus_dir}/logs/required.log"; then
+  if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install dirmngr &>>"${eus_dir}/logs/required.log"; then
     echo -e "${RED}#${RESET} Failed to install dirmngr in the first run...\\n"
     if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then
       repo_arguments=" universe"
@@ -2514,7 +2838,7 @@ if ! "$(which dpkg)" -l dirmngr 2> /dev/null | awk '{print $1}' | grep -iq "^ii\
     echo -e "${GREEN}#${RESET} Successfully installed dirmngr! \\n" && sleep 2
   fi
 fi
-if ! "$(which dpkg)" -l netcat netcat-traditional 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+if ! "$(which dpkg)" -l netcat netcat-traditional 2>/dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
   if [[ "${installing_required_package}" != 'yes' ]]; then install_required_packages; fi
   if apt-cache search netcat | grep "^netcat\b" | awk '{print$1}' | grep -iq "traditional"; then
     required_package="netcat-traditional"
@@ -2524,7 +2848,7 @@ if ! "$(which dpkg)" -l netcat netcat-traditional 2> /dev/null | awk '{print $1}
   netcat_installed_package_name="${required_package}"
   check_dpkg_lock
   echo -e "${WHITE_R}#${RESET} Installing ${required_package}..."
-  if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${required_package}" &>> "${eus_dir}/logs/required.log"; then
+  if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${required_package}" &>>"${eus_dir}/logs/required.log"; then
     echo -e "${RED}#${RESET} Failed to install ${required_package} in the first run...\\n"
     if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then
       repo_arguments=" universe"
@@ -2538,11 +2862,11 @@ if ! "$(which dpkg)" -l netcat netcat-traditional 2> /dev/null | awk '{print $1}
   fi
   netcat_installed="true"
 fi
-if ! "$(which dpkg)" -l psmisc 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+if ! "$(which dpkg)" -l psmisc 2>/dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
   if [[ "${installing_required_package}" != 'yes' ]]; then install_required_packages; fi
   check_dpkg_lock
   echo -e "${WHITE_R}#${RESET} Installing psmisc..."
-  if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install psmisc &>> "${eus_dir}/logs/required.log"; then
+  if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install psmisc &>>"${eus_dir}/logs/required.log"; then
     echo -e "${RED}#${RESET} Failed to install psmisc in the first run...\\n"
     if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then
       if [[ "${repo_codename}" =~ (precise) ]]; then repo_arguments="-updates main restricted"; fi
@@ -2557,11 +2881,11 @@ if ! "$(which dpkg)" -l psmisc 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\
     echo -e "${GREEN}#${RESET} Successfully installed psmisc! \\n" && sleep 2
   fi
 fi
-if ! "$(which dpkg)" -l gnupg 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+if ! "$(which dpkg)" -l gnupg 2>/dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
   if [[ "${installing_required_package}" != 'yes' ]]; then install_required_packages; fi
   check_dpkg_lock
   echo -e "${WHITE_R}#${RESET} Installing gnupg..."
-  if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install gnupg &>> "${eus_dir}/logs/required.log"; then
+  if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install gnupg &>>"${eus_dir}/logs/required.log"; then
     echo -e "${RED}#${RESET} Failed to install gnupg in the first run...\\n"
     if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then
       if [[ "${repo_codename}" =~ (precise|trusty|xenial) ]]; then repo_arguments="-security main"; fi
@@ -2577,13 +2901,13 @@ if ! "$(which dpkg)" -l gnupg 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|
     echo -e "${GREEN}#${RESET} Successfully installed gnupg! \\n" && sleep 2
   fi
 fi
-if ! "$(which dpkg)" -l perl 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+if ! "$(which dpkg)" -l perl 2>/dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
   if [[ "${installing_required_package}" != 'yes' ]]; then
     install_required_packages
   fi
   check_dpkg_lock
   echo -e "${WHITE_R}#${RESET} Installing perl..."
-  if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install perl &>> "${eus_dir}/logs/required.log"; then
+  if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install perl &>>"${eus_dir}/logs/required.log"; then
     echo -e "${RED}#${RESET} Failed to install perl in the first run...\\n"
     if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then
       if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic) ]]; then repo_arguments="-security main"; fi
@@ -2601,17 +2925,21 @@ if ! "$(which dpkg)" -l perl 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^
   fi
 fi
 if [[ "${fqdn_specified}" == 'true' ]]; then
-  if ! "$(which dpkg)" -l dnsutils 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+  if ! "$(which dpkg)" -l dnsutils 2>/dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
     if [[ "${installing_required_package}" != 'yes' ]]; then install_required_packages; fi
-  check_dpkg_lock
+    check_dpkg_lock
     echo -e "${WHITE_R}#${RESET} Installing dnsutils..."
-    if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install dnsutils &>> "${eus_dir}/logs/required.log"; then
+    if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install dnsutils &>>"${eus_dir}/logs/required.log"; then
       echo -e "${RED}#${RESET} Failed to install dnsutils in the first run...\\n"
       if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then
         if [[ "${repo_codename}" =~ (precise|trusty|xenial) ]]; then repo_arguments="-security main"; fi
         if [[ "${repo_codename}" =~ (bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then repo_arguments=" main"; fi
       elif [[ "${repo_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
-        if [[ "${repo_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then repo_url_arguments="-security/"; repo_arguments="/updates main"; add_repositories; fi
+        if [[ "${repo_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
+          repo_url_arguments="-security/"
+          repo_arguments="/updates main"
+          add_repositories
+        fi
         repo_arguments=" main"
       fi
       add_repositories
@@ -2624,11 +2952,11 @@ if [[ "${fqdn_specified}" == 'true' ]]; then
 fi
 
 unifi_required_packages_check() {
-  if ! "$(which dpkg)" -l logrotate 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+  if ! "$(which dpkg)" -l logrotate 2>/dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
     if [[ "${installing_required_package}" != 'yes' ]]; then install_required_packages; fi
     check_dpkg_lock
     echo -e "${WHITE_R}#${RESET} Installing logrotate..."
-    if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install logrotate &>> "${eus_dir}/logs/required.log"; then
+    if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install logrotate &>>"${eus_dir}/logs/required.log"; then
       echo -e "${RED}#${RESET} Failed to install logrotate in the first run...\\n"
       if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then
         repo_arguments=" universe"
@@ -2642,11 +2970,11 @@ unifi_required_packages_check() {
       echo -e "${GREEN}#${RESET} Successfully installed logrotate! \\n" && sleep 2
     fi
   fi
-  if ! "$(which dpkg)" -l procps 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+  if ! "$(which dpkg)" -l procps 2>/dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
     if [[ "${installing_required_package}" != 'yes' ]]; then install_required_packages; fi
     check_dpkg_lock
     echo -e "${WHITE_R}#${RESET} Installing procps..."
-    if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install procps &>> "${eus_dir}/logs/required.log"; then
+    if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install procps &>>"${eus_dir}/logs/required.log"; then
       echo -e "${RED}#${RESET} Failed to install procps in the first run...\\n"
       if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then
         if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then repo_arguments="-security main"; fi
@@ -2662,11 +2990,11 @@ unifi_required_packages_check() {
       echo -e "${GREEN}#${RESET} Successfully installed procps! \\n" && sleep 2
     fi
   fi
-  if ! "$(which dpkg)" -l adduser 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+  if ! "$(which dpkg)" -l adduser 2>/dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
     if [[ "${installing_required_package}" != 'yes' ]]; then install_required_packages; fi
     check_dpkg_lock
     echo -e "${WHITE_R}#${RESET} Installing adduser..."
-    if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install adduser &>> "${eus_dir}/logs/required.log"; then
+    if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install adduser &>>"${eus_dir}/logs/required.log"; then
       echo -e "${RED}#${RESET} Failed to install adduser in the first run...\\n"
       if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then
         repo_arguments=" universe"
@@ -2690,13 +3018,13 @@ unifi_required_packages_check
 ###################################################################################################################################################################################################
 
 check_mongodb_installed() {
-  "$(which dpkg)" -l | grep "mongodb-server\\|mongodb-org-server\\|mongod-armv8" | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | awk '{print $3}' | sed 's/.*://' | sed 's/-.*//g' &> /tmp/EUS/mongodb_versions
+  "$(which dpkg)" -l | grep "mongodb-server\\|mongodb-org-server\\|mongod-armv8" | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | awk '{print $3}' | sed 's/.*://' | sed 's/-.*//g' &>/tmp/EUS/mongodb_versions
   if ! [[ -s "/tmp/EUS/mongodb_versions" ]]; then
     if [[ -n "$(command -v mongod)" ]]; then
-      if "${mongocommand}" --port 27117 --eval "print(\"waited for connection\")" &> /dev/null; then
-        "$(which mongod)" --quiet --eval "db.version()" | sed 's/\.//g' | sed 's/.*://' | sed 's/-.*//g' &> /tmp/EUS/mongodb_versions
+      if "${mongocommand}" --port 27117 --eval "print(\"waited for connection\")" &>/dev/null; then
+        "$(which mongod)" --quiet --eval "db.version()" | sed 's/\.//g' | sed 's/.*://' | sed 's/-.*//g' &>/tmp/EUS/mongodb_versions
       else
-        "$(which mongod)" --version --quiet | tr '[:upper:]' '[:lower:]' | sed -e '/db version/d' -e '/mongodb shell/d' -e 's/build info: //g' | jq -r '.version' &> /tmp/EUS/mongodb_versions
+        "$(which mongod)" --version --quiet | tr '[:upper:]' '[:lower:]' | sed -e '/db version/d' -e '/mongodb shell/d' -e 's/build info: //g' | jq -r '.version' &>/tmp/EUS/mongodb_versions
       fi
     fi
   fi
@@ -2704,7 +3032,7 @@ check_mongodb_installed() {
   mongodb_version_installed_no_dots="${mongodb_version_installed//./}"
   if [[ -n "${mongodb_version_installed}" ]]; then mongodb_installed="true"; fi
   if "$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep -iq "mongodb-server\\|mongodb-org-server"; then mongodb_installed="true"; fi
-  rm --force /tmp/EUS/mongodb_versions &> /dev/null
+  rm --force /tmp/EUS/mongodb_versions &>/dev/null
   first_digit_mongodb_version_installed="$(echo "${mongodb_version_installed}" | cut -d'.' -f1)"
   second_digit_mongodb_version_installed="$(echo "${mongodb_version_installed}" | cut -d'.' -f2)"
 }
@@ -2741,7 +3069,7 @@ first_digit_unifi="$(echo "${unifi_clean}" | cut -d'.' -f1)"
 second_digit_unifi="$(echo "${unifi_clean}" | cut -d'.' -f2)"
 third_digit_unifi="$(echo "${unifi_clean}" | cut -d'.' -f3)"
 #
-jq '.scripts."'"${script_name}"'" |= if .["install-version"] | index("'"${unifi_clean}"'") | not then .["install-version"] += ["'"${unifi_clean}"'"] else . end' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+jq '.scripts."'"${script_name}"'" |= if .["install-version"] | index("'"${unifi_clean}"'") | not then .["install-version"] += ["'"${unifi_clean}"'"] else . end' "${eus_dir}/db/db.json" >"${eus_dir}/db/db.json.tmp" 2>>"${eus_dir}/logs/eus-database-management.log"
 eus_database_move
 #
 if [[ "${cloudkey_generation}" == "1" ]]; then
@@ -2838,18 +3166,20 @@ if [[ "${mongo_version_max}" =~ (44|70) ]]; then
           read -rp $'\033[39m#\033[0m Would you like to try mongod compiled from MongoDB source code specifically for your CPU by Glenn R.? (Y/n) ' yes_no
         fi
         case "$yes_no" in
-            [Yy]*|"")
-               add_mongod_70_repo="true"
-               glennr_compiled_mongod="true"
-               if [[ "${broken_unifi_install}" == 'true' ]]; then broken_glennr_compiled_mongod="true"; fi
-               cleanup_unifi_repos
-               if [[ "${mongod_armv8_installed}" != 'true' ]]; then echo ""; fi;;
-            [Nn]*)
-               unset add_mongodb_70_repo
-               add_mongodb_44_repo="true"
-               mongo_version_max="44"
-               mongo_version_max_with_dot="4.4"
-               mongo_version_locked="4.4.18";;
+        [Yy]* | "")
+          add_mongod_70_repo="true"
+          glennr_compiled_mongod="true"
+          if [[ "${broken_unifi_install}" == 'true' ]]; then broken_glennr_compiled_mongod="true"; fi
+          cleanup_unifi_repos
+          if [[ "${mongod_armv8_installed}" != 'true' ]]; then echo ""; fi
+          ;;
+        [Nn]*)
+          unset add_mongodb_70_repo
+          add_mongodb_44_repo="true"
+          mongo_version_max="44"
+          mongo_version_max_with_dot="4.4"
+          mongo_version_locked="4.4.18"
+          ;;
         esac
         unset yes_no
       else
@@ -2872,11 +3202,11 @@ if [[ "${mongo_version_max}" =~ (44|70) ]]; then
 fi
 
 mongo_command() {
-  if "$(which dpkg)" -l mongodb-mongosh-shared-openssl3 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+  if "$(which dpkg)" -l mongodb-mongosh-shared-openssl3 2>/dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
     mongocommand="mongosh"
-  elif "$(which dpkg)" -l mongodb-mongosh-shared-openssl11 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+  elif "$(which dpkg)" -l mongodb-mongosh-shared-openssl11 2>/dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
     mongocommand="mongosh"
-  elif "$(which dpkg)" -l mongodb-mongosh 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+  elif "$(which dpkg)" -l mongodb-mongosh 2>/dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
     mongocommand="mongosh"
   else
     mongocommand="mongo"
@@ -2885,7 +3215,7 @@ mongo_command() {
 
 prevent_mongodb_org_server_install() {
   if ! [[ -e "/etc/apt/preferences.d/eus_prevent_install_mongodb-org-server" ]]; then
-    tee /etc/apt/preferences.d/eus_prevent_install_mongodb-org-server &>/dev/null << EOF
+    tee /etc/apt/preferences.d/eus_prevent_install_mongodb-org-server &>/dev/null <<EOF
 Package: mongodb-org-server
 Pin: release *
 Pin-Priority: -1
@@ -2903,26 +3233,40 @@ libssl_installation() {
   echo -e "${WHITE_R}#${RESET} Downloading libssl..."
   while read -r libssl_package; do
     libssl_package_empty="false"
-    if ! libssl_temp="$(mktemp --tmpdir=/tmp "libssl${libssl_version}_XXXXX.deb")"; then abort_reason="Failed to create temporarily libssl download file."; abort; fi
-    echo -e "$(date +%F-%R) | URL used: ${libssl_repo_url}/pool/main/o/${libssl_url_arg}/${libssl_package}" &>> "${eus_dir}/logs/libssl.log"
-    if curl --retry 3 "${nos_curl_argument[@]}" --output "$libssl_temp" "${libssl_repo_url}/pool/main/o/${libssl_url_arg}/${libssl_package}" &>> "${eus_dir}/logs/libssl.log"; then
-      if command -v dpkg-deb &> /dev/null; then if ! dpkg-deb --info "${libssl_temp}" &> /dev/null; then echo -e "$(date +%F-%R) | The file downloaded via ${libssl_repo_url}/pool/main/o/${libssl_url_arg}/${libssl_package} was not a debian file format..." &>> "${eus_dir}/logs/libssl.log"; continue; fi; fi
-      if [[ "${libssl_download_success_message}" != 'true' ]]; then echo -e "${GREEN}#${RESET} Successfully downloaded libssl! \\n"; libssl_download_success_message="true"; fi
+    if ! libssl_temp="$(mktemp --tmpdir=/tmp "libssl${libssl_version}_XXXXX.deb")"; then
+      abort_reason="Failed to create temporarily libssl download file."
+      abort
+    fi
+    echo -e "$(date +%F-%R) | URL used: ${libssl_repo_url}/pool/main/o/${libssl_url_arg}/${libssl_package}" &>>"${eus_dir}/logs/libssl.log"
+    if curl --retry 3 "${nos_curl_argument[@]}" --output "$libssl_temp" "${libssl_repo_url}/pool/main/o/${libssl_url_arg}/${libssl_package}" &>>"${eus_dir}/logs/libssl.log"; then
+      if command -v dpkg-deb &>/dev/null; then if ! dpkg-deb --info "${libssl_temp}" &>/dev/null; then
+        echo -e "$(date +%F-%R) | The file downloaded via ${libssl_repo_url}/pool/main/o/${libssl_url_arg}/${libssl_package} was not a debian file format..." &>>"${eus_dir}/logs/libssl.log"
+        continue
+      fi; fi
+      if [[ "${libssl_download_success_message}" != 'true' ]]; then
+        echo -e "${GREEN}#${RESET} Successfully downloaded libssl! \\n"
+        libssl_download_success_message="true"
+      fi
       check_dpkg_lock
       echo -e "${WHITE_R}#${RESET} Installing libssl..."
-      if DEBIAN_FRONTEND='noninteractive' apt-get -y --allow-downgrades "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "$libssl_temp" &>> "${eus_dir}/logs/libssl.log"; then
+      if DEBIAN_FRONTEND='noninteractive' apt-get -y --allow-downgrades "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "$libssl_temp" &>>"${eus_dir}/logs/libssl.log"; then
         echo -e "${GREEN}#${RESET} Successfully installed libssl! \\n"
         libssl_install_success="true"
         break
       else
-        add_apt_option_no_install_recommends="true"; get_apt_options
-        if DEBIAN_FRONTEND='noninteractive' apt-get -y --allow-downgrades "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "$libssl_temp" &>> "${eus_dir}/logs/libssl.log"; then
+        add_apt_option_no_install_recommends="true"
+        get_apt_options
+        if DEBIAN_FRONTEND='noninteractive' apt-get -y --allow-downgrades "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "$libssl_temp" &>>"${eus_dir}/logs/libssl.log"; then
           echo -e "${GREEN}#${RESET} Successfully installed libssl! \\n"
           libssl_install_success="true"
           break
         else
-          if [[ "${libssl_install_failed_message}" != 'true' ]]; then echo -e "${RED}#${RESET} Failed to install libssl... trying some different versions... \\n"; echo -e "${WHITE_R}#${RESET} Attempting to install different versions... \\n"; libssl_install_failed_message="true"; fi
-          rm --force "$libssl_temp" &> /dev/null
+          if [[ "${libssl_install_failed_message}" != 'true' ]]; then
+            echo -e "${RED}#${RESET} Failed to install libssl... trying some different versions... \\n"
+            echo -e "${WHITE_R}#${RESET} Attempting to install different versions... \\n"
+            libssl_install_failed_message="true"
+          fi
+          rm --force "$libssl_temp" &>/dev/null
         fi
         get_apt_options
       fi
@@ -2932,17 +3276,17 @@ libssl_installation() {
     fi
   done < <(curl "${curl_argument[@]}" "${libssl_repo_url}/pool/main/o/${libssl_url_arg}/?C=M;O=D" | grep -Eaio "${libssl_grep_arg}" | cut -d'"' -f1)
   if [[ "${libssl_package_empty}" != 'false' ]]; then
-    curl "${curl_argument[@]}" "${libssl_repo_url}/pool/main/o/${libssl_url_arg}/?C=M;O=D" &> /tmp/EUS/libssl.html
+    curl "${curl_argument[@]}" "${libssl_repo_url}/pool/main/o/${libssl_url_arg}/?C=M;O=D" &>/tmp/EUS/libssl.html
     if ! [[ -s "${eus_dir}/logs/libssl-failure-debug-info.json" ]] || ! jq empty "${eus_dir}/logs/libssl-failure-debug-info.json"; then
       libssl_json_time="$(date +%F-%R)"
       if [[ "$(dpkg-query --showformat='${Version}' --show jq | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
         jq -n \
-          --argjson "libssl failures" "$( 
+          --argjson "libssl failures" "$(
             jq -n \
               --argjson "${libssl_json_time}" "{ \"version\" : \"$libssl_version\", \"URL Argument\" : \"$libssl_url_arg\", \"Grep Argument\" : \"$libssl_grep_arg\", \"Repository URL\" : \"$libssl_repo_url\", \"Curl Results\" : \"\" }" \
-               '$ARGS.named'
+              '$ARGS.named'
           )" \
-          '$ARGS.named' &> "${eus_dir}/logs/libssl-failure-debug-info.json"
+          '$ARGS.named' &>"${eus_dir}/logs/libssl-failure-debug-info.json"
       else
         jq -n \
           --arg libssl_version "${libssl_version}" \
@@ -2957,20 +3301,28 @@ libssl_installation() {
               "Repository URL": $libssl_repo_url,
               "Curl Results": ""
             }
-          }' &> "${eus_dir}/logs/libssl-failure-debug-info.json"
+          }' &>"${eus_dir}/logs/libssl-failure-debug-info.json"
       fi
-      jq --arg libssl_json_time "${libssl_json_time}" --arg libssl_curl_results "$(</tmp/EUS/libssl.html)" '."libssl failures"."'"${libssl_json_time}"'"."Curl Results"=$libssl_curl_results' "${eus_dir}/logs/libssl-failure-debug-info.json" > "${eus_dir}/logs/libssl-failure-debug-info.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
-      eus_database_move_file="${eus_dir}/logs/libssl-failure-debug-info.json"; eus_database_move_log_file="${eus_dir}/logs/libssl-failure-debug-info.log"; eus_database_move
+      jq --arg libssl_json_time "${libssl_json_time}" --arg libssl_curl_results "$(</tmp/EUS/libssl.html)" '."libssl failures"."'"${libssl_json_time}"'"."Curl Results"=$libssl_curl_results' "${eus_dir}/logs/libssl-failure-debug-info.json" >"${eus_dir}/logs/libssl-failure-debug-info.json.tmp" 2>>"${eus_dir}/logs/eus-database-management.log"
+      eus_database_move_file="${eus_dir}/logs/libssl-failure-debug-info.json"
+      eus_database_move_log_file="${eus_dir}/logs/libssl-failure-debug-info.log"
+      eus_database_move
     else
-      jq --arg libssl_repo_url "${libssl_repo_url}" --arg libssl_grep_arg "${libssl_grep_arg}" --arg libssl_url_arg "${libssl_url_arg}" --arg libssl_version "${libssl_version}" --arg version "${version}" --arg libssl_curl_results "$(</tmp/EUS/libssl.html)" '."libssl failures" += {"'"$(date +%F-%R)"'": {"version": $libssl_version, "URL Argument": $libssl_url_arg, "Grep Argument": $libssl_grep_arg, "Repository URL": $libssl_repo_url, "Curl Results": $libssl_curl_results}}' "${eus_dir}/logs/libssl-failure-debug-info.json" > "${eus_dir}/logs/libssl-failure-debug-info.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
-      eus_database_move_file="${eus_dir}/logs/libssl-failure-debug-info.json"; eus_database_move_log_file="${eus_dir}/logs/libssl-failure-debug-info.log"; eus_database_move
+      jq --arg libssl_repo_url "${libssl_repo_url}" --arg libssl_grep_arg "${libssl_grep_arg}" --arg libssl_url_arg "${libssl_url_arg}" --arg libssl_version "${libssl_version}" --arg version "${version}" --arg libssl_curl_results "$(</tmp/EUS/libssl.html)" '."libssl failures" += {"'"$(date +%F-%R)"'": {"version": $libssl_version, "URL Argument": $libssl_url_arg, "Grep Argument": $libssl_grep_arg, "Repository URL": $libssl_repo_url, "Curl Results": $libssl_curl_results}}' "${eus_dir}/logs/libssl-failure-debug-info.json" >"${eus_dir}/logs/libssl-failure-debug-info.json.tmp" 2>>"${eus_dir}/logs/eus-database-management.log"
+      eus_database_move_file="${eus_dir}/logs/libssl-failure-debug-info.json"
+      eus_database_move_log_file="${eus_dir}/logs/libssl-failure-debug-info.log"
+      eus_database_move
     fi
-    rm --force /tmp/EUS/libssl.html &> /dev/null
+    rm --force /tmp/EUS/libssl.html &>/dev/null
     abort_reason="Failed to locate any libssl packages for version ${libssl_version}."
     abort
   fi
-  if [[ "${libssl_install_success}" != 'true' ]]; then apt-cache policy libc6 libssl3 &>> "${eus_dir}/logs/libssl.log"; abort_reason="Failed to install libssl."; abort; fi
-  rm --force "$libssl_temp" 2> /dev/null
+  if [[ "${libssl_install_success}" != 'true' ]]; then
+    apt-cache policy libc6 libssl3 &>>"${eus_dir}/logs/libssl.log"
+    abort_reason="Failed to install libssl."
+    abort
+  fi
+  rm --force "$libssl_temp" 2>/dev/null
 }
 
 libssl_installation_check() {
@@ -2981,7 +3333,10 @@ libssl_installation_check() {
       else
         required_libssl_version="$(apt-cache depends "${mongodb_package_libssl}" | sed -e 's/>//g' -e 's/<//g' | grep -io "libssl1.0.0$\\|libssl1.1$\\|libssl3$")"
       fi
-      if ! [[ "${required_libssl_version}" =~ (libssl1.0.0|libssl1.1|libssl3) ]]; then echo -e "$(date +%F-%R) | mongodb_package_libssl was \"${mongodb_package_libssl}\", mongodb_package_version_libssl was \"${mongodb_package_version_libssl}\", required_libssl_version was \"${required_libssl_version}\"..." &>> "${eus_dir}/logs/libssl-dynamic-failure.log"; unset required_libssl_version; fi
+      if ! [[ "${required_libssl_version}" =~ (libssl1.0.0|libssl1.1|libssl3) ]]; then
+        echo -e "$(date +%F-%R) | mongodb_package_libssl was \"${mongodb_package_libssl}\", mongodb_package_version_libssl was \"${mongodb_package_version_libssl}\", required_libssl_version was \"${required_libssl_version}\"..." &>>"${eus_dir}/logs/libssl-dynamic-failure.log"
+        unset required_libssl_version
+      fi
       unset mongodb_package_libssl
       unset mongodb_package_version_libssl
     fi
@@ -2999,16 +3354,16 @@ libssl_installation_check() {
       required_libssl_version="libssl1.1"
     else
       required_libssl_version="libssl1.0.0"
-    fi 
+    fi
   fi
   unset libssl_install_required
   if [[ "${required_libssl_version}" == 'libssl3' ]]; then
     libssl_version="3.0.0"
     libssl_url_arg="openssl"
     libssl_grep_arg="libssl3_3.0.*${architecture}.deb"
-    if ! "$(which dpkg)" -l libssl3 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+    if ! "$(which dpkg)" -l libssl3 2>/dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
       libssl_install_required="true"
-      if "$(which dpkg)" -l libssl3t64 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then unset libssl_install_required; fi
+      if "$(which dpkg)" -l libssl3t64 2>/dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then unset libssl_install_required; fi
     elif [[ "$(dpkg-query --showformat='${Version}' --show libssl3 | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -lt "${libssl_version//./}" ]]; then
       libssl_install_required="true"
     fi
@@ -3044,7 +3399,7 @@ libssl_installation_check() {
     libssl_version="1.1.0"
     libssl_url_arg="openssl"
     libssl_grep_arg="libssl1.1.*${architecture}.deb"
-    if ! "$(which dpkg)" -l libssl1.1 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+    if ! "$(which dpkg)" -l libssl1.1 2>/dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
       libssl_install_required="true"
     elif [[ "$(dpkg-query --showformat='${Version}' --show libssl1.1 | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g')" -lt "${libssl_version//./}" ]]; then
       libssl_install_required="true"
@@ -3086,7 +3441,7 @@ libssl_installation_check() {
     libssl_version="1.0.2"
     libssl_url_arg="openssl1.0"
     libssl_grep_arg="libssl1.0.*${architecture}.deb"
-    if ! "$(which dpkg)" -l libssl1.0.0 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+    if ! "$(which dpkg)" -l libssl1.0.0 2>/dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
       libssl_install_required="true"
     elif [[ "$(dpkg-query --showformat='${Version}' --show libssl1.0.0 | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g')" -lt "${libssl_version//./}" ]]; then
       libssl_install_required="true"
@@ -3098,7 +3453,7 @@ libssl_installation_check() {
     fi
   else
     echo -e "${RED}#${RESET} Failed to detect what libssl version is required..."
-    echo -e "$(date +%F-%R) | Failed to detect what libssl version is required..." &>> "${eus_dir}/logs/libssl-dynamic-failure.log"
+    echo -e "$(date +%F-%R) | Failed to detect what libssl version is required..." &>>"${eus_dir}/logs/libssl-dynamic-failure.log"
     sleep 3
   fi
   if [[ "${libssl_install_required}" == 'true' ]]; then libssl_installation; fi
@@ -3117,8 +3472,8 @@ if [[ "${system_free_disk_space}" -lt "5000000" && "${unifi_core_system}" != 'tr
   if [[ "${script_option_skip}" != 'true' ]]; then
     read -rp "Do you want to proceed at your own risk? (Y/n)" yes_no
     case "$yes_no" in
-        [Yy]*|"") ;;
-        [Nn]*) cancel_script;;
+    [Yy]* | "") ;;
+    [Nn]*) cancel_script ;;
     esac
   else
     cancel_script
@@ -3129,13 +3484,13 @@ fi
 if [[ "${mongodb_version_installed_no_dots::2}" -gt "${mongo_version_max}" ]]; then
   eus_directory_location="/tmp/EUS"
   eus_create_directories "mongodb"
-  apt-cache rdepends mongodb-* | sed "/mongo/d" | sed "/Reverse Depends/d" | awk '!a[$0]++' | sed 's/|//g' | sed 's/ //g' | sed -e 's/unifi-video//g' -e 's/unifi//g' -e 's/libstdc++6//g' -e '/^$/d' &> /tmp/EUS/mongodb/reverse_depends
+  apt-cache rdepends mongodb-* | sed "/mongo/d" | sed "/Reverse Depends/d" | awk '!a[$0]++' | sed 's/|//g' | sed 's/ //g' | sed -e 's/unifi-video//g' -e 's/unifi//g' -e 's/libstdc++6//g' -e '/^$/d' &>/tmp/EUS/mongodb/reverse_depends
   if [[ -s "/tmp/EUS/mongodb/reverse_depends" ]]; then mongodb_has_dependencies="true"; fi
   header_red
   echo -e "${WHITE_R}#${RESET} UniFi Network Application ${unifi_clean} does not support MongoDB ${mongo_version_not_supported}..."
   if [[ "${mongodb_has_dependencies}" == 'true' ]]; then
     echo -e "${WHITE_R}#${RESET} The following services depend on MongoDB..."
-    while read -r service; do echo -e "${RED}-${RESET} ${service}"; done < /tmp/EUS/mongodb/reverse_depends
+    while read -r service; do echo -e "${RED}-${RESET} ${service}"; done </tmp/EUS/mongodb/reverse_depends
     echo -e "\\n\\n"
     echo -e "${RED}#${RESET} Uninstalling MongoDB will also get rid of the applications/services listed above..."
   fi
@@ -3146,71 +3501,72 @@ if [[ "${mongodb_version_installed_no_dots::2}" -gt "${mongo_version_max}" ]]; t
     sleep 5
   fi
   case "$yes_no" in
-      [Yy]*|"")
-        mongodb_installed="false"
-        header
+  [Yy]* | "")
+    mongodb_installed="false"
+    header
+    check_dpkg_lock
+    echo -e "${WHITE_R}#${RESET} Preparing unsupported mongodb uninstall... \\n"
+    if "$(which dpkg)" -l | grep "unifi " | grep -q "^ii\\|^hi"; then
+      echo -e "${WHITE_R}#${RESET} Removing the UniFi Network Application so that the files are kept on the system...\\n"
+      if "$(which dpkg)" --remove --force-remove-reinstreq unifi &>>"${eus_dir}/logs/unsupported-mongodb-uninstall.log"; then
+        echo -e "${GREEN}#${RESET} Successfully removed the UniFi Network Application! \\n"
+      else
+        abort_reason="Failed to remove the UniFi Network Application."
+        abort
+      fi
+    fi
+    if "$(which dpkg)" -l | grep "unifi-video" | grep -q "^ii\\|^hi"; then
+      echo -e "${WHITE_R}#${RESET} Removing UniFi Video so that the files are kept on the system...\\n"
+      if "$(which dpkg)" --remove --force-remove-reinstreq unifi-video &>>"${eus_dir}/logs/unsupported-mongodb-uninstall.log"; then
+        echo -e "${GREEN}#${RESET} Successfully removed UniFi Video! \\n"
+      else
+        abort_reason="Failed to remove UniFi Video."
+        abort
+      fi
+    fi
+    sleep 2
+    echo -e "${WHITE_R}#${RESET} Checking for MongoDB repository entries..."
+    if grep -qriIl "mongo" /etc/apt/sources.list*; then
+      echo -ne "${YELLOW}#${RESET} Removing repository entries for MongoDB..." && sleep 1
+      sed -i '/mongodb/d' /etc/apt/sources.list
+      if ls /etc/apt/sources.list.d/mongodb* >/dev/null 2>&1; then
+        rm /etc/apt/sources.list.d/mongodb* 2>/dev/null
+      fi
+      echo -e "\\r${GREEN}#${RESET} Successfully removed all MongoDB repository entries! \\n"
+    else
+      echo -e "\\r${YELLOW}#${RESET} There were no MongoDB Repository entries! \\n"
+    fi
+    sleep 2
+    while read -r mongodb_package_purge; do
+      check_dpkg_lock
+      echo -e "${WHITE_R}#${RESET} Purging package ${mongodb_package_purge}..."
+      if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' purge "${mongodb_package_purge}" &>>"${eus_dir}/logs/unsupported-mongodb-uninstall.log"; then
+        echo -e "${GREEN}#${RESET} Successfully purged ${mongodb_package_purge}! \\n"
+      else
+        echo -e "${RED}#${RESET} Failed to purge ${mongodb_package_purge}... \\n"
+        mongodb_package_purge_failed="true"
+      fi
+    done < <("$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep -i "mongo" | awk '{print $2}')
+    if [[ "${mongodb_package_purge_failed}" == 'true' ]]; then
+      echo -e "${YELLOW}#${RESET} There was a failure during the purge process...\\n"
+      echo -e "${WHITE_R}#${RESET} Uninstalling MongoDB with different actions...\\n"
+      while read -r mongodb_package_remove; do
         check_dpkg_lock
-        echo -e "${WHITE_R}#${RESET} Preparing unsupported mongodb uninstall... \\n"
-        if "$(which dpkg)" -l | grep "unifi " | grep -q "^ii\\|^hi"; then
-          echo -e "${WHITE_R}#${RESET} Removing the UniFi Network Application so that the files are kept on the system...\\n"
-          if "$(which dpkg)" --remove --force-remove-reinstreq unifi &>> "${eus_dir}/logs/unsupported-mongodb-uninstall.log"; then
-            echo -e "${GREEN}#${RESET} Successfully removed the UniFi Network Application! \\n"
-          else
-            abort_reason="Failed to remove the UniFi Network Application."
-            abort
-          fi
-        fi
-        if "$(which dpkg)" -l | grep "unifi-video" | grep -q "^ii\\|^hi"; then
-          echo -e "${WHITE_R}#${RESET} Removing UniFi Video so that the files are kept on the system...\\n"
-          if "$(which dpkg)" --remove --force-remove-reinstreq unifi-video &>> "${eus_dir}/logs/unsupported-mongodb-uninstall.log"; then
-            echo -e "${GREEN}#${RESET} Successfully removed UniFi Video! \\n"
-          else
-            abort_reason="Failed to remove UniFi Video."
-            abort
-          fi
-        fi
-        sleep 2
-        echo -e "${WHITE_R}#${RESET} Checking for MongoDB repository entries..."
-        if grep -qriIl "mongo" /etc/apt/sources.list*; then
-          echo -ne "${YELLOW}#${RESET} Removing repository entries for MongoDB..." && sleep 1
-          sed -i '/mongodb/d' /etc/apt/sources.list
-          if ls /etc/apt/sources.list.d/mongodb* > /dev/null 2>&1; then
-            rm /etc/apt/sources.list.d/mongodb* 2> /dev/null
-          fi
-          echo -e "\\r${GREEN}#${RESET} Successfully removed all MongoDB repository entries! \\n"
+        echo -e "${WHITE_R}#${RESET} Removing package ${mongodb_package_remove}..."
+        if DEBIAN_FRONTEND='noninteractive' "$(which dpkg)" --remove --force-remove-reinstreq "${mongodb_package_remove}" &>>"${eus_dir}/logs/unsupported-mongodb-uninstall.log"; then
+          echo -e "${GREEN}#${RESET} Successfully removed ${mongodb_package_remove}! \\n"
         else
-          echo -e "\\r${YELLOW}#${RESET} There were no MongoDB Repository entries! \\n"
+          echo -e "${RED}#${RESET} Failed to remove ${mongodb_package_remove}... \\n"
         fi
-        sleep 2
-        while read -r mongodb_package_purge; do
-          check_dpkg_lock
-          echo -e "${WHITE_R}#${RESET} Purging package ${mongodb_package_purge}..."
-          if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' purge "${mongodb_package_purge}" &>> "${eus_dir}/logs/unsupported-mongodb-uninstall.log"; then
-            echo -e "${GREEN}#${RESET} Successfully purged ${mongodb_package_purge}! \\n"
-          else
-            echo -e "${RED}#${RESET} Failed to purge ${mongodb_package_purge}... \\n"
-            mongodb_package_purge_failed="true"
-          fi
-        done < <("$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep -i "mongo" | awk '{print $2}')
-        if [[ "${mongodb_package_purge_failed}" == 'true' ]]; then
-          echo -e "${YELLOW}#${RESET} There was a failure during the purge process...\\n"
-          echo -e "${WHITE_R}#${RESET} Uninstalling MongoDB with different actions...\\n"
-          while read -r mongodb_package_remove; do
-            check_dpkg_lock
-            echo -e "${WHITE_R}#${RESET} Removing package ${mongodb_package_remove}..."
-            if DEBIAN_FRONTEND='noninteractive' "$(which dpkg)" --remove --force-remove-reinstreq "${mongodb_package_remove}" &>> "${eus_dir}/logs/unsupported-mongodb-uninstall.log"; then
-              echo -e "${GREEN}#${RESET} Successfully removed ${mongodb_package_remove}! \\n"
-            else
-              echo -e "${RED}#${RESET} Failed to remove ${mongodb_package_remove}... \\n"
-            fi
-          done < <("$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep -i "mongo" | awk '{print $2}')
-        fi
-        echo -e "${WHITE_R}#${RESET} Running apt-get autoremove..."
-        if apt-get -y autoremove &>> "${eus_dir}/logs/apt-cleanup.log"; then echo -e "${GREEN}#${RESET} Successfully ran apt-get autoremove! \\n"; else echo -e "${RED}#${RESET} Failed to run apt-get autoremove"; fi
-        echo -e "${WHITE_R}#${RESET} Running apt-get autoclean..."
-        if apt-get -y autoclean &>> "${eus_dir}/logs/apt-cleanup.log"; then echo -e "${GREEN}#${RESET} Successfully ran apt-get autoclean! \\n"; else echo -e "${RED}#${RESET} Failed to run apt-get autoclean"; fi
-        sleep 3;;
-      [Nn]*) cancel_script;;
+      done < <("$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep -i "mongo" | awk '{print $2}')
+    fi
+    echo -e "${WHITE_R}#${RESET} Running apt-get autoremove..."
+    if apt-get -y autoremove &>>"${eus_dir}/logs/apt-cleanup.log"; then echo -e "${GREEN}#${RESET} Successfully ran apt-get autoremove! \\n"; else echo -e "${RED}#${RESET} Failed to run apt-get autoremove"; fi
+    echo -e "${WHITE_R}#${RESET} Running apt-get autoclean..."
+    if apt-get -y autoclean &>>"${eus_dir}/logs/apt-cleanup.log"; then echo -e "${GREEN}#${RESET} Successfully ran apt-get autoclean! \\n"; else echo -e "${RED}#${RESET} Failed to run apt-get autoclean"; fi
+    sleep 3
+    ;;
+  [Nn]*) cancel_script ;;
   esac
 fi
 
@@ -3253,7 +3609,7 @@ if [[ "${system_swap}" == "0" && "${script_option_skip_swap}" != 'true' && "${un
     echo -e "${WHITE_R}#${RESET} There is not enough free disk space to create a swap file..\\n"
     echo -e "${WHITE_R}#${RESET} I highly recommend upgrading the system memory to atleast 2GB and expanding the disk space!"
     echo -e "${WHITE_R}#${RESET} The script will continue the script at your own risk..\\n"
-   sleep 10
+    sleep 10
   fi
 else
   header
@@ -3262,12 +3618,12 @@ else
 fi
 
 if [[ -d /tmp/EUS/services ]]; then
-  if [[ -f /tmp/EUS/services/stopped_list ]]; then cat /tmp/EUS/services/stopped_list &>> /tmp/EUS/services/stopped_services; fi
-  find /tmp/EUS/services/ -type f -printf "%f\\n" | sed 's/ //g' | sed '/file_list/d' | sed '/stopped_services/d' &> /tmp/EUS/services/file_list
+  if [[ -f /tmp/EUS/services/stopped_list ]]; then cat /tmp/EUS/services/stopped_list &>>/tmp/EUS/services/stopped_services; fi
+  find /tmp/EUS/services/ -type f -printf "%f\\n" | sed 's/ //g' | sed '/file_list/d' | sed '/stopped_services/d' &>/tmp/EUS/services/file_list
   while read -r file; do
-    rm --force "/tmp/EUS/services/${file}" &> /dev/null
-  done < /tmp/EUS/services/file_list
-  rm --force /tmp/EUS/services/file_list &> /dev/null
+    rm --force "/tmp/EUS/services/${file}" &>/dev/null
+  done </tmp/EUS/services/file_list
+  rm --force /tmp/EUS/services/file_list &>/dev/null
 fi
 
 # Check if UniFi Network Application ports are in use.
@@ -3276,7 +3632,7 @@ if netstat -tuln | grep -qE '(:8443|:8080|:8843|:8880|:6789)\s'; then unifi_port
 check_free_ports() {
   local port="${1}"
   free_port=""
-  for ((i=1; i<=100; i++)); do
+  for ((i = 1; i <= 100; i++)); do
     test_port="$((port + i))"
     netstat -tuln | grep -q ":${test_port} " || {
       free_port="${test_port}"
@@ -3286,7 +3642,7 @@ check_free_ports() {
 }
 
 change_default_unifi_ports() {
-  unifi_ports=( "8843/tcp/portal.https.port/Hotspot Portal https redirection" "8880/tcp/portal.http.port/Hotspot Portal http redirection" "8443/tcp/unifi.https.port/Dashboard Management" "8080/tcp/unifi.http.port/Device Inform" "6789/tcp/unifi.stun.port/Mobile Speedtest" )
+  unifi_ports=("8843/tcp/portal.https.port/Hotspot Portal https redirection" "8880/tcp/portal.http.port/Hotspot Portal http redirection" "8443/tcp/unifi.https.port/Dashboard Management" "8080/tcp/unifi.http.port/Device Inform" "6789/tcp/unifi.stun.port/Mobile Speedtest")
   eus_directory_location="/tmp/EUS"
   eus_create_directories "services" "ports"
   for port in "${unifi_ports[@]}"; do
@@ -3296,13 +3652,13 @@ change_default_unifi_ports() {
       port_service="$(head -n1 "/proc/${port_pid}/comm")"
       if [[ "$(find "/proc/${port_pid}/exe" -maxdepth 0 -printf '%u\n' 2>/dev/null)" != "unifi" ]]; then
         check_free_ports "${port_clean}"
-        echo -e "${port_service}" &>> /tmp/EUS/services/list
-        echo -e "${port_pid}" &>> /tmp/EUS/services/pid_list
+        echo -e "${port_service}" &>>/tmp/EUS/services/list
+        echo -e "${port_pid}" &>>/tmp/EUS/services/pid_list
         sed -i "s/^$(echo "${port}" | cut -d'/' -f3 | cut -d'.' -f1)\.$(echo "${port}" | cut -d'/' -f3 | cut -d'.' -f2)\.port/#&/" "/usr/lib/unifi/data/system.properties"
         echo -e "${WHITE_R}#${RESET} Changing the $(echo "${port}" | cut -d'/' -f4) to ${free_port}..."
-        if echo -e "$(echo "${port}" | cut -d'/' -f3 | cut -d'.' -f1).$(echo "${port}" | cut -d'/' -f3 | cut -d'.' -f2).port=${free_port}" >> /usr/lib/unifi/data/system.properties 2>> "${eus_dir}/logs/change-default-ports.log"; then
+        if echo -e "$(echo "${port}" | cut -d'/' -f3 | cut -d'.' -f1).$(echo "${port}" | cut -d'/' -f3 | cut -d'.' -f2).port=${free_port}" >>/usr/lib/unifi/data/system.properties 2>>"${eus_dir}/logs/change-default-ports.log"; then
           echo -e "${GREEN}#${RESET} Successfully changed the $(echo "${port}" | cut -d'/' -f4) to ${free_port}! \\n"
-          echo -e "${port_clean}/${free_port}/$(echo "${port}" | cut -d'/' -f4)" &>> "/tmp/EUS/ports/new-ports"
+          echo -e "${port_clean}/${free_port}/$(echo "${port}" | cut -d'/' -f4)" &>>"/tmp/EUS/ports/new-ports"
         else
           echo -e "${RED}#${RESET} Failed to change the $(echo "${port}" | cut -d'/' -f4) port."
         fi
@@ -3321,16 +3677,16 @@ change_default_unifi_ports() {
 support_file_requests_opt_in() {
   if [[ "$(jq -r '.database."support-file-upload"' "${eus_dir}/db/db.json")" != 'true' ]]; then
     opt_in_requests="$(jq -r '.database."opt-in-requests"' "${eus_dir}/db/db.json")"
-    ((opt_in_requests=opt_in_requests+1))
+    ((opt_in_requests = opt_in_requests + 1))
     if [[ "${opt_in_requests}" -ge '3' ]]; then
       opt_in_rotations="$(jq -r '.database."opt-in-rotations"' "${eus_dir}/db/db.json")"
-      ((opt_in_rotations=opt_in_rotations+1))
-      jq '."database" += {"opt-in-rotations": "'"${opt_in_rotations}"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+      ((opt_in_rotations = opt_in_rotations + 1))
+      jq '."database" += {"opt-in-rotations": "'"${opt_in_rotations}"'"}' "${eus_dir}/db/db.json" >"${eus_dir}/db/db.json.tmp" 2>>"${eus_dir}/logs/eus-database-management.log"
       eus_database_move
-      jq --arg opt_in_requests "0" '."database" += {"opt-in-requests": "'"${opt_in_requests}"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+      jq --arg opt_in_requests "0" '."database" += {"opt-in-requests": "'"${opt_in_requests}"'"}' "${eus_dir}/db/db.json" >"${eus_dir}/db/db.json.tmp" 2>>"${eus_dir}/logs/eus-database-management.log"
       eus_database_move
     else
-      jq '."database" += {"opt-in-requests": "'"${opt_in_requests}"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+      jq '."database" += {"opt-in-requests": "'"${opt_in_requests}"'"}' "${eus_dir}/db/db.json" >"${eus_dir}/db/db.json.tmp" 2>>"${eus_dir}/logs/eus-database-management.log"
       eus_database_move
     fi
   fi
@@ -3343,12 +3699,16 @@ support_file_upload_opt_in() {
     else
       if [[ "${script_option_skip}" != 'true' ]]; then header; fi
     fi
-    if [[ "${script_option_skip}" != 'true' ]]; then echo -e "${WHITE_R}#${RESET} The script generates support files when failures are detected, these can help Glenn R. to"; echo -e "${WHITE_R}#${RESET} improve the script quality for the Community and resolve your issues in future versions of the script.\\n"; read -rp $'\033[39m#\033[0m Do you want to automatically upload the support files? (Y/n) ' yes_no; fi
+    if [[ "${script_option_skip}" != 'true' ]]; then
+      echo -e "${WHITE_R}#${RESET} The script generates support files when failures are detected, these can help Glenn R. to"
+      echo -e "${WHITE_R}#${RESET} improve the script quality for the Community and resolve your issues in future versions of the script.\\n"
+      read -rp $'\033[39m#\033[0m Do you want to automatically upload the support files? (Y/n) ' yes_no
+    fi
     case "$yes_no" in
-        [Yy]*|"") upload_support_files="true";;
-        [Nn]*) upload_support_files="false";;
+    [Yy]* | "") upload_support_files="true" ;;
+    [Nn]*) upload_support_files="false" ;;
     esac
-    jq '."database" += {"support-file-upload": "'"${upload_support_files}"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+    jq '."database" += {"support-file-upload": "'"${upload_support_files}"'"}' "${eus_dir}/db/db.json" >"${eus_dir}/db/db.json.tmp" 2>>"${eus_dir}/logs/eus-database-management.log"
     eus_database_move
   fi
 }
@@ -3359,8 +3719,8 @@ script_removal() {
   header
   read -rp $'\033[39m#\033[0m Do you want to keep the script on your system after completion? (Y/n) ' yes_no
   case "$yes_no" in
-      [Yy]*|"") ;;
-      [Nn]*) delete_script="true";;
+  [Yy]* | "") ;;
+  [Nn]*) delete_script="true" ;;
   esac
 }
 
@@ -3371,7 +3731,7 @@ fi
 # Expired MongoDB key check
 if [[ "$(jq -r '.database."mongodb-key-last-check"' "${eus_dir}/db/db.json")" == 'null' ]]; then
   mongodb_key_check_time="$(date +%s)"
-  jq --arg mongodb_key_check_time "${mongodb_key_check_time}" '."database" += {"mongodb-key-last-check": "'"${mongodb_key_check_time}"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+  jq --arg mongodb_key_check_time "${mongodb_key_check_time}" '."database" += {"mongodb-key-last-check": "'"${mongodb_key_check_time}"'"}' "${eus_dir}/db/db.json" >"${eus_dir}/db/db.json.tmp" 2>>"${eus_dir}/logs/eus-database-management.log"
   eus_database_move
 fi
 while read -r mongodb_repo_version; do
@@ -3400,18 +3760,26 @@ while read -r mongodb_repo_version; do
       else
         eus_create_directories "repository/archived"
         if [[ "${expired_mongodb_check_message}" == 'true' ]]; then echo -e "${WHITE_R}#${RESET} The repository for version ${mongodb_repo_version} will be moved to \"${eus_dir}/repository/archived/$(basename -- "${repo_file}")\"..."; fi
-        if mv "${repo_file}" "${eus_dir}/repository/archived/$(basename -- "${repo_file}")" &>> "${eus_dir}/logs/repository-archiving.log"; then echo -e "${GREEN}#${RESET} Successfully moved the repository list to \"${eus_dir}/repository/archived/$(basename -- "${repo_file}")\"! \\n"; else echo -e "${RED}#${RESET} Failed to move the repository list to \"${eus_dir}/repository/archived/$(basename -- "${repo_file}")\"... \\n"; fi
+        if mv "${repo_file}" "${eus_dir}/repository/archived/$(basename -- "${repo_file}")" &>>"${eus_dir}/logs/repository-archiving.log"; then echo -e "${GREEN}#${RESET} Successfully moved the repository list to \"${eus_dir}/repository/archived/$(basename -- "${repo_file}")\"! \\n"; else echo -e "${RED}#${RESET} Failed to move the repository list to \"${eus_dir}/repository/archived/$(basename -- "${repo_file}")\"... \\n"; fi
         mongodb_expired_archived="true"
       fi
     fi
   done < <(grep -riIl "${mongodb_repo_version} main\\|${mongodb_repo_version} multiverse" /etc/apt/sources.list /etc/apt/sources.list.d/)
-  if [[ "${expired_mongodb_check_message_3}" != 'true' ]]; then if [[ "${expired_mongodb_check_message}" == 'true' && "${mongodb_key_update}" != 'true' && "${mongodb_expired_archived}" != 'true' ]]; then echo -e "${GREEN}#${RESET} The script didn't detect any expired MongoDB repository keys! \\n"; expired_mongodb_check_message_3="true"; sleep 3; fi; fi
+  if [[ "${expired_mongodb_check_message_3}" != 'true' ]]; then if [[ "${expired_mongodb_check_message}" == 'true' && "${mongodb_key_update}" != 'true' && "${mongodb_expired_archived}" != 'true' ]]; then
+    echo -e "${GREEN}#${RESET} The script didn't detect any expired MongoDB repository keys! \\n"
+    expired_mongodb_check_message_3="true"
+    sleep 3
+  fi; fi
 done < <(find /etc/apt/ -name "*.list" -type f -print0 | xargs -0 cat | grep mongodb | grep -io "[0-9].[0-9]" | awk '!NF || !seen[$0]++')
-if [[ "${mongodb_key_update}" == 'true' ]]; then run_apt_get_update; unset mongodb_key_update; sleep 3; fi
+if [[ "${mongodb_key_update}" == 'true' ]]; then
+  run_apt_get_update
+  unset mongodb_key_update
+  sleep 3
+fi
 
 daemon_reexec() {
   if [[ "${limited_functionality}" != 'true' ]]; then
-    if ! systemctl daemon-reexec &>> "${eus_dir}/logs/daemon-reexec.log"; then
+    if ! systemctl daemon-reexec &>>"${eus_dir}/logs/daemon-reexec.log"; then
       echo -e "${RED}#${RESET} Failed to re-execute the systemctl daemon... \\n"
       sleep 3
     fi
@@ -3458,20 +3826,20 @@ unifi_deb_package_modification() {
     fi
     eus_temp_dir="$(mktemp -d --tmpdir=${eus_dir} unifi.deb.XXX)"
     echo -e "${WHITE_R}#${RESET} This setup is using ${unifi_deb_package_modification_message_1}... Editing the UniFi Network Application dependencies..."
-    if dpkg-deb -x "${unifi_temp}" "${eus_temp_dir}" &>> "${eus_dir}/logs/unifi-custom-deb-file.log"; then
-      if dpkg-deb --control "${unifi_temp}" "${eus_temp_dir}/DEBIAN" &>> "${eus_dir}/logs/unifi-custom-deb-file.log"; then
+    if dpkg-deb -x "${unifi_temp}" "${eus_temp_dir}" &>>"${eus_dir}/logs/unifi-custom-deb-file.log"; then
+      if dpkg-deb --control "${unifi_temp}" "${eus_temp_dir}/DEBIAN" &>>"${eus_dir}/logs/unifi-custom-deb-file.log"; then
         if [[ -e "${eus_temp_dir}/DEBIAN/control" ]]; then
           current_state_unifi_deb="$(stat -c "%y" "${eus_temp_dir}/DEBIAN/control")"
-          if [[ -n "${temurin_type}" ]]; then if sed -i "s/openjdk-${required_java_version_short}-jre-headless/temurin-${required_java_version_short}-${temurin_type}/g" "${eus_temp_dir}/DEBIAN/control" &>> "${eus_dir}/logs/unifi-custom-deb-file.log"; then unifi_deb_package_modification_control_modified_success="true"; fi; fi
-          if [[ -n "${non_default_java_package}" ]]; then if sed -i "s/openjdk-${required_java_version_short}-jre-headless/${non_default_java_package}/g" "${eus_temp_dir}/DEBIAN/control" &>> "${eus_dir}/logs/unifi-custom-deb-file.log"; then unifi_deb_package_modification_control_modified_success="true"; fi; fi
-          if [[ -n "${unifi_deb_package_modification_mongodb_package}" ]]; then if sed -i "s/mongodb-org-server/${unifi_deb_package_modification_mongodb_package}/g" "${eus_temp_dir}/DEBIAN/control" &>> "${eus_dir}/logs/unifi-custom-deb-file.log"; then unifi_deb_package_modification_control_modified_success="true"; fi; fi
+          if [[ -n "${temurin_type}" ]]; then if sed -i "s/openjdk-${required_java_version_short}-jre-headless/temurin-${required_java_version_short}-${temurin_type}/g" "${eus_temp_dir}/DEBIAN/control" &>>"${eus_dir}/logs/unifi-custom-deb-file.log"; then unifi_deb_package_modification_control_modified_success="true"; fi; fi
+          if [[ -n "${non_default_java_package}" ]]; then if sed -i "s/openjdk-${required_java_version_short}-jre-headless/${non_default_java_package}/g" "${eus_temp_dir}/DEBIAN/control" &>>"${eus_dir}/logs/unifi-custom-deb-file.log"; then unifi_deb_package_modification_control_modified_success="true"; fi; fi
+          if [[ -n "${unifi_deb_package_modification_mongodb_package}" ]]; then if sed -i "s/mongodb-org-server/${unifi_deb_package_modification_mongodb_package}/g" "${eus_temp_dir}/DEBIAN/control" &>>"${eus_dir}/logs/unifi-custom-deb-file.log"; then unifi_deb_package_modification_control_modified_success="true"; fi; fi
           if [[ "${unifi_deb_package_modification_control_modified_success}" == 'true' ]]; then
             echo -e "${GREEN}#${RESET} Successfully edited the dependencies of the UniFi Network Application deb file! \\n"
             if [[ "${current_state_unifi_deb}" != "$(stat -c "%y" "${eus_temp_dir}/DEBIAN/control")" ]]; then
               unifi_new_deb="$(basename "${unifi_temp}" .deb).new.deb"
-              cat "${eus_temp_dir}/DEBIAN/control" &>> "${eus_dir}/logs/unifi-custom-deb-file.log"
+              cat "${eus_temp_dir}/DEBIAN/control" &>>"${eus_dir}/logs/unifi-custom-deb-file.log"
               echo -e "${WHITE_R}#${RESET} Building a new UniFi Network Application deb file... This may take a while..."
-              if "$(which dpkg)" -b "${eus_temp_dir}" "${unifi_new_deb}" &>> "${eus_dir}/logs/unifi-custom-deb-file.log"; then
+              if "$(which dpkg)" -b "${eus_temp_dir}" "${unifi_new_deb}" &>>"${eus_dir}/logs/unifi-custom-deb-file.log"; then
                 unifi_temp="${unifi_new_deb}"
                 echo -e "${GREEN}#${RESET} Successfully built a new UniFi Network Application deb file! \\n"
               else
@@ -3492,7 +3860,7 @@ unifi_deb_package_modification() {
     else
       echo -e "${RED}#${RESET} Failed to edit the dependencies of the UniFi Network Application deb file...\\n"
     fi
-    rm -rf "${eus_temp_dir}" &> /dev/null
+    rm -rf "${eus_temp_dir}" &>/dev/null
   fi
 }
 
@@ -3503,16 +3871,20 @@ unifi_deb_package_modification() {
 ##########################################################################################################################################################################
 
 ignore_unifi_package_dependencies() {
-  if [[ -f "/tmp/EUS/ignore-depends" ]]; then rm --force /tmp/EUS/ignore-depends &> /dev/null; fi
-  if ! "$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep -iq "mongodb-server\\|mongodb-org-server\\|mongod-armv8"; then echo -e "mongodb-server" &>> /tmp/EUS/ignore-depends; fi
+  if [[ -f "/tmp/EUS/ignore-depends" ]]; then rm --force /tmp/EUS/ignore-depends &>/dev/null; fi
+  if ! "$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep -iq "mongodb-server\\|mongodb-org-server\\|mongod-armv8"; then echo -e "mongodb-server" &>>/tmp/EUS/ignore-depends; fi
   if "$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep -iq "mongodb-server\\|mongodb-org-server\\|mongod-armv8"; then
     ignore_unifi_package_dependencies_mongodb_version="$("$(which dpkg)" -l | grep "mongodb-server\\|mongodb-org-server\\|mongod-armv8" | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | awk '{print $3}' | sed 's/.*://' | sed -e 's/-.*//g' -e 's/\.//g')"
-    if [[ "${ignore_unifi_package_dependencies_mongodb_version::2}" -gt "${unifi_mongo_version_max}" ]]; then  
-      echo -e "mongodb-server" &>> /tmp/EUS/ignore-depends
+    if [[ "${ignore_unifi_package_dependencies_mongodb_version::2}" -gt "${unifi_mongo_version_max}" ]]; then
+      echo -e "mongodb-server" &>>/tmp/EUS/ignore-depends
     fi
   fi
-  if ! "$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep -iq "${required_java_version}-jre-headless"; then echo -e "${required_java_version}-jre-headless" &>> /tmp/EUS/ignore-depends; fi
-  if [[ -f /tmp/EUS/ignore-depends && -s /tmp/EUS/ignore-depends ]]; then IFS=" " read -r -a ignored_depends <<< "$(tr '\r\n' ',' < /tmp/EUS/ignore-depends | sed 's/.$//')"; rm --force /tmp/EUS/ignore-depends &> /dev/null; dpkg_ignore_depends_flag="--ignore-depends=${ignored_depends[*]}"; fi
+  if ! "$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep -iq "${required_java_version}-jre-headless"; then echo -e "${required_java_version}-jre-headless" &>>/tmp/EUS/ignore-depends; fi
+  if [[ -f /tmp/EUS/ignore-depends && -s /tmp/EUS/ignore-depends ]]; then
+    IFS=" " read -r -a ignored_depends <<<"$(tr '\r\n' ',' </tmp/EUS/ignore-depends | sed 's/.$//')"
+    rm --force /tmp/EUS/ignore-depends &>/dev/null
+    dpkg_ignore_depends_flag="--ignore-depends=${ignored_depends[*]}"
+  fi
 }
 
 ###################################################################################################################################################################################################
@@ -3526,8 +3898,8 @@ remove_older_mongodb_repositories() {
   if grep -qriIl "mongo" /etc/apt/sources.list*; then
     echo -ne "${WHITE_R}#${RESET} Removing old repository entries for MongoDB..." && sleep 1
     sed -i '/mongodb/d' /etc/apt/sources.list
-    if ls /etc/apt/sources.list.d/mongodb* > /dev/null 2>&1; then
-      rm /etc/apt/sources.list.d/mongodb*  2> /dev/null
+    if ls /etc/apt/sources.list.d/mongodb* >/dev/null 2>&1; then
+      rm /etc/apt/sources.list.d/mongodb* 2>/dev/null
     fi
     echo -e "\\r${GREEN}#${RESET} Successfully removed all older MongoDB repository entries! \\n"
   else
@@ -3547,7 +3919,11 @@ mongodb_upgrade_check() {
         echo -e "${GREEN}#${RESET} Successfully prevented ${mongodb_upgrade_check_package} from upgrading! \\n"
       else
         echo -e "${RED}#${RESET} Failed to prevent ${mongodb_upgrade_check_package} from upgrading...\\n"
-        if [[ "${mongodb_upgrade_check_remove_old_mongo_repo}" != 'true' ]]; then remove_older_mongodb_repositories; mongodb_upgrade_check_remove_old_mongo_repo="true"; run_apt_get_update; fi
+        if [[ "${mongodb_upgrade_check_remove_old_mongo_repo}" != 'true' ]]; then
+          remove_older_mongodb_repositories
+          mongodb_upgrade_check_remove_old_mongo_repo="true"
+          run_apt_get_update
+        fi
       fi
     fi
   done < <("$(which dpkg)" -l | awk '{print $1,$2}' | awk '/ii.*mongo/ {print $2}' | sed 's/:.*//')
@@ -3557,13 +3933,13 @@ system_upgrade() {
   if [[ -f /tmp/EUS/upgrade/upgrade_list && -s /tmp/EUS/upgrade/upgrade_list ]]; then
     while read -r package; do
       check_dpkg_lock
-      echo -e "\\n------- updating ${package} ------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/upgrade.log"
+      echo -e "\\n------- updating ${package} ------- $(date +%F-%R) -------\\n" &>>"${eus_dir}/logs/upgrade.log"
       echo -ne "\\r${WHITE_R}#${RESET} Updating package ${package}..."
-      if DEBIAN_FRONTEND='noninteractive' apt-get -y -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' --only-upgrade install "${package}" 2>&1 | tee -a "${eus_dir}/logs/upgrade.log" > /tmp/EUS/apt/install.log; then
+      if DEBIAN_FRONTEND='noninteractive' apt-get -y -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' --only-upgrade install "${package}" 2>&1 | tee -a "${eus_dir}/logs/upgrade.log" >/tmp/EUS/apt/install.log; then
         if [[ "${PIPESTATUS[0]}" -eq "0" ]]; then echo -e "\\r${GREEN}#${RESET} Successfully updated package ${package}!"; fi
       elif tail -n1 /usr/lib/EUS/logs/upgrade.log | grep -ioq "Packages were downgraded and -y was used without --allow-downgrades" "${eus_dir}/logs/upgrade.log"; then
         check_dpkg_lock
-        if DEBIAN_FRONTEND='noninteractive' apt-get -y -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' --only-upgrade --allow-downgrades install "${package}" 2>&1 | tee -a "${eus_dir}/logs/upgrade.log" > /tmp/EUS/apt/install.log; then
+        if DEBIAN_FRONTEND='noninteractive' apt-get -y -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' --only-upgrade --allow-downgrades install "${package}" 2>&1 | tee -a "${eus_dir}/logs/upgrade.log" >/tmp/EUS/apt/install.log; then
           if [[ "${PIPESTATUS[0]}" -eq "0" ]]; then
             echo -e "\\r${GREEN}#${RESET} Successfully updated package ${package}!"
             continue
@@ -3575,22 +3951,33 @@ system_upgrade() {
         echo -e "\\r${RED}#${RESET} Something went wrong during the update of package ${package}... \\n${RED}#${RESET} The script will continue with an apt-get upgrade...\\n"
         break
       fi
-    done < /tmp/EUS/upgrade/upgrade_list
+    done </tmp/EUS/upgrade/upgrade_list
     echo ""
   fi
-  if ls /tmp/EUS/apt/*.log 1> /dev/null 2>&1; then check_package_cache_file_corruption; check_time_date_for_repositories; cleanup_malformed_repositories; cleanup_duplicated_repositories; cleanup_unavailable_repositories; cleanup_conflicting_repositories; if [[ "${repository_changes_applied}" == 'true' ]]; then unset repository_changes_applied; run_apt_get_update; fi; fi
+  if ls /tmp/EUS/apt/*.log 1>/dev/null 2>&1; then
+    check_package_cache_file_corruption
+    check_time_date_for_repositories
+    cleanup_malformed_repositories
+    cleanup_duplicated_repositories
+    cleanup_unavailable_repositories
+    cleanup_conflicting_repositories
+    if [[ "${repository_changes_applied}" == 'true' ]]; then
+      unset repository_changes_applied
+      run_apt_get_update
+    fi
+  fi
   check_dpkg_lock
-  echo -e "\\n------- apt-get upgrade ------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/upgrade.log"
+  echo -e "\\n------- apt-get upgrade ------- $(date +%F-%R) -------\\n" &>>"${eus_dir}/logs/upgrade.log"
   echo -e "${WHITE_R}#${RESET} Running apt-get upgrade..."
-  if DEBIAN_FRONTEND='noninteractive' apt-get -y -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' upgrade 2>&1 | tee -a "${eus_dir}/logs/upgrade.log" > /tmp/EUS/apt/upgrade.log; then if [[ "${PIPESTATUS[0]}" -eq "0" ]]; then echo -e "${GREEN}#${RESET} Successfully ran apt-get upgrade! \\n"; else echo -e "${RED}#${RESET} Failed to run apt-get upgrade... \\n"; fi; fi
+  if DEBIAN_FRONTEND='noninteractive' apt-get -y -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' upgrade 2>&1 | tee -a "${eus_dir}/logs/upgrade.log" >/tmp/EUS/apt/upgrade.log; then if [[ "${PIPESTATUS[0]}" -eq "0" ]]; then echo -e "${GREEN}#${RESET} Successfully ran apt-get upgrade! \\n"; else echo -e "${RED}#${RESET} Failed to run apt-get upgrade... \\n"; fi; fi
   check_dpkg_lock
-  echo -e "\\n------- apt-get dist-upgrade ------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/upgrade.log"
+  echo -e "\\n------- apt-get dist-upgrade ------- $(date +%F-%R) -------\\n" &>>"${eus_dir}/logs/upgrade.log"
   echo -e "${WHITE_R}#${RESET} Running apt-get dist-upgrade..."
-  if DEBIAN_FRONTEND='noninteractive' apt-get -y -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' dist-upgrade 2>&1 | tee -a "${eus_dir}/logs/upgrade.log" > /tmp/EUS/apt/dist-upgrade.log; then if [[ "${PIPESTATUS[0]}" -eq "0" ]]; then echo -e "${GREEN}#${RESET} Successfully ran apt-get dist-upgrade! \\n"; else echo -e "${RED}#${RESET} Failed to run apt-get dist-upgrade... \\n"; fi; fi
+  if DEBIAN_FRONTEND='noninteractive' apt-get -y -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' dist-upgrade 2>&1 | tee -a "${eus_dir}/logs/upgrade.log" >/tmp/EUS/apt/dist-upgrade.log; then if [[ "${PIPESTATUS[0]}" -eq "0" ]]; then echo -e "${GREEN}#${RESET} Successfully ran apt-get dist-upgrade! \\n"; else echo -e "${RED}#${RESET} Failed to run apt-get dist-upgrade... \\n"; fi; fi
   echo -e "${WHITE_R}#${RESET} Running apt-get autoremove..."
-  if apt-get -y autoremove &>> "${eus_dir}/logs/apt-cleanup.log"; then echo -e "${GREEN}#${RESET} Successfully ran apt-get autoremove! \\n"; else echo -e "${RED}#${RESET} Failed to run apt-get autoremove"; fi
+  if apt-get -y autoremove &>>"${eus_dir}/logs/apt-cleanup.log"; then echo -e "${GREEN}#${RESET} Successfully ran apt-get autoremove! \\n"; else echo -e "${RED}#${RESET} Failed to run apt-get autoremove"; fi
   echo -e "${WHITE_R}#${RESET} Running apt-get autoclean..."
-  if apt-get -y autoclean &>> "${eus_dir}/logs/apt-cleanup.log"; then echo -e "${GREEN}#${RESET} Successfully ran apt-get autoclean! \\n"; else echo -e "${RED}#${RESET} Failed to run apt-get autoclean"; fi
+  if apt-get -y autoclean &>>"${eus_dir}/logs/apt-cleanup.log"; then echo -e "${GREEN}#${RESET} Successfully ran apt-get autoclean! \\n"; else echo -e "${RED}#${RESET} Failed to run apt-get autoclean"; fi
   sleep 3
   daemon_reexec
 }
@@ -3602,9 +3989,12 @@ run_apt_get_update
 mongodb_upgrade_check
 echo -e "${WHITE_R}#${RESET} The package(s) below can be upgraded!"
 echo -e "\\n${WHITE_R}----${RESET}\\n"
-rm --force /tmp/EUS/upgrade/upgrade_list &> /dev/null
-{ apt-get --just-print upgrade 2>&1 | perl -ne 'if (/Inst\s([\w,\-,\d,\.,~,:,\+]+)\s\[([\w,\-,\d,\.,~,:,\+]+)\]\s\(([\w,\-,\d,\.,~,:,\+]+)\)? /i) {print "$1 ( \e[1;34m$2\e[0m -> \e[1;32m$3\e[0m )\n"}';} | while read -r line; do echo -en "${WHITE_R}-${RESET} $line\\n"; echo -en "$line\\n" | awk '{print $1}' &>> /tmp/EUS/upgrade/upgrade_list; done;
-if [[ -f /tmp/EUS/upgrade/upgrade_list ]]; then number_of_updates=$(wc -l < /tmp/EUS/upgrade/upgrade_list); else number_of_updates='0'; fi
+rm --force /tmp/EUS/upgrade/upgrade_list &>/dev/null
+{ apt-get --just-print upgrade 2>&1 | perl -ne 'if (/Inst\s([\w,\-,\d,\.,~,:,\+]+)\s\[([\w,\-,\d,\.,~,:,\+]+)\]\s\(([\w,\-,\d,\.,~,:,\+]+)\)? /i) {print "$1 ( \e[1;34m$2\e[0m -> \e[1;32m$3\e[0m )\n"}'; } | while read -r line; do
+  echo -en "${WHITE_R}-${RESET} $line\\n"
+  echo -en "$line\\n" | awk '{print $1}' &>>/tmp/EUS/upgrade/upgrade_list
+done
+if [[ -f /tmp/EUS/upgrade/upgrade_list ]]; then number_of_updates=$(wc -l </tmp/EUS/upgrade/upgrade_list); else number_of_updates='0'; fi
 if [[ "${number_of_updates}" == '0' ]]; then echo -e "${WHITE_R}#${RESET} There are no packages that need an upgrade..."; fi
 echo -e "\\n${WHITE_R}----${RESET}\\n"
 if [[ "${script_option_skip}" != 'true' ]]; then
@@ -3613,14 +4003,18 @@ else
   echo -e "${WHITE_R}#${RESET} Performing the updates!"
 fi
 case "$yes_no" in
-    [Yy]*|"") echo -e "\\n${WHITE_R}----${RESET}\\n"; system_upgrade; check_mongodb_installed;;
-    [Nn]*) ;;
+[Yy]* | "")
+  echo -e "\\n${WHITE_R}----${RESET}\\n"
+  system_upgrade
+  check_mongodb_installed
+  ;;
+[Nn]*) ;;
 esac
 check_dpkg_lock
 while read -r mongo_package; do
-  echo "${mongo_package} install" | "$(which dpkg)" --set-selections &> /dev/null
+  echo "${mongo_package} install" | "$(which dpkg)" --set-selections &>/dev/null
 done < <("$(which dpkg)" -l | awk '{print $1,$2}' | awk '/ii.*mongo/ {print $2}' | sed 's/:.*//')
-rm --force /tmp/EUS/upgrade/upgrade_list &> /dev/null
+rm --force /tmp/EUS/upgrade/upgrade_list &>/dev/null
 
 mongo_last_attempt() {
   unset mongo_last_attempt_install_success
@@ -3635,27 +4029,36 @@ mongo_last_attempt() {
     fi
   fi
   if [[ "${mongo_last_attempt_type}" == 'tools' ]]; then
-    repo_archive_array=( "http://archive.ubuntu.com/ubuntu/pool/universe/m/mongo-tools/" "http://ports.ubuntu.com/pool/universe/m/mongo-tools/" "${http_or_https}://old-releases.ubuntu.com/ubuntu/pool/universe/m/mongo-tools/" "${http_or_https}://archive.debian.org/debian/pool/main/m/mongo-tools/" )
+    repo_archive_array=("http://archive.ubuntu.com/ubuntu/pool/universe/m/mongo-tools/" "http://ports.ubuntu.com/pool/universe/m/mongo-tools/" "${http_or_https}://old-releases.ubuntu.com/ubuntu/pool/universe/m/mongo-tools/" "${http_or_https}://archive.debian.org/debian/pool/main/m/mongo-tools/")
     mongo_last_attempt_name="mongo-tools"
   elif [[ "${mongo_last_attempt_type}" == 'clients' ]]; then
-    repo_archive_array=( "http://archive.ubuntu.com/ubuntu/pool/universe/m/mongodb/" "http://ports.ubuntu.com/pool/universe/m/mongodb/" "${http_or_https}://old-releases.ubuntu.com/ubuntu/pool/universe/m/mongodb/" "${http_or_https}://archive.debian.org/debian/pool/main/m/mongodb/" )
+    repo_archive_array=("http://archive.ubuntu.com/ubuntu/pool/universe/m/mongodb/" "http://ports.ubuntu.com/pool/universe/m/mongodb/" "${http_or_https}://old-releases.ubuntu.com/ubuntu/pool/universe/m/mongodb/" "${http_or_https}://archive.debian.org/debian/pool/main/m/mongodb/")
     mongo_last_attempt_name="mongodb-clients"
   elif [[ "${mongo_last_attempt_type}" == 'server' ]]; then
-    repo_archive_array=( "http://archive.ubuntu.com/ubuntu/pool/universe/m/mongodb/" "http://ports.ubuntu.com/pool/universe/m/mongodb/" "${http_or_https}://old-releases.ubuntu.com/ubuntu/pool/universe/m/mongodb/" "${http_or_https}://archive.debian.org/debian/pool/main/m/mongodb/" )
+    repo_archive_array=("http://archive.ubuntu.com/ubuntu/pool/universe/m/mongodb/" "http://ports.ubuntu.com/pool/universe/m/mongodb/" "${http_or_https}://old-releases.ubuntu.com/ubuntu/pool/universe/m/mongodb/" "${http_or_https}://archive.debian.org/debian/pool/main/m/mongodb/")
     mongo_last_attempt_name="mongodb-server"
   fi
   for repo_archive in "${repo_archive_array[@]}"; do
     while read -r mongo_last_attempt_package; do
       mongo_last_attempt_package_empty="false"
       echo -e "\\n${WHITE_R}#${RESET} Downloading ${mongo_last_attempt_name}..."
-      if ! mongo_last_attempt_temp="$(mktemp --tmpdir=/tmp mongo_last_attempt_XXXXX.deb)"; then abort_reason="Failed to create temporarily MongoDB download file."; abort; fi
-      echo -e "$(date +%F-%R) | URL used: ${repo_archive}${mongo_last_attempt_package}" &>> "${eus_dir}/logs/unifi-database-required.log"
-      if curl --retry 3 "${nos_curl_argument[@]}" --output "$mongo_last_attempt_temp" "${repo_archive}${mongo_last_attempt_package}" &>> "${eus_dir}/logs/unifi-database-required.log"; then
-        if command -v dpkg-deb &> /dev/null; then if ! dpkg-deb --info "${mongo_last_attempt_temp}" &> /dev/null; then echo -e "$(date +%F-%R) | The file downloaded via ${repo_archive}${mongo_last_attempt_package} was not a debian file format..." &>> "${eus_dir}/logs/unifi-database-required.log"; continue; fi; fi
-        if [[ "${mongo_last_attempt_download_success_message}" != 'true' ]]; then echo -e "${GREEN}#${RESET} Successfully downloaded ${mongo_last_attempt_name}! \\n"; mongo_last_attempt_download_success_message="true"; fi
+      if ! mongo_last_attempt_temp="$(mktemp --tmpdir=/tmp mongo_last_attempt_XXXXX.deb)"; then
+        abort_reason="Failed to create temporarily MongoDB download file."
+        abort
+      fi
+      echo -e "$(date +%F-%R) | URL used: ${repo_archive}${mongo_last_attempt_package}" &>>"${eus_dir}/logs/unifi-database-required.log"
+      if curl --retry 3 "${nos_curl_argument[@]}" --output "$mongo_last_attempt_temp" "${repo_archive}${mongo_last_attempt_package}" &>>"${eus_dir}/logs/unifi-database-required.log"; then
+        if command -v dpkg-deb &>/dev/null; then if ! dpkg-deb --info "${mongo_last_attempt_temp}" &>/dev/null; then
+          echo -e "$(date +%F-%R) | The file downloaded via ${repo_archive}${mongo_last_attempt_package} was not a debian file format..." &>>"${eus_dir}/logs/unifi-database-required.log"
+          continue
+        fi; fi
+        if [[ "${mongo_last_attempt_download_success_message}" != 'true' ]]; then
+          echo -e "${GREEN}#${RESET} Successfully downloaded ${mongo_last_attempt_name}! \\n"
+          mongo_last_attempt_download_success_message="true"
+        fi
         echo -e "${WHITE_R}#${RESET} Installing ${mongo_last_attempt_name}..."
         check_dpkg_lock
-        if "$(which dpkg)" -i "$mongo_last_attempt_temp" &>> "${eus_dir}/logs/unifi-database-required.log"; then
+        if "$(which dpkg)" -i "$mongo_last_attempt_temp" &>>"${eus_dir}/logs/unifi-database-required.log"; then
           echo -e "${GREEN}#${RESET} Successfully installed ${mongo_last_attempt_name}! \\n"
           mongo_last_attempt_install_success="true"
           break
@@ -3665,26 +4068,26 @@ mongo_last_attempt() {
             echo -e "${WHITE_R}#${RESET} Attempting to install different versions... \\n"
             mongo_last_attempt_install_failed_message="true"
           fi
-          rm --force "$mongo_last_attempt_temp" &> /dev/null
+          rm --force "$mongo_last_attempt_temp" &>/dev/null
         fi
       else
         abort_reason="Failed to download ${mongo_last_attempt_name}."
         abort
       fi
-    done < <(curl "${curl_argument[@]}" "${repo_archive}" | grep -io "${mongo_last_attempt_name}.*${mongo_last_attempt_version}.*${architecture}.deb"  | cut -d'"' -f1)
+    done < <(curl "${curl_argument[@]}" "${repo_archive}" | grep -io "${mongo_last_attempt_name}.*${mongo_last_attempt_version}.*${architecture}.deb" | cut -d'"' -f1)
     if [[ "${mongo_last_attempt_package_empty}" != 'false' ]]; then
       echo -e "${RED}#${RESET} Failed to locate any MongoDB packages for version ${mongo_last_attempt_version}...\\n"
-      curl "${curl_argument[@]}" "${repo_archive}" &> /tmp/EUS/mongodb.html
+      curl "${curl_argument[@]}" "${repo_archive}" &>/tmp/EUS/mongodb.html
       if ! [[ -s "${eus_dir}/logs/mongodb-last-attempt-failure-debug-info.json" ]] || ! jq empty "${eus_dir}/logs/mongodb-last-attempt-failure-debug-info.json"; then
         mongodb_json_time="$(date +%F-%R)"
         if [[ "$(dpkg-query --showformat='${Version}' --show jq | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
           jq -n \
-            --argjson "MongoDB Last Attempt Failures" "$( 
+            --argjson "MongoDB Last Attempt Failures" "$(
               jq -n \
                 --argjson "${mongodb_json_time}" "{ \"version\" : \"$mongo_last_attempt_version\", \"Repository URL\" : \"$repo_archive\", \"Architecture\" : \"$architecture\", \"Package\" : \"$mongo_last_attempt_package\", \"Curl Results\" : \"\" }" \
-                 '$ARGS.named'
+                '$ARGS.named'
             )" \
-            '$ARGS.named' &> "${eus_dir}/logs/mongodb-last-attempt-failure-debug-info.json"
+            '$ARGS.named' &>"${eus_dir}/logs/mongodb-last-attempt-failure-debug-info.json"
         else
           jq -n \
             --arg mongo_last_attempt_version "${mongo_last_attempt_version}" \
@@ -3699,18 +4102,22 @@ mongo_last_attempt() {
                 "Package": $mongo_last_attempt_package,
                 "Curl Results": ""
               }
-            }' &> "${eus_dir}/logs/mongodb-last-attempt-failure-debug-info.json"
+            }' &>"${eus_dir}/logs/mongodb-last-attempt-failure-debug-info.json"
         fi
-        jq --arg mongodb_json_time "${mongodb_json_time}" --arg mongodb_curl_results "$(</tmp/EUS/mongodb.html)" '."MongoDB Last Attempt Failures"."'"${mongodb_json_time}"'"."Curl Results"=$mongodb_curl_results' "${eus_dir}/logs/mongodb-last-attempt-failure-debug-info.json" > "${eus_dir}/logs/mongodb-last-attempt-failure-debug-info.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
-        eus_database_move_file="${eus_dir}/logs/mongodb-last-attempt-failure-debug-info.json"; eus_database_move_log_file="${eus_dir}/logs/mongodb-last-attempt-failure-debug-info.log"; eus_database_move
+        jq --arg mongodb_json_time "${mongodb_json_time}" --arg mongodb_curl_results "$(</tmp/EUS/mongodb.html)" '."MongoDB Last Attempt Failures"."'"${mongodb_json_time}"'"."Curl Results"=$mongodb_curl_results' "${eus_dir}/logs/mongodb-last-attempt-failure-debug-info.json" >"${eus_dir}/logs/mongodb-last-attempt-failure-debug-info.json.tmp" 2>>"${eus_dir}/logs/eus-database-management.log"
+        eus_database_move_file="${eus_dir}/logs/mongodb-last-attempt-failure-debug-info.json"
+        eus_database_move_log_file="${eus_dir}/logs/mongodb-last-attempt-failure-debug-info.log"
+        eus_database_move
       else
-        jq --arg mongo_last_attempt_version "${mongo_last_attempt_version}" --arg repo_archive "${repo_archive}" --arg architecture "${architecture}" --arg mongo_last_attempt_package "${mongo_last_attempt_package}" --arg mongodb_curl_results "$(</tmp/EUS/mongodb.html)" '."MongoDB Last Attempt Failures" += {"'"$(date +%F-%R)"'": {"version": $mongo_last_attempt_version, "Repository URL": $repo_archive, "Architecture": $architecture, "Package": $mongo_last_attempt_package, "Curl Results": $mongodb_curl_results}}' "${eus_dir}/logs/mongodb-last-attempt-failure-debug-info.json" > "${eus_dir}/logs/mongodb-last-attempt-failure-debug-info.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
-        eus_database_move_file="${eus_dir}/logs/mongodb-last-attempt-failure-debug-info.json"; eus_database_move_log_file="${eus_dir}/logs/mongodb-last-attempt-failure-debug-info.log"; eus_database_move
+        jq --arg mongo_last_attempt_version "${mongo_last_attempt_version}" --arg repo_archive "${repo_archive}" --arg architecture "${architecture}" --arg mongo_last_attempt_package "${mongo_last_attempt_package}" --arg mongodb_curl_results "$(</tmp/EUS/mongodb.html)" '."MongoDB Last Attempt Failures" += {"'"$(date +%F-%R)"'": {"version": $mongo_last_attempt_version, "Repository URL": $repo_archive, "Architecture": $architecture, "Package": $mongo_last_attempt_package, "Curl Results": $mongodb_curl_results}}' "${eus_dir}/logs/mongodb-last-attempt-failure-debug-info.json" >"${eus_dir}/logs/mongodb-last-attempt-failure-debug-info.json.tmp" 2>>"${eus_dir}/logs/eus-database-management.log"
+        eus_database_move_file="${eus_dir}/logs/mongodb-last-attempt-failure-debug-info.json"
+        eus_database_move_log_file="${eus_dir}/logs/mongodb-last-attempt-failure-debug-info.log"
+        eus_database_move
       fi
     fi
     if [[ "${mongo_last_attempt_install_success}" == 'true' ]]; then break; fi
-	rm --force "$mongo_last_attempt_temp" 2> /dev/null
-    rm --force /tmp/EUS/mongodb.html &> /dev/null
+    rm --force "$mongo_last_attempt_temp" 2>/dev/null
+    rm --force /tmp/EUS/mongodb.html &>/dev/null
   done
   if [[ "${mongo_last_attempt_install_success}" != 'true' ]]; then
     echo -e "${RED}#${RESET} Failed to install ${mongo_last_attempt_name}...\\n"
@@ -3727,7 +4134,7 @@ mongo_last_attempt() {
 }
 
 mongodb_installation() {
-  jq '.scripts["'"$script_name"'"].tasks += {"mongodb-install ('"$(date +%s)"')": [.scripts["'"$script_name"'"].tasks["mongodb-install ('"$(date +%s)"')"][0] + {"add-mongodb-repo":"'"${mongodb_add_repo_variables_true_statements[*]}"'","Glenn R. MongoDB":"'"${glennr_compiled_mongod}"'"}]}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+  jq '.scripts["'"$script_name"'"].tasks += {"mongodb-install ('"$(date +%s)"')": [.scripts["'"$script_name"'"].tasks["mongodb-install ('"$(date +%s)"')"][0] + {"add-mongodb-repo":"'"${mongodb_add_repo_variables_true_statements[*]}"'","Glenn R. MongoDB":"'"${glennr_compiled_mongod}"'"}]}' "${eus_dir}/db/db.json" >"${eus_dir}/db/db.json.tmp" 2>>"${eus_dir}/logs/eus-database-management.log"
   eus_database_move
   unset mongodb_key_update
   if [[ "${glennr_compiled_mongod}" == 'true' ]]; then
@@ -3753,7 +4160,7 @@ mongodb_installation() {
         libssl_installation_check
         continue
       fi
-      if "$(which dpkg)" -l mongodb-mongosh-shared-openssl11 "${mongod_armv8_dependency}" 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+      if "$(which dpkg)" -l mongodb-mongosh-shared-openssl11 "${mongod_armv8_dependency}" 2>/dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
         mongod_armv8_dependency_version_current="$(dpkg-query --showformat='${Version}' --show "${mongod_armv8_dependency}" | awk -F'[-.]' '{print $1}')"
       else
         mongod_armv8_dependency_version_current="0"
@@ -3781,10 +4188,11 @@ mongodb_installation() {
         fi
         check_dpkg_lock
         echo -e "${WHITE_R}#${RESET} Installing ${mongod_armv8_dependency}..."
-        if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${mongod_armv8_dependency}"="${mongod_armv8_dependency_install_version}" &>> "${eus_dir}/logs/mongod-armv8-dependencies.log"; then
-          if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${mongod_armv8_dependency}" &>> "${eus_dir}/logs/mongod-armv8-dependencies.log"; then
-            add_apt_option_no_install_recommends="true"; get_apt_options
-            if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${mongod_armv8_dependency}" &>> "${eus_dir}/logs/mongod-armv8-dependencies.log"; then
+        if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${mongod_armv8_dependency}"="${mongod_armv8_dependency_install_version}" &>>"${eus_dir}/logs/mongod-armv8-dependencies.log"; then
+          if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${mongod_armv8_dependency}" &>>"${eus_dir}/logs/mongod-armv8-dependencies.log"; then
+            add_apt_option_no_install_recommends="true"
+            get_apt_options
+            if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${mongod_armv8_dependency}" &>>"${eus_dir}/logs/mongod-armv8-dependencies.log"; then
               abort_reason="Failed to install ${mongod_armv8_dependency}."
               abort
             else
@@ -3807,9 +4215,9 @@ mongodb_installation() {
     mongodb_installation_server_package="mongodb-org-server${install_mongodb_version_with_equality_sign}"
   fi
   check_dpkg_lock
-  echo -e "\\n------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/mongodb-org-install.log"
+  echo -e "\\n------- $(date +%F-%R) -------\\n" &>>"${eus_dir}/logs/mongodb-org-install.log"
   echo -e "${WHITE_R}#${RESET} Installing mongodb-org version ${mongo_version_max_with_dot::3}..."
-  if DEBIAN_FRONTEND='noninteractive' apt-get -y --allow-downgrades "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${mongodb_installation_server_package}" "mongodb-org-shell${install_mongodb_version_with_equality_sign}" "mongodb-org-tools${install_mongodb_version_with_equality_sign}" &>> "${eus_dir}/logs/mongodb-org-install.log"; then
+  if DEBIAN_FRONTEND='noninteractive' apt-get -y --allow-downgrades "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${mongodb_installation_server_package}" "mongodb-org-shell${install_mongodb_version_with_equality_sign}" "mongodb-org-tools${install_mongodb_version_with_equality_sign}" &>>"${eus_dir}/logs/mongodb-org-install.log"; then
     echo -e "${GREEN}#${RESET} Successfully installed mongodb-org version ${mongo_version_max_with_dot::3}! \\n"
     mongodb_installed="true"
   else
@@ -3821,7 +4229,7 @@ mongodb_installation() {
     libssl_installation_check
     check_dpkg_lock
     echo -e "${WHITE_R}#${RESET} Trying to install mongodb-org version ${mongo_version_max_with_dot::3} in the second run..."
-    if DEBIAN_FRONTEND='noninteractive' apt-get -y --allow-downgrades "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${mongodb_installation_server_package}" "mongodb-org-shell${install_mongodb_version_with_equality_sign}" "mongodb-org-tools${install_mongodb_version_with_equality_sign}" &>> "${eus_dir}/logs/mongodb-org-install.log"; then
+    if DEBIAN_FRONTEND='noninteractive' apt-get -y --allow-downgrades "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${mongodb_installation_server_package}" "mongodb-org-shell${install_mongodb_version_with_equality_sign}" "mongodb-org-tools${install_mongodb_version_with_equality_sign}" &>>"${eus_dir}/logs/mongodb-org-install.log"; then
       echo -e "${GREEN}#${RESET} Successfully installed mongodb-org version ${mongo_version_max_with_dot::3} in the second run! \\n"
       mongodb_installed="true"
     else
@@ -3834,12 +4242,13 @@ mongodb_installation() {
       libssl_installation_check
       check_dpkg_lock
       echo -e "${WHITE_R}#${RESET} Trying to install mongodb-org version ${mongo_version_max_with_dot::3} in the third run..."
-      if DEBIAN_FRONTEND='noninteractive' apt-get -y --allow-downgrades "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${mongodb_installation_server_package}" "mongodb-org-shell${install_mongodb_version_with_equality_sign}" "mongodb-org-tools${install_mongodb_version_with_equality_sign}" &>> "${eus_dir}/logs/mongodb-org-install.log"; then
+      if DEBIAN_FRONTEND='noninteractive' apt-get -y --allow-downgrades "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${mongodb_installation_server_package}" "mongodb-org-shell${install_mongodb_version_with_equality_sign}" "mongodb-org-tools${install_mongodb_version_with_equality_sign}" &>>"${eus_dir}/logs/mongodb-org-install.log"; then
         echo -e "${GREEN}#${RESET} Successfully installed mongodb-org version ${mongo_version_max_with_dot::3} in the third run! \\n"
         mongodb_installed="true"
       else
-        add_apt_option_no_install_recommends="true"; get_apt_options
-        if DEBIAN_FRONTEND='noninteractive' apt-get -y --allow-downgrades "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${mongodb_installation_server_package}" "mongodb-org-shell${install_mongodb_version_with_equality_sign}" "mongodb-org-tools${install_mongodb_version_with_equality_sign}" &>> "${eus_dir}/logs/mongodb-org-install.log"; then
+        add_apt_option_no_install_recommends="true"
+        get_apt_options
+        if DEBIAN_FRONTEND='noninteractive' apt-get -y --allow-downgrades "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${mongodb_installation_server_package}" "mongodb-org-shell${install_mongodb_version_with_equality_sign}" "mongodb-org-tools${install_mongodb_version_with_equality_sign}" &>>"${eus_dir}/logs/mongodb-org-install.log"; then
           echo -e "${GREEN}#${RESET} Successfully installed mongodb-org version ${mongo_version_max_with_dot::3} in the fourth run! \\n"
           mongodb_installed="true"
         else
@@ -3853,7 +4262,7 @@ mongodb_installation() {
   if [[ "${architecture}" == "arm64" && "${mongodb_version_major_minor}" == "4.4" ]]; then
     eus_directory_location="/tmp/EUS"
     eus_create_directories "mongodb"
-    "$(which dpkg)" -l | grep mongodb-org | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | awk '{print $2}' &> /tmp/EUS/mongodb/packages_list
+    "$(which dpkg)" -l | grep mongodb-org | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | awk '{print $2}' &>/tmp/EUS/mongodb/packages_list
     check_dpkg_lock
     while read -r mongodb_package; do
       echo -e "${WHITE_R}#${RESET} Preventing ${mongodb_package} from upgrading..."
@@ -3863,7 +4272,7 @@ mongodb_installation() {
         abort_reason="Failed to prevent ${mongodb_package} from upgrading."
         abort
       fi
-    done < /tmp/EUS/mongodb/packages_list
+    done </tmp/EUS/mongodb/packages_list
     rm /tmp/EUS/mongodb/packages_list
   fi
 }
@@ -3881,25 +4290,25 @@ mongodb_server_clients_installation() {
     get_repo_url
   fi
   check_dpkg_lock
-  echo -e "\\n------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/mongodb-server-client-install.log"
+  echo -e "\\n------- $(date +%F-%R) -------\\n" &>>"${eus_dir}/logs/mongodb-server-client-install.log"
   echo -e "${WHITE_R}#${RESET} Installing mongodb-server and mongodb-clients..."
-  if ! DEBIAN_FRONTEND='noninteractive' apt-get -y --allow-downgrades "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install mongodb-server mongodb-clients &>> "${eus_dir}/logs/mongodb-server-client-install.log"; then
+  if ! DEBIAN_FRONTEND='noninteractive' apt-get -y --allow-downgrades "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install mongodb-server mongodb-clients &>>"${eus_dir}/logs/mongodb-server-client-install.log"; then
     echo -e "${RED}#${RESET} Failed to install mongodb-server and mongodb-clients in the first run...\\n"
     add_repositories
     run_apt_get_update
     check_dpkg_lock
     echo -e "${WHITE_R}#${RESET} Trying to install mongodb-server and mongodb-clients for the second time..."
-    if ! DEBIAN_FRONTEND='noninteractive' apt-get -y --allow-downgrades "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install mongodb-server mongodb-clients &>> "${eus_dir}/logs/mongodb-server-client-install.log"; then
+    if ! DEBIAN_FRONTEND='noninteractive' apt-get -y --allow-downgrades "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install mongodb-server mongodb-clients &>>"${eus_dir}/logs/mongodb-server-client-install.log"; then
       echo -e "${RED}#${RESET} Failed to install mongodb-server and mongodb-clients in the second run... \\n${WHITE_R}#${RESET} Trying to save the installation...\\n"
       echo -e "${WHITE_R}#${RESET} Running apt-get install -f..."
-      if ! apt-get install -f &>> "${eus_dir}/logs/mongodb-server-client-install.log"; then
+      if ! apt-get install -f &>>"${eus_dir}/logs/mongodb-server-client-install.log"; then
         abort_reason="Failed to run apt-get install -f."
         abort
       else
         echo -e "${GREEN}#${RESET} Successfully ran \"apt-get install -f\"! \\n"
         check_dpkg_lock
         echo -e "${WHITE_R}#${RESET} Trying to install mongodb-server and mongodb-clients again..."
-        if ! DEBIAN_FRONTEND='noninteractive' apt-get -y --allow-downgrades "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install mongodb-server mongodb-clients &>> "${eus_dir}/logs/mongodb-server-client-install.log"; then
+        if ! DEBIAN_FRONTEND='noninteractive' apt-get -y --allow-downgrades "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install mongodb-server mongodb-clients &>>"${eus_dir}/logs/mongodb-server-client-install.log"; then
           if [[ "${architecture}" == "armhf" ]]; then
             mongo_last_attempt_type="server"
             mongo_last_attempt
@@ -3942,26 +4351,29 @@ mongodb_server_clients_installation() {
 mongodb_installation_armhf() {
   aptkey_depreciated
   if [[ "${apt_key_deprecated}" == 'true' ]]; then
-    if curl "${curl_argument[@]}" -fSL "${raspbian_repo_url}.public.key" 2>&1 | tee -a "${eus_dir}/logs/repository-keys.log" | gpg --dearmor --yes | tee -a "/etc/apt/keyrings/raspbian.gpg" &> /dev/null; then
+    if curl "${curl_argument[@]}" -fSL "${raspbian_repo_url}.public.key" 2>&1 | tee -a "${eus_dir}/logs/repository-keys.log" | gpg --dearmor --yes | tee -a "/etc/apt/keyrings/raspbian.gpg" &>/dev/null; then
       raspbian_curl_exit_status="${PIPESTATUS[0]}"
       raspbian_gpg_exit_status="${PIPESTATUS[2]}"
       if [[ "${raspbian_curl_exit_status}" -eq "0" && "${raspbian_gpg_exit_status}" -eq "0" && -s "/etc/apt/keyrings/raspbian.gpg" ]]; then
-        echo -e "${GREEN}#${RESET} Successfully added the key for the raspbian repository! \\n"; signed_by_value_raspbian="[ signed-by=/etc/apt/keyrings/raspbian.gpg ]"
+        echo -e "${GREEN}#${RESET} Successfully added the key for the raspbian repository! \\n"
+        signed_by_value_raspbian="[ signed-by=/etc/apt/keyrings/raspbian.gpg ]"
       else
-        abort_reason="Failed to add the key for the raspbian repository."; abort
+        abort_reason="Failed to add the key for the raspbian repository."
+        abort
       fi
     else
       abort_reason="Failed to fetch the key for the raspbian repository."
       abort
     fi
   else
-    if curl "${curl_argument[@]}" -fSL "${raspbian_repo_url}.public.key" 2>&1 | tee -a "${eus_dir}/logs/repository-keys.log" | apt-key add - &> /dev/null; then
+    if curl "${curl_argument[@]}" -fSL "${raspbian_repo_url}.public.key" 2>&1 | tee -a "${eus_dir}/logs/repository-keys.log" | apt-key add - &>/dev/null; then
       raspbian_curl_exit_status="${PIPESTATUS[0]}"
       raspbian_apt_key_exit_status="${PIPESTATUS[2]}"
       if [[ "${raspbian_curl_exit_status}" -eq "0" && "${raspbian_apt_key_exit_status}" -eq "0" ]]; then
         echo -e "${GREEN}#${RESET} Successfully added the key for the raspbian repository! \\n"
       else
-        abort_reason="Failed to add the key for the raspbian repository."; abort
+        abort_reason="Failed to add the key for the raspbian repository."
+        abort
       fi
     else
       abort_reason="Failed to fetch the key for the raspbian repository."
@@ -3969,23 +4381,24 @@ mongodb_installation_armhf() {
     fi
   fi
   if [[ -f "/etc/apt/sources.list.d/glennr_armhf.list" ]]; then rm --force "/etc/apt/sources.list.d/glennr_armhf.list"; fi
-  echo "deb ${signed_by_value_raspbian}${raspbian_repo_url} ${os_codename} main contrib non-free rpi" &> /etc/apt/sources.list.d/glennr-install-script.list
+  echo "deb ${signed_by_value_raspbian}${raspbian_repo_url} ${os_codename} main contrib non-free rpi" &>/etc/apt/sources.list.d/glennr-install-script.list
   run_apt_get_update
   check_dpkg_lock
-  if DEBIAN_FRONTEND='noninteractive' apt-get -y --allow-downgrades "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install mongodb-server mongodb-clients &>> "${eus_dir}/logs/mongodb-armhf-install.log"; then
+  if DEBIAN_FRONTEND='noninteractive' apt-get -y --allow-downgrades "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install mongodb-server mongodb-clients &>>"${eus_dir}/logs/mongodb-armhf-install.log"; then
     echo -e "${GREEN}#${RESET} Successfully installed mongodb-server and mongodb-clients! \\n"
   else
     echo -e "${RED}#${RESET} Failed to install mongodb-server and mongodb-clients in the first run... \\n${RED}#${RESET} Trying to save the installation...\\n"
     echo -e "${WHITE_R}#${RESET} Running \"apt-get install -f\"..."
-    if apt-get install -f &>> "${eus_dir}/logs/mongodb-armhf-install.log"; then
+    if apt-get install -f &>>"${eus_dir}/logs/mongodb-armhf-install.log"; then
       echo -e "${GREEN}#${RESET} Successfully ran \"apt-get install -f\"! \\n"
       check_dpkg_lock
       echo -e "${WHITE_R}#${RESET} Trying to install mongodb-server and mongodb-clients again..."
-      if DEBIAN_FRONTEND='noninteractive' apt-get -y --allow-downgrades "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install mongodb-server mongodb-clients &>> "${eus_dir}/logs/mongodb-armhf-install.log"; then
+      if DEBIAN_FRONTEND='noninteractive' apt-get -y --allow-downgrades "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install mongodb-server mongodb-clients &>>"${eus_dir}/logs/mongodb-armhf-install.log"; then
         echo -e "${GREEN}#${RESET} Successfully installed mongodb-server and mongodb-clients! \\n"
       else
-        add_apt_option_no_install_recommends="true"; get_apt_options
-        if DEBIAN_FRONTEND='noninteractive' apt-get -y --allow-downgrades "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install mongodb-server mongodb-clients &>> "${eus_dir}/logs/mongodb-armhf-install.log"; then
+        add_apt_option_no_install_recommends="true"
+        get_apt_options
+        if DEBIAN_FRONTEND='noninteractive' apt-get -y --allow-downgrades "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install mongodb-server mongodb-clients &>>"${eus_dir}/logs/mongodb-armhf-install.log"; then
           echo -e "${GREEN}#${RESET} Successfully installed mongodb-server and mongodb-clients! \\n"
         else
           abort_reason="Failed to install mongodb-server and mongodb-clients... Consider switching to a 64-bit platform and re-run the scripts."
@@ -3994,7 +4407,8 @@ mongodb_installation_armhf() {
         get_apt_options
       fi
     else
-      abort_reason="Failed to run apt-get install -f."; abort
+      abort_reason="Failed to run apt-get install -f."
+      abort
     fi
   fi
   sleep 3
@@ -4009,15 +4423,15 @@ if [[ "${mongodb_installed}" != 'true' ]]; then
   if grep -qriIl "mongo" /etc/apt/sources.list*; then
     echo -ne "${YELLOW}#${RESET} Removing repository entries for MongoDB..." && sleep 1
     sed -i '/mongodb/d' /etc/apt/sources.list
-    if ls /etc/apt/sources.list.d/mongodb* > /dev/null 2>&1; then
-      rm /etc/apt/sources.list.d/mongodb*  2> /dev/null
+    if ls /etc/apt/sources.list.d/mongodb* >/dev/null 2>&1; then
+      rm /etc/apt/sources.list.d/mongodb* 2>/dev/null
     fi
     echo -e "\\r${GREEN}#${RESET} Successfully removed all MongoDB repository entries! \\n"
   else
     echo -e "\\r${YELLOW}#${RESET} There were no MongoDB Repository entries! \\n"
   fi
   if [[ "${broken_unifi_install}" == 'true' ]]; then
-    if [[ -z "${previous_mongodb_version}" ]]; then previous_mongodb_version="$(grep -sEio "db version v[0-9].[0-9].[0-9]{1,2}|buildInfo\":{\"version\":\"[0-9].[0-9].[0-9]{1,2}\"" /usr/lib/unifi/logs/mongod.log  | tail -n1 | sed -e 's/db version v//g' -e 's/buildInfo":{"version":"//g' -e 's/"//g' | sed 's/\.//g')"; fi
+    if [[ -z "${previous_mongodb_version}" ]]; then previous_mongodb_version="$(grep -sEio "db version v[0-9].[0-9].[0-9]{1,2}|buildInfo\":{\"version\":\"[0-9].[0-9].[0-9]{1,2}\"" /usr/lib/unifi/logs/mongod.log | tail -n1 | sed -e 's/db version v//g' -e 's/buildInfo":{"version":"//g' -e 's/"//g' | sed 's/\.//g')"; fi
     if [[ -n "${previous_mongodb_version}" ]]; then
       unset add_mongodb_30_repo
       unset add_mongodb_32_repo
@@ -4099,7 +4513,7 @@ if [[ "${mongodb_installed}" != 'true' ]]; then
   if [[ "${broken_unifi_install_mongodb_server_clients}" != 'true' ]]; then
     if [[ "${os_codename}" =~ (trusty|qiana|rebecca|rafaela|rosa|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|sarah|serena|sonya|sylvia|tara|tessa|tina|tricia) ]]; then
       if [[ "${architecture}" =~ (amd64|arm64) ]]; then
-	    if [[ "${os_codename}" =~ (precise|maya) && "${broken_unifi_install}" != 'true' ]]; then add_mongodb_34_repo="true"; fi
+        if [[ "${os_codename}" =~ (precise|maya) && "${broken_unifi_install}" != 'true' ]]; then add_mongodb_34_repo="true"; fi
         add_mongodb_repo
         mongodb_installation
       elif [[ ! "${architecture}" =~ (amd64|arm64) ]]; then
@@ -4122,20 +4536,20 @@ if [[ "${mongodb_installed}" != 'true' ]]; then
     echo -e "${GREEN}#${RESET} MongoDB is already installed! \\n"
   fi
 else
-  if "$(which dpkg)" -l mongodb-org-server 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+  if "$(which dpkg)" -l mongodb-org-server 2>/dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
     mongodb_org_version="$(dpkg-query --showformat='${Version}' --show mongodb-org-server | sed 's/.*://' | sed 's/-.*//g')"
     mongodb_org_version_no_dots="${mongodb_org_version//./}"
     if [[ "${mongodb_org_version_no_dots::2}" -ge '44' && "$(dpkg-query --showformat='${Version}' --show mongodb-org-server | sed -e 's/.*://' -e 's/-.*//g' | awk -F. '{print $3}')" -ge "19" ]]; then if ! (lscpu 2>/dev/null | grep -iq "avx") || ! grep -iq "avx" /proc/cpuinfo; then unsupported_database_version_change="true"; fi; fi
     if [[ -n "${previous_mongodb_version}" ]]; then if [[ "${mongodb_org_version_no_dots::2}" != "${previous_mongodb_version::2}" ]] && [[ "${previous_mongodb_version::2}" != $(("${mongodb_org_version_no_dots::2}" - 2)) ]]; then unsupported_database_version_change="true"; fi; fi
-  elif "$(which dpkg)" -l mongodb-server 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+  elif "$(which dpkg)" -l mongodb-server 2>/dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
     mongodb_version="$(dpkg-query --showformat='${Version}' --show mongodb-server | sed 's/.*://' | sed 's/-.*//g')"
     mongodb_version_no_dots="${mongodb_version//./}"
     if [[ "${mongodb_version_no_dots::2}" -ge '44' && "$(dpkg-query --showformat='${Version}' --show mongodb-server | sed -e 's/.*://' -e 's/-.*//g' | awk -F. '{print $3}')" -ge "19" ]]; then if ! (lscpu 2>/dev/null | grep -iq "avx") || ! grep -iq "avx" /proc/cpuinfo; then unsupported_database_version_change="true"; fi; fi
     if [[ -n "${previous_mongodb_version}" ]]; then if [[ "${mongodb_version_no_dots::2}" != "${previous_mongodb_version::2}" ]] && [[ "${previous_mongodb_version::2}" != $(("${mongodb_version_no_dots::2}" - 2)) ]]; then unsupported_database_version_change="true"; fi; fi
-  elif "$(which dpkg)" -l mongodb-org-server 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui" && [[ "${glennr_compiled_mongod}" == 'true' ]]; then
+  elif "$(which dpkg)" -l mongodb-org-server 2>/dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui" && [[ "${glennr_compiled_mongod}" == 'true' ]]; then
     check_dpkg_lock
     echo -e "${WHITE_R}#${RESET} Purging mongodb-org-server..."
-    if DEBIAN_FRONTEND='noninteractive' apt-get -y --allow-downgrades "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' purge mongodb-org-server &>> "${eus_dir}/logs/arm64-purge-mongodb.log"; then
+    if DEBIAN_FRONTEND='noninteractive' apt-get -y --allow-downgrades "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' purge mongodb-org-server &>>"${eus_dir}/logs/arm64-purge-mongodb.log"; then
       echo -e "${GREEN}#${RESET} Successfully purged mongodb-org-server! \\n"
     else
       abort_reason="Failed to purge mongodb-org-server."
@@ -4147,17 +4561,17 @@ fi
 sleep 3
 
 if [[ "${mongo_version_locked}" == '4.4.18' ]] || [[ "${unsupported_database_version_change}" == 'true' ]]; then
-  if "$(which dpkg)" -l mongodb-org-server 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+  if "$(which dpkg)" -l mongodb-org-server 2>/dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
     mongodb_org_version="$(dpkg-query --showformat='${Version}' --show mongodb-org-server | sed 's/.*://' | sed 's/-.*//g')"
     mongodb_org_version_no_dots="${mongodb_org_version//./}"
-  elif "$(which dpkg)" -l mongodb-server 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+  elif "$(which dpkg)" -l mongodb-server 2>/dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
     mongodb_org_version="$(dpkg-query --showformat='${Version}' --show mongodb-server | sed 's/.*://' | sed 's/-.*//g')"
     mongodb_org_version_no_dots="${mongodb_org_version//./}"
     if [[ "${mongodb_org_version_no_dots::2}" == '44' && "$(echo "${mongodb_org_version}" | cut -d'.' -f3)" -gt "18" ]] || [[ "${unsupported_database_version_change}" == 'true' ]]; then
       echo ""
       eus_directory_location="/tmp/EUS"
       eus_create_directories "mongodb"
-      "$(which dpkg)" -l | grep "mongo-\\|mongodb-\\|mongod-" | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | awk '{print $2}' &> /tmp/EUS/mongodb/packages_list
+      "$(which dpkg)" -l | grep "mongo-\\|mongodb-\\|mongod-" | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | awk '{print $2}' &>/tmp/EUS/mongodb/packages_list
       check_add_mongodb_repo_variable
       if [[ -n "${previous_mongodb_version}" ]]; then
         if [[ "${previous_mongodb_version::2}" == "26" ]]; then
@@ -4179,30 +4593,30 @@ if [[ "${mongo_version_locked}" == '4.4.18' ]] || [[ "${unsupported_database_ver
       mongodb_package_libssl="mongodb-org-server"
       mongodb_package_version_libssl="${install_mongodb_version}"
       libssl_installation_check
-      rm --force /tmp/EUS/mongodb/packages_remove_list &> /dev/null
-      cp /tmp/EUS/mongodb/packages_list /tmp/EUS/mongodb/packages_list.tmp &> /dev/null
+      rm --force /tmp/EUS/mongodb/packages_remove_list &>/dev/null
+      cp /tmp/EUS/mongodb/packages_list /tmp/EUS/mongodb/packages_list.tmp &>/dev/null
       while read -r installed_mongodb_package; do
         if ! apt-cache policy "^${installed_mongodb_package}$" | grep -ioq "${install_mongodb_version}"; then
-          if [[ "${installed_mongodb_package}" == "mongodb-server" ]] && [[ "${previous_mongodb_version::2}" != "24" ]]; then if sed -i "s/mongodb-server/mongodb-org-server/g" /tmp/EUS/mongodb/packages_list; then echo "mongodb-server" &>> /tmp/EUS/mongodb/packages_remove_list; fi; fi
-          if [[ "${installed_mongodb_package}" == "mongodb-clients" ]] && [[ "${previous_mongodb_version::2}" != "24" ]]; then if sed -i "s/mongodb-clients/mongodb-org-shell/g" /tmp/EUS/mongodb/packages_list; then echo "mongodb-clients" &>> /tmp/EUS/mongodb/packages_remove_list; fi; fi
-          if [[ "${installed_mongodb_package}" == "mongo-tools" ]] && [[ "${previous_mongodb_version::2}" != "24" ]]; then if sed -i "s/mongo-tools/mongodb-org-t/g" /tmp/EUS/mongodb/packages_list; then echo "mongo-tools" &>> /tmp/EUS/mongodb/packages_remove_list; fi; fi
-          if [[ "${installed_mongodb_package}" == "mongodb-org-database-tools-extra" && "${install_mongodb_version//./}" -lt "44" ]]; then echo "mongodb-org-database-tools-extra" &>> /tmp/EUS/mongodb/packages_remove_list; fi
+          if [[ "${installed_mongodb_package}" == "mongodb-server" ]] && [[ "${previous_mongodb_version::2}" != "24" ]]; then if sed -i "s/mongodb-server/mongodb-org-server/g" /tmp/EUS/mongodb/packages_list; then echo "mongodb-server" &>>/tmp/EUS/mongodb/packages_remove_list; fi; fi
+          if [[ "${installed_mongodb_package}" == "mongodb-clients" ]] && [[ "${previous_mongodb_version::2}" != "24" ]]; then if sed -i "s/mongodb-clients/mongodb-org-shell/g" /tmp/EUS/mongodb/packages_list; then echo "mongodb-clients" &>>/tmp/EUS/mongodb/packages_remove_list; fi; fi
+          if [[ "${installed_mongodb_package}" == "mongo-tools" ]] && [[ "${previous_mongodb_version::2}" != "24" ]]; then if sed -i "s/mongo-tools/mongodb-org-t/g" /tmp/EUS/mongodb/packages_list; then echo "mongo-tools" &>>/tmp/EUS/mongodb/packages_remove_list; fi; fi
+          if [[ "${installed_mongodb_package}" == "mongodb-org-database-tools-extra" && "${install_mongodb_version//./}" -lt "44" ]]; then echo "mongodb-org-database-tools-extra" &>>/tmp/EUS/mongodb/packages_remove_list; fi
           sed -i "/${installed_mongodb_package}/d" /tmp/EUS/mongodb/packages_list
         fi
-      done < "/tmp/EUS/mongodb/packages_list.tmp"
-      if "$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep -iq "mongod-armv8" && [[ "${install_mongodb_version//./}" != "70" ]]; then if sed -i "s/mongod-armv8/mongodb-org-server/g" /tmp/EUS/mongodb/packages_list; then echo "mongod-armv8" &>> /tmp/EUS/mongodb/packages_remove_list; fi; fi
-      rm --force "/tmp/EUS/mongodb/packages_list.tmp" &> /dev/null
+      done <"/tmp/EUS/mongodb/packages_list.tmp"
+      if "$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep -iq "mongod-armv8" && [[ "${install_mongodb_version//./}" != "70" ]]; then if sed -i "s/mongod-armv8/mongodb-org-server/g" /tmp/EUS/mongodb/packages_list; then echo "mongod-armv8" &>>/tmp/EUS/mongodb/packages_remove_list; fi; fi
+      rm --force "/tmp/EUS/mongodb/packages_list.tmp" &>/dev/null
       while read -r package; do
         if "$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep -iq "unifi "; then reinstall_unifi="true"; fi
         check_dpkg_lock
         echo -e "${WHITE_R}#${RESET} Removing ${package}..."
-        if DEBIAN_FRONTEND='noninteractive' apt-get -y --allow-downgrades "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' remove "${package}" &>> "${eus_dir}/logs/mongodb-unsupported-version-change.log"; then
+        if DEBIAN_FRONTEND='noninteractive' apt-get -y --allow-downgrades "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' remove "${package}" &>>"${eus_dir}/logs/mongodb-unsupported-version-change.log"; then
           echo -e "${GREEN}#${RESET} Successfully removed ${package}! \\n"
         else
           abort_reason="Failed to remove ${package} during the downgrade process."
           abort
         fi
-      done < /tmp/EUS/mongodb/packages_remove_list
+      done </tmp/EUS/mongodb/packages_remove_list
       while read -r mongodb_package; do
         if [[ "${previous_mongodb_version::2}" == "24" ]]; then
           if [[ "${mongodb_package}" == "mongodb-server" ]]; then
@@ -4210,22 +4624,31 @@ if [[ "${mongo_version_locked}" == '4.4.18' ]] || [[ "${unsupported_database_ver
             mongo_last_attempt_version="2.6"
             mongo_last_attempt_type="server"
             mongo_last_attempt
-            if [[ "${mongo_last_attempt_install_success}" != 'true' ]]; then abort_reason="Failed to install mongodb-server through mongo_last_attempt function during the MongoDB Downgrade process."; abort_function_skip_reason="true"; abort; fi
+            if [[ "${mongo_last_attempt_install_success}" != 'true' ]]; then
+              abort_reason="Failed to install mongodb-server through mongo_last_attempt function during the MongoDB Downgrade process."
+              abort_function_skip_reason="true"
+              abort
+            fi
           elif [[ "${mongodb_package}" == "mongodb-clients" ]]; then
             manually_setmongo_last_attempt_version="true"
             mongo_last_attempt_version="2.6"
             mongo_last_attempt_type="clients"
             mongo_last_attempt
-            if [[ "${mongo_last_attempt_install_success}" != 'true' ]]; then abort_reason="Failed to install mongodb-clients through mongo_last_attempt function during the MongoDB Downgrade process."; abort_function_skip_reason="true"; abort; fi
+            if [[ "${mongo_last_attempt_install_success}" != 'true' ]]; then
+              abort_reason="Failed to install mongodb-clients through mongo_last_attempt function during the MongoDB Downgrade process."
+              abort_function_skip_reason="true"
+              abort
+            fi
           fi
         else
           check_dpkg_lock
           echo -e "${WHITE_R}#${RESET} Downgrading ${mongodb_package}..."
-          if DEBIAN_FRONTEND='noninteractive' apt-get -y --allow-downgrades "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${mongodb_package}${install_mongodb_version_with_equality_sign}" &>> "${eus_dir}/logs/mongodb-unsupported-version-change.log"; then
+          if DEBIAN_FRONTEND='noninteractive' apt-get -y --allow-downgrades "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${mongodb_package}${install_mongodb_version_with_equality_sign}" &>>"${eus_dir}/logs/mongodb-unsupported-version-change.log"; then
             echo -e "${GREEN}#${RESET} Successfully downgraded ${mongodb_package} to version ${install_mongodb_version}! \\n"
           else
-            add_apt_option_no_install_recommends="true"; get_apt_options
-            if DEBIAN_FRONTEND='noninteractive' apt-get -y --allow-downgrades "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${mongodb_package}${install_mongodb_version_with_equality_sign}" &>> "${eus_dir}/logs/mongodb-unsupported-version-change.log"; then
+            add_apt_option_no_install_recommends="true"
+            get_apt_options
+            if DEBIAN_FRONTEND='noninteractive' apt-get -y --allow-downgrades "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${mongodb_package}${install_mongodb_version_with_equality_sign}" &>>"${eus_dir}/logs/mongodb-unsupported-version-change.log"; then
               echo -e "${GREEN}#${RESET} Successfully downgraded ${mongodb_package} to version ${install_mongodb_version}! \\n"
             else
               abort_reason="Failed to downgrade ${mongodb_package} from version ${mongodb_org_version} to ${install_mongodb_version}."
@@ -4235,14 +4658,14 @@ if [[ "${mongo_version_locked}" == '4.4.18' ]] || [[ "${unsupported_database_ver
           fi
         fi
         echo -e "${WHITE_R}#${RESET} Preventing ${mongodb_package} from upgrading..."
-        if echo "${mongodb_package} hold" | "$(which dpkg)" --set-selections &>> "${eus_dir}/logs/package-hold.log"; then
+        if echo "${mongodb_package} hold" | "$(which dpkg)" --set-selections &>>"${eus_dir}/logs/package-hold.log"; then
           echo -e "${GREEN}#${RESET} Successfully prevented ${mongodb_package} from upgrading! \\n"
         else
           echo -e "${RED}#${RESET} Failed to prevent ${mongodb_package} from upgrading...\\n"
         fi
-      done < /tmp/EUS/mongodb/packages_list
+      done </tmp/EUS/mongodb/packages_list
       sleep 2
-      rm --force /tmp/EUS/mongodb/packages_list &> /dev/null
+      rm --force /tmp/EUS/mongodb/packages_list &>/dev/null
       if [[ -n "${mongodb_add_repo_downgrade_variable}" ]]; then
         unset "${mongodb_add_repo_downgrade_variable}"
         unset mongodb_downgrade_process
@@ -4252,17 +4675,21 @@ if [[ "${mongo_version_locked}" == '4.4.18' ]] || [[ "${unsupported_database_ver
       if [[ "${reinstall_unifi}" == 'true' ]]; then
         eus_directory_location="/tmp/EUS"
         eus_create_directories "downloads"
-        fw_update_dl_link="$(curl "${curl_argument[@]}" https://get.glennr.nl/unifi/releases/unifi-network-application-versions.json | jq -r '.versions."'"$(dpkg-query --showformat='${Version}' --show unifi | awk -F '[-]' '{print $1}')"'".download_link' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
+        fw_update_dl_link="$(curl "${curl_argument[@]}" https://get.glennr.nl/unifi/releases/unifi-network-application-versions.json | jq -r '.versions."'"$(dpkg-query --showformat='${Version}' --show unifi | awk -F '[-]' '{print $1}')"'".download_link' | sed '/null/d' 2>"${eus_dir}/logs/locate-download.log")"
         unifi_temp="$(mktemp --tmpdir=/tmp/EUS/downloads "${unifi_deb_file_name}"_"$(dpkg-query --showformat='${Version}' --show unifi | awk -F '[-]' '{print $1}')"_XXXXX.deb)"
-        echo -e "$(date +%F-%R) | URL used: ${fw_update_dl_link}" &>> "${eus_dir}/logs/unifi_download.log"
-        if curl --retry 3 "${nos_curl_argument[@]}" --output "$unifi_temp" "${fw_update_dl_link}" &>> "${eus_dir}/logs/unifi_download.log"; then
-          if command -v dpkg-deb &> /dev/null; then if ! dpkg-deb --info "${unifi_temp}" &> /dev/null; then echo -e "$(date +%F-%R) | The file downloaded via ${fw_update_dl_link} was not a debian file format..." &>> "${eus_dir}/logs/unifi_download.log"; abort_reason="Failed to download UniFi Network Application version $(dpkg-query --showformat='${Version}' --show unifi | awk -F '[-]' '{print $1}') during the MongoDB Downgrade process."; abort; fi; fi
+        echo -e "$(date +%F-%R) | URL used: ${fw_update_dl_link}" &>>"${eus_dir}/logs/unifi_download.log"
+        if curl --retry 3 "${nos_curl_argument[@]}" --output "$unifi_temp" "${fw_update_dl_link}" &>>"${eus_dir}/logs/unifi_download.log"; then
+          if command -v dpkg-deb &>/dev/null; then if ! dpkg-deb --info "${unifi_temp}" &>/dev/null; then
+            echo -e "$(date +%F-%R) | The file downloaded via ${fw_update_dl_link} was not a debian file format..." &>>"${eus_dir}/logs/unifi_download.log"
+            abort_reason="Failed to download UniFi Network Application version $(dpkg-query --showformat='${Version}' --show unifi | awk -F '[-]' '{print $1}') during the MongoDB Downgrade process."
+            abort
+          fi; fi
           echo -e "${GREEN}#${RESET} Successfully downloaded UniFi Network Application version $(dpkg-query --showformat='${Version}' --show unifi | awk -F '[-]' '{print $1}')! \\n"
           unifi_deb_package_modification
           ignore_unifi_package_dependencies
-          echo "unifi unifi/has_backup boolean true" 2> /dev/null | debconf-set-selections
+          echo "unifi unifi/has_backup boolean true" 2>/dev/null | debconf-set-selections
           # shellcheck disable=SC2086
-          if DEBIAN_FRONTEND='noninteractive' "$(which dpkg)" -i ${dpkg_ignore_depends_flag} "${unifi_temp}" &>> "${eus_dir}/logs/mongodb-unsupported-version-change.log"; then
+          if DEBIAN_FRONTEND='noninteractive' "$(which dpkg)" -i ${dpkg_ignore_depends_flag} "${unifi_temp}" &>>"${eus_dir}/logs/mongodb-unsupported-version-change.log"; then
             echo -e "${GREEN}#${RESET} Successfully re-installed UniFi Network Application version $(dpkg-query --showformat='${Version}' --show unifi | awk -F '[-]' '{print $1}')! \\n"
           else
             abort_reason="Failed to reinstall UniFi Network Application $(dpkg-query --showformat='${Version}' --show unifi | awk -F '[-]' '{print $1}') during the MongoDB Downgrade process."
@@ -4284,12 +4711,20 @@ fi
 
 # Check if MongoDB is newer than 2.6 (3.6 for 7.5.x) for UniFi Network application 7.4.x
 if [[ "${first_digit_unifi}" -gt '7' ]] || [[ "${first_digit_unifi}" == '7' && "${second_digit_unifi}" -ge '4' ]] || [[ "${first_digit_unifi}" == '7' && "${second_digit_unifi}" -ge '5' ]]; then
-  if [[ "${first_digit_unifi}" -gt '7' ]] || [[ "${first_digit_unifi}" == '7' && "${second_digit_unifi}" -ge '5' ]]; then minimum_required_mongodb_version_dot="3.6"; minimum_required_mongodb_version="36"; unifi_latest_supported_version_number="7.4"; fi
-  if [[ "${first_digit_unifi}" == '7' && "${second_digit_unifi}" == '4' ]]; then minimum_required_mongodb_version_dot="2.6"; minimum_required_mongodb_version="26"; unifi_latest_supported_version_number="7.3"; fi
+  if [[ "${first_digit_unifi}" -gt '7' ]] || [[ "${first_digit_unifi}" == '7' && "${second_digit_unifi}" -ge '5' ]]; then
+    minimum_required_mongodb_version_dot="3.6"
+    minimum_required_mongodb_version="36"
+    unifi_latest_supported_version_number="7.4"
+  fi
+  if [[ "${first_digit_unifi}" == '7' && "${second_digit_unifi}" == '4' ]]; then
+    minimum_required_mongodb_version_dot="2.6"
+    minimum_required_mongodb_version="26"
+    unifi_latest_supported_version_number="7.3"
+  fi
   mongodb_server_version="$("$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep "mongodb-server \\|mongodb-org-server " | awk '{print $3}' | sed 's/\.//g' | sed 's/.*://' | sed 's/-.*//g')"
   if [[ -z "${mongodb_server_version}" ]]; then
     if [[ -n "$(command -v mongod)" ]]; then
-      if "${mongocommand}" --port 27117 --eval "print(\"waited for connection\")" &> /dev/null; then
+      if "${mongocommand}" --port 27117 --eval "print(\"waited for connection\")" &>/dev/null; then
         mongodb_server_version="$("$(which mongod)" --quiet --eval "db.version()" | sed 's/\.//g' | sed 's/.*://' | sed 's/-.*//g')"
       else
         mongodb_server_version="$("$(which mongod)" --version --quiet | tr '[:upper:]' '[:lower:]' | sed -e '/db version/d' -e '/mongodb shell/d' -e 's/build info: //g' | jq -r '.version' | sed 's/\.//g')"
@@ -4333,26 +4768,29 @@ adoptium_java() {
     echo -e "${WHITE_R}#${RESET} Adding the key for adoptium packages..."
     aptkey_depreciated
     if [[ "${apt_key_deprecated}" == 'true' ]]; then
-      if curl "${curl_argument[@]}" -fSL "https://packages.adoptium.net/artifactory/api/gpg/key/public" 2>&1 | tee -a "${eus_dir}/logs/repository-keys.log" | gpg --dearmor --yes | tee -a "/etc/apt/keyrings/packages-adoptium.gpg" &> /dev/null; then
+      if curl "${curl_argument[@]}" -fSL "https://packages.adoptium.net/artifactory/api/gpg/key/public" 2>&1 | tee -a "${eus_dir}/logs/repository-keys.log" | gpg --dearmor --yes | tee -a "/etc/apt/keyrings/packages-adoptium.gpg" &>/dev/null; then
         adoptium_curl_exit_status="${PIPESTATUS[0]}"
         adoptium_gpg_exit_status="${PIPESTATUS[2]}"
         if [[ "${adoptium_curl_exit_status}" -eq "0" && "${adoptium_gpg_exit_status}" -eq "0" && -s "/etc/apt/keyrings/packages-adoptium.gpg" ]]; then
-          echo -e "${GREEN}#${RESET} Successfully added the key for adoptium packages! \\n"; signed_by_value_adoptium="[ signed-by=/etc/apt/keyrings/packages-adoptium.gpg ]"
+          echo -e "${GREEN}#${RESET} Successfully added the key for adoptium packages! \\n"
+          signed_by_value_adoptium="[ signed-by=/etc/apt/keyrings/packages-adoptium.gpg ]"
         else
-          abort_reason="Failed to add the key for adoptium packages."; abort
+          abort_reason="Failed to add the key for adoptium packages."
+          abort
         fi
       else
         abort_reason="Failed to fetch the key for adoptium packages."
         abort
       fi
     else
-      if curl "${curl_argument[@]}" -fSL "https://packages.adoptium.net/artifactory/api/gpg/key/public" 2>&1 | tee -a "${eus_dir}/logs/repository-keys.log" | apt-key add - &> /dev/null; then
+      if curl "${curl_argument[@]}" -fSL "https://packages.adoptium.net/artifactory/api/gpg/key/public" 2>&1 | tee -a "${eus_dir}/logs/repository-keys.log" | apt-key add - &>/dev/null; then
         adoptium_curl_exit_status="${PIPESTATUS[0]}"
         adoptium_apt_key_exit_status="${PIPESTATUS[2]}"
         if [[ "${adoptium_curl_exit_status}" -eq "0" && "${adoptium_apt_key_exit_status}" -eq "0" ]]; then
           echo -e "${GREEN}#${RESET} Successfully added the key for adoptium packages! \\n"
         else
-          abort_reason="Failed to add the key for adoptium packages."; abort
+          abort_reason="Failed to add the key for adoptium packages."
+          abort
         fi
       else
         abort_reason="Failed to fetch the key for adoptium packages."
@@ -4360,7 +4798,7 @@ adoptium_java() {
       fi
     fi
     echo -e "${WHITE_R}#${RESET} Adding the adoptium packages repository..."
-    if echo "deb ${signed_by_value_adoptium}${http_or_https}://packages.adoptium.net/artifactory/deb ${os_codename} main" &> /etc/apt/sources.list.d/glennr-packages-adoptium.list; then
+    if echo "deb ${signed_by_value_adoptium}${http_or_https}://packages.adoptium.net/artifactory/deb ${os_codename} main" &>/etc/apt/sources.list.d/glennr-packages-adoptium.list; then
       echo -e "${GREEN}#${RESET} Successfully added the adoptium packages repository!\\n" && sleep 2
     else
       abort_reason="Failed to add the adoptium packages repository."
@@ -4378,7 +4816,11 @@ adoptium_java() {
     add_repositories
     run_apt_get_update
   else
-    { echo "# Could not find \"${os_codename}\" on https://packages.adoptium.net/artifactory/deb/dists/"; echo "# List of what was found:"; curl "${curl_argument[@]}" "https://packages.adoptium.net/artifactory/deb/dists/" | sed -e 's/<[^>]*>//g' -e '/^$/d' -e '/\/\//d' -e '/function/d' -e '/location/d' -e '/}/d' -e 's/\///g' -e '/Name/d' -e '/Index/d' -e '/\.\./d' -e '/Artifactory/d' | awk '{print $1}'; } &>> "${eus_dir}/logs/adoptium.log"
+    {
+      echo "# Could not find \"${os_codename}\" on https://packages.adoptium.net/artifactory/deb/dists/"
+      echo "# List of what was found:"
+      curl "${curl_argument[@]}" "https://packages.adoptium.net/artifactory/deb/dists/" | sed -e 's/<[^>]*>//g' -e '/^$/d' -e '/\/\//d' -e '/function/d' -e '/location/d' -e '/}/d' -e 's/\///g' -e '/Name/d' -e '/Index/d' -e '/\.\./d' -e '/Artifactory/d' | awk '{print $1}'
+    } &>>"${eus_dir}/logs/adoptium.log"
   fi
   if [[ "${adoptium_adjusted_os_codename}" == 'true' ]]; then get_distro; fi
 }
@@ -4415,7 +4857,7 @@ openjdk_java() {
   elif [[ "${os_codename}" == "jessie" ]]; then
     check_dpkg_lock
     echo -e "${WHITE_R}#${RESET} ${openjdk_variable} ${required_java_version}-jre-headless..."
-    if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install -t jessie-backports "${required_java_version}-jre-headless" &>> "${eus_dir}/logs/apt.log" || [[ "${old_openjdk_version}" == 'true' ]]; then
+    if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install -t jessie-backports "${required_java_version}-jre-headless" &>>"${eus_dir}/logs/apt.log" || [[ "${old_openjdk_version}" == 'true' ]]; then
       echo -e "${RED}#${RESET} Failed to ${openjdk_variable_3} ${required_java_version}-jre-headless in the first run...\\n"
       if [[ "$(find /etc/apt/ -name "*.list" -type f -print0 | xargs -0 cat | grep -P -c "^deb http[s]*://archive.debian.org/debian jessie-backports main")" -eq "0" ]]; then
         echo "deb http://archive.debian.org/debian jessie-backports main" >>/etc/apt/sources.list.d/glennr-install-script.list || abort
@@ -4432,9 +4874,15 @@ openjdk_java() {
         fi
         echo -e "${WHITE_R}#${RESET} Running apt-get update..."
         required_package="${required_java_version}-jre-headless"
-        if apt-get update -o Acquire::Check-Valid-Until="false" &> /dev/null; then echo -e "${GREEN}#${RESET} Successfully ran apt-get update! \\n"; else abort_reason="Failed to ran apt-get update."; abort; fi
-        echo -e "\\n------- ${required_package} installation ------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/apt.log"
-        if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install -t jessie-backports "${required_java_version}-jre-headless" &>> "${eus_dir}/logs/apt.log"; then echo -e "${GREEN}#${RESET} Successfully installed ${required_package}! \\n" && sleep 2; else abort_reason="Failed to install ${required_package}."; abort; fi
+        if apt-get update -o Acquire::Check-Valid-Until="false" &>/dev/null; then echo -e "${GREEN}#${RESET} Successfully ran apt-get update! \\n"; else
+          abort_reason="Failed to ran apt-get update."
+          abort
+        fi
+        echo -e "\\n------- ${required_package} installation ------- $(date +%F-%R) -------\\n" &>>"${eus_dir}/logs/apt.log"
+        if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install -t jessie-backports "${required_java_version}-jre-headless" &>>"${eus_dir}/logs/apt.log"; then echo -e "${GREEN}#${RESET} Successfully installed ${required_package}! \\n" && sleep 2; else
+          abort_reason="Failed to install ${required_package}."
+          abort
+        fi
         sed -i '/jessie-backports/d' /etc/apt/sources.list.d/glennr-install-script.list
         unset required_package
       fi
@@ -4479,11 +4927,13 @@ if ! "$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep -iq "o
   if [[ "${old_openjdk_version}" == 'true' ]]; then
     header_red
     echo -e "${RED}#${RESET} OpenJDK ${required_java_version_short} is to old...\\n" && sleep 2
-    openjdk_variable="Updating"; openjdk_variable_3="Update"
+    openjdk_variable="Updating"
+    openjdk_variable_3="Update"
   else
     header
     echo -e "${GREEN}#${RESET} Preparing OpenJDK/Temurin ${required_java_version_short} installation...\\n" && sleep 2
-    openjdk_variable="Installing"; openjdk_variable_3="Install"
+    openjdk_variable="Installing"
+    openjdk_variable_3="Install"
   fi
   openjdk_java
   adoptium_java
@@ -4492,25 +4942,34 @@ if ! "$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep -iq "o
   java_install_attempts="$(apt-cache search --names-only ^"openjdk-${required_java_version_short}-jre-headless|temurin-${required_java_version_short}-jre|temurin-${required_java_version_short}-jdk" | awk '{print $1}' | wc -l)"
   until [[ "${java_install_attempts}" == "0" ]]; do
     if [[ "${openjdk_available}" == "true" && "${openjdk_attempted}" != 'true' ]]; then
-      required_package="openjdk-${required_java_version_short}-jre-headless"; apt_get_install_package; openjdk_attempted="true"
+      required_package="openjdk-${required_java_version_short}-jre-headless"
+      apt_get_install_package
+      openjdk_attempted="true"
       if "$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep -iq "openjdk-${required_java_version_short}-jre-headless"; then break; fi
     fi
     if [[ "${temurin_available}" == "true" ]]; then
       if apt-cache search --names-only ^"temurin-${required_java_version_short}-jre" | grep -ioq "temurin-${required_java_version_short}-jre" && [[ "${temurin_jre_attempted}" != 'true' ]]; then
-        required_package="temurin-${required_java_version_short}-jre"; apt_get_install_package; temurin_jre_attempted="true"
+        required_package="temurin-${required_java_version_short}-jre"
+        apt_get_install_package
+        temurin_jre_attempted="true"
         if "$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep -iq "temurin-${required_java_version_short}-jre"; then break; fi
       elif apt-cache search --names-only ^"temurin-${required_java_version_short}-jdk" | grep -ioq "temurin-${required_java_version_short}-jdk" && [[ "${temurin_jdk_attempted}" != 'true' ]]; then
-        required_package="temurin-${required_java_version_short}-jdk"; apt_get_install_package; temurin_jdk_attempted="true"
+        required_package="temurin-${required_java_version_short}-jdk"
+        apt_get_install_package
+        temurin_jdk_attempted="true"
         if "$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep -iq "temurin-${required_java_version_short}-jdk"; then break; fi
       fi
     fi
-    ((java_install_attempts=java_install_attempts-1))
+    ((java_install_attempts = java_install_attempts - 1))
   done
-  if ! "$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep -iq "openjdk-${required_java_version_short}-jre-headless\\|temurin-${required_java_version_short}-jre\\|temurin-${required_java_version_short}-jdk"; then abort_reason="Failed to install the required java version."; abort; fi
+  if ! "$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep -iq "openjdk-${required_java_version_short}-jre-headless\\|temurin-${required_java_version_short}-jre\\|temurin-${required_java_version_short}-jdk"; then
+    abort_reason="Failed to install the required java version."
+    abort
+  fi
   unset java_install_attempts
   if "$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep -iq "temurin-${required_java_version_short}-jre" && "$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep -iq "temurin-${required_java_version_short}-jdk"; then
     echo -e "${WHITE_R}#${RESET} Removing temurin-${required_java_version_short}-jdk..."
-    if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg6::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' remove "temurin-${required_java_version_short}-jdk" &>> "${eus_dir}/logs/temurin-jdk-remove.log"; then
+    if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg6::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' remove "temurin-${required_java_version_short}-jdk" &>>"${eus_dir}/logs/temurin-jdk-remove.log"; then
       echo -e "${GREEN}#${RESET} Successfully removed temurin-${required_java_version_short}-jdk! \\n"
     else
       echo -e "${RED}#${RESET} Failed to remove temurin-${required_java_version_short}-jdk... \\n"
@@ -4535,29 +4994,30 @@ if [[ "${required_java_version_installed}" == 'true' && "${unsupported_java_vers
   echo -e "${WHITE_R}#${RESET} This may remove packages that depend on these java versions."
   read -rp $'\033[39m#\033[0m Do you want to proceed with uninstalling the unsupported JAVA version(s)? (y/N) ' yes_no
   case "$yes_no" in
-       [Yy]*)
-          header
-          while read -r java_package; do
-            echo -e "${WHITE_R}#${RESET} Removing ${java_package}... \\n"
-            if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' remove "${java_package}" &>> "${eus_dir}/logs/java-uninstall.log"; then
-              echo -e "${GREEN}#${RESET} Successfully removed ${java_package}! \\n"
-            else
-              echo -e "${RED}#${RESET} Successfully removed ${java_package}... \\n"
-            fi
-          done < <("$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep -i "openjdk-.*-\\|oracle-java.*\\|temurin-.*-" | grep -v "openjdk-${required_java_version_short}\\|oracle-java${required_java_version_short}\\|openjdk-${required_java_version_short}\\|temurin-${required_java_version_short}" | awk '{print $2}' | sed 's/:.*//')
-          sleep 3;;
-       [Nn]*|"") ;;
+  [Yy]*)
+    header
+    while read -r java_package; do
+      echo -e "${WHITE_R}#${RESET} Removing ${java_package}... \\n"
+      if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' remove "${java_package}" &>>"${eus_dir}/logs/java-uninstall.log"; then
+        echo -e "${GREEN}#${RESET} Successfully removed ${java_package}! \\n"
+      else
+        echo -e "${RED}#${RESET} Successfully removed ${java_package}... \\n"
+      fi
+    done < <("$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep -i "openjdk-.*-\\|oracle-java.*\\|temurin-.*-" | grep -v "openjdk-${required_java_version_short}\\|oracle-java${required_java_version_short}\\|openjdk-${required_java_version_short}\\|temurin-${required_java_version_short}" | awk '{print $2}' | sed 's/:.*//')
+    sleep 3
+    ;;
+  [Nn]* | "") ;;
   esac
 fi
 
 update_ca_certificates() {
   if [[ "${update_ca_certificates_ran}" != 'true' ]]; then
     echo -e "${WHITE_R}#${RESET} Updating the ca-certificates..."
-    rm /etc/ssl/certs/java/cacerts 2> /dev/null
-    if update-ca-certificates -f &> /dev/null; then
+    rm /etc/ssl/certs/java/cacerts 2>/dev/null
+    if update-ca-certificates -f &>/dev/null; then
       echo -e "${GREEN}#${RESET} Successfully updated the ca-certificates\\n" && sleep 3
-      if [[ -e "/usr/bin/printf" ]]; then /usr/bin/printf '\xfe\xed\xfe\xed\x00\x00\x00\x02\x00\x00\x00\x00\xe2\x68\x6e\x45\xfb\x43\xdf\xa4\xd9\x92\xdd\x41\xce\xb6\xb2\x1c\x63\x30\xd7\x92' > /etc/ssl/certs/java/cacerts; fi
-      if [[ -e "/var/lib/dpkg/info/ca-certificates-java.postinst" ]]; then /var/lib/dpkg/info/ca-certificates-java.postinst configure &> /dev/null; fi
+      if [[ -e "/usr/bin/printf" ]]; then /usr/bin/printf '\xfe\xed\xfe\xed\x00\x00\x00\x02\x00\x00\x00\x00\xe2\x68\x6e\x45\xfb\x43\xdf\xa4\xd9\x92\xdd\x41\xce\xb6\xb2\x1c\x63\x30\xd7\x92' >/etc/ssl/certs/java/cacerts; fi
+      if [[ -e "/var/lib/dpkg/info/ca-certificates-java.postinst" ]]; then /var/lib/dpkg/info/ca-certificates-java.postinst configure &>/dev/null; fi
       update_ca_certificates_ran="true"
     else
       echo -e "${RED}#${RESET} Failed to update the ca-certificates...\\n" && sleep 3
@@ -4568,32 +5028,32 @@ update_ca_certificates() {
 if "$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep -iq "openjdk-${required_java_version_short}\\|temurin-${required_java_version_short}"; then
   update_java_alternatives="$(update-java-alternatives --list | grep "^java-1.${required_java_version_short}.*openjdk\\|temurin-${required_java_version_short}" | awk '{print $1}' | head -n1)"
   if [[ -n "${update_java_alternatives}" ]]; then
-    update-java-alternatives --set "${update_java_alternatives}" &> /dev/null
+    update-java-alternatives --set "${update_java_alternatives}" &>/dev/null
   fi
   update_alternatives="$(update-alternatives --list java | grep "java-${required_java_version_short}-openjdk\\|temurin-${required_java_version_short}" | awk '{print $1}' | head -n1)"
   if [[ -n "${update_alternatives}" ]]; then
-    update-alternatives --set java "${update_alternatives}" &> /dev/null
+    update-alternatives --set java "${update_alternatives}" &>/dev/null
   fi
   header
   update_ca_certificates
 fi
 
 if "$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep -iq "openjdk-${required_java_version_short}\\|temurin-${required_java_version_short}"; then
-  java_readlink="$(readlink -f "$( command -v java )" | sed "s:/bin/.*$::")"
+  java_readlink="$(readlink -f "$(command -v java)" | sed "s:/bin/.*$::")"
   if ! echo "${java_readlink}" | grep -ioq "${required_java_version_short}"; then java_readlink="$(update-java-alternatives --list | grep "${required_java_version_short}" | awk '{print $3}' | head -n1)"; fi
   java_home_location="JAVA_HOME=${java_readlink}"
   current_java_home="$(grep -si "^JAVA_HOME" /etc/default/unifi)"
   if [[ -n "${java_home_location}" ]]; then
     if [[ "${current_java_home}" != "${java_home_location}" ]]; then
       if [[ -e "/etc/default/unifi" ]]; then sed -i '/JAVA_HOME/d' /etc/default/unifi; fi
-      echo "${java_home_location}" >> /etc/default/unifi
+      echo "${java_home_location}" >>/etc/default/unifi
     fi
   fi
   current_java_home="$(grep -si "^JAVA_HOME" /etc/environment)"
   if [[ -n "${java_home_location}" ]]; then
     if [[ "${current_java_home}" != "${java_home_location}" ]]; then
       if [[ -e "/etc/default/unifi" ]]; then sed -i 's/^JAVA_HOME/#JAVA_HOME/' /etc/environment; fi
-      echo "${java_home_location}" >> /etc/environment
+      echo "${java_home_location}" >>/etc/environment
       # shellcheck disable=SC1091
       source /etc/environment
     fi
@@ -4601,15 +5061,20 @@ if "$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep -iq "ope
 fi
 
 if [[ "${required_java_version}" == "openjdk-8" ]]; then
-  unifi_dependencies_list=( "binutils" "ca-certificates-java" "java-common" "jsvc" "libcommons-daemon-java" )
+  unifi_dependencies_list=("binutils" "ca-certificates-java" "java-common" "jsvc" "libcommons-daemon-java")
 else
-  unifi_dependencies_list=( "binutils" "ca-certificates-java" "java-common" )
+  unifi_dependencies_list=("binutils" "ca-certificates-java" "java-common")
 fi
 
 for unifi_dependency in "${unifi_dependencies_list[@]}"; do
-  if ! "$(which dpkg)" -l "${unifi_dependency}" 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
-    if [[ "${unifi_dependencies_mesasge}" != 'true' ]]; then header; echo -e "${WHITE_R}#${RESET} Preparing installation of the UniFi Network Application dependencies...\\n"; sleep 2; unifi_dependencies_mesasge="true"; fi
-    echo -e "\\n------- UniFi Dependecy \"${unifi_dependency}\" installation ------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/apt.log"
+  if ! "$(which dpkg)" -l "${unifi_dependency}" 2>/dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+    if [[ "${unifi_dependencies_mesasge}" != 'true' ]]; then
+      header
+      echo -e "${WHITE_R}#${RESET} Preparing installation of the UniFi Network Application dependencies...\\n"
+      sleep 2
+      unifi_dependencies_mesasge="true"
+    fi
+    echo -e "\\n------- UniFi Dependecy \"${unifi_dependency}\" installation ------- $(date +%F-%R) -------\\n" &>>"${eus_dir}/logs/apt.log"
     if ! apt-cache search --names-only ^"${unifi_dependency}" | grep -ioq "${unifi_dependency}"; then
       if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then
         repo_arguments=" main universe"
@@ -4640,8 +5105,8 @@ echo -e "${WHITE_R}#${RESET} Installing your UniFi Network Application ( ${WHITE
 sleep 2
 if [[ "${unifi_network_application_downloaded}" != 'true' ]]; then
   unifi_temp="$(mktemp --tmpdir=/tmp unifi_sysvinit_all_"${unifi_clean}"_XXX.deb)"
-  unifi_fwupdate="$(curl "${curl_argument[@]}" "https://fw-update.ui.com/api/firmware-latest?filter=eq~~version_major~~${first_digit_unifi}&filter=eq~~version_minor~~${second_digit_unifi}&filter=eq~~version_patch~~${third_digit_unifi}&filter=eq~~platform~~debian" | jq -r "._embedded.firmware[]._links.data.href" | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
-  if [[ -z "${unifi_fwupdate}" ]]; then unifi_fwupdate="$(curl "${curl_argument[@]}" "http://fw-update.ui.com/api/firmware-latest?filter=eq~~version_major~~${first_digit_unifi}&filter=eq~~version_minor~~${second_digit_unifi}&filter=eq~~version_patch~~${third_digit_unifi}&filter=eq~~platform~~debian" | jq -r "._embedded.firmware[]._links.data.href" | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"; fi
+  unifi_fwupdate="$(curl "${curl_argument[@]}" "https://fw-update.ui.com/api/firmware-latest?filter=eq~~version_major~~${first_digit_unifi}&filter=eq~~version_minor~~${second_digit_unifi}&filter=eq~~version_patch~~${third_digit_unifi}&filter=eq~~platform~~debian" | jq -r "._embedded.firmware[]._links.data.href" | sed '/null/d' 2>"${eus_dir}/logs/locate-download.log")"
+  if [[ -z "${unifi_fwupdate}" ]]; then unifi_fwupdate="$(curl "${curl_argument[@]}" "http://fw-update.ui.com/api/firmware-latest?filter=eq~~version_major~~${first_digit_unifi}&filter=eq~~version_minor~~${second_digit_unifi}&filter=eq~~version_patch~~${third_digit_unifi}&filter=eq~~platform~~debian" | jq -r "._embedded.firmware[]._links.data.href" | sed '/null/d' 2>"${eus_dir}/logs/locate-download.log")"; fi
   if [[ "${broken_unifi_install}" != 'true' ]]; then
     unifi_download_urls=(
       "https://dl.ui.com/unifi/${unifi_secret}/unifi_sysvinit_all.deb"
@@ -4657,19 +5122,32 @@ if [[ "${unifi_network_application_downloaded}" != 'true' ]]; then
   fi
   echo -e "${WHITE_R}#${RESET} Downloading the UniFi Network Application..."
   for unifi_download_url in "${unifi_download_urls[@]}"; do
-    echo -e "$(date +%F-%R) | URL used: ${unifi_download_url}" &>> "${eus_dir}/logs/unifi_download.log"
-    if curl --retry 3 "${nos_curl_argument[@]}" --output "${unifi_temp}" "${unifi_download_url}" &>> "${eus_dir}/logs/unifi_download.log"; then
-      if command -v dpkg-deb &> /dev/null; then if ! dpkg-deb --info "${unifi_temp}" &> /dev/null; then echo -e "$(date +%F-%R) | The file downloaded via ${unifi_download_url} was not a debian file format..." &>> "${eus_dir}/logs/unifi_download.log"; continue; fi; fi
-      echo -e "${GREEN}#${RESET} Successfully downloaded application version ${unifi_clean}! \\n"; unifi_downloaded="true"; break
+    echo -e "$(date +%F-%R) | URL used: ${unifi_download_url}" &>>"${eus_dir}/logs/unifi_download.log"
+    if curl --retry 3 "${nos_curl_argument[@]}" --output "${unifi_temp}" "${unifi_download_url}" &>>"${eus_dir}/logs/unifi_download.log"; then
+      if command -v dpkg-deb &>/dev/null; then if ! dpkg-deb --info "${unifi_temp}" &>/dev/null; then
+        echo -e "$(date +%F-%R) | The file downloaded via ${unifi_download_url} was not a debian file format..." &>>"${eus_dir}/logs/unifi_download.log"
+        continue
+      fi; fi
+      echo -e "${GREEN}#${RESET} Successfully downloaded application version ${unifi_clean}! \\n"
+      unifi_downloaded="true"
+      break
     elif [[ "${unifi_download_url}" =~ ^https:// ]]; then
-      echo -e "$(date +%F-%R) | URL used: ${unifi_download_url/https:/http:}" &>> "${eus_dir}/logs/unifi_download.log"
-      if curl --retry 3 "${nos_curl_argument[@]}" --output "${unifi_temp}" "${unifi_download_url/https:/http:}" &>> "${eus_dir}/logs/unifi_download.log"; then
-        if command -v dpkg-deb &> /dev/null; then if ! dpkg-deb --info "${unifi_temp}" &> /dev/null; then echo -e "$(date +%F-%R) | The file downloaded via ${unifi_download_url/https:/http:} was not a debian file format..." &>> "${eus_dir}/logs/unifi_download.log"; continue; fi; fi
-        echo -e "${GREEN}#${RESET} Successfully downloaded application version ${unifi_clean} (using HTTP)! \\n"; unifi_downloaded="true"; break
+      echo -e "$(date +%F-%R) | URL used: ${unifi_download_url/https:/http:}" &>>"${eus_dir}/logs/unifi_download.log"
+      if curl --retry 3 "${nos_curl_argument[@]}" --output "${unifi_temp}" "${unifi_download_url/https:/http:}" &>>"${eus_dir}/logs/unifi_download.log"; then
+        if command -v dpkg-deb &>/dev/null; then if ! dpkg-deb --info "${unifi_temp}" &>/dev/null; then
+          echo -e "$(date +%F-%R) | The file downloaded via ${unifi_download_url/https:/http:} was not a debian file format..." &>>"${eus_dir}/logs/unifi_download.log"
+          continue
+        fi; fi
+        echo -e "${GREEN}#${RESET} Successfully downloaded application version ${unifi_clean} (using HTTP)! \\n"
+        unifi_downloaded="true"
+        break
       fi
     fi
   done
-  if [[ "${unifi_downloaded}" != "true" ]]; then abort_reason="Failed to download application version ${unifi_clean}."; abort; fi
+  if [[ "${unifi_downloaded}" != "true" ]]; then
+    abort_reason="Failed to download application version ${unifi_clean}."
+    abort
+  fi
 else
   echo -e "${WHITE_R}#${RESET} Downloading the UniFi Network Application..."
   echo -e "${GREEN}#${RESET} UniFi Network Application version ${unifi_clean} has already been downloaded! \n"
@@ -4681,28 +5159,40 @@ unifi_required_packages_check
 system_properties_check
 system_properties_free_memory_check
 echo -e "${WHITE_R}#${RESET} Installing the UniFi Network Application..."
-echo "unifi unifi/has_backup boolean true" 2> /dev/null | debconf-set-selections
+echo "unifi unifi/has_backup boolean true" 2>/dev/null | debconf-set-selections
 check_dpkg_lock
 # shellcheck disable=SC2086
-if DEBIAN_FRONTEND=noninteractive "$(which dpkg)" -i ${dpkg_ignore_depends_flag} "${unifi_temp}" &>> "${eus_dir}/logs/unifi_install.log"; then
+if DEBIAN_FRONTEND=noninteractive "$(which dpkg)" -i ${dpkg_ignore_depends_flag} "${unifi_temp}" &>>"${eus_dir}/logs/unifi_install.log"; then
   echo -e "${GREEN}#${RESET} Successfully installed the UniFi Network Application! \\n"
   if [[ "${unifi_ports_in_use}" == 'true' ]]; then change_default_unifi_ports; fi
 else
   abort_reason="Failed to install the UniFi Network Application."
   abort
 fi
-if ! [[ -d "/var/run/unifi" ]]; then install -o unifi -g unifi -m 750 -d /var/run/unifi &>> "${eus_dir}/logs/unifi-var-run-missing.log"; fi
-jq '."scripts"."'"${script_name}"'" += {"install-date": "'"$(date +%s)"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+if ! [[ -d "/var/run/unifi" ]]; then install -o unifi -g unifi -m 750 -d /var/run/unifi &>>"${eus_dir}/logs/unifi-var-run-missing.log"; fi
+jq '."scripts"."'"${script_name}"'" += {"install-date": "'"$(date +%s)"'"}' "${eus_dir}/db/db.json" >"${eus_dir}/db/db.json.tmp" 2>>"${eus_dir}/logs/eus-database-management.log"
 eus_database_move
-rm --force "${unifi_temp}" 2> /dev/null
+rm --force "${unifi_temp}" 2>/dev/null
 if ! systemctl is-active --quiet unifi && [[ "${limited_functionality}" != 'true' ]]; then unifi_service_not_running="true"; elif [[ "$(pgrep -f "/usr/lib/unifi" | grep -cv grep)" -lt "2" ]]; then unifi_service_not_running="true"; fi
 if [[ "${unifi_service_not_running}" == 'true' ]]; then
   echo -e "${WHITE_R}#${RESET} Starting the UniFi Network Application..."
   old_systemd_version_check
   if [[ "${limited_functionality}" == 'true' ]]; then
-    if [[ "${old_systemd_version}" == 'true' ]]; then if [[ "${old_systemd_version_check_unifi_restart}" == 'true' ]]; then echo -e "${GREEN}#${RESET} Successfully started the UniFi Network Application! \\n"; else abort_reason="Failed to start the Network Application."; abort; fi; elif ! service unifi start &>> "${eus_dir}/logs/post-unifi-install-start.log"; then abort_reason="Failed to start the Network Application."; abort; else echo -e "${GREEN}#${RESET} Successfully started the UniFi Network Application! \\n"; fi
+    if [[ "${old_systemd_version}" == 'true' ]]; then if [[ "${old_systemd_version_check_unifi_restart}" == 'true' ]]; then echo -e "${GREEN}#${RESET} Successfully started the UniFi Network Application! \\n"; else
+      abort_reason="Failed to start the Network Application."
+      abort
+    fi; elif ! service unifi start &>>"${eus_dir}/logs/post-unifi-install-start.log"; then
+      abort_reason="Failed to start the Network Application."
+      abort
+    else echo -e "${GREEN}#${RESET} Successfully started the UniFi Network Application! \\n"; fi
   else
-    if [[ "${old_systemd_version}" == 'true' ]]; then if [[ "${old_systemd_version_check_unifi_restart}" == 'true' ]]; then echo -e "${GREEN}#${RESET} Successfully started the UniFi Network Application! \\n"; else abort_reason="Failed to start the Network Application."; abort; fi; elif ! systemctl start unifi &>> "${eus_dir}/logs/post-unifi-install-start.log"; then abort_reason="Failed to start the Network Application."; abort; else echo -e "${GREEN}#${RESET} Successfully started the UniFi Network Application! \\n"; fi
+    if [[ "${old_systemd_version}" == 'true' ]]; then if [[ "${old_systemd_version_check_unifi_restart}" == 'true' ]]; then echo -e "${GREEN}#${RESET} Successfully started the UniFi Network Application! \\n"; else
+      abort_reason="Failed to start the Network Application."
+      abort
+    fi; elif ! systemctl start unifi &>>"${eus_dir}/logs/post-unifi-install-start.log"; then
+      abort_reason="Failed to start the Network Application."
+      abort
+    else echo -e "${GREEN}#${RESET} Successfully started the UniFi Network Application! \\n"; fi
   fi
 fi
 sleep 3
@@ -4734,41 +5224,42 @@ if [[ "${script_option_skip}" != 'true' || "${script_option_add_repository}" == 
   echo -e "${WHITE_R}#${RESET} Would you like to update the UniFi Network Application via APT?"
   if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Do you want the script to add the source list file? (y/N) ' yes_no; fi
   case "$yes_no" in
-      [Yy]*)
-        header
-        echo -e "${WHITE_R}#${RESET} Adding the UniFi Network Application repository for branch ${first_digit_unifi}.${second_digit_unifi}... \\n"
-        sleep 3
-        sed -i '/unifi/d' /etc/apt/sources.list
-        rm --force /etc/apt/sources.list.d/100-ubnt-unifi.list 2> /dev/null
-        echo -e "${WHITE_R}#${RESET} Downloading the UniFi Network Application repository key..."
-        if curl "${curl_argument[@]}" -fSL "https://dl.ui.com/unifi/unifi-repo.gpg" | gpg --dearmor --yes 2>&1 | tee -a "/etc/apt/keyrings/unifi-repo.gpg" &> /dev/null; then
-          unifi_curl_exit_status="${PIPESTATUS[0]}"
-          unifi_gpg_exit_status="${PIPESTATUS[2]}"
-          if [[ "${unifi_curl_exit_status}" -eq "0" && "${unifi_gpg_exit_status}" -eq "0" && -s "/etc/apt/keyrings/unifi-repo.gpg" ]]; then
-            echo -e "${GREEN}#${RESET} Successfully downloaded the key for the UniFi Network Application repository! \\n"
-            echo -e "${WHITE_R}#${RESET} Adding the UniFi Network Application repository..."
-            if [[ "${architecture}" == 'arm64' ]]; then arch="arch=arm64"; elif [[ "${architecture}" == 'amd64' ]]; then arch="arch=amd64"; else arch="arch=amd64,arm64"; fi
-            if echo "deb [ ${arch} signed-by=/etc/apt/keyrings/unifi-repo.gpg ] https://www.ui.com/downloads/unifi/debian unifi-${first_digit_unifi}.${second_digit_unifi} ubiquiti" &> /etc/apt/sources.list.d/100-ubnt-unifi.list; then
-              echo -e "${GREEN}#${RESET} Successfully added UniFi Network Application source list! \\n"
-              run_apt_get_update
-              echo -ne "\\r${WHITE_R}#${RESET} Checking if the added UniFi Network Application repository is valid..." && sleep 1
-              if grep -ioq "unifi-${first_digit_unifi}.${second_digit_unifi} Release' does not" /tmp/EUS/apt/apt_update; then
-                echo -ne "\\r${RED}#${RESET} The added UniFi Repository is not valid/used, the repository list will be removed! \\n"
-                rm -f /etc/apt/sources.list.d/100-ubnt-unifi.list &> /dev/null
-              else
-                echo -ne "\\r${GREEN}#${RESET} The added UniFi Network Application Repository is valid! \\n"
-              fi
-              sleep 3
-            else
-              echo -e "${RED}#${RESET} Failed to add the UniFi Network Application source list...\\n"
-            fi
+  [Yy]*)
+    header
+    echo -e "${WHITE_R}#${RESET} Adding the UniFi Network Application repository for branch ${first_digit_unifi}.${second_digit_unifi}... \\n"
+    sleep 3
+    sed -i '/unifi/d' /etc/apt/sources.list
+    rm --force /etc/apt/sources.list.d/100-ubnt-unifi.list 2>/dev/null
+    echo -e "${WHITE_R}#${RESET} Downloading the UniFi Network Application repository key..."
+    if curl "${curl_argument[@]}" -fSL "https://dl.ui.com/unifi/unifi-repo.gpg" | gpg --dearmor --yes 2>&1 | tee -a "/etc/apt/keyrings/unifi-repo.gpg" &>/dev/null; then
+      unifi_curl_exit_status="${PIPESTATUS[0]}"
+      unifi_gpg_exit_status="${PIPESTATUS[2]}"
+      if [[ "${unifi_curl_exit_status}" -eq "0" && "${unifi_gpg_exit_status}" -eq "0" && -s "/etc/apt/keyrings/unifi-repo.gpg" ]]; then
+        echo -e "${GREEN}#${RESET} Successfully downloaded the key for the UniFi Network Application repository! \\n"
+        echo -e "${WHITE_R}#${RESET} Adding the UniFi Network Application repository..."
+        if [[ "${architecture}" == 'arm64' ]]; then arch="arch=arm64"; elif [[ "${architecture}" == 'amd64' ]]; then arch="arch=amd64"; else arch="arch=amd64,arm64"; fi
+        if echo "deb [ ${arch} signed-by=/etc/apt/keyrings/unifi-repo.gpg ] https://www.ui.com/downloads/unifi/debian unifi-${first_digit_unifi}.${second_digit_unifi} ubiquiti" &>/etc/apt/sources.list.d/100-ubnt-unifi.list; then
+          echo -e "${GREEN}#${RESET} Successfully added UniFi Network Application source list! \\n"
+          run_apt_get_update
+          echo -ne "\\r${WHITE_R}#${RESET} Checking if the added UniFi Network Application repository is valid..." && sleep 1
+          if grep -ioq "unifi-${first_digit_unifi}.${second_digit_unifi} Release' does not" /tmp/EUS/apt/apt_update; then
+            echo -ne "\\r${RED}#${RESET} The added UniFi Repository is not valid/used, the repository list will be removed! \\n"
+            rm -f /etc/apt/sources.list.d/100-ubnt-unifi.list &>/dev/null
           else
-            echo -e "${RED}#${RESET} Failed to add the UniFi Network Application source list...\\n"
+            echo -ne "\\r${GREEN}#${RESET} The added UniFi Network Application Repository is valid! \\n"
           fi
+          sleep 3
         else
-          echo -e "${RED}#${RESET} Failed to download the key for the UniFi Network Application repository...\\n"
-        fi;;
-      [Nn]*|"") ;;
+          echo -e "${RED}#${RESET} Failed to add the UniFi Network Application source list...\\n"
+        fi
+      else
+        echo -e "${RED}#${RESET} Failed to add the UniFi Network Application source list...\\n"
+      fi
+    else
+      echo -e "${RED}#${RESET} Failed to download the key for the UniFi Network Application repository...\\n"
+    fi
+    ;;
+  [Nn]* | "") ;;
   esac
 fi
 
@@ -4783,29 +5274,30 @@ if "$(which dpkg)" -l ufw | grep -q "^ii\\|^hi"; then
       header
       read -rp $'\033[39m#\033[0m Is/will your application only be used locally ( regarding device discovery )? (Y/n) ' yes_no
       case "${yes_no}" in
-          [Yy]*|"")
-              echo -e "${WHITE_R}#${RESET} Script will ensure that 10001/udp for device discovery will be added to UFW."
-              script_option_local_install="true"
-              sleep 3;;
-          [Nn]*|*) ;;
+      [Yy]* | "")
+        echo -e "${WHITE_R}#${RESET} Script will ensure that 10001/udp for device discovery will be added to UFW."
+        script_option_local_install="true"
+        sleep 3
+        ;;
+      [Nn]* | *) ;;
       esac
     fi
     header
     echo -e "${WHITE_R}#${RESET} Uncomplicated Firewall ( UFW ) seems to be active."
     echo -e "${WHITE_R}#${RESET} Checking if all required ports are added!"
-    rm -rf /tmp/EUS/ports/* &> /dev/null
+    rm -rf /tmp/EUS/ports/* &>/dev/null
     eus_directory_location="/tmp/EUS"
     eus_create_directories "ports"
     ssh_port=$(awk '/Port/{print $2}' /etc/ssh/sshd_config | head -n1)
     if [[ "${script_option_local_install}" == 'true' ]]; then
       unifi_ports=(3478/udp "${diport}"/tcp "${dmport}"/tcp "${hphport}"/tcp "${hpsport}"/tcp "${stport}"/tcp 10001/udp)
-      echo -e "3478/udp\\n${diport}/tcp\\n${dmport}/tcp\\n${hphport}/tcp\\n${hpsport}/tcp\\n6789/tcp\\n10001/udp" &>> /tmp/EUS/ports/all_ports
+      echo -e "3478/udp\\n${diport}/tcp\\n${dmport}/tcp\\n${hphport}/tcp\\n${hpsport}/tcp\\n6789/tcp\\n10001/udp" &>>/tmp/EUS/ports/all_ports
     else
       unifi_ports=(3478/udp "${diport}"/tcp "${dmport}"/tcp "${hphport}"/tcp "${hpsport}"/tcp "${stport}"/tcp)
-      echo -e "3478/udp\\n${diport}/tcp\\n${dmport}/tcp\\n${hphport}/tcp\\n${hpsport}/tcp\\n6789/tcp" &>> /tmp/EUS/ports/all_ports
+      echo -e "3478/udp\\n${diport}/tcp\\n${dmport}/tcp\\n${hphport}/tcp\\n${hpsport}/tcp\\n6789/tcp" &>>/tmp/EUS/ports/all_ports
     fi
-    echo -e "${ssh_port}" &>> /tmp/EUS/ports/all_ports
-    ufw status verbose &>> /tmp/EUS/ports/ufw_list
+    echo -e "${ssh_port}" &>>/tmp/EUS/ports/all_ports
+    ufw status verbose &>>/tmp/EUS/ports/ufw_list
     while read -r port; do
       port_number_only=$(echo "${port}" | cut -d'/' -f1)
       # shellcheck disable=SC1117
@@ -4816,7 +5308,7 @@ if "$(which dpkg)" -l ufw | grep -q "^ii\\|^hi"; then
       if ! grep -v "(v6)" /tmp/EUS/ports/ufw_list | grep "^${port_number_only}\b\\|^${port}\b" | grep -iq "ALLOW IN"; then
         required_port_missing="true"
       fi
-    done < /tmp/EUS/ports/all_ports
+    done </tmp/EUS/ports/all_ports
     if [[ "${required_port_missing}" == 'true' ]]; then
       echo -e "\\n${WHITE_R}----${RESET}\\n\\n"
       echo -e "${WHITE_R}#${RESET} We are missing required ports.."
@@ -4827,46 +5319,48 @@ if "$(which dpkg)" -l ufw | grep -q "^ii\\|^hi"; then
         sleep 2
       fi
       case "${yes_no}" in
-         [Yy]*|"")
-            echo -e "\\n${WHITE_R}----${RESET}\\n\\n"
-            for port in "${unifi_ports[@]}"; do
-              port_number=$(echo "${port}" | cut -d'/' -f1)
-              ufw allow "${port}" &> "/tmp/EUS/ports/${port_number}"
-              if [[ -f "/tmp/EUS/ports/${port_number}" && -s "/tmp/EUS/ports/${port_number}" ]]; then
-                if grep -iq "added" "/tmp/EUS/ports/${port_number}"; then
-                  echo -e "${GREEN}#${RESET} Successfully added port ${port} to UFW."
+      [Yy]* | "")
+        echo -e "\\n${WHITE_R}----${RESET}\\n\\n"
+        for port in "${unifi_ports[@]}"; do
+          port_number=$(echo "${port}" | cut -d'/' -f1)
+          ufw allow "${port}" &>"/tmp/EUS/ports/${port_number}"
+          if [[ -f "/tmp/EUS/ports/${port_number}" && -s "/tmp/EUS/ports/${port_number}" ]]; then
+            if grep -iq "added" "/tmp/EUS/ports/${port_number}"; then
+              echo -e "${GREEN}#${RESET} Successfully added port ${port} to UFW."
+            fi
+            if grep -iq "skipping" "/tmp/EUS/ports/${port_number}"; then
+              echo -e "${YELLOW}#${RESET} Port ${port} was already added to UFW."
+            fi
+          fi
+        done
+        if [[ -f /etc/ssh/sshd_config && -s /etc/ssh/sshd_config ]]; then
+          if ! ufw status verbose | grep -v "(v6)" | grep "${ssh_port}" | grep -iq "ALLOW IN"; then
+            echo -e "\\n${WHITE_R}----${RESET}\\n\\n${WHITE_R}#${RESET} Your SSH port ( ${ssh_port} ) doesn't seem to be in your UFW list.."
+            if [[ "${script_option_skip}" != 'true' ]]; then
+              read -rp $'\033[39m#\033[0m Do you want to add your SSH port to the UFW list? (Y/n) ' yes_no
+            else
+              echo -e "${WHITE_R}#${RESET} Adding port ${ssh_port}.."
+              sleep 2
+            fi
+            case "${yes_no}" in
+            [Yy]* | "")
+              echo -e "\\n${WHITE_R}----${RESET}\\n"
+              ufw allow "${ssh_port}" &>"/tmp/EUS/ports/${ssh_port}"
+              if [[ -f "/tmp/EUS/ports/${ssh_port}" && -s "/tmp/EUS/ports/${ssh_port}" ]]; then
+                if grep -iq "added" "/tmp/EUS/ports/${ssh_port}"; then
+                  echo -e "${GREEN}#${RESET} Successfully added port ${ssh_port} to UFW."
                 fi
-                if grep -iq "skipping" "/tmp/EUS/ports/${port_number}"; then
-                  echo -e "${YELLOW}#${RESET} Port ${port} was already added to UFW."
+                if grep -iq "skipping" "/tmp/EUS/ports/${ssh_port}"; then
+                  echo -e "${YELLOW}#${RESET} Port ${ssh_port} was already added to UFW."
                 fi
               fi
-            done
-            if [[ -f /etc/ssh/sshd_config && -s /etc/ssh/sshd_config ]]; then
-              if ! ufw status verbose | grep -v "(v6)" | grep "${ssh_port}" | grep -iq "ALLOW IN"; then
-                echo -e "\\n${WHITE_R}----${RESET}\\n\\n${WHITE_R}#${RESET} Your SSH port ( ${ssh_port} ) doesn't seem to be in your UFW list.."
-                if [[ "${script_option_skip}" != 'true' ]]; then
-                  read -rp $'\033[39m#\033[0m Do you want to add your SSH port to the UFW list? (Y/n) ' yes_no
-                else
-                  echo -e "${WHITE_R}#${RESET} Adding port ${ssh_port}.."
-                  sleep 2
-                fi
-                case "${yes_no}" in
-                   [Yy]*|"")
-                      echo -e "\\n${WHITE_R}----${RESET}\\n"
-                      ufw allow "${ssh_port}" &> "/tmp/EUS/ports/${ssh_port}"
-                      if [[ -f "/tmp/EUS/ports/${ssh_port}" && -s "/tmp/EUS/ports/${ssh_port}" ]]; then
-                        if grep -iq "added" "/tmp/EUS/ports/${ssh_port}"; then
-                          echo -e "${GREEN}#${RESET} Successfully added port ${ssh_port} to UFW."
-                        fi
-                        if grep -iq "skipping" "/tmp/EUS/ports/${ssh_port}"; then
-                          echo -e "${YELLOW}#${RESET} Port ${ssh_port} was already added to UFW."
-                        fi
-                      fi;;
-                   [Nn]*|*) ;;
-                esac
-              fi
-            fi;;
-         [Nn]*|*) ;;
+              ;;
+            [Nn]* | *) ;;
+            esac
+          fi
+        fi
+        ;;
+      [Nn]* | *) ;;
       esac
     else
       echo -e "\\n${WHITE_R}----${RESET}\\n\\n${WHITE_R}#${RESET} All required ports already exist!"
@@ -4880,7 +5374,7 @@ if [[ -z "${SERVER_IP}" ]]; then
 fi
 
 # Check if application is reachable via public IP.
-timeout 1 nc -zv "${PUBLIC_SERVER_IP}" "${dmport}" &> /dev/null && public_reachable="true"
+timeout 1 nc -zv "${PUBLIC_SERVER_IP}" "${dmport}" &>/dev/null && public_reachable="true"
 
 # Check if application is up and running + if it respond on public IP
 if [[ "${public_reachable}" == 'true' ]]; then
@@ -4891,26 +5385,35 @@ if [[ "${public_reachable}" == 'true' ]]; then
       echo -e "${WHITE_R}#${RESET} Checking if the UniFi Network application is responding... (this can take up to 60 seconds)"
       unifi_api_message="true"
     fi
-    if [[ "$(curl -sk "https://localhost:${dmport}/status" | jq -r '.meta.up' 2> /dev/null)" == 'true' ]]; then
-      if [[ "${unifi_api_message}" == 'true' ]]; then echo -e "${GREEN}#${RESET} The application is up and running! \\n"; sleep 2; fi
+    if [[ "$(curl -sk "https://localhost:${dmport}/status" | jq -r '.meta.up' 2>/dev/null)" == 'true' ]]; then
+      if [[ "${unifi_api_message}" == 'true' ]]; then
+        echo -e "${GREEN}#${RESET} The application is up and running! \\n"
+        sleep 2
+      fi
       if [[ "${unifi_api_message}" == 'true' ]]; then echo -e "${WHITE_R}#${RESET} Checking if the application is also responding on it's public IP address..."; fi
-      if [[ "$(curl -sk "https://${PUBLIC_SERVER_IP}:${dmport}/status" | jq -r '.meta.up' 2> /dev/null)" == 'true' ]]; then
-        if [[ "${unifi_api_message}" == 'true' ]]; then echo -e "${GREEN}#${RESET} The application is responding on it's public IP address! The script will continue with the SSL setup!"; sleep 4; fi
+      if [[ "$(curl -sk "https://${PUBLIC_SERVER_IP}:${dmport}/status" | jq -r '.meta.up' 2>/dev/null)" == 'true' ]]; then
+        if [[ "${unifi_api_message}" == 'true' ]]; then
+          echo -e "${GREEN}#${RESET} The application is responding on it's public IP address! The script will continue with the SSL setup!"
+          sleep 4
+        fi
         public_reachable="true"
       else
-        if [[ "${unifi_api_message}" == 'true' ]]; then echo -e "${GREEN}#${RESET} The application does not respond on it's public IP address... \\n"; sleep 4; fi
+        if [[ "${unifi_api_message}" == 'true' ]]; then
+          echo -e "${GREEN}#${RESET} The application does not respond on it's public IP address... \\n"
+          sleep 4
+        fi
         public_reachable="false"
       fi
       break
     fi
-    ((check_count=check_count+1))
+    ((check_count = check_count + 1))
     sleep 1
   done
 fi
 
 if [[ "${public_reachable}" == 'true' || "${run_easy_encrypt}" == 'true' ]] && [[ "${script_option_skip}" != 'true' || "${fqdn_specified}" == 'true' ]]; then
-  echo -e "--install-script" &>> /tmp/EUS/le_script_options
-  if [[ -f /tmp/EUS/le_script_options && -s /tmp/EUS/le_script_options ]]; then IFS=" " read -r le_script_options <<< "$(tr '\r\n' ' ' < /tmp/EUS/le_script_options)"; fi
+  echo -e "--install-script" &>>/tmp/EUS/le_script_options
+  if [[ -f /tmp/EUS/le_script_options && -s /tmp/EUS/le_script_options ]]; then IFS=" " read -r le_script_options <<<"$(tr '\r\n' ' ' </tmp/EUS/le_script_options)"; fi
   header
   le_script="true"
   echo -e "${WHITE_R}#${RESET} Your application seems to be exposed to the internet. ( port 8443 is open )"
@@ -4920,11 +5423,12 @@ if [[ "${public_reachable}" == 'true' || "${run_easy_encrypt}" == 'true' ]] && [
   echo -e "${WHITE_R}-${RESET} Port 80 needs to be open ( port forwarded )\\n\\n"
   if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Do you want to download and execute my UniFi Easy Encrypt Script? (Y/n) ' yes_no; fi
   case "$yes_no" in
-      [Yy]*|"")
-          rm --force unifi-easy-encrypt.sh &> /dev/null
-          # shellcheck disable=SC2068
-          curl "${curl_argument[@]}" --remote-name https://get.glennr.nl/unifi/extra/unifi-easy-encrypt.sh && bash unifi-easy-encrypt.sh ${le_script_options[@]};;
-      [Nn]*) ;;
+  [Yy]* | "")
+    rm --force unifi-easy-encrypt.sh &>/dev/null
+    # shellcheck disable=SC2068
+    curl "${curl_argument[@]}" --remote-name https://get.glennr.nl/unifi/extra/unifi-easy-encrypt.sh && bash unifi-easy-encrypt.sh ${le_script_options[@]}
+    ;;
+  [Nn]*) ;;
   esac
 fi
 
@@ -4933,7 +5437,7 @@ if [[ "${netcat_installed}" == 'true' ]]; then
   check_dpkg_lock
   echo -e "${WHITE_R}#${RESET} The script installed ${netcat_installed_package_name}, we do not need this anymore.\\n"
   echo -e "${WHITE_R}#${RESET} Purging package ${netcat_installed_package_name}..."
-  if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' purge "${netcat_installed_package_name}" &>> "${eus_dir}/logs/uninstall-${netcat_installed_package_name}.log"; then
+  if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' purge "${netcat_installed_package_name}" &>>"${eus_dir}/logs/uninstall-${netcat_installed_package_name}.log"; then
     echo -e "${GREEN}#${RESET} Successfully purged ${netcat_installed_package_name}! \\n"
   else
     echo -e "${RED}#${RESET} Failed to purge ${netcat_installed_package_name}... \\n"
@@ -4951,12 +5455,12 @@ if "$(which dpkg)" -l | grep "unifi " | grep -q "^ii\\|^hi"; then
       if [[ -d /usr/lib/EUS/ ]]; then
         if [[ -f /usr/lib/EUS/server_fqdn_install && -s /usr/lib/EUS/server_fqdn_install ]]; then
           application_fqdn_le="$(tail -n1 /usr/lib/EUS/server_fqdn_install)"
-          rm --force /usr/lib/EUS/server_fqdn_install &> /dev/null
+          rm --force /usr/lib/EUS/server_fqdn_install &>/dev/null
         fi
       elif [[ -d /srv/EUS/ ]]; then
         if [[ -f /srv/EUS/server_fqdn_install && -s /srv/EUS/server_fqdn_install ]]; then
           application_fqdn_le="$(tail -n1 /srv/EUS/server_fqdn_install)"
-          rm --force /srv/EUS/server_fqdn_install &> /dev/null
+          rm --force /srv/EUS/server_fqdn_install &>/dev/null
         fi
       fi
       if [[ -n "${application_fqdn_le}" ]]; then
@@ -4985,7 +5489,7 @@ if "$(which dpkg)" -l | grep "unifi " | grep -q "^ii\\|^hi"; then
       fi
       while read -r line; do
         echo -e "${YELLOW}-${RESET} The $(echo "${line}" | cut -d'/' -f3) port was changed from $(echo "${line}" | cut -d'/' -f1) was changed to $(echo "${line}" | cut -d'/' -f2)..."
-      done < "/tmp/EUS/ports/new-ports"
+      done <"/tmp/EUS/ports/new-ports"
     fi
   fi
   echo -e "\\n"
