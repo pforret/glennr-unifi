@@ -33,7 +33,7 @@ function Script:main() {
 
   case "${action,,}" in
   get)
-    #TIP: use «$script_prefix get» to ...
+    #TIP: use «$script_prefix get» to get all Unifi scripts from glennr.nl
     #TIP:> $script_prefix get
     download_from_glennr "https://glennr.nl/s/unifi-network-controller" "./scripts/controller"
 

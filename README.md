@@ -29,11 +29,11 @@ Flags, options and parameters:
 -V|--VERBOSE     : [flag] also show debug messages [default: off]
 -F|--FORCE       : [flag] do not ask for confirmation (always yes) [default: off]
 -L|--LOG_DIR <?> : [option] folder for log files   [default: /Users/pforret/log/glennr-unifi]
-    -T|--TMP_DIR <?> : [option] folder for temp files  [default: /tmp/glennr-unifi]
+-T|--TMP_DIR <?> : [option] folder for temp files  [default: /tmp/glennr-unifi]
 <action>         : [choice] action to perform  [options: get,check,env,update]
 
 ### TIPS & EXAMPLES
-* use glennr-unifi get to ...
+* use glennr-unifi get to get all Unifi scripts from glennr.nl
   glennr-unifi get
 * use glennr-unifi check to check if this script is ready to execute and what values the options/flags are
   glennr-unifi check
