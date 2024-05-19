@@ -6,35 +6,19 @@ readonly script_author="peter@forret.com"
 readonly script_created="2024-05-04"
 readonly run_as_root=-1 # run_as_root: 0 = don't check anything / 1 = script MUST run as root / -1 = script MAY NOT run as root
 readonly script_description="sync all scripts from glennr.nl"
-## some initialisation
-action=""
-git_repo_remote=""
-git_repo_root=""
-install_package=""
-os_kernel=""
-os_machine=""
-os_name=""
-os_version=""
-script_basename=""
-script_hash="?"
-script_lines="?"
-script_prefix=""
-shell_brand=""
-shell_version=""
 
-temp_files=()
 
 function Option:config() {
   grep <<<"
 #commented lines will be filtered
 flag|h|help|show usage
-flag|q|quiet|no output
-flag|v|verbose|also show debug messages
-flag|f|force|do not ask for confirmation (always yes)
-option|l|log_dir|folder for log files |$HOME/log/$script_prefix
-option|t|tmp_dir|folder for temp files|/tmp/$script_prefix
+flag|Q|QUIET|no output
+flag|V|VERBOSE|also show debug messages
+flag|F|FORCE|do not ask for confirmation (always yes)
+option|L|LOG_DIR|folder for log files |$HOME/log/$script_prefix
+option|T|TMP_DIR|folder for temp files|/tmp/$script_prefix
 choice|1|action|action to perform|get,check,env,update
-param|?|input|input file/text
+# param|?|input|input file/text
 " -v -e '^#' -e '^\s*$'
 }
 
@@ -66,7 +50,7 @@ function Script:main() {
     cp "$latest" "./scripts/latest/install_unifi_video.sh"
 
     git add ./scripts
-    if git diff --quiet --cached; then
+    if git diff --QUIET --cached; then
       IO:success "No changes!                                "
     else
       IO:success "Updating changes ...                                "
@@ -140,17 +124,34 @@ function do_action2() {
 # removed -e because it made basic [[ testing ]] difficult
 set -uo pipefail
 IFS=$'\n\t'
-force=0
+FORCE=0
 help=0
 error_prefix=""
 
-#to enable verbose even before option parsing
-verbose=0
-[[ $# -gt 0 ]] && [[ $1 == "-v" ]] && verbose=1
+## some initialisation
+action=""
+git_repo_remote=""
+git_repo_root=""
+install_package=""
+os_kernel=""
+os_machine=""
+os_name=""
+os_version=""
+script_basename=""
+script_hash="?"
+script_lines="?"
+script_prefix=""
+shell_brand=""
+shell_version=""
+temp_files=()
 
-#to enable quiet even before option parsing
-quiet=0
-[[ $# -gt 0 ]] && [[ $1 == "-q" ]] && quiet=1
+#to enable VERBOSE even before option parsing
+VERBOSE=0
+[[ $# -gt 0 ]] && [[ $1 == "-v" ]] && VERBOSE=1
+
+#to enable QUIET even before option parsing
+QUIET=0
+[[ $# -gt 0 ]] && [[ $1 == "-q" ]] && QUIET=1
 
 txtReset=""
 txtError=""
@@ -202,11 +203,11 @@ function IO:initialize() {
 }
 
 function IO:print() {
-  ((quiet)) && true || printf '%b\n' "$*"
+  ((QUIET)) && true || printf '%b\n' "$*"
 }
 
 function IO:debug() {
-  ((verbose)) && IO:print "${txtInfo}# $* ${txtReset}" >&2
+  ((VERBOSE)) && IO:print "${txtInfo}# $* ${txtReset}" >&2
   true
 }
 
@@ -230,7 +231,7 @@ function IO:announce() {
 }
 
 function IO:progress() {
-  ((quiet)) || (
+  ((QUIET)) || (
     local screen_width
     screen_width=$(tput cols 2>/dev/null || echo 80)
     local rest_of_line
@@ -261,7 +262,7 @@ function IO:countdown() {
 
 ### interactive
 function IO:confirm() {
-  ((force)) && return 0
+  ((FORCE)) && return 0
   read -r -p "$1 [y/N] " -n 1
   echo " "
   [[ $REPLY =~ ^[Yy]$ ]]
@@ -628,7 +629,7 @@ function Script:show_required() {
 function Option:initialize() {
   local init_command
   init_command=$(Option:config |
-    grep -v "verbose|" |
+    grep -v "VERBOSE|" |
     awk '
     BEGIN { FS="|"; OFS=" ";}
     $1 ~ /flag/   && $5 == "" {print $3 "=0; "}
@@ -814,7 +815,7 @@ function Os:require() {
   install_instructions="$install_package $1"
   [[ $words -eq 1 ]] && install_instructions="$install_package $2"
   [[ $words -gt 1 ]] && install_instructions="${2:-}"
-  if ((force)); then
+  if ((FORCE)); then
     IO:announce "Installing [$1] ..."
     eval "$install_instructions"
   else
@@ -989,21 +990,21 @@ function Script:meta() {
 
 function Script:initialize() {
   log_file=""
-  if [[ -n "${tmp_dir:-}" ]]; then
+  if [[ -n "${TMP_DIR:-}" ]]; then
     # clean up TMP folder after 1 day
-    Os:folder "$tmp_dir" 1
+    Os:folder "$TMP_DIR" 1
   fi
-  if [[ -n "${log_dir:-}" ]]; then
+  if [[ -n "${LOG_DIR:-}" ]]; then
     # clean up LOG folder after 1 month
-    Os:folder "$log_dir" 30
-    log_file="$log_dir/$script_prefix.$execution_day.log"
+    Os:folder "$LOG_DIR" 30
+    log_file="$LOG_DIR/$script_prefix.$execution_day.log"
     IO:debug "$config_icon log_file: $log_file"
   fi
 }
 
 function Os:tempfile() {
   local extension=${1:-txt}
-  local file="${tmp_dir:-/tmp}/$execution_day.$RANDOM.$extension"
+  local file="${TMP_DIR:-/tmp}/$execution_day.$RANDOM.$extension"
   IO:debug "$config_icon tmp_file: $file"
   temp_files+=("$file")
   echo "$file"
