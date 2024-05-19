@@ -51,8 +51,8 @@
 
 # Script                | UniFi Network Easy Installation Script
 # Version               | 7.3.0
-# Application version   | 5.5.24-9806
-# Debian Repo version   | 5.5.24-9806
+# Application version   | 8.1.127-810cd1e59a
+# Debian Repo version   | 8.1.127-25320-1
 # Author                | Glenn Rietveld
 # Email                 | glennrietveld8@hotmail.nl
 # Website               | https://GlennR.nl

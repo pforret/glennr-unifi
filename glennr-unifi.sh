@@ -52,6 +52,9 @@ function Script:main() {
     #TIP: use «$script_prefix get» to ...
     #TIP:> $script_prefix get
     download_from_glennr "https://glennr.nl/s/unifi-network-controller" "./scripts/controller"
+    latest=$(find "./scripts/controller" -type f -name "*.sh" | sort | tail -1)
+    cp "$latest" "./scripts/install_unifi_controller.sh"
+
     download_from_glennr "https://glennr.nl/s/unifi-easy-update" "./scripts/update"
     download_from_glennr "https://glennr.nl/s/unifi-fail2ban" "./scripts/fail2ban"
     download_from_glennr "https://glennr.nl/s/unifi-lets-encrypt" "./scripts/encrypt"
@@ -62,7 +65,13 @@ function Script:main() {
       IO:success "No changes!                                "
     else
       IO:success "Updating changes ...                                "
-      Gha:finish
+      if [[ -z "${RUNNER_OS:-}" ]] ; then
+        # not in GitHub Action
+        setver auto
+      else
+        # in GitHub action
+        Gha:finish
+      fi
     fi
 
     ;;

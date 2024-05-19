@@ -1,0 +1,2909 @@
+ # UniFi Network Application Installation Script changelog
+
+ # Author   | Glenn Rietveld
+ # Email    | glennrietveld8@hotmail.nl
+ # Website  | https://GlennR.nl
+
+
+###################################################################################################################################################################################################
+#                                                                                                                                                                                                 #
+#                                                                                            Changelog                                                                                            #
+#                                                                                                                                                                                                 #
+###################################################################################################################################################################################################
+
+ |  UniFi Network Application Installation Script  |  Version 7.3.0
+ 
+ - Improved broken installation recovery.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 7.2.9
+ 
+ - Added broken installation check during installation of packages.
+ - Added more retries to curl downloads if it fails due to an network error.
+ - Added more attempts to install MongoDB if prefered methods fail.
+ - Added support for fixing unsupported upgrade/downgrades from MongoDB version 2.4/2.6.
+ - Improve MongoDB Installation time/date logging.
+ - Improved the MongoDB Downgrade process when package mongodb-org-database-tools-extra breaks older mongodb-org-tools versions.
+ - Fixed the inability to start the Network Application if the user outside of the script performed an unsupport MongoDB version change. It will now also detect and properly handle incorrect user database upgrades.
+ - Include script usage details in support files.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 7.2.8
+ 
+ - Added the ability to correct the time/date on setups without the timedatectl command.
+ - Added pgp.mongodb.com to the DNS resolve check.
+ - Added tuning to the system.properties file if the Free Memory is lower than 2GB.
+ - Fixed timedatectl errors during support file generation on older distributions.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 7.2.7
+ 
+ - Added an check to see if the script is saved to disk, it's required for it to work properly.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 7.2.6
+ 
+ - Improved setting output language to English.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 7.2.5
+ 
+ - Replaced up.glennr.nl with api.glennr.nl.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 7.2.4
+ 
+ - Added second installation attempt using --no-install-recommends.
+ - Added a check/fix for package cache corruption.
+ - Improved support files.
+ - Improved the MongoDB Downgrade process.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 7.2.3
+ 
+ - Added timedatectl information to support files.
+ - Re-worked some checks/services to use api.glennr.nl.
+ - Enable NTP time syncing if systemd-timesyncd is installed, and set proper time.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 7.2.2
+ 
+ - Added repo.mongodb.org to the DNS check.
+ - Improved adding the MongoDB Repository.
+ - Improved support file generating.
+ - Fixed installation failed if the previous MongoDB version was newer than what UniFi Network supported.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 7.2.1
+ 
+ - Fixed installation failure when using openlogic-openjdk java as an example.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 7.2.0
+ 
+ - Fixed curl errors in rare cacses during the repository check.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 7.1.9
+ 
+ - Improved the dpkg interrupted check.
+ - Fixed installation check failing if the package is in iU state.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 7.1.8
+ 
+ - Improved the deb file download check.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 7.1.7
+ 
+ - Improved the UniFi Recovery process.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 7.1.6
+ 
+ - Improved download logging.
+ - Fixed an issue where an secure curl argument was set while it should use the insecure option.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 7.1.5
+ 
+ - Fixed installation failures on distributions running apt 1.0 or older.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 7.1.4
+ 
+ - Added error logging for download locating failures.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 7.1.3
+ 
+ - Improved setting curl arguments.
+ - Fixed installation failures when mongodb packages get removed durng apt cleanup.
+ - Fixed an issue where it could fail to set the UniFi Recovery version if it failed to download on first attempt.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 7.1.2
+ 
+ - Improved the service override check.
+ - Include unifi systemd service in the support file.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 7.1.1
+ 
+ - Added support to forward all support DNS providers to the Easy Encrypt script.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 7.1.0
+ 
+ - Added the `--run-easy-encrypt` argument, this will run the Easy Encrypt Script during the installation process if a FQDN is specified via --fqdn.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 7.0.9
+ 
+ - Fixed an issue where a cat error was printed if an file was missing during apt-get update.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 7.0.8
+ 
+ - Fixed left over debugging that resulted in invalid curl arguments.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 7.0.7
+ 
+ - Further improve the curl arguments check.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 7.0.6
+ 
+ - Fixed an issue where curl arguments could have the same argument twice, resulting in a failure.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 7.0.5
+ 
+ - Improved libsll installation on older distributions.
+ - Fixed installation failures when HTTPS couldn't be used.
+ - Replaced all wget tasks with curl.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 7.0.4
+ 
+ - Fixed wget failures introduced in version 7.0.3.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 7.0.3
+ 
+ - Added a check if we need to use --insecure flag for curl commands.
+ - Improved the recovery required check.
+ - Fixed JQ errors when performing a UniFi Recovery and JQ is not yet installed.
+ - Fixed an issue where setups without AVX support aren't downgraded back to MongoDB 4.4.18 while running anything newer.
+ - Fixed an issue where disk-usage.json was invalid on setups with older JQ versions.
+ - Fixed adoptium Java failures on Ubuntu Mantic Minotaur.
+ - Run daemon-reexec after the OS Upgrade process.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 7.0.2
+ 
+ - Fixed apt failures when users are messing up their repository files.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 7.0.1
+ 
+ - Fixed an issue that could cause zgrep errors to popup.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 7.0.0
+ 
+ - Fixed an issue where the script would perform a recovery for working installs (not harmfull though), introduced in 6.9.7.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.9.9
+ 
+ - Added more information to the MongoDB Installation process.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.9.8
+ 
+ - Use curl instead of wget when downloading the updated script version.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.9.7
+ 
+ - Improved running apt-get update.
+ - Perform UniFi Install recovery if we detect version file.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.9.6
+ 
+ - Fixed errors during the script version check if curl is not yet installed.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.9.5
+ 
+ - Fixed script version check.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.9.4
+ 
+ - Improved the MongoDB Downgrade check in case the logs are rotated to .gz files.
+ - Rewrote the script version check to prepare for when we hit version 10.x.x.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.9.3
+ 
+ - Added malformed repository cleanup function.
+ - Improved setting the MongoDB Install version.
+ - Improved the MongoDB Downgrade check, it was attempting to downgrade packages that were not avaialble in older repositories.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.9.2
+ 
+ - Fixed mongod-armv8 (Glenn R. Compiled MongoDB) downgrade process incase it detected an unsupported upgrade (shouldn't be possible when only using the script).
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.9.1
+ 
+ - Improved the MongoDB Downgrade required check.
+ - Improved setting PATH.
+ - Fixed startup issues on systems using systemd version 230 or older.
+ - Fixed an issue where the script still sets signed by version while it's using apt-key.
+ - Fixed an issue where the script could get stuck if the repository key already existed.
+ - Fixed JQ errors during abort when JQ is not yet installed.
+ - Correct invalid xmx, xms and xss values if they are incorrectly configured by the user.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.9.0
+ 
+ - Fixed an issue where the MongoDB downgrade process could fail.
+ - Fixed an issue where the script couldn't obtain all previous MongoDB versions if the log file was a binary. 
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.8.9
+ 
+ - Downgrade MongoDB to the last known good versions if it detects unsupported upgrades.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.8.8
+ 
+ - Check script version before checking for broken installs.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.8.7
+ 
+ - Fixed an issue where the script could spam "dpkg interrupted" messages while it already cleaned those up.
+ - Fixed an issue where the script would perform an recovery while the UniFi Network Application is already running, this only applies to users running the Install scripts on setups where the installation is already completed.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.8.6
+ 
+ - Improved checking for broken installations, it will now attempt to find the last known good MongoDB version in cases where users performed unsupported MongoDB upgrades.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.8.5
+ 
+ - Improved the JAVA installation process.
+ - Improved the dpkg interrupted check.
+ - Improved the libssl installation process.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.8.4
+ 
+ - Include dpkg log in support files.
+ - Improved the JAVA installation process.
+ - Fixed an endless loop when apt keys are missing.
+ - Fixed an issue where some commands were creating noise in the terminal.
+ - Don't abort when dist-upgrade or upgrade fail.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.8.3
+ 
+ - Added a retry for installating dependencies for MongoDB Compiled by Glenn R.
+ - Added a check to change default port 6789 if it's already used.
+ - Improved setting the MongoDB command variable.
+ - Fixed JQ errors on setups using JQ version 1.5 or older.
+ - Fixed unable to install OpenJDK 17 on arm64 ubuntu setups when repositories are missing.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.8.2
+
+ - Fixed an issue where invalid support files were created.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.8.1
+
+ - Added support for Elementary OS Odin, Jolnir and Horus.
+ - Fixed an issue where some steps in the script were marked as "success" while part of it failed.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.8.0
+ 
+ - Added /tmp permission check, it will set it to 1777 if it isn't already 1777.
+ - Improved setting system language to English when the script is running.
+ - Improved the libssl installation process.
+ - Improved the UniFi Network Application dependency installation process.
+ - Improved setting JAVA_HOME.
+ - Rewrote the unsupported JAVA uninstallation task.
+ - Include more debugging information to support files.
+ - Fixed an issue where commenting out unavailable repositories was not being logged.
+ - Fixed an issue where the script could add repositories multiple times in rare cases.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.7.9
+ 
+ - Fixed an issue where the script could add an incorrect repository combination on Debian Stretch/Buster.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.7.8
+ 
+ - Fixed an issue where the script could get in an constant loop with itself.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.7.7
+ 
+ - Rewrote the JAVA Installation/Check process.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.7.6
+ 
+ - Improved setting JAVA_HOME.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.7.5
+ 
+ - Added more debug information to script aborts for the MongoDB Installation process.
+ - Fixed an issue where certain errors are printed to the terminal.
+ - Fixed an issue where the script could report that it failed to start a service while it actually did start.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.7.4
+ 
+ - Fixed an issue where arm64 systems could continue to use mongodb-org-server (not supported) if it was already installed.
+ - Move system.properties file to backup file when installing the Network Application to preven invalid/incorrect configuration options to be applied.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.7.3
+ 
+ - Improved the libssl3 check for Ubuntu development branches, such as Noble.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.7.2
+ 
+ - Fixed an issue where the script could throw some errors when certain logs are missing.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.7.1
+ 
+ - Fixed certain mongod-armv8 checks failing on Ubuntu versions.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.7.0
+ 
+ - Fixed an issue where the script tries to write to it's database while it's not there yet on fresh installs.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.6.9
+ 
+ - Added netstat results to support files.
+ - Added repository duplicate cleanup, it will now comment out any duplicates it finds.
+ - Added repository Signed-By conflict cleanup, it will comment out any that are found.
+ - Added repository Trusted conflict cleanup, it will comment out any that are found.
+ - Always update the architecture in the EUS database.
+ - Always check if dpkg was interrupted.
+ - Attempt to fix rare MongoDB installation issues.
+ - Attempt to start the Network Application, only if it's not running.
+ - Improved the temurin JDK to JRE check.
+ - Remove sysstat usage in support files, it will now only generate my own JSON with system statistics.
+ - Fixed an issue where the architecture was missing in the EUS database.
+ - Fixed installation failures due to some systems having 404 or 401 errors on some repositories, the script will now comment out any problematic repository.
+ - Fixed inability to start the Network Application on systems running systemd version 230 or older.
+ - Fixed an issue where MongoDB 4.4.19 or newer was being installed on systems with CPU's that don't report AVX support.
+ - Yes is now the default answer for the compiled MongoDB by Glenn R.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.6.8
+ 
+ - Don't log directory creation if the logs folder doesn't exist.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.6.7
+ 
+ - Fixed an issue where the script could be having issues creating tmp directories due to logging introduced in 6.6.6.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.6.6
+ 
+ - Added logging to the directory creation process.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.6.5
+ 
+ - Added more debug information for libssl installation failures.
+ - Rewrote adding repositories.
+ - Improved Adoptium Java installation for Ubuntu Impish.
+ - Improved required package installation process.
+ - Use deb.debian.org instead of ftp.debian.org.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.6.4
+ 
+ - Improved the broken UniFi installation check.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.6.3
+ 
+ - Fixed grep error when starting the script when the system does not use systemd-resolv.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.6.2
+ 
+ - Added information to EUS database if the system is running within docker.
+ - Added system init information to support files.
+ - Added runlevel information to support files.
+ - Improved systemd/init check.
+ - Fixed failed to start messages when the setup is not using systemd.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.6.1
+ 
+ - Fixed an issue where perl was being installed instead of procps when procps was missing.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.6.0
+ 
+ - Fixed an issue where the total script runs were not being updates in the EUS database.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.5.9
+ 
+ - Added a check to see if dpkg was interrupted, if detected it will try to recover.
+ - Added DNS check, it will try to resolve add domains the script uses. It will add 1.1.1.1/8.8.8.8 to /etc/resolv.conf if it failed to resolve a domain.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.5.8
+ 
+ - Added HTTP retry for downloading the UniFi Network Application.
+ - Improved Adoptium Java installation for Ubuntu Eoan/Disco/Cosmic.
+ - Fixed an issue where the EUS database was not appending support files to it's database.
+ - Fixed an issue where the script could add an empty value to the EUS database.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.5.7
+ 
+ - Added running process information to the support files.
+ - Rewrote the dpkg lock check, it will now also run each time it tries to install an package.
+ - Improved adding repositories.
+ - Remove UniFi Repositories if more than 1 is found, users are running into issues where they added tens of different repositories all with different signed-by values (not caused by my script).
+ - Fixed an issue where abort_reason could be empty.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.5.6
+ 
+ - Fixed unsupported JAVA check.
+ - Improved adding MongoDB Repository.
+ - Improved script quality.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.5.5
+ 
+ - Rewrote the UniFi Ports check, it will now automatically adjust the ports without user input and at the end give information about the changes.
+ - Improved adding repositories.
+ - Improved adding MongoDB Repository.
+ - Improved MongoDB Downgrade process.
+ - Improved OpenJDK 17 installation on Lunar.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.5.4
+ 
+ - Added more details to abort messages for the end users.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.5.3
+ 
+ - Fixed eus_database_move errors during support file generating while running the script with --support-file.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.5.2
+ 
+ - Added free disk space information to script abort message if it's less than 5GB.
+ - Improved free disk space warning, some users with 5M free proceeded at own risk.
+ - Fixed an issue where the script could add an invalid repository entry on older distributions.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.5.1
+ 
+ - Fixed an issue where a fresh installation wouldn't work if an unsupported MongoDB version was installed and user choose to user Glenn R. Compiled MongoDB.
+ - Fixed an issue where the MongoDB downgrade wouldn't work due to missing directories in rare cases.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.5.0
+ 
+ - Added EUS database.
+ - Added more detailed information to script aborts.
+ - Added ability to automatically upload support files to a private server owned by Glenn R.
+ - Added procps as required package.
+ - Improved support file creation.
+ - Improved creating script directories.
+ - Improved key download logging.
+ - Improved script quality.
+ - Fixed inability to create libssl/mongodb debug json in rare cases.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.4.9
+ 
+ - Improved MongoDB Compiled by Glenn R. install process.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.4.8
+ 
+ - Improved adding MongoDB Repositories.
+ - Improved the libssl installation process to prevent failures on older distributions.
+ - Fixed Broken UniFi Recovery not working properly if previous MongoDB version was 4.x or newer.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.4.7
+ 
+ - Fixed an issue where the script could install mongod-armv8 while it had to install an older MongoDB version during a broken UniFi install recovery.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.4.6
+ 
+ - Further improve the MongoDB Installation process when using mongod-armv8.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.4.5
+ 
+ - Improved MongoDB 7.0 Installation on Raspberry Pi's running older Debian Distributions.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.4.4
+ 
+ - Further improved the MongoDB Upgrade prevent checks.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.4.3
+ 
+ - Improved MongoDB Upgrade prevent checks.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.4.2
+ 
+ - Re-enabled the use of --allow-change-held-packages on arm64 boards.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.4.1
+ 
+ - Further improve the MongoDB Installation process for older distribution versions.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.4.0
+ 
+ - Improved MongoDB Installation process for older distribution versions.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.3.9
+ 
+ - Prevent installation of mongodb-org-server on systems that are using mongod-armv8.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.3.8
+ 
+ - Added CPU information to support files.
+ - Added my own (Glenn R.) APT Repository for mongod compiled for certain armv8 boards.
+ - Added ability for certain armv8 board owners to install MongoDB 7.0 if they answer an additional question.
+ - Added ability to create a support file via --support-file.
+ - Fixed an issue where the script could update MongoDB unexpectedly.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.3.7
+ 
+ - Improved MongoDB 4.4 installation on arm64.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.3.6
+ 
+ - Improved getting apt options.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.3.5
+ 
+ - Fixed typo.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.3.4
+ 
+ - Improved broken UniFi Installation recovery.
+ - Fixed invalid version being shown in rare cases when installing MongoDB.
+ - Attempt to fix rare key missing loop.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.3.3
+ 
+ - Improved getting distribution.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.3.2
+ 
+ - Improved detecting latest supported MongoDB versions.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.3.1
+ 
+ - Fixed installation issues when using unofficial MongoDB packages for raspberyy pi's.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.3.0
+ 
+ - Improved jq and dnsutils installation for systems running EOL OS.
+ - Improved detecting latest supported MongoDB versions.
+ - Improved cleaning up old/expired/invalid repositories.
+ - Improved adding repositories on EOL OS systems such as Debian Jessie.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.2.9
+ 
+ - Added support for Linux Mint 6 Faye.
+ - Added support for Linux Mint 21.3 Virginia.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.2.8
+ 
+ - Updated script help screen to support the latest additions of the Easy Encrypt Script.
+ - Added support for the latest additions of the Easy Encrypt Script.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.2.7
+ 
+ - Fixed stupid typo during JQ installation.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.2.6
+ 
+ - Fixed incorrect repositories getting adding due to missing architecture value during early stages of the script.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.2.5
+ 
+ - Improved JQ installation.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.2.4
+ 
+ - Fixed JQ installation on Ubuntu Groovy, Focal, Hirsute, Impish.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.2.3
+ 
+ - Added support for upcoming versions.
+ - Added support for Parrot OS Lory.
+ - Fixed an issue where dynamic libssl detection always falled back to hardcoded values.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.2.2
+ 
+ - Fixed an issue where incorrect repositories were added if a package cannot be located on existing repositories on arm64 (and other non-amd64/i386) Ubuntu systems.
+ - Improved installation and uninstallation of netcat or netcat-traditional.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.2.1
+ 
+ - Fixed error message during MongoDB install.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.2.0
+ 
+ - Fixed script aborting if /etc/apt/keyrings doesn't already exist.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.1.9
+ 
+ - The script will now store all newly created keys in /etc/apt/keyrings.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.1.8
+ 
+ - Improved MongoDB Installation process by force installing latest supported version.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.1.7
+ 
+ - Added retry for stopping services that are using the same ports as the UniFi Network Application, this should cover setups running monitorix as example.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.1.6
+ 
+ - Fixed MongoDB key recovery loop when key file exists but is empty.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.1.5
+ 
+ - Improved checking MongoDB key expiration, it will now check against a file hosted on get.glennr.nl that includes the latest MongoDB key details for all MongoDB versions.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.1.4
+ 
+ - Added retry for MongoDB keys.
+ - Improved getting MongoDB keys when IPv6 is used.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.1.3
+ 
+ - Added more libssl failure information.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.1.2
+ 
+ - Downgrade MongoDB on arm64 if a too new of a version is installed.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.1.1
+ 
+ - Also comment out archived raspbian repositories.
+ - Improved MongoDB installation for armhf setups.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.1.0
+ 
+ - Run systemctl daemon-reexec on script startup to fix causes where the Application couldn't startup.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.0.9
+ 
+ - Added support for Ubuntu Noble Numbat 24.04.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.0.8
+ 
+ - Improved the expired MongoDB keys check.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.0.7
+ 
+ - Fixed adding new MongoDB key loop if it detected an expired one.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.0.6
+ 
+ - Attempt to update MongoDB repository keys when expired.
+ - Fixed unable to install MongoDB incase of an expired repository.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.0.5
+ 
+ - Improved catching outdated repositories.
+ - Improved JQ installation.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.0.4
+ 
+ - Improved libssl installation.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.0.3
+ 
+ - Fallback to attempting to install MongoDB 3.2 incase of a broken UniFi Network Application where it used MongoDB 3.0.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.0.2
+ 
+ - Only remove temurin-17-jdk if temurin-17-jre is actually installed.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.0.1
+ 
+ - Don't attempt to install MongoDB 3.2 on arm64, try 3.4 instead.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 6.0.0
+ 
+ - Fixed software-properties-common installation on stretch when no repositories are available.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.9.9
+ 
+ - Exclude /tmp/EUS/downloads from support files.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.9.8
+ 
+ - Improved catching outdated repositories.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.9.7
+ 
+ - Only install temurin-17-jre if it can be found in apt-cache, else stick to temurin-17-jdk.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.9.6
+ 
+ - Fixed temurin-17-jdk installation on Stretch.
+ - Install temurin JRE instead of temurin JDK.
+ - Skip custom UniFi Network Application building when systems uses temurin-17-jre and UniFi Network Application 8.0 or newer.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.9.5
+ 
+ - Improved catching outdated repositories.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.9.4
+ 
+ - Improved Adoptium Java installation.
+ - Comment out all repositories entries that are moved to old-releases or archive.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.9.3
+ 
+ - Fixed an issue where the script attempts to install the wrong libssl version when trying to repair the broken UniFi Network Application installation.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.9.2
+ 
+ - Add UniFi Repository if user chooses to do so for arm64 if the script installs UniFi Network Application 8.0 or newer.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.9.1
+ 
+ - Fixed an issue where the scripts add wrong repositories leading to OpenJDK 8 installation failures on some distros.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.9.0
+ 
+ - Fixed unable to install JQ on certain distros.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.8.9
+ 
+ - Use signed-by value in repositories that the script adds.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.8.8
+ 
+ - Improved MongoDB installation for armhf systems.
+ - Only use one source file for the scripts.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.8.7
+ 
+ - Improved adoptium installation when repos are missing.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.8.6
+ 
+ - Fixed missing failed to install Adoptium Java messages.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.8.5
+ 
+ - Improved script quality.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.8.4
+ 
+ - Fixed missing messaging when installing libssl.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.8.3
+ 
+ - Fixed an issue where it downloads the Network Application release twice, in case of a broken UniFi Install.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.8.2
+ 
+ - Fixed an issue where it to add/install incorrect MongoDB versions when it tries to repair the UniFi Install.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.8.1
+ 
+ - Fixed UniFi Network Application repository warnings when systems have more foreign architectures.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.8.0
+ 
+ - Attempt to detect previously installed MongoDB version to prevent unsupported MongoDB upgrades in case of a broken UniFi install.
+ - Improved checking for broken UniFi Installs.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.7.9
+ 
+ - Improved adding repositories.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.7.8
+ 
+ - Fixed support file extension for tar.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.7.7
+ 
+ - Use HTTP repositories if apt-transport-https is not yet installed, the script will use HTTPS (if applicable) once apt-transport-https is installed.
+ - Fixed adding key loop, in case dirmngr is not installed.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.7.6
+ 
+ - Added source files to the support file.
+ - Added third retry for MongoDB packages, this will try HTTP instead of HTTPS.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.7.5
+ 
+ - Fixed typo in help section.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.7.4
+ 
+ - Improved libssl installation on arm64.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.7.3
+ 
+ - Removed attempt to use bookworm repository on buster to download openjdk-17-jre-headless.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.7.2
+ 
+ - Added MongoDB 4.2 repository information.
+ - Added MongoDB 4.0 repository information.
+ - Improved messaging in script aborting.
+ - Improved cancelling the script.
+ - Removed --allow-change-held-packages for OS Upgrade.
+ - Fixed an issue where it adds the MongoDB repository without signing key when the key is already on the system.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.7.1
+ 
+ - Fixed libssl installation on some older distributions.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.7.0
+ 
+ - Improved script quality.
+ - Improved configuring JAVA_HOME.
+ - Fixed UniFi Network Application install failure when it requires MongoDB 3.4.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.6.9
+ 
+ - Revert any service overrides made by system admins when updating/installing the UniFi Network Application.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.6.8
+ 
+ - Fixed adding repositories in case a package fails to install.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.6.7
+ 
+ - Improved mongodb-org-server and mongodb-server installed check.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.6.6
+ 
+ - Improved MongoDB installation process for arm64.
+ - Improved checking if OpenJDK/Temurin is installed.
+ - Improved adding MongoDB keys.
+ - Fixed OpenJDK/Temurin installation for Debian Trixie/Forky.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.6.5
+ 
+ - Improved MongoDB installation process.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.6.4
+ 
+ - Added a simple check if DST_Root certificate exist and remove it.
+ - Added installation of Adoptium Temurin if OpenJDK fails.
+ - Added multiple sources to download the UniFi Network Application from.
+ - Improved MongoDB installation process.
+ - Improved updating CA Certificates.
+ - Only add UniFi Repository if architecture is amd64.
+ - Fixed archived repository check for Ubuntu.
+ - Fixed incorrect MongoDB Requirement messaging for UniFi Network Application 7.4.
+ - Fixed MongoDB 4.4 installation on Debian Stretch.
+ - Remove added repositories if they dont match the OS Distribution when script finishes.
+ - Cleanup script.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.6.3
+ 
+ - Improved checking if libssl needs to be installed.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.6.2
+ 
+ - Fixed broken script files... everything but 7.5.174 was affected.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.6.1
+ 
+ - Fixed incomplete libssl fix for arm64.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.6.0
+ 
+ - Fixed an issue where the script would download libssl twice on Debian installs running on arm64.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.5.9
+ 
+ - Fixed libssl failing to install on Debian installs running on arm64.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.5.8
+ 
+ - Fixed an issue where the script would not properly set the MongoDB packages to hold (prevent updating) on arm64 systems.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.5.7
+ 
+ - Disabled the use of --allow-change-held-packages for arm64 due to issues with MongoDB on latest 4.4 versions.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.5.6
+ 
+ - Added additional messaging to the MongoDB Repository fallback.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.5.5
+ 
+ - Added fallback to different MongoDB Repositories for Debian installs if MongoDB 4.4 installation fails.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.5.4
+ 
+ - Fixed unable to install MongoDB 3.6 on Debian setups. This was introduced in 5.5.2.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.5.3
+ 
+ - Fixed typo.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.5.2
+ 
+ - Improved getting the right libssl package.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.5.1
+ 
+ - Only install libssl if the required version is not found.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.5.0
+ 
+ - Improved MongoDB Package installation.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.4.9
+ 
+ - Added holding MongoDB packages from updating on arm64 devices (if 4.4.18 got installed).
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.4.8
+ 
+ - Fixed unable to start the Network Application on arm64 devices due to a MongoDB 4.4 issue.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.4.7
+ 
+ - Fixed incorrect link for downloading libssl on arm64 devices.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.4.6
+ 
+ - Fixed minor typo.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.4.5
+ 
+ - Ensure the latest libssl version is getting downloaded for MongoDB 4.4.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.4.4
+ 
+ - Improved script version check. If your script does not update, please remove the file and re-download it.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.4.3
+ 
+ - Added support for systems that have MongoDB compiled (not installed via dpkg/apt).
+ - Improved MongoDB version checks.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.4.2
+ 
+ - Added support for Ubuntu Mantic Minotaur 23.10.
+ - Added support for installing MongoDB 4.4 on supported systems when installing Network Application 7.5 or newer.
+ - Improved support file generation.
+ - Fixed unable to freshly install openjdk-17-jre-headless for Network Application 7.5 due to a missing java.security file.
+ - Fixed broken MongoDB 3.2 download links for i386 systems.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.4.1
+ 
+ - Add support for Linux Mint 21.2 Victora.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.4.0
+ 
+ - Add UniFi Network Application logs in EUS support file.
+ - Improved script quality.
+ - Fix --allow-change-held-packages check.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.3.9
+ 
+ - Add support for Debian Trixie and Forky.
+ - Improve script quality.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.3.8
+ 
+ - Prevent curl error while running get_repo if it's not yet installed.
+ - Run get_repo after installing curl.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.3.7
+ 
+ - Improve messaging.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.3.6
+ 
+ - Fix MongoDB missing signed by details when gnupg package was not installed at start of the script.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.3.5
+ 
+ - Fix MongoDB repo got added before getting signed by information from other functions, this only affected Debian installs.
+ - Fix unexpected end of file error since 5.3.4.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.3.4
+ 
+ - Fix unable to install openjdk-11-jre-headless on Debian Bookworm.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.3.3
+ 
+ - Automatically check if script needs to add old-releases ubuntu repos.
+ - Notify user about unsupported/EOL OS when adding archived/old-releases repos.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.3.2
+ 
+ - The script will no longer add NL specific repos.
+ - Automatically check if script needs to add archived debian repos.
+ - Advice Bullseye instead of Stretch.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.3.1
+ 
+ - Fix small typo.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.3.0
+ 
+ - Add jq as required package.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.2.9
+ 
+ - Improve checking if the application is responding on it's public IP for SSL setup.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.2.8
+ 
+ - Only use --allow-change-held-packages if apt version is 1.1 or newer.
+ - Check if MongoDB is newer than 2.6 when installing UniFi Network application 7.4.x.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.2.7
+ 
+ - Add support for Linux Mint 21.1 Vera.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.2.6
+ 
+ - Add support for ParrotOS 5.1 Electro Ara.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.2.5
+ 
+ - Add support for Ubuntu Lunar Lobster ( 23.04 ).
+ - Improve get_distro function.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.2.4
+ 
+ - Add --allow-change-held-packages to apt-get commands.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.2.3
+ 
+ - Add debian stretch-backports fallback for openjdk-11-jre-headless installation.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.2.2
+ 
+ - Remove installation of haveged.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.2.1
+ 
+ - Improve check if service is enabled.
+ - Fix missing new line for text output.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.2.0
+ 
+ - Improve workaround for 7.2.91 and older 7.2 releases.
+ - Add support for Ubuntu Kinetic Kudu.
+ - Add support for Linux Mint 5 Elsie.
+ - Add support for Linux Mint 21 Vanessa.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.1.9
+ 
+ - Add workaround for could not create directory issue in 7.2.91.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.1.8
+ 
+ - Replace "service" commands with "systemctl".
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.1.7
+ 
+ - Script/code cleanup.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.1.6
+ 
+ - Fix noisy apt-get update due to apt-key deprecation. (fresh setup)
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.1.5
+ 
+ - Only install apt-transport-https if apt version is lower than 1.4.x.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.1.4
+ 
+ - Add support for Linux Mint 20.3 (UNA).
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.1.3
+ 
+ - Improve cancel script part, it would clear cancel details when using skip.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.1.2
+ 
+ - Add logging for UniFi Network Application downloading.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.1.1
+ 
+ - Add support for Ubuntu Jammy Jellyfish 22.04.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.1.0
+ 
+ - Fix issue where check_count was not increasing, causing script to "freeze".
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.0.9
+ 
+ - Improve netcat installation (install netcat-traditional if netcat fails).
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.0.8
+ 
+ - Add support for Debian 12 (Bookworm).
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.0.7
+ 
+ - Improve check if the application is exposed to the internet/API responding.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.0.6
+ 
+ - Add custom UniFi Download logging.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.0.5
+ 
+ - Add support for Ubuntu 21.10 (Impish Indri).
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.0.4
+ 
+ - Add '--skip-swap' option, this will skip creating swap files.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.0.3
+ 
+ - Fix issue where it did not properly pass along script_options to the script.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.0.2
+ 
+ - Fix issue where it removes any 0 from month/date instead of only leading 0.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.0.1
+ 
+ - Improve overall script quality.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 5.0.0
+ 
+ - Remove reference to "controller" and replace with "application" to follow UniFi Terminology.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.9.9
+ 
+ - Don't silently log libssl/mongo downloading when log output is written to file.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.9.8
+ 
+ - Always attempt to create a swap file if swap does not exist (only skips systems with less that 4GB of free disk space).
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.9.7
+ 
+ - Add support for Linux Mint Uma.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.9.6
+ 
+ - Add support for Deepin Linux.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.9.5
+ 
+ - Add --allow-downgrade for package if package needs to be downgraded ( libssl issue fix ).
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.9.4
+ 
+ - Add support for Ubuntu Hirsute Hippo ( 21.04 ).
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.9.3
+ 
+ - Add 10001/udp to UFW rules if controller is local only.
+ - Add `--local-controller` option to add 10001/udp to UFW if UFW is enabled.
+ - Add question if controller is local only for setup without `--skip`.
+ - Improved collor for existing/newly added UFW port rules.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.9.2
+ 
+ - Fix temp files for mongodb downloading.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.9.1
+ 
+ - Add support for Linux Mint 20.1 ( Ulyssa ).
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.9.0
+ 
+ - Add support for Kali Linux ( rolling ).
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.8.9
+ 
+ - Fix christmass_new_year.
+ - Fix small typo.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.8.8
+ 
+ - Improve getting device model for UDM's.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.8.7
+ 
+ - Check if UniFi Network API returns a api error value when checking if controller is remote/exposed to internet.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.8.6
+ 
+ - Change UniFi Easy Let's Encrypt to UniFi Easy Encrypt.
+ - Support new UniFi Easy Encrypt options.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.8.5
+ 
+ - Improve quality of the script.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.8.4
+ 
+ - Add support for Ubuntu 20.10 (Groovy Gorilla).
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.8.3
+ 
+ - Improve EUS log cleanup.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.8.2
+ 
+ - Fix mongodb install for i386 systems. ( still recommend debian for 32 bit )
+ - Fix 6.0.23 install script.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.8.1
+ 
+ - Fix/Improve getting version of libssl for Debian Stretch/Buster/Bullseye ( amd64 ).
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.8.0
+ 
+ - Fix/Improve getting version of libssl for Ubuntu Disco/Eoan/Focal ( amd64 ).
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.7.9
+ 
+ - Improve UniFi Version grabbing from custom URL's.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.7.8
+ 
+ - Adjust messaging about changing default ports.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.7.7
+ 
+ - Improved logging for libssl and mongodb downloading.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.7.6
+ 
+ - Fix invalid unifi repository added check.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.7.5
+ 
+ - Fix compatible mongodb check on pre 5.13.10 installs.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.7.4
+ 
+ - Removed mongod/mongodb service enabled check.
+ - Improved unifi service enabled check.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.7.3
+ 
+ - Fix installing MongoDB 3.6 if anything higher then 5.13.10 is getting installed.
+ - Improved run_apt_get_update.
+ - Add repository checker.
+ - Add missing color ( YELLOW ).
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.7.2
+ 
+ - Allow user to specify their own DNS server through `--external-dns [argument]`. ( Easy Let's Encrypt Script )
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.7.1
+ 
+ - Skip repository adding on armhf and arm64 systems.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.7.0
+ 
+ - Fix script lockup when script is sourced.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.6.9
+ 
+ - Allow installing 6.x.x controllers via '--custom-url'.
+ - Allow '--custom-url' to use local HTTP/FTP servers.
+ - Improve '--custom-url' check.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.6.8
+ 
+ - Improved get_distro.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.6.7
+ 
+ - Add support for Linux Mint 20 ( Ulyana ).
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.6.6
+ 
+ - Make 'adduser' a required package.
+ - Make 'logrotate' a required package.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.6.5
+ 
+ - Add support for Progress-Linux ( Engywuck ).
+ - Add `--skip-install-haveged` option to skip the installation of haveged.
+ - Add `--add-repository` option to add the repository if '--skip' is used.
+ - Add '--help' output.
+ - Improve get_distro.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.6.4
+ 
+ - Add option for armhf systems to try rasbian repository to install MongoDB.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.6.3
+ 
+ - Add `--retry [argument]` option for unattended mode to retry the challenge X amount of times. ( interval is 15 minutes )
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.6.2
+ 
+ - Install dnsutils as required package if used uses `--fqdn` option.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.6.1
+ 
+ - Add unattended Let's Encrypt. ( only works if `--fqdn` and `--skip` is used )
+ - Add `--help` option to display all script options/information.
+ - Add `--custom-url [argument]` option. ( can also be used without argument )
+ - Add `--fqdn [argument]` option to support unattended Let's Encrypt. ( you can specify multiple FQDN's by using : as seperator )
+ - Add `--server-ip [argument]` option to manually provide the server IP address.
+ - Add `--email [argument]` option to specify what email address will be used for Let's Encrypt renewal notifcations.
+ - Add `--v6` option to run the Let's Encrypt script in IPv6 mode.
+ - Add `--external-dns` option to specify if you want to use a external DNS server.
+ - Add `--force-renew` option to force renew certificates.
+ - Add `--dns-challenge` option to run the Let's Encrypt script in DNS mode.
+ - Improve dpkg lock check.
+ - Improve system upgrade messages.
+ - Fix MongoDB already installed message.
+ - Fix OpenJDK already installed message.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.6.0
+ 
+ - Improve CloudKey detection.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.5.9
+ 
+ - Improve script options.
+ - Fix 0 print during MongoDB preparation.
+ - Fix typos.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.5.8
+ 
+ - Improved cloudkey detection.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.5.7
+ 
+ - Check if --show-progress is supported by installed version of wget.
+ - Improve controller download information.
+ - Improved MongoDB and OpenJDK already installed messages.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.5.6
+ 
+ - Removed unused mongodb_26_key.
+ - Fixed no such file or directory error.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.5.5
+ 
+ - Add logging to unsupported mongodb uninstalling.
+ - Add more information to support files.
+ - Fix unsupported mongodb check.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.5.4
+ 
+ - Fix installation if user had broken UniFi installation.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.5.3
+ 
+ - Install MongoDB 3.6 when user decides to install controller version 5.13.10 or newer.
+ - Add option to use --custom-url, so users can install their own versions of UniFi.
+ - Add support for Linux Mint 4 Debbie.
+ - Add more information about the ports running on UniFi Ports.
+ - Add log rotate ( logs that script creates ).
+ - Rework the supported mongodb version check.
+ - Rework the script options reminding part.
+ - Rework script version check.
+ - Rework openjdk 8 installation.
+ - Rework required packages installations.
+ - Rework distribution update.
+ - Rework package hold ( mongodb/unifi ).
+ - Improve UniFi Repository adding.
+ - Create support file during script errors.
+ - Fix installation checks if you a package is set to hold.
+ - Reduce script size with 300+ lines.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.5.2
+ 
+ - Added support for Ubuntu Focal Fossa  ( 20.04 ).
+ - Added support for Elementary OS.
+ - Improved some checks.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.5.1
+ 
+ - Added extra method when script fails to add the key.
+ - Improve libssl installation on 32 bit systems.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.5.0
+ 
+ - Fix libssl installation on 32 bit systems.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.4.9
+ 
+ - Add extra fallback option to catch server IP if variable is empty.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.4.8
+ 
+ - Add script start message.
+ - Improved more checks and language output.
+ - Add option to stop services on change conflicting ports ( only for port 8080/8843 ).
+ - Add option to automatically change ports if there is a port conflict ( only for port 8080/8843 ).
+ - Inform users about the changed ports at the end of the script.
+ - Adjust ca-certificates update.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.4.7
+ 
+ - Fix port 8080 and 8443 check.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.4.6
+ 
+ - Add run_apt_get_update that will add missing pubkeys.
+ - Improved more checks and language output.
+ - Removed ~50 lines.
+ - Speedup the script.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.4.5
+ 
+ - Changed PATH in script.
+ - Fixed no header error.
+ - Improved language check.
+ - Improved almost all checks.
+ - Speedup the script.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.4.4
+ 
+ - Set language to english ( temporarily ) to prevent script issues. ( if lang is not en_US )
+ - Changed remove_yourself.
+ - Changed directory removal.
+ - Changed file removal.
+ - Adjust MongoDB key check.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.4.3
+ 
+ - Adjusted MongoDB key adding.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.4.2
+ 
+ - Adjusted port 8080 and 8443 check.
+ - Fixed issue where it would try to install a different package.
+ - Added gnupg check.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.4.1
+ 
+ - Improved '127.0.0.1       localhost' check.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.4.0
+ 
+ - Added a missing apt-get update.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.3.9
+ 
+ - Added missing gpg keys when using jessie-backports.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.3.8
+ 
+ - Add repository if old OpenJDK 8 version is detected.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.3.7
+ 
+ - Adjusted java version check.
+ - Changed dl.ubnt.com to dl.ui.com.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.3.6
+ 
+ - Uninstall netcat without asking user if the script installed netcat.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.3.5
+ 
+ - Added support for Linux Mint 19.3 ( Tricia )
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.3.4
+ 
+ - Added wishes to the script.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.3.3
+ 
+ - Adjusted some checks.
+ - Follow new unifi-lets-encrypt options.
+ - Changed the commands how the script runs the Easy Update Script and Easy Let's Encrypt Script.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.3.2
+ 
+ - Adjusted UniFi installed check.
+ - Adjusted UniFi-Video installed check.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.3.1
+ 
+ - Script will now only add a new JAVA_HOME if JAVA_HOME is different.
+ - Adjusted some checks.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.3.0
+ 
+ - Adjusted unifi installed check.
+ - Uninstall netcat at the end of the script when -skip is used, the user will get prompted with a question to uninstall netcat if -skip is not used.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.2.9
+ 
+ - Fixed UFW check, would always come back with "active" even when it's inactive.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.2.8
+ 
+ - Unsupported java check gets skipped when option -skip is used.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.2.7
+ 
+ - Reworked unsupported java check.
+   - Now defaults answer to NO when asking to uninstall.
+   - Greps all the unsupported java versions instead  of global removal.
+   - Logs the unsupported java removal.
+ - Fixed an issue with getting the FQDN from the Easy let's Encrypt script.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.2.6
+ 
+ - Changed distribution check.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.2.5
+ 
+ - Check if UFW is active and add UniFi Network Application and SSH port if active.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.2.4
+ 
+ - Script will now check for OpenJDK 8 instead of Oracle Java 8 and OpenJDK 8.
+ - Script will now make sure OpenJDK 8 is the default java runtime.
+ - Added OpenJDK 8 version check.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.2.3
+ 
+ - dpkg check now won't prompt users when -skip is used.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.2.2
+ 
+ - The new check in 4.2.1 now won't prompt users when -skip is used.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.2.1
+ 
+ - Added a check to see if '127.0.0.1       localhost' exists in /etc/hosts.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.2.0
+ 
+ - Changed script version check.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.1.9
+ 
+ - Added support for Parrot OS/Linux.
+ - Added extra check at the end to get SERVER_IP if variable is empty.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.1.8
+ 
+ - Script will prompt to run the Let's Encrypt Script if port 8443 is open. ( check inside the script )
+ - Script will prompt Controller Address and FQDN at end of the script if users chooses to run the Let's Encrypt Script.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.1.7
+ 
+ - Rewrote disk space check, and gave users an option to continue at own risk.
+ - Rewrote swap file creation/checks, it will not create smaller swap files depending on disk space. ( also will skip creating swap files when disk space is extremely low )
+ - Remove existing MongoDB repositories to make sure the installation goes correct.
+ - Speed up installation script.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.1.6
+ 
+ - Fixed false port already in use reportings.
+  
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 4.1.5
+ 
+ - Speed up the process of creating a UniFi Repository list.
+ - Change HTTP to HTTPS for the MongoDB repository.
+ - Disto specific scripts will now download the combined scripts. ( ALL Scripts )
+  
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 4.1.4
+ 
+ - Fixed libssl installation issue on arm64 systems.
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 4.1.3
+ 
+ - Fixed issue where the script would try to install i386 packages on armhf systems.
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 4.1.2
+ 
+ - Fixed broken download URL.
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 4.1.1
+ 
+ - Changed the way the path is set.
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 4.1.0
+ 
+ - Fixed a issue where the script would not detect that JAVA 8 is already installed.
+ - Changed SERVER_IP variable.
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 4.0.9
+ 
+ - Slight adjustment to get distro. ( mostly affects Debian Buster & Bullseye  )
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 4.0.8
+ 
+ - Add -skip option. ( will skip script removal question and repository question ) | ( this only got added to the ALL scripts, this did NOT get added to the Distro specific scripts )
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 4.0.7
+ 
+ - Fixed issue where the script got a wrong os_codename when lsb-release was missing.
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 4.0.6
+ 
+ - Added a recommendation for armhf systems.
+ - Improved the script version check.
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 4.0.5
+ 
+ - Removed sudo from line 95 ( update script download/execute )
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 4.0.4
+ 
+ - Slight adjustment to mongodb_server_installed
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 4.0.3
+ 
+ - Added support for Ubuntu Eoan Ermine  ( 19.10 )
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 4.0.2
+ 
+ - Improve repo removal ( downloads-distro.mongodb.org )
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 4.0.1
+ 
+ - The downloads-distro.mongodb.org host has been decommissioned. ( removed this from the script )
+ - Remove downloads-distro.mongodb.org from the repo lists if existing.
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 4.0.0
+ 
+ - Fixed getting PRETTY_NAME.
+ - Changed root's PATH ( would come back with missing /usr/local/sbin, /usr/sbin and /sbin ).
+ - Added bullseye support ( Debian 11 ).
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 3.9.9
+ 
+ - Abort script if OS/Distro can't be find/is not supported. ( ALL scripts )
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 3.9.8
+ 
+ - Distro specific scripts will download ALL script when 32bit is detected. ( 18.04/18.10/19.04 )
+ - Download .deb files in the /tmp directory ( ALL scripts )
+ - Fix 32bit install on 18.04/18.10/19.04
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 3.9.7
+ 
+ - Got rid of White/Gray coloring
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 3.9.6
+ 
+ - Improved DPKG lock check.
+ - Prompt user with question to keep the script after completion or not.
+ - Added a script version check.
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 3.9.5
+ 
+ - Improved DPKG lock check.
+ - Moved checks around.
+ - Got rid of whiptails.
+ - Added a warning if port 8080 or 8443 is used by another PID.
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 3.9.4
+ 
+ - Changed to root requirement message.
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 3.9.3
+ 
+ - Changed UniFi SDN Controller to UniFi Network Application.
+ - Released a installation script that supports..
+   - Ubuntu Precise Pangolin ( 12.04 )
+   - Ubuntu Trusty Tahr ( 14.04 )
+   - Ubuntu Xenial Xerus ( 16.04 )
+   - Ubuntu Bionic Beaver ( 18.04 )
+   - Ubuntu Cosmic Cuttlefish ( 18.10 )
+   - Ubuntu Disco Dingo  ( 19.04 )
+   - Debian Jessie ( 8 )
+   - Debian Stretch ( 9 )
+   - Debian Buster ( 10 )
+   - Linux Mint 13 ( Maya )
+   - Linux Mint 17 ( Qiana | Rebecca | Rafaela | Rosa )
+   - Linux Mint 18 ( Sarah | Serena | Sonya | Sylvia )
+   - Linux Mint 19 ( Tara | Tessa )
+   - MX Linux 18 ( Continuum )
+ - Miscellaneous changes.
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 3.9.2
+ 
+ - Fixed line 452.. ( typo )
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 3.9.1
+ 
+ - Added HTTP_PROXY support.
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 3.9.0
+ 
+ - Check apt-cache for MongoDB.
+ - Changed OpenJDK-8 install for Debian Jessie.
+ - Cleaned up the script.
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 3.8.10
+ 
+ - 5.10.24 from Stable Candidate to Stable
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 3.8.9
+ 
+ - Prevent prompts when the script runs apt-get upgrade/dist-upgrade.
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 3.8.8
+ 
+ - Fixed SERVER_IP check.
+ - Added JAVA 12 check.
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 3.8.7
+ 
+ - Added an extra check.
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 3.8.6
+ 
+ - Improved installation script for Debian Jessie, Stretch and Buster ( Debian 8/9/10 ).
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 3.8.5
+ 
+ - Improved installation script for Debian Buster ( Debian 10 ).
+ - Added an extra check.
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 3.8.4
+ 
+ - Improved the installation scripts for Debian Buster ( Debian 10 ).
+ - Improved MongoDB installation on Debian 10.
+ - Change IP Address catch
+ - Added check for sudo.
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 3.8.3
+ 
+ - Improved the installation check at the end of the script.
+ - Added the installation scripts for Ubuntu 19.04 Disco Dingo.
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 3.8.2
+ 
+ - Moved the required packages check to the start.
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 3.8.1
+ 
+ - Fixed installations on Debian Stretch and Buster.
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 3.8.0
+ 
+ - Added check for netcat.
+ - Added check if the controler can be reached on the public IP address.
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 3.7.11
+ 
+ - Added check for wget.
+ - Scripts for Debian 10 ( Buster )
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 3.7.10
+ 
+ - Improved service check.
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 3.7.9
+ 
+ - Improved free disk space check.
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 3.7.8
+ 
+ - Y is now default.
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 3.7.7
+ 
+ - Miscellaneous changed to text output.
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 3.7.6
+ 
+ - Improved free disk space check.
+ - MongoDB installed check
+ - Miscellaneous changed to text output.
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 3.7.5
+ 
+ - Miscellaneous changed to text output.
+ - Improved JAVA Detection.
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 3.7.4
+ 
+ - Added check for already installed JAVA packages.
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 3.7.3
+ 
+ - Miscellaneous changed to text output.
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 3.7.2
+ 
+ - Added check for apt-transport-https.
+ - Added check for net-tools.
+ - Added check for lsb-release.
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 3.7.1
+ 
+ - Improved service check.
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 3.7.0
+ 
+ - Added service enabled check.
+ - Improved 64 bit detection.
+ - Improved MongoDB 32 bit installation. ( Ubuntu 16.04 )
+ - Miscellaneous changed to text output.
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 3.6.1
+ 
+ - Added support for Linux MX 18.
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 3.6.0
+ 
+ - Added support for Mint 18/19.
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 3.5.6
+ 
+ - Minor changes to OS detection.
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 3.5.5
+ 
+ - Script will now cancel the installation if the free disk space is less than 5GB.
+ - Minor changes to the script.
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 3.5.4
+ 
+ - Changed OpenJDK install.
+ - Improved MongoDB check.
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 3.5.3
+ 
+ - Fallback if keyserver fails ( UniFi and MongoDB )
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 3.5.2
+ 
+ - Changed the MongoDB check.
+ - Scripts for Ubuntu 18.10 ( Cosmic )
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 3.5.1
+ 
+ - Minor changes to the script.
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 3.5.0
+ 
+ - Swap file creation depending on available memory.
+ - Changed MongoDB checks.
+ - Fixed OS Release check.
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 3.4.4
+ 
+ - Changed to the MongoDB check.
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 3.4.3
+ 
+ - Improved a check.
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 3.4.2
+ 
+ - Removed unnecessary lines.
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 3.4.1
+ 
+ - Improved a check.
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 3.4.0
+ 
+ - Script now doesn't touch the original sources.list.
+ - Improved package check.
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 3.3.1
+ 
+ - Fix JAVA HOME for 32 bit systems.
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 3.3.0
+ 
+ - Added a fallback for java.
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 3.2.0
+ 
+ - Improved MongoDB check.
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 3.1.3
+ 
+ - Now only displays 1 IP if the server has multiple.
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 3.1.2
+ 
+ - Fixed a check.
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 3.1.1
+ 
+ - Fixed upgrade loop when unifi was already installed
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 3.1.0
+ 
+ - Debian 8/9 scripts
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 3.0
+ 
+ - Check if MongoDB 3.4.x or higher is installed
+ - Check if UniFi is already installed
+ - Check if dpkg is busy
+ - Check if you have the correct script for your Ubuntu Release
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 2.1.0
+ 
+ - Fixed typos in some 5.6.x scripts
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 2.0
+ 
+ - Support for Ubuntu 16.04 32 bit
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 1.9
+ 
+ - Fixed typos made in the scripts.
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 1.8
+ 
+ - Added the same check in the 16.04 scripts as in 18.04 scripts for JSVC.
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 1.7
+ 
+ - Fixes a unneeded dialog if you didn't have any issues regarding to jsvc!
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 1.6
+ 
+ - Fixed a common reported issue when jsvc couldn't be installed.
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 1.5
+ 
+ - Fixed errors were some people ran into. (curl & software-properties-common)
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 1.4
+ 
+ - Added a option to chose if you want to be able to update the controller version using "apt update && apt upgrade"
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 1.3.1
+ 
+ - Added UniFi 5.8.24 Stable installation script
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 1.3
+ 
+ - UniFi dependency install
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 1.2
+ 
+ - Removed 5.7.x controllers since they became unsupported.
+ - Fixed some issues with the installation scripts.
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 1.1.2
+ 
+ - Added Stable Candidate 5.8.23 installation script
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 1.1.1
+ 
+ - Added Stable Candidate 5.8.21 installation script
+ - Fixed download links, sorry!
+ 
+ 
+ ###
+
+
+ |  UniFi Network Application Installation Script  |  Version 1.1
+ 
+ 
+ - Added Error check
+ 
+ 
+ ###
+ 
+ 
+ |  UniFi Network Application Installation Script  |  Version 1
+ 
+ - Released the Installation Scripts
+ 
+ 
