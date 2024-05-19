@@ -53,7 +53,7 @@ function Script:main() {
         IO:success "Updating changes ...                                "
         git commit -a -m "$script_basename updated from glennr.nl on $(date "Y-m-d")"
         [[ -z "$(git config --get user.email)" ]] && git config user.email "peter@forret.com"
-        [[ -z "$(git config --get user.name)" ]] && git config user.email "Github Action"
+        [[ -z "$(git config --get user.name)" ]] && git config user.name "Github Action"
         git push
       fi
 
