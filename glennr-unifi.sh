@@ -52,6 +52,7 @@ function Script:main() {
     #TIP: use «$script_prefix get» to ...
     #TIP:> $script_prefix get
     download_from_glennr "https://glennr.nl/s/unifi-network-controller" "./scripts/controller"
+
     latest=$(find "./scripts/controller" -type f -name "*.sh" | sort | tail -1)
     cp "$latest" "./scripts/install_unifi_controller.sh"
 
@@ -60,6 +61,10 @@ function Script:main() {
     download_from_glennr "https://glennr.nl/s/unifi-lets-encrypt" "./scripts/encrypt"
     download_from_glennr "https://glennr.nl/s/unifi-remote-adoption" "./scripts/remote"
     download_from_glennr "https://glennr.nl/s/unifi-video" "./scripts/video"
+
+    latest=$(find "./scripts/video" -type f -name "unifi*.sh" | sort | tail -1)
+    cp "$latest" "./scripts/install_unifi_video.sh"
+
     git add ./scripts
     if git diff --quiet --cached; then
       IO:success "No changes!                                "
