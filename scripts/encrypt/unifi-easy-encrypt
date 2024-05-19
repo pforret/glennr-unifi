@@ -11,6 +11,65 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Encrypt Script  |  Version 2.7.1
+ 
+ - Include script usage details in support files.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 2.7.0
+ 
+ - Added the ability to correct the time/date on setups without the timedatectl command.
+ - Fixed timedatectl errors during support file generation on older distributions.
+ - Include script usage details in support files.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 2.6.9
+ 
+ - Added an check to see if the script is saved to disk, it's required for it to work properly.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 2.6.8
+ 
+ - Added an check to see if the script is saved to disk, it's required for it to work properly.
+ - Fixed an issue where the DNS challenge was using a deprecated flag.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 2.6.7
+ 
+ - Fixed an issue where the script would attempt a manual DNS challenge while providing DNS Provider and credential files.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 2.6.6
+ 
+ - Fixed an issue where the script didn't create the EUS database if it isn't present.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 2.6.5
+ 
+ - Improved setting output language to English.
+ - Fixed missing script information.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 2.6.4
+ 
+ - Further improve the script with recent changes from the UniFi Easy Install/Update Script.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 2.6.3
+ 
+ - Replaced ip.glennr.nl with api.glennr.nl.
+ - Apply recent changes from the UniFi Easy Install/Update Script.
+ 
+ ###
+
  |  UniFi Easy Encrypt Script  |  Version 2.6.2
  
  - Fixed Ubuntu Noble support.

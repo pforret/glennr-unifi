@@ -11,6 +11,102 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 8.5.3
+
+ - Added broken installation check during installation of packages.
+ - Added more retries to curl downloads if it fails due to an network error.
+ - Improved the MongoDB Downgrade process when package mongodb-org-database-tools-extra breaks older mongodb-org-tools versions.
+ - Fixed the inability to start the Network Application if the user outside of the script performed an unsupport MongoDB version change. It will now also detect and properly handle incorrect user database upgrades.
+ - Fixed an potentional issue where a directory could be missing.
+ - Include script usage details in support files.
+ - Include UniFi Database size and free disk space information in support files for the MongoDB Upgrade process.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 8.5.2
+
+ - Added the ability to correct the time/date on setups without the timedatectl command.
+ - Added pgp.mongodb.com to the DNS resolve check.
+ - Fixed timedatectl errors during support file generation on older distributions.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 8.5.1
+
+ - Added an check to see if the script is saved to disk, it's required for it to work properly.
+ - Attempt to resolve MongoDB Upgrade failures in rare cases, I haven't been able to reproduce these issues though.
+ - Fixed an issue where the script would handle incorrect installations as "OK".
+ - Don't delete the UniFi Easy Update script if user chooses to run the Easy Installation Script.
+ - Use verbose logging for MongoDB shutdown.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 8.5.0
+
+ - Improved dpkg lock check when preventing packages from updating.
+ - Improved setting output language to English.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 8.4.9
+
+ - Replaced up.glennr.nl with api.glennr.nl.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 8.4.8
+ 
+ - Added second installation attempt using --no-install-recommends.
+ - Added a check/fix for package cache corruption.
+ - Improved support files.
+ - Fixed an issue where it falsely detected system.properties changes.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 8.4.7
+ 
+ - Added a check to see if /boot is (nearly) full, and try to cleanup/recover incomplete installations of linux-image and linux-headers packages.
+ - Added timedatectl information to support files.
+ - Re-worked some checks/services to use api.glennr.nl.
+ - Enable NTP time syncing if systemd-timesyncd is installed, and set proper time.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 8.4.6
+ 
+ - Added repo.mongodb.org to the DNS check.
+ - Improved support file generating.
+ - Improved adding the MongoDB Repository.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 8.4.5
+ 
+ - Fixed installation failure when using openlogic-openjdk java as an example.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 8.4.4
+ 
+ - Improved the MongoDB Upgrade process.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 8.4.3
+ 
+ - Fixed curl errors in rare cacses during the repository check.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 8.4.2
+ 
+ - Improved UniFi Database shutdown logging.
+ - Improved the dpkg interrupted check.
+ - Improved mongo-tools installation attempt during the MongoDB Upgrade process for Ubuntu Noble.
+ - Fixed installation check failing if the package is in iU state.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 8.4.1
  
  - Improved the deb file download check.

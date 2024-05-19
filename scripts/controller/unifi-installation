@@ -11,6 +11,97 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 7.3.0
+ 
+ - Improved broken installation recovery.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 7.2.9
+ 
+ - Added broken installation check during installation of packages.
+ - Added more retries to curl downloads if it fails due to an network error.
+ - Added more attempts to install MongoDB if prefered methods fail.
+ - Added support for fixing unsupported upgrade/downgrades from MongoDB version 2.4/2.6.
+ - Improve MongoDB Installation time/date logging.
+ - Improved the MongoDB Downgrade process when package mongodb-org-database-tools-extra breaks older mongodb-org-tools versions.
+ - Fixed the inability to start the Network Application if the user outside of the script performed an unsupport MongoDB version change. It will now also detect and properly handle incorrect user database upgrades.
+ - Include script usage details in support files.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 7.2.8
+ 
+ - Added the ability to correct the time/date on setups without the timedatectl command.
+ - Added pgp.mongodb.com to the DNS resolve check.
+ - Added tuning to the system.properties file if the Free Memory is lower than 2GB.
+ - Fixed timedatectl errors during support file generation on older distributions.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 7.2.7
+ 
+ - Added an check to see if the script is saved to disk, it's required for it to work properly.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 7.2.6
+ 
+ - Improved setting output language to English.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 7.2.5
+ 
+ - Replaced up.glennr.nl with api.glennr.nl.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 7.2.4
+ 
+ - Added second installation attempt using --no-install-recommends.
+ - Added a check/fix for package cache corruption.
+ - Improved support files.
+ - Improved the MongoDB Downgrade process.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 7.2.3
+ 
+ - Added timedatectl information to support files.
+ - Re-worked some checks/services to use api.glennr.nl.
+ - Enable NTP time syncing if systemd-timesyncd is installed, and set proper time.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 7.2.2
+ 
+ - Added repo.mongodb.org to the DNS check.
+ - Improved adding the MongoDB Repository.
+ - Improved support file generating.
+ - Fixed installation failed if the previous MongoDB version was newer than what UniFi Network supported.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 7.2.1
+ 
+ - Fixed installation failure when using openlogic-openjdk java as an example.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 7.2.0
+ 
+ - Fixed curl errors in rare cacses during the repository check.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 7.1.9
+ 
+ - Improved the dpkg interrupted check.
+ - Fixed installation check failing if the package is in iU state.
+ 
+ ###
+
  |  UniFi Network Application Installation Script  |  Version 7.1.8
  
  - Improved the deb file download check.
