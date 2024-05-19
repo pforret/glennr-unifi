@@ -414,12 +414,14 @@ function Gha:finish() {
   local timestamp message
   git config user.name "Bashew Runner"
   git config user.email "actions@users.noreply.github.com"
+  git add -A
   timestamp="$(date -u)"
   message="$timestamp < $script_basename $script_version"
-  git add -A
+  IO:print "Commit Message: $message"
   git commit -m "${message}" || exit 0
   git pull --rebase
   git push
+  IO:success "Commit OK!"
   exit 0
 }
 
