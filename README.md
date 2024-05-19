@@ -14,4 +14,4 @@ UNIFI NETWORK APPLICATION SCRIPTS
 
 ## IMPORTANT
 
-These scripts were **not created by me**, they were developed by [Glenn Rietveld](https://www.linkedin.com/in/glenn-rietveld-555811149) from [Ubiquiti](https://www.ui.com/). I've only created this repository to make it easier to find the scripts and track their updates.
+These scripts are/were **not created by me**, they are developed by [Glenn Rietveld](https://www.linkedin.com/in/glenn-rietveld-555811149) from [Ubiquiti](https://www.ui.com/). I've only created this repository to make it easier to find the scripts and track their updates.
