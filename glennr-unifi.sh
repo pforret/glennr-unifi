@@ -47,7 +47,14 @@ function Script:main() {
       download_from_glennr "https://glennr.nl/s/unifi-remote-adoption" "./scripts/remote"
       download_from_glennr "https://glennr.nl/s/unifi-video" "./scripts/video"
       git add ./scripts
-      setver auto
+      if git diff --quiet --cached; then
+        IO:success "No changes"
+      else
+        git commit -a -m "$script_basename updated from glennr.nl on $(date "Y-m-d")"
+        [[ -z "$(git config --get user.email)" ]] && git config user.email "peter@forret.com"
+        [[ -z "$(git config --get user.name)" ]] && git config user.email "Github Action"
+        git push
+      fi
 
       ;;
 
