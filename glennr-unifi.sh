@@ -51,10 +51,7 @@ function Script:main() {
       IO:success "No changes!                                "
     else
       IO:success "Updating changes ...                                "
-      git commit -a -m "$script_basename updated from glennr.nl on $(date "Y-m-d")"
-      [[ -z "$(git config --get user.email)" ]] && git config user.email "peter@forret.com"
-      [[ -z "$(git config --get user.name)" ]] && git config user.name "Github Action"
-      git push
+      Gha:finish
     fi
 
     ;;
@@ -403,9 +400,10 @@ function Str:digest() {
 
 function Gha:finish() {
   [[ -z "${RUNNER_OS:-}" ]] && IO:die "This should only run inside a Github Action, don't run it on your machine"
+  local timestamp message
   git config user.name "Bashew Runner"
   git config user.email "actions@users.noreply.github.com"
-  timestamp=$(date -u)
+  timestamp="$(date -u)"
   message="$timestamp < $script_basename $script_version"
   git add -A
   git commit -m "${message}" || exit 0
