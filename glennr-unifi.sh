@@ -422,7 +422,6 @@ function Gha:finish() {
   git pull --rebase
   git push
   IO:success "Commit OK!"
-  exit 0
 }
 
 trap "IO:die \"ERROR \$? after \$SECONDS seconds \n\

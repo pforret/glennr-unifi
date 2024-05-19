@@ -23,6 +23,6 @@ jobs:
       - uses: actions/checkout@v4
 
       # Runs a single command using the runners shell
-      - name: Run a one-line script
+      - name: Get latest versions from glennr.nl
         run: ./glennr-unifi.sh get
 
