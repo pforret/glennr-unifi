@@ -8,9 +8,20 @@ readonly run_as_root=-1 # run_as_root: 0 = don't check anything / 1 = script MUS
 readonly script_description="sync all scripts from glennr.nl"
 ## some initialisation
 action=""
-script_prefix=""
-script_basename=""
+git_repo_remote=""
+git_repo_root=""
 install_package=""
+os_kernel=""
+os_machine=""
+os_name=""
+os_version=""
+script_basename=""
+script_hash="?"
+script_lines="?"
+script_prefix=""
+shell_brand=""
+shell_version=""
+
 temp_files=()
 
 function Option:config() {
@@ -187,7 +198,7 @@ function IO:debug() {
 
 function IO:die() {
   IO:print "${txtError}${char_fail} $script_basename${txtReset}: $*" >&2
-  tput bel
+  Os:beep
   Script:exit
 }
 
@@ -852,12 +863,9 @@ function Os:busy() {
 }
 
 function Os:beep() {
-  local type="${1=-info}"
-  case $type in
-  *)
+  if [[ -n "$TERM" ]]; then
     tput bel
-    ;;
-  esac
+  fi
 }
 
 function Script:meta() {
