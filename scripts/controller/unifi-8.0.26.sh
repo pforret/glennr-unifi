@@ -50,7 +50,7 @@
 ###################################################################################################################################################################################################
 
 # Script                | UniFi Network Easy Installation Script
-# Version               | 7.3.0
+# Version               | 7.3.1
 # Application version   | 8.0.26-206d947763
 # Debian Repo version   | 8.0.26-24388-1
 # Author                | Glenn Rietveld
@@ -190,6 +190,16 @@ set_curl_arguments() {
 }
 if [[ "$(command -v curl)" ]]; then set_curl_arguments; fi
 
+check_unifi_folder_permissions() {
+  while read -r target; do
+    echo -e "\\nPermissions for target: ${target}" &>> "/tmp/EUS/support/${check_unifi_folder_permissions_state}-folder-permisisons"
+    ls -lL "${target}" &>> "/tmp/EUS/support/${check_unifi_folder_permissions_state}-folder-permisisons"
+    if [[ -d "${target}" ]]; then
+      ls -l "${target}"/* &>> "/tmp/EUS/support/${check_unifi_folder_permissions_state}-folder-permisisons"
+    fi
+  done < <(find "/usr/lib/unifi" -maxdepth 1)
+}
+
 check_docker_setup() {
   if [[ -f /.dockerenv ]] || grep -q '/docker/' /proc/1/cgroup || { command -v pgrep &>/dev/null && (pgrep -f "^dockerd" &>/dev/null || pgrep -f "^containerd" &>/dev/null); }; then docker_setup="true"; else docker_setup="false"; fi
   if [[ -n "$(command -v jq)" ]]; then jq '."database" += {"docker-container": "'"${docker_setup}"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"; eus_database_move; fi
@@ -242,6 +252,8 @@ get_timezone() {
 }
 
 support_file() {
+  check_unifi_folder_permissions_state="abort-install"
+  check_unifi_folder_permissions
   get_timezone
   check_docker_setup
   if [[ "${set_lc_all}" == 'true' ]]; then if [[ -n "${original_lang}" ]]; then export LANG="${original_lang}"; else unset LANG; fi; if [[ -n "${original_lcall}" ]]; then export LC_ALL="${original_lcall}"; else unset LC_ALL; fi; fi
@@ -3059,20 +3071,20 @@ libssl_installation_check() {
       fi
     fi
     if [[ "${libssl_install_required}" == 'true' ]]; then
-      if [[ "$(dpkg-query --showformat='${Version}' --show libc6 | sed 's/.*://' | sed 's/-.*//g' | cut -d'.' -f1)" -lt "2" ]] || [[ "$(dpkg-query --showformat='${Version}' --show libc6 | sed 's/.*://' | sed 's/-.*//g' | cut -d'.' -f1)" == "2" && "$(dpkg-query --showformat='${Version}' --show libc6 | sed 's/.*://' | sed 's/-.*//g' | cut -d'.' -f2)" -lt "25" ]]; then
+      if [[ "$(dpkg-query --showformat='${Version}' --show libc6 | sed 's/.*://' | sed 's/-.*//g' | cut -d'.' -f1)" -lt "2" ]] || [[ "$(dpkg-query --showformat='${Version}' --show libc6 | sed 's/.*://' | sed 's/-.*//g' | cut -d'.' -f1)" == "2" && "$(dpkg-query --showformat='${Version}' --show libc6 | sed 's/.*://' | sed 's/-.*//g' | cut -d'.' -f2)" -lt "29" ]]; then
         if [[ "${os_codename}" =~ (trusty|qiana|rebecca|rafaela|rosa|xenial) ]]; then
           if [[ "${architecture}" =~ (amd64|i386) ]]; then
-            repo_arguments=" main"
+            repo_arguments="-security main"
           else
             repo_url="http://ports.ubuntu.com"
             repo_arguments=" main universe"
           fi
-          repo_codename="bionic"
-          os_codename="bionic"
+          repo_codename="focal"
+          os_codename="focal"
           get_repo_url
-        elif [[ "${os_codename}" =~ (jessie|stretch) ]]; then
-          repo_codename="buster"
-          os_codename="buster"
+        elif [[ "${os_codename}" =~ (jessie|stretch|buster) ]]; then
+          repo_codename="bullseye"
+          os_codename="bullseye"
           get_repo_url
           repo_arguments=" main"
         fi
@@ -3806,6 +3818,23 @@ mongodb_installation() {
     libssl_installation_check
     mongodb_installation_server_package="mongodb-org-server${install_mongodb_version_with_equality_sign}"
   fi
+  if "$(which dpkg)" -l mongo-tools 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+    check_dpkg_lock
+    echo -e "${WHITE_R}#${RESET} Purging package mongo-tools..."
+    if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' purge "mongo-tools" &>> "${eus_dir}/logs/mongodb-org-install.log"; then
+      echo -e "${GREEN}#${RESET} Successfully purged mongo-tools! \\n"
+    else
+      echo -e "${RED}#${RESET} Failed to purge mongo-tools...\\n"
+      if [[ -e "/var/lib/dpkg/info/mongo-tools.prerm" ]]; then eus_create_directories "dpkg"; mv "/var/lib/dpkg/info/mongo-tools.prerm" "${eus_dir}/dpkg/mongo-tools.prerm-$(date +%Y%m%d_%H%M_%s)"; fi
+      echo -e "${WHITE_R}#${RESET} Trying another method to get rid of mongo-tools..."
+      if DEBIAN_FRONTEND='noninteractive' "$(which dpkg)" --remove --force-remove-reinstreq "mongo-tools" &>> "${eus_dir}/logs/mongodb-org-install.log"; then
+        echo -e "${GREEN}#${RESET} Successfully removed mongo-tools! \\n"
+      else
+        echo -e "${RED}#${RESET} Failed to force remove mongo-tools...\\n"
+        abort_function_skip_reason="true"; abort_reason="Failed to purge mongo-tools."; abort
+      fi
+    fi
+  fi
   check_dpkg_lock
   echo -e "\\n------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/mongodb-org-install.log"
   echo -e "${WHITE_R}#${RESET} Installing mongodb-org version ${mongo_version_max_with_dot::3}..."
@@ -4132,7 +4161,8 @@ else
     mongodb_version_no_dots="${mongodb_version//./}"
     if [[ "${mongodb_version_no_dots::2}" -ge '44' && "$(dpkg-query --showformat='${Version}' --show mongodb-server | sed -e 's/.*://' -e 's/-.*//g' | awk -F. '{print $3}')" -ge "19" ]]; then if ! (lscpu 2>/dev/null | grep -iq "avx") || ! grep -iq "avx" /proc/cpuinfo; then unsupported_database_version_change="true"; fi; fi
     if [[ -n "${previous_mongodb_version}" ]]; then if [[ "${mongodb_version_no_dots::2}" != "${previous_mongodb_version::2}" ]] && [[ "${previous_mongodb_version::2}" != $(("${mongodb_version_no_dots::2}" - 2)) ]]; then unsupported_database_version_change="true"; fi; fi
-  elif "$(which dpkg)" -l mongodb-org-server 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui" && [[ "${glennr_compiled_mongod}" == 'true' ]]; then
+  fi
+  if "$(which dpkg)" -l mongodb-org-server 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui" && [[ "${glennr_compiled_mongod}" == 'true' ]]; then
     check_dpkg_lock
     echo -e "${WHITE_R}#${RESET} Purging mongodb-org-server..."
     if DEBIAN_FRONTEND='noninteractive' apt-get -y --allow-downgrades "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' purge mongodb-org-server &>> "${eus_dir}/logs/arm64-purge-mongodb.log"; then

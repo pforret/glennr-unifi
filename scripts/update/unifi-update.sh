@@ -2,7 +2,7 @@
 
 # UniFi Network Application Easy Update Script.
 # Script   | UniFi Network Easy Update Script
-# Version  | 8.5.3
+# Version  | 8.5.4
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -3100,20 +3100,20 @@ libssl_installation_check() {
       fi
     fi
     if [[ "${libssl_install_required}" == 'true' ]]; then
-      if [[ "$(dpkg-query --showformat='${Version}' --show libc6 | sed 's/.*://' | sed 's/-.*//g' | cut -d'.' -f1)" -lt "2" ]] || [[ "$(dpkg-query --showformat='${Version}' --show libc6 | sed 's/.*://' | sed 's/-.*//g' | cut -d'.' -f1)" == "2" && "$(dpkg-query --showformat='${Version}' --show libc6 | sed 's/.*://' | sed 's/-.*//g' | cut -d'.' -f2)" -lt "25" ]]; then
+      if [[ "$(dpkg-query --showformat='${Version}' --show libc6 | sed 's/.*://' | sed 's/-.*//g' | cut -d'.' -f1)" -lt "2" ]] || [[ "$(dpkg-query --showformat='${Version}' --show libc6 | sed 's/.*://' | sed 's/-.*//g' | cut -d'.' -f1)" == "2" && "$(dpkg-query --showformat='${Version}' --show libc6 | sed 's/.*://' | sed 's/-.*//g' | cut -d'.' -f2)" -lt "29" ]]; then
         if [[ "${os_codename}" =~ (trusty|qiana|rebecca|rafaela|rosa|xenial) ]]; then
           if [[ "${architecture}" =~ (amd64|i386) ]]; then
-            repo_arguments=" main"
+            repo_arguments="-security main"
           else
             repo_url="http://ports.ubuntu.com"
             repo_arguments=" main universe"
           fi
-          repo_codename="bionic"
-          os_codename="bionic"
+          repo_codename="focal"
+          os_codename="focal"
           get_repo_url
-        elif [[ "${os_codename}" =~ (jessie|stretch) ]]; then
-          repo_codename="buster"
-          os_codename="buster"
+        elif [[ "${os_codename}" =~ (jessie|stretch|buster) ]]; then
+          repo_codename="bullseye"
+          os_codename="bullseye"
           get_repo_url
           repo_arguments=" main"
         fi
@@ -6393,7 +6393,7 @@ mongodb_upgrade() {
   unifi_logs_location="$(readlink -f /usr/lib/unifi/logs)"
   if [[ -z "${unifi_database_location}" ]]; then unifi_database_location="/usr/lib/unifi/data/db"; fi
   unifi_db_eus_dir="${eus_dir}"
-  mongodb_upgrade_date="$(date +%Y%m%d_%H%M_%S%N)"
+  mongodb_upgrade_date="$(date +%Y%m%d_%H%M_%s)"
   mongodb_upgrade_from_version_with_dots="$("$(which dpkg)" -l | grep "mongodb-org-server\\|mongodb-server\\|mongodb-10gen" | grep -i "^ii\\|^hi\\|^ri\\|^pi\\|^ui" | awk '{print $3}' | sed 's/.*://' | sed 's/-.*//g' | sed 's/+.*//g' | sort -V | tail -n 1)"
   mongodb_upgrade_from_version="$("$(which dpkg)" -l | grep "mongodb-org-server\\|mongodb-server\\|mongodb-10gen" | grep -i "^ii\\|^hi\\|^ri\\|^pi\\|^ui" | awk '{print $3}' | sed 's/\.//g' | sed 's/.*://' | sed 's/-.*//g' | sed 's/+.*//g' | sort -V | tail -n 1)"
   mongodb_org_upgrade_from_version_with_dots="$("$(which dpkg)" -l | grep "mongodb-org-server" | grep -i "^ii\\|^hi\\|^ri\\|^pi\\|^ui" | awk '{print $3}' | sed 's/.*://' | sed 's/-.*//g' | sed 's/+.*//g' | sort -V | tail -n 1)"

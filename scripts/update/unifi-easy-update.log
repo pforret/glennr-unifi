@@ -11,6 +11,12 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 8.5.4
+  
+ - Fixed inability to install MongoDB 4.4 on Debian Buster.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 8.5.3
 
  - Added broken installation check during installation of packages.

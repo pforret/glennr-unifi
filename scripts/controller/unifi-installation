@@ -11,6 +11,15 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 7.3.1
+ 
+ - Fixed inability to install MongoDB 4.4 on Debian Buster.
+ - Fixed inability to install mongodb-org-tools when mongo-tools is installed.
+ - Fixed inability to start the Network Application if someone already installed MongoDB 7.0 on a uncapable arm64 CPU.
+ - Improved information in support files.
+ 
+ ###
+
  |  UniFi Network Application Installation Script  |  Version 7.3.0
  
  - Improved broken installation recovery.
