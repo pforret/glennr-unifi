@@ -11,6 +11,29 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 8.5.7
+  
+ - Fixed an issue where setups using apt version 1.5 or newer without apt-transport-https were using HTTP rather than HTTPS.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 8.5.6
+  
+ - Fixed download failure introduced in 8.5.5.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 8.5.5
+  
+ - Added a unmet dependency check.
+ - Added linux-firmware check to the /boot space check.
+ - Added an insecure retry for obtaining the MongoDB Key.
+ - Improved the system.properties check.
+ - Improved the script by using api.glennr.nl to get distro details, such as repository URL and EOL status.
+ - Prevent adjusting an download variable if it's already set.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 8.5.4
   
  - Fixed inability to install MongoDB 4.4 on Debian Buster.

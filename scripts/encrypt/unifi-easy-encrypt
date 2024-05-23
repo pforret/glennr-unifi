@@ -11,6 +11,25 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Encrypt Script  |  Version 2.7.4
+ 
+ - Fixed an issue where setups using apt version 1.5 or newer without apt-transport-https were using HTTP rather than HTTPS.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 2.7.3
+ 
+ - Fixed an issue that causes Route53 not to work properly.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 2.7.2
+ 
+ - Improved the script by using api.glennr.nl to get distro details, such as repository URL and EOL status.
+ - Skip support file upload for FQDN resolve failures.
+ 
+ ###
+
  |  UniFi Easy Encrypt Script  |  Version 2.7.1
  
  - Include script usage details in support files.

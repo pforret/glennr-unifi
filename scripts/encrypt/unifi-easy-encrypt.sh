@@ -2,7 +2,7 @@
 
 # UniFi Easy Encrypt script.
 # Script   | UniFi Network Easy Encrypt Script
-# Version  | 2.7.1
+# Version  | 2.7.4
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -851,7 +851,12 @@ if [[ -n "${auto_dns_challenge_arguments}" ]]; then
       fi
     done < <(curl "${curl_argument[@]}" "https://get.glennr.nl/unifi/releases/multi-dns.json" 2> /dev/null | jq -r '.provider.'"${auto_dns_challenge_provider}"'.required_fields[]')
     if [[ "${certbot_native_plugin}" == 'true' ]]; then
-      auto_dns_challenge_arguments="${auto_dns_challenge_arguments} --dns-${auto_dns_challenge_provider}-credentials ${auto_dns_challenge_credentials_file}"
+      if [[ "${auto_dns_challenge_provider}" =~ (route53) ]]; then
+        # shellcheck disable=SC2269
+        auto_dns_challenge_arguments="${auto_dns_challenge_arguments}"
+      else
+        auto_dns_challenge_arguments="${auto_dns_challenge_arguments} --dns-${auto_dns_challenge_provider}-credentials ${auto_dns_challenge_credentials_file}"
+      fi
     elif [[ "${certbot_multi_plugin}" == 'true' ]]; then
       auto_dns_challenge_arguments="-a dns-multi --dns-multi-credentials ${auto_dns_challenge_credentials_file}"
     fi
@@ -957,32 +962,35 @@ get_distro() {
   if [[ -z "$(command -v lsb_release)" ]] || [[ "${skip_use_lsb_release}" == 'true' ]]; then
     if [[ -f "/etc/os-release" ]]; then
       if grep -iq VERSION_CODENAME /etc/os-release; then
-        os_codename=$(grep VERSION_CODENAME /etc/os-release | sed 's/VERSION_CODENAME//g' | tr -d '="' | tr '[:upper:]' '[:lower:]')
+        os_codename="$(grep VERSION_CODENAME /etc/os-release | sed 's/VERSION_CODENAME//g' | tr -d '="' | tr '[:upper:]' '[:lower:]')"
+        os_id="$(grep ^"ID=" /etc/os-release | sed 's/ID//g' | tr -d '="' | tr '[:upper:]' '[:lower:]')"
       elif ! grep -iq VERSION_CODENAME /etc/os-release; then
-        os_codename=$(grep PRETTY_NAME /etc/os-release | sed 's/PRETTY_NAME=//g' | tr -d '="' | awk '{print $4}' | sed 's/\((\|)\)//g' | sed 's/\/sid//g' | tr '[:upper:]' '[:lower:]')
+        os_codename="$(grep PRETTY_NAME /etc/os-release | sed 's/PRETTY_NAME=//g' | tr -d '="' | awk '{print $4}' | sed 's/\((\|)\)//g' | sed 's/\/sid//g' | tr '[:upper:]' '[:lower:]')"
+        os_id="$(grep -io "debian\\|ubuntu" /etc/os-release | tr '[:upper:]' '[:lower:]' | head -n1)"
         if [[ -z "${os_codename}" ]]; then
-          os_codename=$(grep PRETTY_NAME /etc/os-release | sed 's/PRETTY_NAME=//g' | tr -d '="' | awk '{print $3}' | sed 's/\((\|)\)//g' | sed 's/\/sid//g' | tr '[:upper:]' '[:lower:]')
+          os_codename="$(grep PRETTY_NAME /etc/os-release | sed 's/PRETTY_NAME=//g' | tr -d '="' | awk '{print $3}' | sed 's/\((\|)\)//g' | sed 's/\/sid//g' | tr '[:upper:]' '[:lower:]')"
         fi
       fi
     fi
   else
-    os_codename=$(lsb_release -cs | tr '[:upper:]' '[:lower:]')
+    os_codename="$(lsb_release --codename --short | tr '[:upper:]' '[:lower:]')"
+    os_id="$(lsb_release --id --short | tr '[:upper:]' '[:lower:]')"
     if [[ "${os_codename}" == 'n/a' ]]; then
       skip_use_lsb_release="true"
       get_distro
       return
     fi
   fi
-  if [[ "${os_codename}" =~ ^(precise|maya|luna)$ ]]; then repo_codename=precise; os_codename=precise
-  elif [[ "${os_codename}" =~ ^(trusty|qiana|rebecca|rafaela|rosa|freya)$ ]]; then repo_codename=trusty; os_codename=trusty
-  elif [[ "${os_codename}" =~ ^(xenial|sarah|serena|sonya|sylvia|loki)$ ]]; then repo_codename=xenial; os_codename=xenial
-  elif [[ "${os_codename}" =~ ^(bionic|tara|tessa|tina|tricia|hera|juno)$ ]]; then repo_codename=bionic; os_codename=bionic
-  elif [[ "${os_codename}" =~ ^(focal|ulyana|ulyssa|uma|una|odin|jolnir)$ ]]; then repo_codename=focal; os_codename=focal
-  elif [[ "${os_codename}" =~ ^(jammy|vanessa|vera|victoria|virginia|horus)$ ]]; then repo_codename=jammy; os_codename=jammy
-  elif [[ "${os_codename}" =~ ^(stretch|continuum)$ ]]; then repo_codename=stretch; os_codename=stretch
-  elif [[ "${os_codename}" =~ ^(buster|debbie|parrot|engywuck-backports|engywuck|deepin)$ ]]; then repo_codename=buster; os_codename=buster
-  elif [[ "${os_codename}" =~ ^(bullseye|kali-rolling|elsie|ara)$ ]]; then repo_codename=bullseye; os_codename=bullseye
-  elif [[ "${os_codename}" =~ ^(bookworm|lory|faye)$ ]]; then repo_codename=bookworm; os_codename=bookworm
+  if [[ "${os_codename}" =~ ^(precise|maya|luna)$ ]]; then repo_codename="precise"; os_codename="precise"; os_id="ubuntu"
+  elif [[ "${os_codename}" =~ ^(trusty|qiana|rebecca|rafaela|rosa|freya)$ ]]; then repo_codename="trusty"; os_codename="trusty"; os_id="ubuntu"
+  elif [[ "${os_codename}" =~ ^(xenial|sarah|serena|sonya|sylvia|loki)$ ]]; then repo_codename="xenial"; os_codename="xenial"; os_id="ubuntu"
+  elif [[ "${os_codename}" =~ ^(bionic|tara|tessa|tina|tricia|hera|juno)$ ]]; then repo_codename="bionic"; os_codename="bionic"; os_id="ubuntu"
+  elif [[ "${os_codename}" =~ ^(focal|ulyana|ulyssa|uma|una|odin|jolnir)$ ]]; then repo_codename="focal"; os_codename="focal"; os_id="ubuntu"
+  elif [[ "${os_codename}" =~ ^(jammy|vanessa|vera|victoria|virginia|horus)$ ]]; then repo_codename="jammy"; os_codename="jammy"; os_id="ubuntu"
+  elif [[ "${os_codename}" =~ ^(stretch|continuum)$ ]]; then repo_codename="stretch"; os_codename="stretch"; os_id="debian"
+  elif [[ "${os_codename}" =~ ^(buster|debbie|parrot|engywuck-backports|engywuck|deepin)$ ]]; then repo_codename="buster"; os_codename="buster"; os_id="debian"
+  elif [[ "${os_codename}" =~ ^(bullseye|kali-rolling|elsie|ara)$ ]]; then repo_codename="bullseye"; os_codename="bullseye"; os_id="debian"
+  elif [[ "${os_codename}" =~ ^(bookworm|lory|faye)$ ]]; then repo_codename="bookworm"; os_codename="bookworm"; os_id="debian"
   else
     repo_codename="${os_codename}"
   fi
@@ -993,7 +1001,8 @@ get_distro
 get_repo_url() {
   unset archived_repo
   if [[ "${os_codename}" != "${repo_codename}" ]]; then os_codename="${repo_codename}"; os_codename_changed="true"; fi
-  if "$(which dpkg)" -l apt-transport-https 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+  if "$(which dpkg)" -l apt 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then apt_package_version="$(dpkg-query --showformat='${Version}' --show apt | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)"; fi
+  if "$(which dpkg)" -l apt-transport-https 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui" || [[ "${apt_package_version::2}" -ge "15" ]]; then
     http_or_https="https"
     add_repositories_http_or_https="http[s]*"
     if [[ "${copied_source_files}" == 'true' ]]; then
@@ -1010,16 +1019,24 @@ get_repo_url() {
     add_repositories_http_or_https="http"
   fi
   if "$(which dpkg)" -l curl 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
-    if [[ "${os_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then
-      if curl "${curl_argument[@]}" "${http_or_https}://old-releases.ubuntu.com/ubuntu/dists/" 2> /dev/null | grep -iq "${os_codename}" 2> /dev/null; then archived_repo="true"; fi
-      if [[ "${architecture}" =~ (amd64|i386) ]]; then
-        if [[ "${archived_repo}" == "true" ]]; then repo_url="${http_or_https}://old-releases.ubuntu.com/ubuntu"; else repo_url="http://archive.ubuntu.com/ubuntu"; fi
-      else
-        if [[ "${archived_repo}" == "true" ]]; then repo_url="${http_or_https}://old-releases.ubuntu.com/ubuntu"; else repo_url="http://ports.ubuntu.com"; fi
+    if [[ "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/distro?status" 2> /dev/null | jq -r '.[]' 2> /dev/null)" == "OK" ]]; then
+      if [[ "${http_or_https}" == "http" ]]; then api_repo_url_procotol="&protocol=insecure"; fi
+      distro_api_output="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/distro?distribution=${os_id}&version=${os_codename}&architecture=${architecture}${api_repo_url_procotol}" 2> /dev/null)"
+      archived_repo="$(echo "${distro_api_output}" | jq -r '.codename_eol')"
+      repo_url="$(echo "${distro_api_output}" | jq -r '.repository')"
+      if [[ "${os_id}" == "raspbian" ]]; then get_distro; fi
+    else
+      if [[ "${os_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then
+        if curl "${curl_argument[@]}" "${http_or_https}://old-releases.ubuntu.com/ubuntu/dists/" 2> /dev/null | grep -iq "${os_codename}" 2> /dev/null; then archived_repo="true"; fi
+        if [[ "${architecture}" =~ (amd64|i386) ]]; then
+          if [[ "${archived_repo}" == "true" ]]; then repo_url="${http_or_https}://old-releases.ubuntu.com/ubuntu"; else repo_url="http://archive.ubuntu.com/ubuntu"; fi
+        else
+          if [[ "${archived_repo}" == "true" ]]; then repo_url="${http_or_https}://old-releases.ubuntu.com/ubuntu"; else repo_url="http://ports.ubuntu.com"; fi
+        fi
+      elif [[ "${os_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
+        if curl "${curl_argument[@]}" "${http_or_https}://archive.debian.org/debian/dists/" 2> /dev/null | grep -iq "${os_codename}" 2> /dev/null; then archived_repo="true"; fi
+        if [[ "${archived_repo}" == "true" ]]; then repo_url="${http_or_https}://archive.debian.org/debian"; else repo_url="${http_or_https}://deb.debian.org/debian"; fi
       fi
-    elif [[ "${os_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
-      if curl "${curl_argument[@]}" "${http_or_https}://archive.debian.org/debian/dists/" 2> /dev/null | grep -iq "${os_codename}" 2> /dev/null; then archived_repo="true"; fi
-      if [[ "${archived_repo}" == "true" ]]; then repo_url="${http_or_https}://archive.debian.org/debian"; else repo_url="${http_or_https}://deb.debian.org/debian"; fi
     fi
   else
     if [[ "${os_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then
@@ -2027,7 +2044,7 @@ fqdn_option() {
     sleep 2
   done < "${eus_dir}/fqdn_option_domains"
   rm --force "${eus_dir}/fqdn_option_domains" &> /dev/null
-  if [[ "$(grep -c "" "${eus_dir}/other_domain_records" 2> /dev/null)" -eq "0" ]]; then echo -e "${RED}#${RESET} None of the FQDN's resolved correctly... \\n" | tee -a "${eus_dir}/logs/unattended.log"; abort_reason="None of the FQDN's resolved correctly."; abort; fi
+  if [[ "$(grep -c "" "${eus_dir}/other_domain_records" 2> /dev/null)" -eq "0" ]]; then echo -e "${RED}#${RESET} None of the FQDN's resolved correctly... \\n" | tee -a "${eus_dir}/logs/unattended.log"; abort_skip_support_file_upload="true"; abort_reason="None of the FQDN's resolved correctly."; abort; fi
   if [[ "$(grep -c "" "${eus_dir}/other_domain_records" 2> /dev/null)" -ge "1" ]]; then multiple_fqdn_resolved="true"; fi
   if [[ "${install_script}" == 'true' ]]; then echo "${server_fqdn}" &> "${eus_dir}/server_fqdn_install"; fi
   sleep 2
@@ -3106,26 +3123,30 @@ import_ssl_certificates() {
   if [[ "${prefer_dns_challenge}" == 'true' ]]; then
     echo -e "${WHITE_R}#${RESET} Performing the DNS challenge!"
     if [[ "${certbot_auto}" == 'true' ]]; then
-      # shellcheck disable=2086
       if [[ "${dns_manual_flag}" == '--manual' ]]; then
         echo ""
+        # shellcheck disable=SC2090,SC2086
         ${certbot} certonly ${dns_manual_flag} --agree-tos --preferred-challenges dns ${auto_dns_challenge_arguments} ${server_fqdn_le} ${email} ${renewal_option} ${acme_server} ${key_type_option} "${certbot_auto_flags}" 2>&1 | tee -a "${eus_dir}/logs/lets_encrypt_${time_date}.log" && dns_manual_certbot_success=true
       else
         if [[ "${certbot_native_plugin}" == 'true' ]]; then
+          # shellcheck disable=SC2090,SC2086
           ${certbot} certonly ${dns_manual_flag} --agree-tos --preferred-challenges dns --post-hook "/etc/letsencrypt/renewal-hooks/post/EUS_${server_fqdn}.sh" ${auto_dns_challenge_arguments} ${server_fqdn_le} ${email} ${renewal_option} ${acme_server} ${key_type_option} "${certbot_auto_flags}" &> "${eus_dir}/logs/lets_encrypt_${time_date}.log" && dns_certbot_success=true
         elif [[ "${certbot_multi_plugin}" == 'true' ]]; then
+          # shellcheck disable=SC2090,SC2086
           ${certbot} certonly ${auto_dns_challenge_arguments} ${dns_manual_flag} --agree-tos --preferred-challenges dns --post-hook "/etc/letsencrypt/renewal-hooks/post/EUS_${server_fqdn}.sh" ${server_fqdn_le} ${email} ${renewal_option} ${acme_server} ${key_type_option} "${certbot_auto_flags}" &> "${eus_dir}/logs/lets_encrypt_${time_date}.log" && dns_certbot_success=true
         fi
       fi
     else
-      # shellcheck disable=2086
       if [[ "${dns_manual_flag}" == '--manual' ]]; then
         echo ""
+        # shellcheck disable=SC2090,SC2086
         ${certbot} certonly ${dns_manual_flag} --agree-tos --preferred-challenges dns ${auto_dns_challenge_arguments} ${server_fqdn_le} ${email} ${renewal_option} ${acme_server} ${key_type_option} 2>&1 | tee -a "${eus_dir}/logs/lets_encrypt_${time_date}.log" && dns_manual_certbot_success=true
       else
         if [[ "${certbot_native_plugin}" == 'true' ]]; then
+          # shellcheck disable=SC2090,SC2086
           ${certbot} certonly ${dns_manual_flag} --agree-tos --preferred-challenges dns --post-hook "/etc/letsencrypt/renewal-hooks/post/EUS_${server_fqdn}.sh" ${auto_dns_challenge_arguments} ${server_fqdn_le} ${email} ${renewal_option} ${acme_server} ${key_type_option} &> "${eus_dir}/logs/lets_encrypt_${time_date}.log" && dns_certbot_success=true
         elif [[ "${certbot_multi_plugin}" == 'true' ]]; then
+          # shellcheck disable=SC2090,SC2086
           ${certbot} certonly ${auto_dns_challenge_arguments} ${dns_manual_flag} --agree-tos --preferred-challenges dns --post-hook "/etc/letsencrypt/renewal-hooks/post/EUS_${server_fqdn}.sh" ${server_fqdn_le} ${email} ${renewal_option} ${acme_server} ${key_type_option} &> "${eus_dir}/logs/lets_encrypt_${time_date}.log" && dns_certbot_success=true
         fi
         
@@ -4206,32 +4227,38 @@ EOF
 
 # Functions
 get_distro() {
-  if [[ -z "\$(command -v lsb_release)" ]]; then
+  if [[ -z "\$(command -v lsb_release)" ]] || [[ "\${skip_use_lsb_release}" == 'true' ]]; then
     if [[ -f "/etc/os-release" ]]; then
       if grep -iq VERSION_CODENAME /etc/os-release; then
-        os_codename=\$(grep VERSION_CODENAME /etc/os-release | sed 's/VERSION_CODENAME//g' | tr -d '="' | tr '[:upper:]' '[:lower:]')
+        os_codename="\$(grep VERSION_CODENAME /etc/os-release | sed 's/VERSION_CODENAME//g' | tr -d '="' | tr '[:upper:]' '[:lower:]')"
+        os_id="\$(grep ^"ID=" /etc/os-release | sed 's/ID//g' | tr -d '="' | tr '[:upper:]' '[:lower:]')"
       elif ! grep -iq VERSION_CODENAME /etc/os-release; then
-        os_codename=\$(grep PRETTY_NAME /etc/os-release | sed 's/PRETTY_NAME=//g' | tr -d '="' | awk '{print \$4}' | sed 's/\((\|)\)//g' | sed 's/\/sid//g' | tr '[:upper:]' '[:lower:]')
+        os_codename="\$(grep PRETTY_NAME /etc/os-release | sed 's/PRETTY_NAME=//g' | tr -d '="' | awk '{print \$4}' | sed 's/\((\|)\)//g' | sed 's/\/sid//g' | tr '[:upper:]' '[:lower:]')"
+        os_id="\$(grep -io "debian\\|ubuntu" /etc/os-release | tr '[:upper:]' '[:lower:]' | head -n1)"
         if [[ -z "\${os_codename}" ]]; then
-          os_codename=\$(grep PRETTY_NAME /etc/os-release | sed 's/PRETTY_NAME=//g' | tr -d '="' | awk '{print \$3}' | sed 's/\((\|)\)//g' | sed 's/\/sid//g' | tr '[:upper:]' '[:lower:]')
+          os_codename="\$(grep PRETTY_NAME /etc/os-release | sed 's/PRETTY_NAME=//g' | tr -d '="' | awk '{print \$3}' | sed 's/\((\|)\)//g' | sed 's/\/sid//g' | tr '[:upper:]' '[:lower:]')"
         fi
       fi
     fi
   else
-    os_codename=\$(lsb_release -cs | tr '[:upper:]' '[:lower:]')
+    os_codename="\$(lsb_release --codename --short | tr '[:upper:]' '[:lower:]')"
+    os_id="\$(lsb_release --id --short | tr '[:upper:]' '[:lower:]')"
     if [[ "\${os_codename}" == 'n/a' ]]; then
-      os_codename=\$(lsb_release -is | tr '[:upper:]' '[:lower:]')
+      skip_use_lsb_release="true"
+      get_distro
+      return
     fi
   fi
-  if [[ "\${os_codename}" =~ ^(precise|maya|luna)\$ ]]; then repo_codename=precise; os_codename=precise
-  elif [[ "\${os_codename}" =~ ^(trusty|qiana|rebecca|rafaela|rosa|freya)\$ ]]; then repo_codename=trusty; os_codename=trusty
-  elif [[ "\${os_codename}" =~ ^(xenial|sarah|serena|sonya|sylvia|loki)\$ ]]; then repo_codename=xenial; os_codename=xenial
-  elif [[ "\${os_codename}" =~ ^(bionic|tara|tessa|tina|tricia|hera|juno)\$ ]]; then repo_codename=bionic; os_codename=bionic
-  elif [[ "\${os_codename}" =~ ^(focal|ulyana|ulyssa|uma|una)\$ ]]; then repo_codename=focal; os_codename=focal
-  elif [[ "\${os_codename}" =~ ^(jammy|vanessa|vera|victoria)\$ ]]; then repo_codename=jammy; os_codename=jammy
-  elif [[ "\${os_codename}" =~ ^(stretch|continuum)\$ ]]; then repo_codename=stretch; os_codename=stretch
-  elif [[ "\${os_codename}" =~ ^(buster|debbie|parrot|engywuck-backports|engywuck|deepin)\$ ]]; then repo_codename=buster; os_codename=buster
-  elif [[ "\${os_codename}" =~ ^(bullseye|kali-rolling|elsie|ara)\$ ]]; then repo_codename=bullseye; os_codename=bullseye
+  if [[ "\\${os_codename}" =~ ^(precise|maya|luna)$ ]]; then repo_codename="precise"; os_codename="precise"; os_id="ubuntu"
+  elif [[ "\${os_codename}" =~ ^(trusty|qiana|rebecca|rafaela|rosa|freya)$ ]]; then repo_codename="trusty"; os_codename="trusty"; os_id="ubuntu"
+  elif [[ "\${os_codename}" =~ ^(xenial|sarah|serena|sonya|sylvia|loki)$ ]]; then repo_codename="xenial"; os_codename="xenial"; os_id="ubuntu"
+  elif [[ "\${os_codename}" =~ ^(bionic|tara|tessa|tina|tricia|hera|juno)$ ]]; then repo_codename="bionic"; os_codename="bionic"; os_id="ubuntu"
+  elif [[ "\${os_codename}" =~ ^(focal|ulyana|ulyssa|uma|una|odin|jolnir)$ ]]; then repo_codename="focal"; os_codename="focal"; os_id="ubuntu"
+  elif [[ "\${os_codename}" =~ ^(jammy|vanessa|vera|victoria|virginia|horus)$ ]]; then repo_codename="jammy"; os_codename="jammy"; os_id="ubuntu"
+  elif [[ "\${os_codename}" =~ ^(stretch|continuum)$ ]]; then repo_codename="stretch"; os_codename="stretch"; os_id="debian"
+  elif [[ "\${os_codename}" =~ ^(buster|debbie|parrot|engywuck-backports|engywuck|deepin)$ ]]; then repo_codename="buster"; os_codename="buster"; os_id="debian"
+  elif [[ "\${os_codename}" =~ ^(bullseye|kali-rolling|elsie|ara)$ ]]; then repo_codename="bullseye"; os_codename="bullseye"; os_id="debian"
+  elif [[ "\${os_codename}" =~ ^(bookworm|lory|faye)$ ]]; then repo_codename="bookworm"; os_codename="bookworm"; os_id="debian"
   else
     repo_codename="\${os_codename}"
   fi
@@ -4240,7 +4267,8 @@ get_distro
 
 get_repo_url() {
   unset archived_repo
-  if dpkg -l apt-transport-https 2> /dev/null | awk '{print \$1}' | grep -iq "^ii\\|^hi"; then
+  if "\$(which dpkg)" -l apt 2> /dev/null | awk '{print \$1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then apt_package_version="\$(dpkg-query --showformat='\${Version}' --show apt | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)"; fi
+  if "\$(which dpkg)" -l apt-transport-https 2> /dev/null | awk '{print \$1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui" || [[ "\${apt_package_version::2}" -ge "15" ]]; then
     http_or_https="https"
     add_repositories_http_or_https="http[s]*"
     if [[ "\${copied_source_files}" == 'true' ]]; then

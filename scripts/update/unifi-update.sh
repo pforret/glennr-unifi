@@ -2,7 +2,7 @@
 
 # UniFi Network Application Easy Update Script.
 # Script   | UniFi Network Easy Update Script
-# Version  | 8.5.4
+# Version  | 8.5.7
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -879,32 +879,35 @@ get_distro() {
   if [[ -z "$(command -v lsb_release)" ]] || [[ "${skip_use_lsb_release}" == 'true' ]]; then
     if [[ -f "/etc/os-release" ]]; then
       if grep -iq VERSION_CODENAME /etc/os-release; then
-        os_codename=$(grep VERSION_CODENAME /etc/os-release | sed 's/VERSION_CODENAME//g' | tr -d '="' | tr '[:upper:]' '[:lower:]')
+        os_codename="$(grep VERSION_CODENAME /etc/os-release | sed 's/VERSION_CODENAME//g' | tr -d '="' | tr '[:upper:]' '[:lower:]')"
+        os_id="$(grep ^"ID=" /etc/os-release | sed 's/ID//g' | tr -d '="' | tr '[:upper:]' '[:lower:]')"
       elif ! grep -iq VERSION_CODENAME /etc/os-release; then
-        os_codename=$(grep PRETTY_NAME /etc/os-release | sed 's/PRETTY_NAME=//g' | tr -d '="' | awk '{print $4}' | sed 's/\((\|)\)//g' | sed 's/\/sid//g' | tr '[:upper:]' '[:lower:]')
+        os_codename="$(grep PRETTY_NAME /etc/os-release | sed 's/PRETTY_NAME=//g' | tr -d '="' | awk '{print $4}' | sed 's/\((\|)\)//g' | sed 's/\/sid//g' | tr '[:upper:]' '[:lower:]')"
+        os_id="$(grep -io "debian\\|ubuntu" /etc/os-release | tr '[:upper:]' '[:lower:]' | head -n1)"
         if [[ -z "${os_codename}" ]]; then
-          os_codename=$(grep PRETTY_NAME /etc/os-release | sed 's/PRETTY_NAME=//g' | tr -d '="' | awk '{print $3}' | sed 's/\((\|)\)//g' | sed 's/\/sid//g' | tr '[:upper:]' '[:lower:]')
+          os_codename="$(grep PRETTY_NAME /etc/os-release | sed 's/PRETTY_NAME=//g' | tr -d '="' | awk '{print $3}' | sed 's/\((\|)\)//g' | sed 's/\/sid//g' | tr '[:upper:]' '[:lower:]')"
         fi
       fi
     fi
   else
-    os_codename=$(lsb_release -cs | tr '[:upper:]' '[:lower:]')
+    os_codename="$(lsb_release --codename --short | tr '[:upper:]' '[:lower:]')"
+    os_id="$(lsb_release --id --short | tr '[:upper:]' '[:lower:]')"
     if [[ "${os_codename}" == 'n/a' ]]; then
       skip_use_lsb_release="true"
       get_distro
       return
     fi
   fi
-  if [[ "${os_codename}" =~ ^(precise|maya|luna)$ ]]; then repo_codename=precise; os_codename=precise
-  elif [[ "${os_codename}" =~ ^(trusty|qiana|rebecca|rafaela|rosa|freya)$ ]]; then repo_codename=trusty; os_codename=trusty
-  elif [[ "${os_codename}" =~ ^(xenial|sarah|serena|sonya|sylvia|loki)$ ]]; then repo_codename=xenial; os_codename=xenial
-  elif [[ "${os_codename}" =~ ^(bionic|tara|tessa|tina|tricia|hera|juno)$ ]]; then repo_codename=bionic; os_codename=bionic
-  elif [[ "${os_codename}" =~ ^(focal|ulyana|ulyssa|uma|una|odin|jolnir)$ ]]; then repo_codename=focal; os_codename=focal
-  elif [[ "${os_codename}" =~ ^(jammy|vanessa|vera|victoria|virginia|horus)$ ]]; then repo_codename=jammy; os_codename=jammy
-  elif [[ "${os_codename}" =~ ^(stretch|continuum)$ ]]; then repo_codename=stretch; os_codename=stretch
-  elif [[ "${os_codename}" =~ ^(buster|debbie|parrot|engywuck-backports|engywuck|deepin)$ ]]; then repo_codename=buster; os_codename=buster
-  elif [[ "${os_codename}" =~ ^(bullseye|kali-rolling|elsie|ara)$ ]]; then repo_codename=bullseye; os_codename=bullseye
-  elif [[ "${os_codename}" =~ ^(bookworm|lory|faye)$ ]]; then repo_codename=bookworm; os_codename=bookworm
+  if [[ "${os_codename}" =~ ^(precise|maya|luna)$ ]]; then repo_codename="precise"; os_codename="precise"; os_id="ubuntu"
+  elif [[ "${os_codename}" =~ ^(trusty|qiana|rebecca|rafaela|rosa|freya)$ ]]; then repo_codename="trusty"; os_codename="trusty"; os_id="ubuntu"
+  elif [[ "${os_codename}" =~ ^(xenial|sarah|serena|sonya|sylvia|loki)$ ]]; then repo_codename="xenial"; os_codename="xenial"; os_id="ubuntu"
+  elif [[ "${os_codename}" =~ ^(bionic|tara|tessa|tina|tricia|hera|juno)$ ]]; then repo_codename="bionic"; os_codename="bionic"; os_id="ubuntu"
+  elif [[ "${os_codename}" =~ ^(focal|ulyana|ulyssa|uma|una|odin|jolnir)$ ]]; then repo_codename="focal"; os_codename="focal"; os_id="ubuntu"
+  elif [[ "${os_codename}" =~ ^(jammy|vanessa|vera|victoria|virginia|horus)$ ]]; then repo_codename="jammy"; os_codename="jammy"; os_id="ubuntu"
+  elif [[ "${os_codename}" =~ ^(stretch|continuum)$ ]]; then repo_codename="stretch"; os_codename="stretch"; os_id="debian"
+  elif [[ "${os_codename}" =~ ^(buster|debbie|parrot|engywuck-backports|engywuck|deepin)$ ]]; then repo_codename="buster"; os_codename="buster"; os_id="debian"
+  elif [[ "${os_codename}" =~ ^(bullseye|kali-rolling|elsie|ara)$ ]]; then repo_codename="bullseye"; os_codename="bullseye"; os_id="debian"
+  elif [[ "${os_codename}" =~ ^(bookworm|lory|faye)$ ]]; then repo_codename="bookworm"; os_codename="bookworm"; os_id="debian"
   else
     repo_codename="${os_codename}"
   fi
@@ -915,7 +918,8 @@ get_distro
 get_repo_url() {
   unset archived_repo
   if [[ "${os_codename}" != "${repo_codename}" ]]; then os_codename="${repo_codename}"; os_codename_changed="true"; fi
-  if "$(which dpkg)" -l apt-transport-https 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+  if "$(which dpkg)" -l apt 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then apt_package_version="$(dpkg-query --showformat='${Version}' --show apt | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)"; fi
+  if "$(which dpkg)" -l apt-transport-https 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui" || [[ "${apt_package_version::2}" -ge "15" ]]; then
     http_or_https="https"
     add_repositories_http_or_https="http[s]*"
     if [[ "${copied_source_files}" == 'true' ]]; then
@@ -932,26 +936,35 @@ get_repo_url() {
     add_repositories_http_or_https="http"
   fi
   if "$(which dpkg)" -l curl 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
-    if [[ "${os_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then
-      if curl "${curl_argument[@]}" "${http_or_https}://old-releases.ubuntu.com/ubuntu/dists/" 2> /dev/null | grep -iq "${os_codename}" 2> /dev/null; then archived_repo="true"; fi
-      if [[ "${architecture}" =~ (amd64|i386) ]]; then
-        if [[ "${archived_repo}" == "true" ]]; then repo_url="${http_or_https}://old-releases.ubuntu.com/ubuntu"; else repo_url="http://archive.ubuntu.com/ubuntu"; fi
-      else
-        if [[ "${archived_repo}" == "true" ]]; then repo_url="${http_or_https}://old-releases.ubuntu.com/ubuntu"; else repo_url="http://ports.ubuntu.com"; fi
-      fi
-    elif [[ "${os_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
-      if curl "${curl_argument[@]}" "${http_or_https}://archive.debian.org/debian/dists/" 2> /dev/null | grep -iq "${os_codename}" 2> /dev/null; then archived_repo="true"; fi
-      if [[ "${archived_repo}" == "true" ]]; then repo_url="${http_or_https}://archive.debian.org/debian"; else repo_url="${http_or_https}://deb.debian.org/debian"; fi
-      if [[ "${architecture}" == 'armhf' ]]; then
-        repo_arch_value="arch=armhf"
-        if curl "${curl_argument[@]}" "${http_or_https}://legacy.raspbian.org/raspbian/dists/" 2> /dev/null | grep -iq "${os_codename}" 2> /dev/null; then archived_raspbian_repo="true"; fi
-        if [[ "${archived_raspbian_repo}" == "true" ]]; then raspbian_repo_url="${http_or_https}://legacy.raspbian.org/raspbian"; else raspbian_repo_url="${http_or_https}://archive.raspbian.org/raspbian"; fi
-      fi
-      if [[ "${use_raspberrypi_repo}" == 'true' ]]; then
-        if [[ "${architecture}" == 'arm64' ]]; then repo_arch_value="arch=arm64"; fi
-        if curl "${curl_argument[@]}" "${http_or_https}://legacy.raspbian.org/raspbian/dists/" 2> /dev/null | grep -iq "${os_codename}" 2> /dev/null; then archived_repo="true"; fi
-        if [[ "${archived_repo}" == "true" ]]; then repo_url="${http_or_https}://legacy.raspbian.org/raspbian"; else repo_url="${http_or_https}://archive.raspberrypi.org/debian"; fi
-        unset use_raspberrypi_repo
+    if [[ "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/distro?status" 2> /dev/null | jq -r '.[]' 2> /dev/null)" == "OK" ]]; then
+      if [[ "${http_or_https}" == "http" ]]; then api_repo_url_procotol="&protocol=insecure"; fi
+      if [[ "${use_raspberrypi_repo}" == 'true' ]]; then os_id="raspbian"; if [[ "${architecture}" == 'arm64' ]]; then repo_arch_value="arch=arm64"; fi; fi
+      distro_api_output="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/distro?distribution=${os_id}&version=${os_codename}&architecture=${architecture}${api_repo_url_procotol}" 2> /dev/null)"
+      archived_repo="$(echo "${distro_api_output}" | jq -r '.codename_eol')"
+      repo_url="$(echo "${distro_api_output}" | jq -r '.repository')"
+      if [[ "${os_id}" == "raspbian" ]]; then get_distro; fi
+    else
+      if [[ "${os_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then
+        if curl "${curl_argument[@]}" "${http_or_https}://old-releases.ubuntu.com/ubuntu/dists/" 2> /dev/null | grep -iq "${os_codename}" 2> /dev/null; then archived_repo="true"; fi
+        if [[ "${architecture}" =~ (amd64|i386) ]]; then
+          if [[ "${archived_repo}" == "true" ]]; then repo_url="${http_or_https}://old-releases.ubuntu.com/ubuntu"; else repo_url="http://archive.ubuntu.com/ubuntu"; fi
+        else
+          if [[ "${archived_repo}" == "true" ]]; then repo_url="${http_or_https}://old-releases.ubuntu.com/ubuntu"; else repo_url="http://ports.ubuntu.com"; fi
+        fi
+      elif [[ "${os_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
+        if curl "${curl_argument[@]}" "${http_or_https}://archive.debian.org/debian/dists/" 2> /dev/null | grep -iq "${os_codename}" 2> /dev/null; then archived_repo="true"; fi
+        if [[ "${archived_repo}" == "true" ]]; then repo_url="${http_or_https}://archive.debian.org/debian"; else repo_url="${http_or_https}://deb.debian.org/debian"; fi
+        if [[ "${architecture}" == 'armhf' ]]; then
+          repo_arch_value="arch=armhf"
+          if curl "${curl_argument[@]}" "${http_or_https}://legacy.raspbian.org/raspbian/dists/" 2> /dev/null | grep -iq "${os_codename}" 2> /dev/null; then archived_raspbian_repo="true"; fi
+          if [[ "${archived_raspbian_repo}" == "true" ]]; then raspbian_repo_url="${http_or_https}://legacy.raspbian.org/raspbian"; else raspbian_repo_url="${http_or_https}://archive.raspbian.org/raspbian"; fi
+        fi
+        if [[ "${use_raspberrypi_repo}" == 'true' ]]; then
+          if [[ "${architecture}" == 'arm64' ]]; then repo_arch_value="arch=arm64"; fi
+          if curl "${curl_argument[@]}" "${http_or_https}://legacy.raspbian.org/raspbian/dists/" 2> /dev/null | grep -iq "${os_codename}" 2> /dev/null; then archived_repo="true"; fi
+          if [[ "${archived_repo}" == "true" ]]; then repo_url="${http_or_https}://legacy.raspbian.org/raspbian"; else repo_url="${http_or_https}://archive.raspberrypi.org/debian"; fi
+          unset use_raspberrypi_repo
+        fi
       fi
     fi
   else
@@ -960,7 +973,6 @@ get_repo_url() {
     elif [[ "${os_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
       repo_url="${http_or_https}://archive.debian.org/debian"
       if [[ "${architecture}" == 'armhf' ]]; then
-        # shellcheck disable=SC2034
         raspbian_repo_url="${http_or_https}://archive.raspbian.org/raspbian"
       fi
     fi
@@ -1188,6 +1200,38 @@ broken_packages_check() {
     while read -r log_file; do
       sed -i 's/--fix-broken install/--fix-broken install (completed)/g' "${log_file}" &> /dev/null
     done < <(find "${eus_dir}/logs/" -maxdepth 1 -type f -exec grep -Eil "Try 'sudo apt --fix-broken install' with no packages|Try 'apt --fix-broken install' with no packages" {} \;)
+  fi
+}
+
+# Add default repositories
+check_default_repositories() {
+  if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then
+    if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish) ]]; then repo_arguments=" main universe"; add_repositories; fi
+    if [[ "${repo_codename}" =~ (jammy|kinetic|lunar|mantic|noble) ]]; then repo_arguments=" main"; add_repositories; fi
+    repo_arguments="-security main universe"
+  elif [[ "${repo_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
+    if [[ "${repo_codename}" =~ (jessie|stretch|buster) ]]; then repo_url_arguments="-security/"; repo_arguments="/updates main"; add_repositories; fi
+    if [[ "${repo_codename}" =~ (bullseye|bookworm|trixie|forky) ]]; then repo_url_arguments="-security/"; repo_arguments="-security main"; add_repositories; fi
+    repo_arguments=" main"
+  fi
+  add_repositories
+}
+
+check_unmet_dependencies() {
+  if ls /tmp/EUS/apt/*.log 1> /dev/null 2>&1; then
+    while IFS= read -r log_file; do
+      while read -r dependency; do
+        if [[ "${check_unmet_dependencies_repositories_added}" != "true" ]]; then check_default_repositories; check_unmet_dependencies_repositories_added="true"; fi
+        dependency_no_version="$(echo "${dependency}" | awk -F' ' '{print $1}')"
+        dependency="$(echo "${dependency}" | tr -d '()' | tr -d ',' | sed 's/ *= */=/g')"
+        if [[ "${dependency}" == *'='* ]]; then
+          echo -e "Attempting to install unmet dependency: ${dependency} \\n" &>> "${eus_dir}/logs/unmet-dependency.log"
+          if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${dependency}" &>> "${eus_dir}/logs/unmet-dependency.log"; then
+            sed -i "s/Depends: ${dependency_no_version}/Depends (completed): ${dependency_no_version}/g" "${log_file}" 2>> "${eus_dir}/logs/unmet-dependency-sed.log"
+          fi
+        fi
+      done < <(grep "Depends:" "${log_file}" | sed 's/.*Depends: //' | sed 's/).*//' | sort | uniq)
+    done < <(grep -lE '^E: Unable to correct problems, you have held broken packages.' /tmp/EUS/apt/*.log | sort -u 2>> /dev/null)
   fi
 }
 
@@ -1950,7 +1994,6 @@ add_mongodb_repo() {
   if [[ "${try_different_mongodb_repo}" == 'true' ]]; then try_different_mongodb_repo_test="a different"; try_different_mongodb_repo_test_2="different "; else try_different_mongodb_repo_test="the"; try_different_mongodb_repo_test_2=""; fi
   if [[ "${try_http_mongodb_repo}" == 'true' ]]; then repo_http_https="http"; try_different_mongodb_repo_test="a HTTP instead of HTTPS"; try_different_mongodb_repo_test_2="HTTP "; else try_different_mongodb_repo_test="the"; try_different_mongodb_repo_test_2=""; fi
   if [[ -n "${mongodb_version_major_minor}" ]]; then
-    if [[ "${mongodb_version_major_minor}" != "4.4" ]]; then unset mongo_version_locked; fi
     if ! [[ -s "/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg" ]] || [[ "${mongodb_key_update}" == 'true' ]] || [[ "${try_different_mongodb_repo}" == 'true' ]] || [[ "${try_http_mongodb_repo}" == 'true' ]]; then
       echo -e "${WHITE_R}#${RESET} Adding key for MongoDB ${mongodb_version_major_minor}..."
       aptkey_depreciated
@@ -1969,8 +2012,17 @@ add_mongodb_repo() {
                 echo -e "${GREEN}#${RESET} Successfully added the key for MongoDB ${mongodb_version_major_minor}! \\n"
                 signed_by_value=" signed-by=/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg"
               else
-                abort_reason="Failed to add the key for MongoDB ${mongodb_version_major_minor}."
-                abort
+                if curl "${curl_argument[@]}" --insecure -fSL "${repo_http_https}://pgp.mongodb.com/server-${mongodb_version_major_minor}.asc" 2>&1 | tee -a "${eus_dir}/logs/repository-keys.log" | gpg --dearmor --yes | tee -a "/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg" &> /dev/null; then
+                  mongodb_curl_exit_status="${PIPESTATUS[0]}"
+                  mongodb_gpg_exit_status="${PIPESTATUS[2]}"
+                  if [[ "${mongodb_curl_exit_status}" -eq "0" && "${mongodb_gpg_exit_status}" -eq "0" && -s "/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg" ]]; then
+                    echo -e "${GREEN}#${RESET} Successfully added the key for MongoDB ${mongodb_version_major_minor}! \\n"
+                    signed_by_value=" signed-by=/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg"
+                  else
+                    abort_reason="Failed to add the key for MongoDB ${mongodb_version_major_minor}."
+                    abort
+                  fi
+                fi
               fi
             fi
           fi
@@ -1988,8 +2040,16 @@ add_mongodb_repo() {
               if [[ "${mongodb_curl_exit_status}" -eq "0" && "${mongodb_apt_key_exit_status}" -eq "0" ]]; then
                 echo -e "${GREEN}#${RESET} Successfully added the key for MongoDB ${mongodb_version_major_minor}! \\n"
               else
-                abort_reason="Failed to add the key for MongoDB ${mongodb_version_major_minor}."
-              abort
+                if curl "${curl_argument[@]}" --insecure -fSL "${repo_http_https}://pgp.mongodb.com/server-${mongodb_version_major_minor}.asc" 2>&1 | tee -a "${eus_dir}/logs/repository-keys.log" | apt-key add - &> /dev/null; then
+                  mongodb_curl_exit_status="${PIPESTATUS[0]}"
+                  mongodb_apt_key_exit_status="${PIPESTATUS[2]}"
+                  if [[ "${mongodb_curl_exit_status}" -eq "0" && "${mongodb_apt_key_exit_status}" -eq "0" ]]; then
+                    echo -e "${GREEN}#${RESET} Successfully added the key for MongoDB ${mongodb_version_major_minor}! \\n"
+                  else
+                    abort_reason="Failed to add the key for MongoDB ${mongodb_version_major_minor}."
+                    abort
+                  fi
+                fi
               fi
             fi
           fi
@@ -2063,6 +2123,7 @@ apt_get_install_package() {
     if [[ "${PIPESTATUS[0]}" -eq "0" ]]; then
       echo -e "${GREEN}#${RESET} Successfully ${apt_get_install_package_variable_2} ${required_package}! \\n"; sleep 2
     else
+      check_unmet_dependencies
       broken_packages_check
       add_apt_option_no_install_recommends="true"; get_apt_options
       if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${required_package}" 2>&1 | tee -a "${eus_dir}/logs/apt.log" > /tmp/EUS/apt/apt.log; then
@@ -2177,33 +2238,30 @@ if [[ "${unifi_core_system}" != 'true' ]]; then
   fi
 fi
 if "$(which dpkg)" -l apt 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
-  apt_version_1=$("$(which dpkg)" -l apt | grep ^"ii" | awk '{print $3}' | cut -d'.' -f1)
-  if [[ "${apt_version_1}" -le "1" ]]; then
-    apt_version_2=$("$(which dpkg)" -l apt | grep ^"ii" | awk '{print $3}' | cut -d'.' -f2)
-    if [[ "${apt_version_1}" == "0" ]] || [[ "${apt_version_2}" -le "4" ]]; then
-      if ! "$(which dpkg)" -l apt-transport-https 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
-        if [[ "${installing_required_package}" != 'yes' ]]; then install_required_packages; fi
-        check_dpkg_lock
-        echo -e "${WHITE_R}#${RESET} Installing apt-transport-https..."
-        if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install apt-transport-https &>> "${eus_dir}/logs/required.log"; then
-          echo -e "${RED}#${RESET} Failed to install apt-transport-https in the first run...\\n"
-          if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then
-            if [[ "${repo_codename}" =~ (precise|trusty|xenial) ]]; then repo_arguments="-security main"; fi
-            if [[ "${repo_codename}" =~ (bionic|cosmic) ]]; then repo_arguments="-security main universe"; fi
-            if [[ "${repo_codename}" =~ (disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then repo_arguments=" main universe"; fi
-          elif [[ "${repo_codename}" == "jessie" ]]; then
-            repo_arguments="/updates main"
-          elif [[ "${repo_codename}" =~ (stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
-            repo_arguments=" main"
-          fi
-          add_repositories
-          required_package="apt-transport-https"
-          apt_get_install_package
-        else
-          echo -e "${GREEN}#${RESET} Successfully installed apt-transport-https! \\n" && sleep 2
+  apt_package_version="$(dpkg-query --showformat='${Version}' --show apt | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)"
+  if [[ "${apt_package_version::2}" -le "14" ]]; then 
+    if ! "$(which dpkg)" -l apt-transport-https 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+      check_dpkg_lock
+      if [[ "${installing_required_package}" != 'yes' ]]; then install_required_packages; fi
+      echo -e "${WHITE_R}#${RESET} Installing apt-transport-https..."
+      if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install apt-transport-https &>> "${eus_dir}/logs/required.log"; then
+        echo -e "${RED}#${RESET} Failed to install apt-transport-https in the first run...\\n"
+        if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then
+          if [[ "${repo_codename}" =~ (precise|trusty|xenial) ]]; then repo_arguments="-security main"; fi
+          if [[ "${repo_codename}" =~ (bionic|cosmic) ]]; then repo_arguments="-security main universe"; fi
+          if [[ "${repo_codename}" =~ (disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then repo_arguments=" main universe"; fi
+        elif [[ "${repo_codename}" == "jessie" ]]; then
+          repo_arguments="/updates main"
+        elif [[ "${repo_codename}" =~ (stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
+          repo_arguments=" main"
         fi
-        get_repo_url
+        add_repositories
+        required_package="apt-transport-https"
+        apt_get_install_package
+      else
+        echo -e "${GREEN}#${RESET} Successfully installed apt-transport-https! \\n" && sleep 2
       fi
+      get_repo_url
     fi
   fi
 fi
@@ -3484,7 +3542,7 @@ if [[ "${mongo_version_locked}" == '4.4.18' ]] || [[ "${unsupported_database_ver
         eus_directory_location="/tmp/EUS"
         eus_create_directories "downloads"
         fw_update_dl_link="$(curl "${curl_argument[@]}" https://get.glennr.nl/unifi/releases/unifi-network-application-versions.json | jq -r '.versions."'"$(dpkg-query --showformat='${Version}' --show unifi | awk -F '[-]' '{print $1}')"'".download_link' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
-        unifi_temp="$(mktemp --tmpdir=/tmp/EUS/downloads "${unifi_deb_file_name}"_"$(dpkg-query --showformat='${Version}' --show unifi | awk -F '[-]' '{print $1}')"_XXXXX.deb)"
+        if [[ -z "${unifi_temp}" ]]; then unifi_temp="$(mktemp --tmpdir=/tmp/EUS/downloads "${unifi_deb_file_name}"_"$(dpkg-query --showformat='${Version}' --show unifi | awk -F '[-]' '{print $1}')"_XXXXX.deb)"; fi
         echo -e "$(date +%F-%R) | URL used: ${fw_update_dl_link}" &>> "${eus_dir}/logs/unifi_download.log"
         if curl --retry 3 "${nos_curl_argument[@]}" --output "$unifi_temp" "${fw_update_dl_link}" &>> "${eus_dir}/logs/unifi_download.log"; then
           if command -v dpkg-deb &> /dev/null; then if ! dpkg-deb --info "${unifi_temp}" &> /dev/null; then echo -e "$(date +%F-%R) | The file downloaded via ${fw_update_dl_link} was not a debian file format..." &>> "${eus_dir}/logs/unifi_download.log"; abort_reason="Failed to download UniFi Network Application version $(dpkg-query --showformat='${Version}' --show unifi | awk -F '[-]' '{print $1}') during the MongoDB Downgrade process."; abort; fi; fi
@@ -3526,32 +3584,23 @@ script_cleanup() {
 }
 
 prevent_unifi_upgrade() {
-  if [[ "${prevented_unifi}" != 'yes' ]]; then
+  if [[ "${prevented_unifi}" != 'true' ]]; then
     header
     echo -e "${WHITE_R}#${RESET} Preventing Ubiquiti/UniFi package(s) from upgrading!"
     echo -e "${WHITE_R}#${RESET} These changes will be reverted when the script finishes. \\n"
-    eus_directory_location="/tmp/EUS"
-    eus_create_directories "dpkg"
-    "$(which dpkg)" -l | awk '/unifi/ {print $2}' &> /tmp/EUS/dpkg/unifi_list
-    if [[ -f /tmp/EUS/dpkg/unifi_list && -s /tmp/EUS/dpkg/unifi_list ]]; then
-      while read -r service; do
-        check_dpkg_lock
-        echo -e "${WHITE_R}#${RESET} Preventing ${service} from upgrading..."
-        if echo "${service} hold" | "$(which dpkg)" --set-selections &>> "${eus_dir}/logs/package-hold.log"; then echo -e "${GREEN}#${RESET} Successfully prevented ${service} from upgrading! \\n"; else abort_reason="Failed to prevent ${service} from upgrading."; abort; fi
-      done < /tmp/EUS/dpkg/unifi_list
-    fi
-    prevented_unifi="yes"
+    while read -r service; do
+      check_dpkg_lock
+      echo -e "${WHITE_R}#${RESET} Preventing ${service} from upgrading..."
+      if echo "${service} hold" | "$(which dpkg)" --set-selections &>> "${eus_dir}/logs/package-hold.log"; then echo -e "${GREEN}#${RESET} Successfully prevented ${service} from upgrading! \\n"; prevented_unifi="true"; else echo -e "${RED}#${RESET} Failed to prevented ${service} from upgrading...\\n"; fi
+    done < <("$(which dpkg)" -l | awk '/unifi/ {print $2}')
     sleep 3
     return
   fi
-  if [[ "${prevented_unifi}" == 'yes' ]]; then
-    if [[ -f /tmp/EUS/dpkg/unifi_list && -s /tmp/EUS/dpkg/unifi_list ]]; then
+  if [[ "${prevented_unifi}" == 'true' ]]; then
+    while read -r service; do
       check_dpkg_lock
-      while read -r service; do
-        echo "${service} install" | "$(which dpkg)" --set-selections 2> /dev/null
-      done < /tmp/EUS/dpkg/unifi_list
-    fi
-    rm --force /tmp/EUS/dpkg/unifi_list &> /dev/null
+      echo "${service} install" | "$(which dpkg)" --set-selections 2> /dev/null
+    done < <("$(which dpkg)" -l | awk '/unifi/ {print $2}')
     unset prevented_unifi
   fi
 }
@@ -4149,9 +4198,20 @@ keystore_alias_check() {
 
 system_properties_check() {
   if [[ -e "/usr/lib/unifi/data/system.properties" ]]; then
+    # Remove any duplicates.
+    if grep -qE 'unifi\.x(m[xs]|ss)=[0-9]*+' "/usr/lib/unifi/data/system.properties"; then
+      cp /usr/lib/unifi/data/system.properties "/usr/lib/unifi/data/system.properties-eus-recovery-$(date +%Y%m%d_%H%M_%s)" &>> "${eus_dir}/logs/system-properties-update.log"
+      if sed -i -e '0,/^unifi\.xms=/!{s/^unifi\.xms=.*//}' -e '0,/^unifi\.xmx=/!{s/^unifi\.xmx=.*//}' -e '0,/^unifi\.xss=/!{s/^unifi\.xss=.*//}' -e '/^$/d' "/usr/lib/unifi/data/system.properties"; then
+        echo "Corrected unifi.xmx, unifi.xms, and unifi.xss patterns in system.properties" &>> "${eus_dir}/logs/system-properties-update.log"
+        chown -R unifi:unifi /usr/lib/unifi/data/system.properties
+      fi
+    fi
+    # Remove any invalid entries.
     if grep -qE 'unifi\.x(m[xs]|ss)=[0-9]*[A-Za-z]+' "/usr/lib/unifi/data/system.properties"; then
+      cp /usr/lib/unifi/data/system.properties "/usr/lib/unifi/data/system.properties-eus-recovery-$(date +%Y%m%d_%H%M_%s)" &>> "${eus_dir}/logs/system-properties-update.log"
       if sed -i 's/\(unifi\.\(xmx\|xms\|xss\)=\)\([0-9]\+\)[A-Za-z]*/\1\3/' "/usr/lib/unifi/data/system.properties"; then
         echo "Corrected unifi.xmx, unifi.xms, and unifi.xss patterns in system.properties" &>> "${eus_dir}/logs/system-properties-update.log"
+        chown -R unifi:unifi /usr/lib/unifi/data/system.properties
       fi
     fi
   fi
@@ -5934,7 +5994,7 @@ mongodb_upgrade_custom_unifi_download_url_check() {
   eus_directory_location="/tmp/EUS"
   eus_create_directories "downloads"
   echo -e "\\n${WHITE_R}#${RESET} Checking if you provided a correct download link for UniFi Network Application version ${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi}..."
-  unifi_temp="$(mktemp --tmpdir=/tmp/EUS/downloads "unifi_mongodb_upgrade_${mongodb_upgrade_from_version::2}_to_${mongo_version_max}_XXXXX.deb")"
+  if [[ -z "${unifi_temp}" ]]; then unifi_temp="$(mktemp --tmpdir=/tmp/EUS/downloads "unifi_mongodb_upgrade_${mongodb_upgrade_from_version::2}_to_${mongo_version_max}_XXXXX.deb")"; fi
   echo -e "$(date +%F-%R) | URL used: ${custom_download_url}" &>> "${eus_dir}/logs/unifi_mongodb_upgrade_${mongodb_upgrade_from_version::2}_to_${mongo_version_max}_download.log"
   if ! curl --retry 3 "${nos_curl_argument[@]}" --output "$unifi_temp" "${custom_download_url}" &>> "${eus_dir}/logs/unifi_mongodb_upgrade_${mongodb_upgrade_from_version::2}_to_${mongo_version_max}_download.log"; then
     echo -e "${RED}#${RESET} Unable to download UniFi Network Application version ${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi} from the URL you specified... \\n"
@@ -6092,7 +6152,7 @@ custom_url_upgrade_check() {
 custom_url_download_check() {
   eus_directory_location="/tmp/EUS"
   eus_create_directories "downloads"
-  unifi_temp="$(mktemp --tmpdir=/tmp/EUS/downloads "${unifi_deb_file_name}"_XXXXX.deb)"
+  if [[ -z "${unifi_temp}" ]]; then unifi_temp="$(mktemp --tmpdir=/tmp/EUS/downloads "${unifi_deb_file_name}"_XXXXX.deb)"; fi
   header
   echo -e "${WHITE_R}#${RESET} Downloading the UniFi Network Application release..."
   echo -e "$(date +%F-%R) | URL used: ${custom_download_url}" &>> "${eus_dir}/logs/unifi_custom_url_download.log"
@@ -6670,16 +6730,7 @@ mongodb_upgrade() {
     echo -e "${GREEN}#${RESET} Only UniFi Depends on MongoDB, we are good to go! \\n"
   fi
   # Add default repositories to the system.
-  if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then
-    if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish) ]]; then repo_arguments=" main universe"; add_repositories; fi
-    if [[ "${repo_codename}" =~ (jammy|kinetic|lunar|mantic|noble) ]]; then repo_arguments=" main"; add_repositories; fi
-    repo_arguments="-security main universe"
-  elif [[ "${repo_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
-    if [[ "${repo_codename}" =~ (jessie|stretch|buster) ]]; then repo_url_arguments="-security/"; repo_arguments="/updates main"; add_repositories; fi
-    if [[ "${repo_codename}" =~ (bullseye|bookworm|trixie|forky) ]]; then repo_url_arguments="-security/"; repo_arguments="-security main"; add_repositories; fi
-    repo_arguments=" main"
-  fi
-  add_repositories
+  check_default_repositories
   #
   remove_older_mongodb_repositories
   if [[ "${glennr_compiled_mongod}" == 'true' && "${mongo_version_max}" == '70' ]]; then
@@ -6887,7 +6938,7 @@ mongodb_upgrade() {
     fi
     eus_directory_location="/tmp/EUS"
     eus_create_directories "downloads"
-    unifi_temp="$(mktemp --tmpdir=/tmp/EUS/downloads "unifi_mongodb_upgrade_${mongodb_upgrade_from_version::2}_to_${mongo_version_max}_XXXXX.deb")"
+    if [[ -z "${unifi_temp}" ]]; then unifi_temp="$(mktemp --tmpdir=/tmp/EUS/downloads "unifi_mongodb_upgrade_${mongodb_upgrade_from_version::2}_to_${mongo_version_max}_XXXXX.deb")"; fi
     echo -e "${WHITE_R}#${RESET} Downloading UniFi Network Application version ${first_digit_current_unifi}.${second_digit_current_unifi}.${third_digit_current_unifi}..."
     echo -e "$(date +%F-%R) | URL used: ${unifi_deb_dl}" &>> "${eus_dir}/logs/unifi_mongodb_upgrade_${mongodb_upgrade_from_version::2}_to_${mongo_version_max}_download.log"
     if curl --retry 3 "${nos_curl_argument[@]}" --output "$unifi_temp" "${unifi_deb_dl}" &>> "${eus_dir}/logs/unifi_mongodb_upgrade_${mongodb_upgrade_from_version::2}_to_${mongo_version_max}_download.log"; then
@@ -7461,7 +7512,7 @@ free_space_check
 
 free_boot_space_check() {
   free_boot_space="$(df -B1 /boot | awk 'NR==2{print $4}')"
-  if "$(which dpkg)" --list | grep -Ei 'linux-image|linux-headers' | awk '{print $1}' | grep -iq "^iF" && [[ "${free_boot_space}" -le '322122547' ]]; then
+  if "$(which dpkg)" --list | grep -Ei 'linux-image|linux-headers|linux-firmware' | awk '{print $1}' | grep -iq "^iF" && [[ "${free_boot_space}" -le '322122547' ]]; then
     apt-get -y autoremove &>> "${eus_dir}/logs/boot-apt-cleanup.log"
     apt-get -y autoclean &>> "${eus_dir}/logs/boot-apt-cleanup.log"
     if [[ "$(df -B1 /boot | awk 'NR==2{print $4}')" == "${free_boot_space}" ]]; then
@@ -7494,7 +7545,7 @@ free_boot_space_check() {
           fi
           get_apt_options
         fi
-      done < <(dpkg-query -W -f='${db:Status-Abbrev} ${Package}\n' | awk '$1 == "iF" {print $2}' | grep -Ei 'linux-image|linux-headers')
+      done < <(dpkg-query -W -f='${db:Status-Abbrev} ${Package}\n' | awk '$1 == "iF" {print $2}' | grep -Ei 'linux-image|linux-headers|linux-firmware')
     fi
   fi
 }
@@ -7880,7 +7931,7 @@ application_upgrade_releases() {
   eus_directory_location="/tmp/EUS"
   eus_create_directories "downloads"
   fw_update_dl_link="$(curl "${curl_argument[@]}" https://get.glennr.nl/unifi/releases/unifi-network-application-versions.json | jq -r '.versions."'"${application_version_release}"'".download_link' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
-  unifi_temp="$(mktemp --tmpdir=/tmp/EUS/downloads "${unifi_deb_file_name}"_"${application_version_release}"_XXXXX.deb)"
+  if [[ -z "${unifi_temp}" ]]; then unifi_temp="$(mktemp --tmpdir=/tmp/EUS/downloads "${unifi_deb_file_name}"_"${application_version_release}"_XXXXX.deb)"; fi
   unifi_download_urls=(
     "https://dl.ui.com/unifi/${application_version}/${unifi_deb_file_name}.deb"
     "https://dl.ui.com/unifi/${application_version_release}/${unifi_deb_file_name}.deb"

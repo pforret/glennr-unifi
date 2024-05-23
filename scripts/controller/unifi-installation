@@ -11,6 +11,38 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 7.3.5
+ 
+ - Fixed an issue where setups using apt version 1.5 or newer without apt-transport-https were using HTTP rather than HTTPS.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 7.3.4
+ 
+ - Fixed download failure introduced in 7.3.2.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 7.3.3
+ 
+ - Added extra checks before recovery when there are no logs available.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 7.3.2
+ 
+ - Added a unmet dependency check.
+ - Added a check to see if /boot is (nearly) full, and try to cleanup/recover incomplete installations of linux-image, linux-firmware and linux-headers packages.
+ - Added an insecure retry for obtaining the MongoDB Key.
+ - Improved the UniFi Installation recovery process in case no last known good MongoDB version was found in the logs.
+ - Improved the system.properties check.
+ - Improved the script by using api.glennr.nl to get distro details, such as repository URL and EOL status.
+ - Improved information in support files.
+ - Fixed an issue where a check could be running before a directory exists.
+ - Prevent adjusting an download variable if it's already set.
+ 
+ ###
+
  |  UniFi Network Application Installation Script  |  Version 7.3.1
  
  - Fixed inability to install MongoDB 4.4 on Debian Buster.
