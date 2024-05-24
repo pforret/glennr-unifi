@@ -50,7 +50,7 @@
 ###################################################################################################################################################################################################
 
 # Script                | UniFi Network Easy Installation Script
-# Version               | 7.3.5
+# Version               | 7.3.7
 # Application version   | 7.0.20-894288bd9b
 # Debian Repo version   | 7.0.20-17279-1
 # Author                | Glenn Rietveld
@@ -260,7 +260,7 @@ support_file() {
   eus_directory_location="/tmp/EUS"
   eus_create_directories "support"
   check_unifi_folder_permissions_state="abort-install"
-  check_unifi_folder_permissions
+  if [[ -d "/usr/lib/unifi" ]]; then check_unifi_folder_permissions; fi
   if "$(which dpkg)" -l lsb-release 2> /dev/null | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then lsb_release -a &> "/tmp/EUS/support/lsb-release"; else cat /etc/os-release &> "/tmp/EUS/support/os-release"; fi
   if [[ -n "$(command -v jq)" && "$(dpkg-query --showformat='${Version}' --show jq | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
     df -hP | awk 'BEGIN {print"{\"disk-usage\":["}{if($1=="Filesystem")next;if(a)print",";print"{\"mount\":\""$6"\",\"size\":\""$2"\",\"used\":\""$3"\",\"avail\":\""$4"\",\"use%\":\""$5"\"}";a++;}END{print"]}";}' | jq &> "/tmp/EUS/support/disk-usage.json"
@@ -1808,7 +1808,9 @@ get_repo_url() {
       if [[ "${use_raspberrypi_repo}" == 'true' ]]; then os_id="raspbian"; if [[ "${architecture}" == 'arm64' ]]; then repo_arch_value="arch=arm64"; fi; fi
       distro_api_output="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/distro?distribution=${os_id}&version=${os_codename}&architecture=${architecture}${api_repo_url_procotol}" 2> /dev/null)"
       archived_repo="$(echo "${distro_api_output}" | jq -r '.codename_eol')"
-      repo_url="$(echo "${distro_api_output}" | jq -r '.repository')"
+      if [[ "${get_repo_url_security_url}" == "true" ]]; then get_repo_url_url_argument="security_repository"; unset get_repo_url_security_url; else get_repo_url_url_argument="repository"; fi
+      repo_url="$(echo "${distro_api_output}" | jq -r ".${get_repo_url_url_argument}")"
+      distro_api="true"
       if [[ "${os_id}" == "raspbian" ]]; then get_distro; fi
     else
       if [[ "${os_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then
@@ -1868,7 +1870,14 @@ add_repositories() {
     unset repo_url_arguments
     unset repo_arguments
     unset signed_by_value_repo_key
+    unset add_repositories_source_list_override
     return  # Repository already added, exit function
+  fi
+  # Override the source list
+  if [[ -n "${add_repositories_source_list_override}" ]]; then
+    add_repositories_source_list="/etc/apt/sources.list.d/${add_repositories_source_list_override}"
+  else
+    add_repositories_source_list="/etc/apt/sources.list.d/glennr-install-script.list"
   fi
   # Add repository key if required
   if [[ "${apt_key_deprecated}" == 'true' && -n "${repo_key}" && -n "${repo_key_name}" ]]; then
@@ -1895,7 +1904,7 @@ add_repositories() {
   # Add repository to sources list
   if [[ -n "${signed_by_value_repo_key}" && -n "${repo_arch_value}" ]]; then local brackets="[${signed_by_value_repo_key}${repo_arch_value}] "; else local brackets=""; fi
   local repo_entry="deb ${brackets}${repo_url}${repo_url_arguments} ${repo_codename}${repo_arguments}"
-  if ! echo -e "${repo_entry}" >> /etc/apt/sources.list.d/glennr-install-script.list; then
+  if ! echo -e "${repo_entry}" >> "${add_repositories_source_list}"; then
     abort_reason="Failed to add repository."
     abort
   fi 
@@ -1916,6 +1925,7 @@ add_repositories() {
   unset repo_url_arguments
   unset repo_arguments
   unset signed_by_value_repo_key
+  unset add_repositories_source_list_override
   # Check if OS codename changed and reset variables
   if [[ "${os_codename_changed}" == 'true' ]]; then 
     unset os_codename_changed
@@ -2056,6 +2066,37 @@ check_unmet_dependencies() {
           echo -e "Attempting to install unmet dependency: ${dependency} \\n" &>> "${eus_dir}/logs/unmet-dependency.log"
           if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${dependency}" &>> "${eus_dir}/logs/unmet-dependency.log"; then
             sed -i "s/Depends: ${dependency_no_version}/Depends (completed): ${dependency_no_version}/g" "${log_file}" 2>> "${eus_dir}/logs/unmet-dependency-sed.log"
+          else
+            if command -v jq &> /dev/null; then
+              list_of_distro_versions="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/list-versions?distribution=${os_id}" 2> /dev/null | jq -r '.[]' 2> /dev/null)"
+            else
+              list_of_distro_versions="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/list-versions?distribution=${os_id}" | sed -e 's/\[//g' -e 's/\]//g' -e 's/ //g' -e 's/,//g' | grep .)"
+            fi
+            while read -r version; do
+              add_repositories_source_list_override="glennr-install-script-unmet.list"
+              repo_codename="${version}"
+              repo_arguments=" main"
+              get_repo_url
+              add_repositories
+              if [[ "${os_id}" == "ubuntu" && "${distro_api}" == "true" ]]; then
+                get_repo_url_security_url="true"
+                get_repo_url
+                repo_arguments="-security main"
+                add_repositories
+              elif [[ "${os_id}" == "debian" && "${distro_api}" == "true" ]]; then
+                repo_url_arguments="-security/"
+                repo_arguments="-security main"
+                add_repositories
+              fi
+              run_apt_get_update
+              if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${dependency}" &>> "${eus_dir}/logs/unmet-dependency.log"; then
+                echo -e "\\nSuccessfully installed ${dependency} after adding the repositories for ${version} \\n" &>> "${eus_dir}/logs/unmet-dependency.log"
+                sed -i "s/Depends: ${dependency_no_version}/Depends (completed): ${dependency_no_version}/g" "${log_file}" 2>> "${eus_dir}/logs/unmet-dependency-sed.log"
+                rm --force "/etc/apt/sources.list.d/glennr-install-script-unmet.list" &> /dev/null
+                break
+              fi
+            done <<< "${list_of_distro_versions}"
+            if [[ -e "/etc/apt/sources.list.d/glennr-install-script-unmet.list" ]]; then rm --force "/etc/apt/sources.list.d/glennr-install-script-unmet.list" &> /dev/null; fi
           fi
         fi
       done < <(grep "Depends:" "${log_file}" | sed 's/.*Depends: //' | sed 's/).*//' | sort | uniq)
@@ -3873,6 +3914,7 @@ mongodb_installation() {
   eus_database_move
   unset mongodb_key_update
   if [[ "${glennr_compiled_mongod}" == 'true' ]]; then
+    get_distro
     if [[ "$(find /etc/apt/ -type f -name "*.list" -exec grep -ilE 'raspbian.org|raspberrypi.org' {} + | wc -l)" -ge "1" ]]; then
       if [[ "${os_codename}" =~ (jessie|stretch|buster|bullseye) ]]; then
         repo_codename="bookworm"
@@ -4100,6 +4142,7 @@ mongodb_server_clients_installation() {
 
 mongodb_installation_armhf() {
   aptkey_depreciated
+  if [[ -z "${raspbian_repo_url}" ]]; then raspbian_repo_url="${http_or_https}://archive.raspbian.org/raspbian"; fi
   if [[ "${apt_key_deprecated}" == 'true' ]]; then
     if curl "${curl_argument[@]}" -fSL "${raspbian_repo_url}.public.key" 2>&1 | tee -a "${eus_dir}/logs/repository-keys.log" | gpg --dearmor --yes | tee -a "/etc/apt/keyrings/raspbian.gpg" &> /dev/null; then
       raspbian_curl_exit_status="${PIPESTATUS[0]}"
@@ -4322,7 +4365,9 @@ if [[ "${mongo_version_locked}" == '4.4.18' ]] || [[ "${unsupported_database_ver
       if [[ -n "${previous_mongodb_version}" ]]; then
         if [[ "${previous_mongodb_version::2}" == "26" ]]; then
           original_previous_mongodb_version="26"
+          original_previous_mongodb_version_with_dot="3.0"
           previous_mongodb_version="30"
+          previous_mongodb_version_with_dot="3.0"
         fi
         mongodb_add_repo_downgrade_variable="add_mongodb_${previous_mongodb_version::2}_repo"
         declare "$mongodb_add_repo_downgrade_variable=true"
@@ -4345,7 +4390,7 @@ if [[ "${mongo_version_locked}" == '4.4.18' ]] || [[ "${unsupported_database_ver
         if ! apt-cache policy "^${installed_mongodb_package}$" | grep -ioq "${install_mongodb_version}"; then
           if [[ "${installed_mongodb_package}" == "mongodb-server" ]] && [[ "${previous_mongodb_version::2}" != "24" ]]; then if sed -i "s/mongodb-server/mongodb-org-server/g" /tmp/EUS/mongodb/packages_list; then echo "mongodb-server" &>> /tmp/EUS/mongodb/packages_remove_list; fi; fi
           if [[ "${installed_mongodb_package}" == "mongodb-clients" ]] && [[ "${previous_mongodb_version::2}" != "24" ]]; then if sed -i "s/mongodb-clients/mongodb-org-shell/g" /tmp/EUS/mongodb/packages_list; then echo "mongodb-clients" &>> /tmp/EUS/mongodb/packages_remove_list; fi; fi
-          if [[ "${installed_mongodb_package}" == "mongo-tools" ]] && [[ "${previous_mongodb_version::2}" != "24" ]]; then if sed -i "s/mongo-tools/mongodb-org-t/g" /tmp/EUS/mongodb/packages_list; then echo "mongo-tools" &>> /tmp/EUS/mongodb/packages_remove_list; fi; fi
+          if [[ "${installed_mongodb_package}" == "mongo-tools" ]] && [[ "${previous_mongodb_version::2}" != "24" ]]; then if sed -i "s/mongo-tools/mongodb-org-tools/g" /tmp/EUS/mongodb/packages_list; then echo "mongo-tools" &>> /tmp/EUS/mongodb/packages_remove_list; fi; fi
           if [[ "${installed_mongodb_package}" == "mongodb-org-database-tools-extra" && "${install_mongodb_version//./}" -lt "44" ]]; then echo "mongodb-org-database-tools-extra" &>> /tmp/EUS/mongodb/packages_remove_list; fi
           sed -i "/${installed_mongodb_package}/d" /tmp/EUS/mongodb/packages_list
         fi
@@ -4435,6 +4480,7 @@ if [[ "${mongo_version_locked}" == '4.4.18' ]] || [[ "${unsupported_database_ver
       fi
       if [[ "${unset_mongo_version_locked}" == 'true' ]]; then unset mongo_version_locked; fi
       if [[ -n "${original_previous_mongodb_version}" ]]; then previous_mongodb_version="${original_previous_mongodb_version}"; fi
+      if [[ -n "${original_previous_mongodb_version_with_dot}" ]]; then previous_mongodb_version_with_dot="${original_previous_mongodb_version_with_dot}"; fi
       reverse_check_add_mongodb_repo_variable
       mongodb_org_v="${previous_mongodb_org_v}"
       unset previous_mongodb_org_v
@@ -4802,17 +4848,20 @@ if [[ "${unifi_network_application_downloaded}" != 'true' ]]; then
   if [[ -z "${unifi_temp}" ]]; then unifi_temp="$(mktemp --tmpdir=/tmp unifi_sysvinit_all_"${unifi_clean}"_XXX.deb)"; fi
   unifi_fwupdate="$(curl "${curl_argument[@]}" "https://fw-update.ui.com/api/firmware-latest?filter=eq~~version_major~~${first_digit_unifi}&filter=eq~~version_minor~~${second_digit_unifi}&filter=eq~~version_patch~~${third_digit_unifi}&filter=eq~~platform~~debian" | jq -r "._embedded.firmware[]._links.data.href" | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
   if [[ -z "${unifi_fwupdate}" ]]; then unifi_fwupdate="$(curl "${curl_argument[@]}" "http://fw-update.ui.com/api/firmware-latest?filter=eq~~version_major~~${first_digit_unifi}&filter=eq~~version_minor~~${second_digit_unifi}&filter=eq~~version_patch~~${third_digit_unifi}&filter=eq~~platform~~debian" | jq -r "._embedded.firmware[]._links.data.href" | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"; fi
+  glennr_unifi_dl="$(curl "${curl_argument[@]}" https://get.glennr.nl/unifi/releases/unifi-network-application-versions.json | jq -r '.versions."'"${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi}"'"."download_link"' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
   if [[ "${broken_unifi_install}" != 'true' ]]; then
     unifi_download_urls=(
       "https://dl.ui.com/unifi/${unifi_secret}/unifi_sysvinit_all.deb"
       "https://dl.ui.com/unifi/${unifi_clean}/unifi_sysvinit_all.deb"
       "https://dl.ui.com/unifi/debian/pool/ubiquiti/u/unifi/unifi_${unifi_repo_version}_all.deb"
       "${unifi_fwupdate}"
+      "${glennr_unifi_dl}"
     )
   else
     unifi_download_urls=(
       "https://dl.ui.com/unifi/${unifi_clean}/unifi_sysvinit_all.deb"
       "${unifi_fwupdate}"
+      "${glennr_unifi_dl}"
     )
   fi
   echo -e "${WHITE_R}#${RESET} Downloading the UniFi Network Application..."

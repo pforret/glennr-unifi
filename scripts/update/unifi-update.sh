@@ -2,7 +2,7 @@
 
 # UniFi Network Application Easy Update Script.
 # Script   | UniFi Network Easy Update Script
-# Version  | 8.5.7
+# Version  | 8.5.9
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -941,7 +941,9 @@ get_repo_url() {
       if [[ "${use_raspberrypi_repo}" == 'true' ]]; then os_id="raspbian"; if [[ "${architecture}" == 'arm64' ]]; then repo_arch_value="arch=arm64"; fi; fi
       distro_api_output="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/distro?distribution=${os_id}&version=${os_codename}&architecture=${architecture}${api_repo_url_procotol}" 2> /dev/null)"
       archived_repo="$(echo "${distro_api_output}" | jq -r '.codename_eol')"
-      repo_url="$(echo "${distro_api_output}" | jq -r '.repository')"
+      if [[ "${get_repo_url_security_url}" == "true" ]]; then get_repo_url_url_argument="security_repository"; unset get_repo_url_security_url; else get_repo_url_url_argument="repository"; fi
+      repo_url="$(echo "${distro_api_output}" | jq -r ".${get_repo_url_url_argument}")"
+      distro_api="true"
       if [[ "${os_id}" == "raspbian" ]]; then get_distro; fi
     else
       if [[ "${os_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then
@@ -1001,7 +1003,14 @@ add_repositories() {
     unset repo_url_arguments
     unset repo_arguments
     unset signed_by_value_repo_key
+    unset add_repositories_source_list_override
     return  # Repository already added, exit function
+  fi
+  # Override the source list
+  if [[ -n "${add_repositories_source_list_override}" ]]; then
+    add_repositories_source_list="/etc/apt/sources.list.d/${add_repositories_source_list_override}"
+  else
+    add_repositories_source_list="/etc/apt/sources.list.d/glennr-install-script.list"
   fi
   # Add repository key if required
   if [[ "${apt_key_deprecated}" == 'true' && -n "${repo_key}" && -n "${repo_key_name}" ]]; then
@@ -1028,7 +1037,7 @@ add_repositories() {
   # Add repository to sources list
   if [[ -n "${signed_by_value_repo_key}" && -n "${repo_arch_value}" ]]; then local brackets="[${signed_by_value_repo_key}${repo_arch_value}] "; else local brackets=""; fi
   local repo_entry="deb ${brackets}${repo_url}${repo_url_arguments} ${repo_codename}${repo_arguments}"
-  if ! echo -e "${repo_entry}" >> /etc/apt/sources.list.d/glennr-install-script.list; then
+  if ! echo -e "${repo_entry}" >> "${add_repositories_source_list}"; then
     abort_reason="Failed to add repository."
     abort
   fi 
@@ -1049,6 +1058,7 @@ add_repositories() {
   unset repo_url_arguments
   unset repo_arguments
   unset signed_by_value_repo_key
+  unset add_repositories_source_list_override
   # Check if OS codename changed and reset variables
   if [[ "${os_codename_changed}" == 'true' ]]; then 
     unset os_codename_changed
@@ -1228,6 +1238,37 @@ check_unmet_dependencies() {
           echo -e "Attempting to install unmet dependency: ${dependency} \\n" &>> "${eus_dir}/logs/unmet-dependency.log"
           if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${dependency}" &>> "${eus_dir}/logs/unmet-dependency.log"; then
             sed -i "s/Depends: ${dependency_no_version}/Depends (completed): ${dependency_no_version}/g" "${log_file}" 2>> "${eus_dir}/logs/unmet-dependency-sed.log"
+          else
+            if command -v jq &> /dev/null; then
+              list_of_distro_versions="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/list-versions?distribution=${os_id}" 2> /dev/null | jq -r '.[]' 2> /dev/null)"
+            else
+              list_of_distro_versions="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/list-versions?distribution=${os_id}" | sed -e 's/\[//g' -e 's/\]//g' -e 's/ //g' -e 's/,//g' | grep .)"
+            fi
+            while read -r version; do
+              add_repositories_source_list_override="glennr-install-script-unmet.list"
+              repo_codename="${version}"
+              repo_arguments=" main"
+              get_repo_url
+              add_repositories
+              if [[ "${os_id}" == "ubuntu" && "${distro_api}" == "true" ]]; then
+                get_repo_url_security_url="true"
+                get_repo_url
+                repo_arguments="-security main"
+                add_repositories
+              elif [[ "${os_id}" == "debian" && "${distro_api}" == "true" ]]; then
+                repo_url_arguments="-security/"
+                repo_arguments="-security main"
+                add_repositories
+              fi
+              run_apt_get_update
+              if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${dependency}" &>> "${eus_dir}/logs/unmet-dependency.log"; then
+                echo -e "\\nSuccessfully installed ${dependency} after adding the repositories for ${version} \\n" &>> "${eus_dir}/logs/unmet-dependency.log"
+                sed -i "s/Depends: ${dependency_no_version}/Depends (completed): ${dependency_no_version}/g" "${log_file}" 2>> "${eus_dir}/logs/unmet-dependency-sed.log"
+                rm --force "/etc/apt/sources.list.d/glennr-install-script-unmet.list" &> /dev/null
+                break
+              fi
+            done <<< "${list_of_distro_versions}"
+            if [[ -e "/etc/apt/sources.list.d/glennr-install-script-unmet.list" ]]; then rm --force "/etc/apt/sources.list.d/glennr-install-script-unmet.list" &> /dev/null; fi
           fi
         fi
       done < <(grep "Depends:" "${log_file}" | sed 's/.*Depends: //' | sed 's/).*//' | sort | uniq)
@@ -3452,7 +3493,9 @@ if [[ "${mongo_version_locked}" == '4.4.18' ]] || [[ "${unsupported_database_ver
       if [[ -n "${previous_mongodb_version}" ]]; then
         if [[ "${previous_mongodb_version::2}" == "26" ]]; then
           original_previous_mongodb_version="26"
+          original_previous_mongodb_version_with_dot="3.0"
           previous_mongodb_version="30"
+          previous_mongodb_version_with_dot="3.0"
         fi
         mongodb_add_repo_downgrade_variable="add_mongodb_${previous_mongodb_version::2}_repo"
         declare "$mongodb_add_repo_downgrade_variable=true"
@@ -3474,7 +3517,7 @@ if [[ "${mongo_version_locked}" == '4.4.18' ]] || [[ "${unsupported_database_ver
         if ! apt-cache policy "^${installed_mongodb_package}$" | grep -ioq "${install_mongodb_version}"; then
           if [[ "${installed_mongodb_package}" == "mongodb-server" ]] && [[ "${previous_mongodb_version::2}" != "24" ]]; then if sed -i "s/mongodb-server/mongodb-org-server/g" /tmp/EUS/mongodb/packages_list; then echo "mongodb-server" &>> /tmp/EUS/mongodb/packages_remove_list; fi; fi
           if [[ "${installed_mongodb_package}" == "mongodb-clients" ]] && [[ "${previous_mongodb_version::2}" != "24" ]]; then if sed -i "s/mongodb-clients/mongodb-org-shell/g" /tmp/EUS/mongodb/packages_list; then echo "mongodb-clients" &>> /tmp/EUS/mongodb/packages_remove_list; fi; fi
-          if [[ "${installed_mongodb_package}" == "mongo-tools" ]] && [[ "${previous_mongodb_version::2}" != "24" ]]; then if sed -i "s/mongo-tools/mongodb-org-t/g" /tmp/EUS/mongodb/packages_list; then echo "mongo-tools" &>> /tmp/EUS/mongodb/packages_remove_list; fi; fi
+          if [[ "${installed_mongodb_package}" == "mongo-tools" ]] && [[ "${previous_mongodb_version::2}" != "24" ]]; then if sed -i "s/mongo-tools/mongodb-org-tools/g" /tmp/EUS/mongodb/packages_list; then echo "mongo-tools" &>> /tmp/EUS/mongodb/packages_remove_list; fi; fi
           if [[ "${installed_mongodb_package}" == "mongodb-org-database-tools-extra" && "${install_mongodb_version//./}" -lt "44" ]]; then echo "mongodb-org-database-tools-extra" &>> /tmp/EUS/mongodb/packages_remove_list; fi
           sed -i "/${installed_mongodb_package}/d" /tmp/EUS/mongodb/packages_list
         fi
@@ -3564,6 +3607,7 @@ if [[ "${mongo_version_locked}" == '4.4.18' ]] || [[ "${unsupported_database_ver
       fi
       if [[ "${unset_mongo_version_locked}" == 'true' ]]; then unset mongo_version_locked; fi
       if [[ -n "${original_previous_mongodb_version}" ]]; then previous_mongodb_version="${original_previous_mongodb_version}"; fi
+      if [[ -n "${original_previous_mongodb_version_with_dot}" ]]; then previous_mongodb_version_with_dot="${original_previous_mongodb_version_with_dot}"; fi
       if [[ "${unset_mongodb_org_v}" == 'true' ]]; then get_mongodb_org_v; fi
       reverse_check_add_mongodb_repo_variable
       if "$(which dpkg)" -l unifi 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
@@ -6586,7 +6630,7 @@ mongodb_upgrade() {
   fi
   if "$(which dpkg)" -l mongodb-server 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
     mongodb_server_ver="$("$(which dpkg)" -l | grep "mongodb-server" | grep -i "^ii\\|^hi\\|^ri\\|^pi\\|^ui" | awk '{print $3}' | sed 's/\.//g' | sed 's/.*://' | sed 's/-.*//g' | sed 's/+.*//g' | sort -V | tail -n 1)"
-    if [[ "${mongodb_server_ver::2}" != "26" ]]; then
+    if ! [[ "${mongodb_server_ver::2}" =~ (26|24) ]]; then
       if ! "$(which dpkg)" -l mongo-tools 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
         if "$(which dpkg)" -l mongodb-database-tools 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
           check_dpkg_lock
@@ -6629,6 +6673,7 @@ mongodb_upgrade() {
             get_repo_url
           fi
           check_dpkg_lock
+          check_unmet_dependencies
           echo -e "${WHITE_R}#${RESET} Trying to install mongo-tools for the second time..."
           if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install mongo-tools &>> "${eus_dir}/logs/unifi-database-required.log"; then
             echo -e "${RED}#${RESET} Failed to install mongo-tools in the second run...\\n"
@@ -6679,6 +6724,7 @@ mongodb_upgrade() {
             get_repo_url
           fi
         check_dpkg_lock
+        check_unmet_dependencies
         echo -e "${WHITE_R}#${RESET} Trying to install mongodb-clients for the second time..."
         if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install mongodb-clients &>> "${eus_dir}/logs/unifi-database-required.log"; then
           echo -e "${RED}#${RESET} Failed to install mongodb-clients in the second run...\\n"
@@ -7016,8 +7062,10 @@ mongodb_upgrade() {
     if [[ "${apt_cache_archive_message}" != 'true' ]]; then echo -e "${WHITE_R}#${RESET} Removing apt cache archives..."; apt_cache_archive_message="true"; fi
     if rm --force "${apt_cache}" &> /dev/null; then if [[ "${apt_cache_archive_success_message}" != 'true' ]]; then echo -e "${GREEN}#${RESET} Successfully removed apt cache archives! \\n"; apt_cache_archive_success_message="true"; fi; fi
   done < <(find /var/cache/apt/archives/ -name "*mongo*" -type f)
+  check_unmet_dependencies
   # Install mongod-armv8 dependencies
   if grep -siq "mongod-armv8" /tmp/EUS/mongodb/packages_list; then
+    get_distro
     if [[ "$(find /etc/apt/ -type f -name "*.list" -exec grep -ilE 'raspbian.org|raspberrypi.org' {} + | wc -l)" -ge "1" ]]; then
       if [[ "${os_codename}" =~ (jessie|stretch|buster|bullseye) ]]; then
         repo_codename="bookworm"

@@ -11,6 +11,22 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 8.5.9
+  
+ - Improved the unmet dependency check.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 8.5.8
+  
+ - Added unmet dependency check to the MongoDB Upgrade process.
+ - Improved the unmet dependency check.
+ - Improved the MongoDB Upgrade process for MongoDB 2.4.
+ - Fixed an issue where unsupported mongodb recovery couldn't recover mongodb-server 2.6 installations.
+ - Attempt to improve installing dependencies for MongoDB Compiled by Glenn R.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 8.5.7
   
  - Fixed an issue where setups using apt version 1.5 or newer without apt-transport-https were using HTTP rather than HTTPS.
