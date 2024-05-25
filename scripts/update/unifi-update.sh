@@ -2,7 +2,7 @@
 
 # UniFi Network Application Easy Update Script.
 # Script   | UniFi Network Easy Update Script
-# Version  | 8.5.9
+# Version  | 8.6.1
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -1233,10 +1233,11 @@ check_unmet_dependencies() {
       while read -r dependency; do
         if [[ "${check_unmet_dependencies_repositories_added}" != "true" ]]; then check_default_repositories; check_unmet_dependencies_repositories_added="true"; fi
         dependency_no_version="$(echo "${dependency}" | awk -F' ' '{print $1}')"
-        dependency="$(echo "${dependency}" | tr -d '()' | tr -d ',' | sed 's/ *= */=/g')"
-        if [[ "${dependency}" == *'='* ]]; then
-          echo -e "Attempting to install unmet dependency: ${dependency} \\n" &>> "${eus_dir}/logs/unmet-dependency.log"
-          if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${dependency}" &>> "${eus_dir}/logs/unmet-dependency.log"; then
+        dependency="$(echo "${dependency}" | tr -d '()' | tr -d ',' | sed -e 's/ *= */=/g' -e 's/~//g')"
+        if echo "${dependency}" | grep -ioq ">="; then dependency_to_install="${dependency_no_version}"; else dependency_to_install="${dependency}"; fi
+        if [[ -n "${dependency_to_install}" ]]; then
+          echo -e "Attempting to install unmet dependency: ${dependency_to_install} \\n" &>> "${eus_dir}/logs/unmet-dependency.log"
+          if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${dependency_to_install}" &>> "${eus_dir}/logs/unmet-dependency.log"; then
             sed -i "s/Depends: ${dependency_no_version}/Depends (completed): ${dependency_no_version}/g" "${log_file}" 2>> "${eus_dir}/logs/unmet-dependency-sed.log"
           else
             if command -v jq &> /dev/null; then
@@ -1261,7 +1262,7 @@ check_unmet_dependencies() {
                 add_repositories
               fi
               run_apt_get_update
-              if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${dependency}" &>> "${eus_dir}/logs/unmet-dependency.log"; then
+              if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${dependency_to_install}" &>> "${eus_dir}/logs/unmet-dependency.log"; then
                 echo -e "\\nSuccessfully installed ${dependency} after adding the repositories for ${version} \\n" &>> "${eus_dir}/logs/unmet-dependency.log"
                 sed -i "s/Depends: ${dependency_no_version}/Depends (completed): ${dependency_no_version}/g" "${log_file}" 2>> "${eus_dir}/logs/unmet-dependency-sed.log"
                 rm --force "/etc/apt/sources.list.d/glennr-install-script-unmet.list" &> /dev/null
@@ -1272,7 +1273,7 @@ check_unmet_dependencies() {
           fi
         fi
       done < <(grep "Depends:" "${log_file}" | sed 's/.*Depends: //' | sed 's/).*//' | sort | uniq)
-    done < <(grep -lE '^E: Unable to correct problems, you have held broken packages.' /tmp/EUS/apt/*.log | sort -u 2>> /dev/null)
+    done < <(grep -lE '^E: Unable to correct problems, you have held broken packages.|^The following packages have unmet dependencies' /tmp/EUS/apt/*.log | sort -u 2>> /dev/null)
   fi
 }
 
@@ -7066,7 +7067,7 @@ mongodb_upgrade() {
   # Install mongod-armv8 dependencies
   if grep -siq "mongod-armv8" /tmp/EUS/mongodb/packages_list; then
     get_distro
-    if [[ "$(find /etc/apt/ -type f -name "*.list" -exec grep -ilE 'raspbian.org|raspberrypi.org' {} + | wc -l)" -ge "1" ]]; then
+    if [[ "$(find /etc/apt/ -type f -name "*.list" -exec grep -ilE 'raspbian.|raspberrypi.' {} + | wc -l)" -ge "1" ]]; then
       if [[ "${os_codename}" =~ (jessie|stretch|buster|bullseye) ]]; then
         repo_codename="bookworm"
         os_codename="bookworm"

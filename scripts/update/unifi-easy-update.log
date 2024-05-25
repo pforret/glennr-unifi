@@ -11,6 +11,18 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 8.6.1
+  
+ - Improved the installation of dependencies on older distributions for MongoDB compiled by Glenn R.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 8.6.0
+  
+ - Improved the unmet dependency check.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 8.5.9
   
  - Improved the unmet dependency check.

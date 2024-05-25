@@ -11,6 +11,18 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 7.3.9
+ 
+ - Improved the installation of dependencies on older distributions for MongoDB compiled by Glenn R.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 7.3.8
+ 
+ - Improved the unmet dependency check.
+ 
+ ###
+
  |  UniFi Network Application Installation Script  |  Version 7.3.7
  
  - Improved the unmet dependency check.
