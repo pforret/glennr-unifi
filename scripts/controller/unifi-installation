@@ -11,6 +11,21 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 7.4.0
+ 
+ - Added more logging to adding repositories.
+ - Improved the installation of dependencies on older distributions for MongoDB compiled by Glenn R.
+ - Improved setting setup distribution.
+ - Improved setup tuning for low memory setups.
+ - Improved information in support files.
+ - Fixed an issue where the os_codename was changed outside of the get_repo_url function.
+ - Fixed an issue where the UniFi repository wasn't being added despite set to do so when using the skip option.
+ - Fixed an issue where certain functions were running twice.
+ - Fixed an issue where the script should downgrade MongoDB due to an unsupported upgrade/downgrade, but instead installed a even newer version on arm64 setups.
+ - Fixed an issue where adding repositories didn't work properly when using the rasbian repository.
+ 
+ ###
+
  |  UniFi Network Application Installation Script  |  Version 7.3.9
  
  - Improved the installation of dependencies on older distributions for MongoDB compiled by Glenn R.

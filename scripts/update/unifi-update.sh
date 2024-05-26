@@ -2,7 +2,7 @@
 
 # UniFi Network Application Easy Update Script.
 # Script   | UniFi Network Easy Update Script
-# Version  | 8.6.1
+# Version  | 8.6.2
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -227,6 +227,17 @@ support_file() {
   "$(which dpkg)" -l &> "/tmp/EUS/support/dpkg-packages-list"
   journalctl -u unifi -p debug --since "1 week ago" --no-pager &> "/tmp/EUS/support/ujournal.log"
   journalctl --since yesterday --no-pager &> "/tmp/EUS/support/journal.log"
+  if [[ -e "/tmp/EUS/support/no-disk-space-info" ]]; then rm --force "/tmp/EUS/support/no-disk-space-info" &> /dev/null; fi
+  while read -r ood_dir; do
+    {
+      echo -e "-----( du -sh ${ood_dir} )----- \n" &>> "/tmp/EUS/support/no-disk-space-info"
+      du -sh "${ood_dir}"
+      echo -e "-----( df -h ${ood_dir} )----- \n" &>> "/tmp/EUS/support/no-disk-space-info"
+      df -h "${ood_dir}"
+      echo -e "-----( df -hi ${ood_dir} )----- \n" &>> "/tmp/EUS/support/no-disk-space-info"
+      df -hi "${ood_dir}"
+    }	&>> "/tmp/EUS/support/no-disk-space-info"
+  done < <(grep -i "no space left on device" "${eus_dir}"/logs/* | grep -oP '(?<=to )/[^: ]+' | sort -u)
   if [[ "$(command -v timedatectl)" ]]; then
     {
       echo -e "-----( timedatectl )----- \n"
@@ -892,7 +903,7 @@ get_distro() {
   else
     os_codename="$(lsb_release --codename --short | tr '[:upper:]' '[:lower:]')"
     os_id="$(lsb_release --id --short | tr '[:upper:]' '[:lower:]')"
-    if [[ "${os_codename}" == 'n/a' ]]; then
+    if [[ "${os_codename}" == 'n/a' ]] || [[ -z "${os_codename}" ]]; then
       skip_use_lsb_release="true"
       get_distro
       return
@@ -938,13 +949,12 @@ get_repo_url() {
   if "$(which dpkg)" -l curl 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
     if [[ "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/distro?status" 2> /dev/null | jq -r '.[]' 2> /dev/null)" == "OK" ]]; then
       if [[ "${http_or_https}" == "http" ]]; then api_repo_url_procotol="&protocol=insecure"; fi
-      if [[ "${use_raspberrypi_repo}" == 'true' ]]; then os_id="raspbian"; if [[ "${architecture}" == 'arm64' ]]; then repo_arch_value="arch=arm64"; fi; fi
+      if [[ "${use_raspberrypi_repo}" == 'true' ]]; then os_id="raspbian"; if [[ "${architecture}" == 'arm64' ]]; then repo_arch_value="arch=arm64"; fi; unset use_raspberrypi_repo; fi
       distro_api_output="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/distro?distribution=${os_id}&version=${os_codename}&architecture=${architecture}${api_repo_url_procotol}" 2> /dev/null)"
       archived_repo="$(echo "${distro_api_output}" | jq -r '.codename_eol')"
       if [[ "${get_repo_url_security_url}" == "true" ]]; then get_repo_url_url_argument="security_repository"; unset get_repo_url_security_url; else get_repo_url_url_argument="repository"; fi
       repo_url="$(echo "${distro_api_output}" | jq -r ".${get_repo_url_url_argument}")"
       distro_api="true"
-      if [[ "${os_id}" == "raspbian" ]]; then get_distro; fi
     else
       if [[ "${os_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then
         if curl "${curl_argument[@]}" "${http_or_https}://old-releases.ubuntu.com/ubuntu/dists/" 2> /dev/null | grep -iq "${os_codename}" 2> /dev/null; then archived_repo="true"; fi
@@ -999,11 +1009,13 @@ cleanup_archived_repos
 add_repositories() {
   # Check if repository is already added
   if grep -sq "^deb .*http\?s\?://$(echo "${repo_url}" | sed -e 's/https\:\/\///g' -e 's/http\:\/\///g')${repo_url_arguments}\?/\? ${repo_codename}${repo_arguments}" /etc/apt/sources.list /etc/apt/sources.list.d/*; then
+    echo -e "$(date +%F-%R) | \"${repo_url}${repo_url_arguments} ${repo_codename}${repo_arguments}\" was found, not adding to repository lists. $(grep -srIl "^deb .*http\?s\?://$(echo "${repo_url}" | sed -e 's/https\:\/\///g' -e 's/http\:\/\///g')${repo_url_arguments}\?/\? ${repo_codename}${repo_arguments}" /etc/apt/sources.list /etc/apt/sources.list.d/*)..." &>> "${eus_dir}/logs/already-found-repository.log"
     unset repo_key_name
     unset repo_url_arguments
     unset repo_arguments
     unset signed_by_value_repo_key
     unset add_repositories_source_list_override
+    if [[ "${os_id}" == "raspbian" ]]; then get_distro; fi
     return  # Repository already added, exit function
   fi
   # Override the source list
@@ -1037,7 +1049,9 @@ add_repositories() {
   # Add repository to sources list
   if [[ -n "${signed_by_value_repo_key}" && -n "${repo_arch_value}" ]]; then local brackets="[${signed_by_value_repo_key}${repo_arch_value}] "; else local brackets=""; fi
   local repo_entry="deb ${brackets}${repo_url}${repo_url_arguments} ${repo_codename}${repo_arguments}"
-  if ! echo -e "${repo_entry}" >> "${add_repositories_source_list}"; then
+  if echo -e "${repo_entry}" >> "${add_repositories_source_list}"; then
+    echo -e "$(date +%F-%R) | Successfully added \"deb ${brackets}${repo_url}${repo_url_arguments} ${repo_codename}${repo_arguments}\" to \${add_repositories_source_list}}\"!" &>> "${eus_dir}/logs/added-repository.log"
+  else
     abort_reason="Failed to add repository."
     abort
   fi 
@@ -1064,6 +1078,8 @@ add_repositories() {
     unset os_codename_changed
     get_distro
     get_repo_url
+  else
+    if [[ "${os_id}" == "raspbian" ]]; then get_distro; fi
   fi
 }
 
@@ -1700,11 +1716,8 @@ add_extra_repo_mongodb() {
   if [[ -z "${repo_arguments}" ]]; then repo_arguments=" main"; fi
   if [[ -z "${repo_url}" ]]; then get_repo_url; fi
   repo_codename="${add_extra_repo_mongodb_codename}"
-  os_codename="${add_extra_repo_mongodb_codename}"
   get_repo_url
   add_repositories
-  get_distro
-  get_repo_url
   unset add_extra_repo_mongodb_security
   unset add_extra_repo_mongodb_codename
 }
@@ -2812,8 +2825,6 @@ openjdk_java() {
       repo_arguments="-security main universe"
     fi
     add_repositories
-    get_distro
-    get_repo_url
   elif [[ "${repo_codename}" =~ (disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then
     if [[ "${architecture}" =~ (amd64|i386) ]]; then
       repo_url="http://security.ubuntu.com/ubuntu"
@@ -2823,12 +2834,8 @@ openjdk_java() {
       repo_arguments="-security main universe"
     fi
     add_repositories
-    get_distro
-    get_repo_url
     repo_arguments=" main"
     add_repositories
-    get_distro
-    get_repo_url
   elif [[ "${os_codename}" == "jessie" ]]; then
     check_dpkg_lock
     echo -e "${WHITE_R}#${RESET} ${openjdk_variable} ${required_java_version}-jre-headless..."
@@ -2862,7 +2869,6 @@ openjdk_java() {
       repo_arguments=" main"
       get_repo_url
       add_repositories
-      get_distro
     elif [[ "${required_java_version}" =~ (openjdk-11|openjdk-17) ]]; then
       if [[ "${repo_codename}" =~ (stretch|buster) ]] && [[ "${required_java_version}" =~ (openjdk-11) ]]; then repo_codename="bullseye"; fi
       if [[ "${repo_codename}" =~ (bookworm|trixie|forky) ]] && [[ "${required_java_version}" =~ (openjdk-11) ]]; then repo_codename="unstable"; fi
@@ -2871,7 +2877,6 @@ openjdk_java() {
       repo_arguments=" main"
       get_repo_url
       add_repositories
-      get_distro
     fi
   fi
 }
@@ -3164,21 +3169,22 @@ libssl_installation_check() {
     fi
     if [[ "${libssl_install_required}" == 'true' ]]; then
       if [[ "$(dpkg-query --showformat='${Version}' --show libc6 | sed 's/.*://' | sed 's/-.*//g' | cut -d'.' -f1)" -lt "2" ]] || [[ "$(dpkg-query --showformat='${Version}' --show libc6 | sed 's/.*://' | sed 's/-.*//g' | cut -d'.' -f1)" == "2" && "$(dpkg-query --showformat='${Version}' --show libc6 | sed 's/.*://' | sed 's/-.*//g' | cut -d'.' -f2)" -lt "34" ]]; then
-        if [[ "${os_codename}" =~ (trusty|qiana|rebecca|rafaela|rosa|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish) ]] || [[ "${architecture}" != "arm64" ]]; then
-          repo_url="http://security.ubuntu.com/ubuntu"
-          repo_arguments="-security main"
+        if [[ "${os_codename}" =~ (trusty|qiana|rebecca|rafaela|rosa|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish) ]]; then
+          if [[ "${architecture}" =~ (amd64|i386) ]]; then
+            repo_url="http://security.ubuntu.com/ubuntu"
+            repo_arguments="-security main"
+          else
+            repo_url="http://ports.ubuntu.com"
+            repo_arguments="-security main universe"
+          fi
           repo_codename="jammy"
-          os_codename="jammy"
-        elif [[ "${os_codename}" =~ (jessie|stretch|buster|bullseye) ]] || [[ "${architecture}" == "arm64" ]]; then
+        elif [[ "${os_codename}" =~ (jessie|stretch|buster|bullseye) ]]; then
           repo_codename="bookworm"
-          os_codename="bookworm"
           get_repo_url
           repo_arguments=" main"
         fi
         add_repositories
         run_apt_get_update
-        get_distro
-        get_repo_url
       fi
     fi
   elif [[ "${required_libssl_version}" == 'libssl1.1' ]]; then
@@ -3209,18 +3215,14 @@ libssl_installation_check() {
             repo_arguments=" main universe"
           fi
           repo_codename="focal"
-          os_codename="focal"
           get_repo_url
         elif [[ "${os_codename}" =~ (jessie|stretch|buster) ]]; then
           repo_codename="bullseye"
-          os_codename="bullseye"
           get_repo_url
           repo_arguments=" main"
         fi
         add_repositories
         run_apt_get_update
-        get_distro
-        get_repo_url
       fi
     fi
   elif [[ "${required_libssl_version}" == 'libssl1.0.0' ]]; then
@@ -3420,21 +3422,15 @@ if "$(which dpkg)" -l mongodb-server 2> /dev/null | awk '{print $1}' | grep -iq 
       if [[ "${os_codename}" =~ (trusty|qiana|rebecca|rafaela|rosa|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|sarah|serena|sonya|sylvia|tara|tessa|tina|tricia) ]]; then
         repo_arguments=" main universe"
         repo_codename="xenial"
-        os_codename="xenial"
         get_repo_url
         add_repositories
         run_apt_get_update
-        get_distro
-        get_repo_url
       elif [[ "${os_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
         repo_arguments=" main"
         repo_codename="stretch"
-        os_codename="stretch"
         get_repo_url
         add_repositories
         run_apt_get_update
-        get_distro
-        get_repo_url
       fi
       check_dpkg_lock
       echo -e "${WHITE_R}#${RESET} Trying to install mongodb-clients for the second time..."
@@ -6657,21 +6653,15 @@ mongodb_upgrade() {
           if [[ "${os_codename}" =~ (trusty|qiana|rebecca|rafaela|rosa|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|sarah|serena|sonya|sylvia|tara|tessa|tina|tricia) ]]; then
             repo_arguments=" main universe"
             repo_codename="xenial"
-            os_codename="xenial"
             get_repo_url
             add_repositories
             run_apt_get_update
-            get_distro
-            get_repo_url
           elif [[ "${os_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
             repo_arguments=" main"
             repo_codename="stretch"
-            os_codename="stretch"
             get_repo_url
             add_repositories
             run_apt_get_update
-            get_distro
-            get_repo_url
           fi
           check_dpkg_lock
           check_unmet_dependencies
@@ -6681,12 +6671,9 @@ mongodb_upgrade() {
             if [[ "${os_codename}" =~ (noble) ]]; then
               repo_arguments=" main"
               repo_codename="jammy"
-              os_codename="jammy"
               get_repo_url
               add_repositories
               run_apt_get_update
-              get_distro
-              get_repo_url
             fi
             echo -e "${WHITE_R}#${RESET} Trying to install mongo-tools for the third time..."
             mongo_last_attempt_type="tools"
@@ -6708,21 +6695,15 @@ mongodb_upgrade() {
           if [[ "${os_codename}" =~ (trusty|qiana|rebecca|rafaela|rosa|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|sarah|serena|sonya|sylvia|tara|tessa|tina|tricia) ]]; then
             repo_arguments=" main universe"
             repo_codename="xenial"
-            os_codename="xenial"
             get_repo_url
             add_repositories
             run_apt_get_update
-            get_distro
-            get_repo_url
           elif [[ "${os_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
             repo_arguments=" main"
             repo_codename="stretch"
-            os_codename="stretch"
             get_repo_url
             add_repositories
             run_apt_get_update
-            get_distro
-            get_repo_url
           fi
         check_dpkg_lock
         check_unmet_dependencies
@@ -7066,18 +7047,14 @@ mongodb_upgrade() {
   check_unmet_dependencies
   # Install mongod-armv8 dependencies
   if grep -siq "mongod-armv8" /tmp/EUS/mongodb/packages_list; then
-    get_distro
     if [[ "$(find /etc/apt/ -type f -name "*.list" -exec grep -ilE 'raspbian.|raspberrypi.' {} + | wc -l)" -ge "1" ]]; then
       if [[ "${os_codename}" =~ (jessie|stretch|buster|bullseye) ]]; then
         repo_codename="bookworm"
-        os_codename="bookworm"
         use_raspberrypi_repo="true"
         get_repo_url
         repo_arguments=" main"
         add_repositories
         run_apt_get_update
-        get_distro
-        get_repo_url
       fi
     fi
     list_of_mongod_armv8_dependencies="$(apt-cache depends mongod-armv8 | tr '[:upper:]' '[:lower:]' | grep -i depends | awk '!a[$0]++' | sed -e 's/|//g' -e 's/ //g' -e 's/<//g' -e 's/>//g' -e 's/depends://g' | sort -V | awk '!/^gcc/ || !f++')"
@@ -7094,22 +7071,18 @@ mongodb_upgrade() {
       else
         mongod_armv8_dependency_version_current="0"
       fi
-      if [[ "${mongod_armv8_dependency_version_current}" -le "${mongod_armv8_dependency_version}" ]]; then
+      if [[ "${mongod_armv8_dependency_version_current}" -lt "${mongod_armv8_dependency_version}" ]]; then
         if ! apt-cache policy "${mongod_armv8_dependency}" | tr '[:upper:]' '[:lower:]' | sed '1,/version table/d' | sed -e 's/500//g' -e 's/100//g' -e '/http/d' -e '/var/d' -e 's/*//g' -e 's/ //g' | grep -iq "^${mongod_armv8_dependency_version}"; then
           if [[ "${os_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish) ]]; then
             repo_codename="jammy"
-            os_codename="jammy"
             get_repo_url
           elif [[ "${os_codename}" =~ (jessie|stretch|buster|bullseye) ]]; then
             repo_codename="bookworm"
-            os_codename="bookworm"
             get_repo_url
           fi
           repo_arguments=" main"
           add_repositories
           run_apt_get_update
-          get_distro
-          get_repo_url
         fi
         mongod_armv8_dependency_install_version="$(apt-cache policy "${mongod_armv8_dependency}" | tr '[:upper:]' '[:lower:]' | sed '1,/version table/d' | sed -e 's/500//g' -e 's/100//g' -e '/http/d' -e '/var/d' -e 's/*//g' -e 's/ //g' | grep -i "^${mongod_armv8_dependency_version}" | head -n1)"
         if [[ -z "${mongod_armv8_dependency_install_version}" ]]; then
