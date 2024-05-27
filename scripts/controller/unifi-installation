@@ -11,6 +11,13 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 7.4.1
+ 
+ - Added details to the EUS database if the setup is running in a LXC container.
+ - Automatically skip SWAP file creation on container setups (docker/lxc).
+ 
+ ###
+
  |  UniFi Network Application Installation Script  |  Version 7.4.0
  
  - Added more logging to adding repositories.

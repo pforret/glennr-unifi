@@ -11,6 +11,12 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 8.6.3
+  
+ - Added details to the EUS database if the setup is running in a LXC container.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 8.6.2
   
  - Added more logging to adding repositories.
