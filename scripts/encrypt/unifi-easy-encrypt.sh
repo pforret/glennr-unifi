@@ -2,7 +2,7 @@
 
 # UniFi Easy Encrypt script.
 # Script   | UniFi Network Easy Encrypt Script
-# Version  | 2.7.4
+# Version  | 2.7.5
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -457,10 +457,10 @@ check_dns() {
 }
 
 set_curl_arguments() {
-  if [[ "$(command -v jq)" ]]; then ssl_check_status="$(curl --silent https://get.glennr.nl/ssl-check/check.json | jq -r '.[]')"; else ssl_check_status="$(curl --silent https://get.glennr.nl/ssl-check/check.json | grep -io "OK")"; fi
+  if [[ "$(command -v jq)" ]]; then ssl_check_status="$(curl --silent "https://api.glennr.nl/api/ssl-check" | jq -r '.status')"; else ssl_check_status="$(curl --silent "https://api.glennr.nl/api/ssl-check" | grep -oP '(?<="status":")[^"]+')"; fi
   if [[ "${ssl_check_status}" != "OK" ]]; then
     if [[ -e "/etc/ssl/certs/" ]]; then
-      if [[ "$(command -v jq)" ]]; then ssl_check_status="$(curl --silent --capath /etc/ssl/certs/ https://get.glennr.nl/ssl-check/check.json | jq -r '.[]')"; else ssl_check_status="$(curl --silent --capath /etc/ssl/certs/ https://get.glennr.nl/ssl-check/check.json | grep -io "OK")"; fi
+      if [[ "$(command -v jq)" ]]; then ssl_check_status="$(curl --silent --capath /etc/ssl/certs/ "https://api.glennr.nl/api/ssl-check" | jq -r '.status')"; else ssl_check_status="$(curl --silent --capath /etc/ssl/certs/ "https://api.glennr.nl/api/ssl-check" | grep -oP '(?<="status":")[^"]+')"; fi
       if [[ "${ssl_check_status}" == "OK" ]]; then curl_args="--capath /etc/ssl/certs/"; fi
     fi
     if [[ -z "${curl_args}" && "${ssl_check_status}" != "OK" ]]; then curl_args="--insecure"; fi
@@ -845,11 +845,11 @@ if [[ -n "${auto_dns_challenge_arguments}" ]]; then
         echo -e "${RED}#${RESET} The following fields should be within that file: \\n"
         while read -r requirement_missing; do
           echo -e " ${RED}-${RESET} ${requirement_missing}"
-        done < <(curl "${curl_argument[@]}" "https://get.glennr.nl/unifi/releases/multi-dns.json" 2> /dev/null | jq -r '.provider.'"${auto_dns_challenge_provider}"'.required_fields[]')
+        done < <(curl "${curl_argument[@]}" "https://api.glennr.nl/api/multi-dns?provider=${auto_dns_challenge_provider}" 2> /dev/null | jq -r '.required_fields[]')
         abort_skip_support_file_upload="true"
         abort
       fi
-    done < <(curl "${curl_argument[@]}" "https://get.glennr.nl/unifi/releases/multi-dns.json" 2> /dev/null | jq -r '.provider.'"${auto_dns_challenge_provider}"'.required_fields[]')
+    done < <(curl "${curl_argument[@]}" "https://api.glennr.nl/api/multi-dns?provider=${auto_dns_challenge_provider}" 2> /dev/null | jq -r '.required_fields[]')
     if [[ "${certbot_native_plugin}" == 'true' ]]; then
       if [[ "${auto_dns_challenge_provider}" =~ (route53) ]]; then
         # shellcheck disable=SC2269
@@ -1065,11 +1065,20 @@ cleanup_archived_repos
 add_repositories() {
   # Check if repository is already added
   if grep -sq "^deb .*http\?s\?://$(echo "${repo_url}" | sed -e 's/https\:\/\///g' -e 's/http\:\/\///g')${repo_url_arguments}\?/\? ${repo_codename}${repo_arguments}" /etc/apt/sources.list /etc/apt/sources.list.d/*; then
+    echo -e "$(date +%F-%R) | \"${repo_url}${repo_url_arguments} ${repo_codename}${repo_arguments}\" was found, not adding to repository lists. $(grep -srIl "^deb .*http\?s\?://$(echo "${repo_url}" | sed -e 's/https\:\/\///g' -e 's/http\:\/\///g')${repo_url_arguments}\?/\? ${repo_codename}${repo_arguments}" /etc/apt/sources.list /etc/apt/sources.list.d/*)..." &>> "${eus_dir}/logs/already-found-repository.log"
     unset repo_key_name
     unset repo_url_arguments
     unset repo_arguments
     unset signed_by_value_repo_key
+    unset add_repositories_source_list_override
+    if [[ "${os_id}" == "raspbian" ]]; then get_distro; fi
     return  # Repository already added, exit function
+  fi
+  # Override the source list
+  if [[ -n "${add_repositories_source_list_override}" ]]; then
+    add_repositories_source_list="/etc/apt/sources.list.d/${add_repositories_source_list_override}"
+  else
+    add_repositories_source_list="/etc/apt/sources.list.d/glennr-install-script.list"
   fi
   # Add repository key if required
   if [[ "${apt_key_deprecated}" == 'true' && -n "${repo_key}" && -n "${repo_key_name}" ]]; then
@@ -1089,14 +1098,16 @@ add_repositories() {
     elif echo "${repo_url_arguments}" | grep -ioq "security.debian"; then 
       check_debian_version="${os_version_number}-security"
     fi
-    if [[ "$(curl "${curl_argument[@]}" https://get.glennr.nl/unifi/releases/debian-versions.json | jq -r '.versions."'"${check_debian_version}"'".expired')" == 'true' ]]; then 
+    if [[ "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/debian-release?version=${check_debian_version}" | jq -r '.expired')" == 'true' ]]; then 
       signed_by_value_repo_key+=" trusted=yes"
     fi
   fi
   # Add repository to sources list
   if [[ -n "${signed_by_value_repo_key}" && -n "${repo_arch_value}" ]]; then local brackets="[${signed_by_value_repo_key}${repo_arch_value}] "; else local brackets=""; fi
   local repo_entry="deb ${brackets}${repo_url}${repo_url_arguments} ${repo_codename}${repo_arguments}"
-  if ! echo -e "${repo_entry}" >> /etc/apt/sources.list.d/glennr-install-script.list; then
+  if echo -e "${repo_entry}" >> "${add_repositories_source_list}"; then
+    echo -e "$(date +%F-%R) | Successfully added \"deb ${brackets}${repo_url}${repo_url_arguments} ${repo_codename}${repo_arguments}\" to ${add_repositories_source_list}!" &>> "${eus_dir}/logs/added-repository.log"
+  else
     abort_reason="Failed to add repository."
     abort
   fi 
@@ -1117,11 +1128,14 @@ add_repositories() {
   unset repo_url_arguments
   unset repo_arguments
   unset signed_by_value_repo_key
+  unset add_repositories_source_list_override
   # Check if OS codename changed and reset variables
   if [[ "${os_codename_changed}" == 'true' ]]; then 
     unset os_codename_changed
     get_distro
     get_repo_url
+  else
+    if [[ "${os_id}" == "raspbian" ]]; then get_distro; fi
   fi
 }
 
@@ -1218,7 +1232,11 @@ script_version_check() {
   local local_version
   local online_version
   local_version="$(grep -i "# Version" "${script_location}" | head -n 1 | cut -d'|' -f2 | sed 's/ //g')"
-  online_version="$(curl "${curl_argument[@]}" https://get.glennr.nl/unifi/extra/unifi-easy-encrypt.sh | grep -i "# Version" | head -n 1 | cut -d'|' -f2 | sed 's/ //g')"
+  if command -v jq &> /dev/null; then
+    online_version="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-script-version?script=unifi-easy-encrypt" | jq -r '."latest-script-version"')"
+  else
+    online_version="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-script-version?script=unifi-easy-encrypt" | grep -oP '(?<="latest-script-version":")[0-9.]+')"
+  fi
   IFS='.' read -r -a local_parts <<< "${local_version}"
   IFS='.' read -r -a online_parts <<< "${online_version}"
   if [[ "${#local_parts[@]}" -gt "${#online_parts[@]}" ]]; then max_length="${#local_parts[@]}"; else max_length="${#online_parts[@]}"; fi
@@ -4322,7 +4340,7 @@ add_repositories() {
       check_debian_version="\${os_version_number}"
       if echo "\${repo_url}" | grep -ioq "archive"; then check_debian_version="\${os_version_number}-archive"; fi
       if echo "\${repo_url_arguments}" | grep -ioq "security"; then check_debian_version="\${os_version_number}-security"; fi
-      if [[ "\$(curl -s https://get.glennr.nl/unifi/releases/debian-versions.json | jq -r '.versions."'\${check_debian_version}'".expired')" == 'true' ]]; then if [[ -n "\${signed_by_value_repo_key}" ]]; then signed_by_value_repo_key="[ /etc/apt/keyrings/\${repo_key_name}.gpg trusted=yes ] "; else signed_by_value_repo_key="[ trusted=yes ] "; fi; fi
+      if [[ "\$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/debian-release?version=\${check_debian_version}" | jq -r '.expired')" == 'true' ]]; then if [[ -n "\${signed_by_value_repo_key}" ]]; then signed_by_value_repo_key="[ /etc/apt/keyrings/\${repo_key_name}.gpg trusted=yes ] "; else signed_by_value_repo_key="[ trusted=yes ] "; fi; fi
     fi
     echo -e "deb \${signed_by_value_repo_key}\${repo_url}\${repo_url_arguments} \${repo_codename}\${repo_arguments}" &>> /etc/apt/sources.list.d/glennr-install-script.list
     unset missing_key

@@ -11,6 +11,31 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 7.4.4
+ 
+ - Added compression and relocating of the MongoDB logs if the unsupported MongoDB version change recovery was successfull.
+ - Added more compression methods to the support file creation process.
+ - Prevent MongoDB version changes if the Network Application is reporting up and running.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 7.4.3
+ 
+ - Fixed an issue where an variable is empty, which could lead to MongoDB installation failures.
+ 
+ ###
+
+ |  UniFi Network Application Installation Script  |  Version 7.4.2
+ 
+ - Replaced all static content on get.glennr.nl with api.glennr.nl.
+ - Fixed repository logging.
+ - Fixed MongoDB Upgrade failures on Ubuntu Bionic/Cosmic/Disco/Eoan.
+ - Fixed an issue where the MongoDB Installation process could fail if the MongoDB version lock was set to a incorrect version.
+ - Fixed an issue where the unsupported MongoDB Upgrade check wasn't working as expected.
+ - Fixed an issue where the script re-configured the MongoDB key check time before checking the keys.
+ 
+ ###
+
  |  UniFi Network Application Installation Script  |  Version 7.4.1
  
  - Added details to the EUS database if the setup is running in a LXC container.

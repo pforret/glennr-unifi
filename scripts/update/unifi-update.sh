@@ -2,7 +2,7 @@
 
 # UniFi Network Application Easy Update Script.
 # Script   | UniFi Network Easy Update Script
-# Version  | 8.6.3
+# Version  | 8.6.7
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -125,10 +125,10 @@ check_dns() {
 }
 
 set_curl_arguments() {
-  if [[ "$(command -v jq)" ]]; then ssl_check_status="$(curl --silent https://get.glennr.nl/ssl-check/check.json | jq -r '.[]')"; else ssl_check_status="$(curl --silent https://get.glennr.nl/ssl-check/check.json | grep -io "OK")"; fi
+  if [[ "$(command -v jq)" ]]; then ssl_check_status="$(curl --silent "https://api.glennr.nl/api/ssl-check" | jq -r '.status')"; else ssl_check_status="$(curl --silent "https://api.glennr.nl/api/ssl-check" | grep -oP '(?<="status":")[^"]+')"; fi
   if [[ "${ssl_check_status}" != "OK" ]]; then
     if [[ -e "/etc/ssl/certs/" ]]; then
-      if [[ "$(command -v jq)" ]]; then ssl_check_status="$(curl --silent --capath /etc/ssl/certs/ https://get.glennr.nl/ssl-check/check.json | jq -r '.[]')"; else ssl_check_status="$(curl --silent --capath /etc/ssl/certs/ https://get.glennr.nl/ssl-check/check.json | grep -io "OK")"; fi
+      if [[ "$(command -v jq)" ]]; then ssl_check_status="$(curl --silent --capath /etc/ssl/certs/ "https://api.glennr.nl/api/ssl-check" | jq -r '.status')"; else ssl_check_status="$(curl --silent --capath /etc/ssl/certs/ "https://api.glennr.nl/api/ssl-check" | grep -oP '(?<="status":")[^"]+')"; fi
       if [[ "${ssl_check_status}" == "OK" ]]; then curl_args="--capath /etc/ssl/certs/"; fi
     fi
     if [[ -z "${curl_args}" && "${ssl_check_status}" != "OK" ]]; then curl_args="--insecure"; fi
@@ -433,7 +433,23 @@ support_file() {
   #
   support_file_time="$(date +%Y%m%d-%H%M-%S%N)"
   if [[ -n "$(command -v jq)" && -f "${eus_dir}/db/db.json" ]]; then support_file_uuid="$(jq -r '.database.uuid' ${eus_dir}/db/db.json)-"; fi
-  if "$(which dpkg)" -l tar 2> /dev/null | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+  if "$(which dpkg)" -l xz-utils 2> /dev/null | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+    support_file="/tmp/eus-support-${support_file_uuid}${support_file_time}.tar.xz"
+    support_file_name="$(basename "${support_file}")"
+    if [[ -n "$(command -v jq)" && -f "${eus_dir}/db/db.json" ]]; then
+      jq '.scripts."'"${script_name}"'" |= . + {"support": (.support + {("'"${support_file_name}"'"): {"abort-reason": "'"${abort_reason}"'","upload-results": ""}})}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+      eus_database_move
+    fi
+    tar cJvfh "${support_file}" --exclude="${eus_dir}/unifi_db" --exclude="/tmp/EUS/downloads" --exclude="/usr/lib/unifi/logs/remote" "/tmp/EUS" "${eus_dir}" "/usr/lib/unifi/logs" "/etc/apt/sources.list" "/etc/apt/sources.list.d/" "/etc/apt/preferences" "/etc/apt/keyrings" "/etc/apt/preferences.d/" "/etc/default/unifi" "/etc/environment" "/var/log/dpkg.log" "/etc/systemd/system/unifi.service.d/" "/lib/systemd/system/unifi.service" &> /dev/null
+  elif "$(which dpkg)" -l zstd 2> /dev/null | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+    support_file="/tmp/eus-support-${support_file_uuid}${support_file_time}.tar.zst"
+    support_file_name="$(basename "${support_file}")"
+    if [[ -n "$(command -v jq)" && -f "${eus_dir}/db/db.json" ]]; then
+      jq '.scripts."'"${script_name}"'" |= . + {"support": (.support + {("'"${support_file_name}"'"): {"abort-reason": "'"${abort_reason}"'","upload-results": ""}})}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+      eus_database_move
+    fi
+    tar --use-compress-program=zstd -cvf "${support_file}" --exclude="${eus_dir}/unifi_db" --exclude="/tmp/EUS/downloads" --exclude="/usr/lib/unifi/logs/remote" "/tmp/EUS" "${eus_dir}" "/usr/lib/unifi/logs" "/etc/apt/sources.list" "/etc/apt/sources.list.d/" "/etc/apt/preferences" "/etc/apt/keyrings" "/etc/apt/preferences.d/" "/etc/default/unifi" "/etc/environment" "/var/log/dpkg.log" "/etc/systemd/system/unifi.service.d/" "/lib/systemd/system/unifi.service" &> /dev/null
+  elif "$(which dpkg)" -l tar 2> /dev/null | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
     support_file="/tmp/eus-support-${support_file_uuid}${support_file_time}.tar.gz"
     support_file_name="$(basename "${support_file}")"
     if [[ -n "$(command -v jq)" && -f "${eus_dir}/db/db.json" ]]; then
@@ -689,7 +705,6 @@ start_script() {
   echo -e "    UniFi Easy Update Script!"
   echo -e "\\n${WHITE_R}#${RESET} Starting the Easy Update Script.."
   echo -e "${WHITE_R}#${RESET} Thank you for using my Easy Update Script :-)\\n\\n"
-  sleep 4
 }
 start_script
 check_dns
@@ -1049,7 +1064,7 @@ add_repositories() {
     elif echo "${repo_url_arguments}" | grep -ioq "security.debian"; then 
       check_debian_version="${os_version_number}-security"
     fi
-    if [[ "$(curl "${curl_argument[@]}" https://get.glennr.nl/unifi/releases/debian-versions.json | jq -r '.versions."'"${check_debian_version}"'".expired')" == 'true' ]]; then 
+    if [[ "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/debian-release?version=${check_debian_version}" | jq -r '.expired')" == 'true' ]]; then 
       signed_by_value_repo_key+=" trusted=yes"
     fi
   fi
@@ -1057,7 +1072,7 @@ add_repositories() {
   if [[ -n "${signed_by_value_repo_key}" && -n "${repo_arch_value}" ]]; then local brackets="[${signed_by_value_repo_key}${repo_arch_value}] "; else local brackets=""; fi
   local repo_entry="deb ${brackets}${repo_url}${repo_url_arguments} ${repo_codename}${repo_arguments}"
   if echo -e "${repo_entry}" >> "${add_repositories_source_list}"; then
-    echo -e "$(date +%F-%R) | Successfully added \"deb ${brackets}${repo_url}${repo_url_arguments} ${repo_codename}${repo_arguments}\" to \${add_repositories_source_list}}\"!" &>> "${eus_dir}/logs/added-repository.log"
+    echo -e "$(date +%F-%R) | Successfully added \"deb ${brackets}${repo_url}${repo_url_arguments} ${repo_codename}${repo_arguments}\" to ${add_repositories_source_list}!" &>> "${eus_dir}/logs/added-repository.log"
   else
     abort_reason="Failed to add repository."
     abort
@@ -1359,7 +1374,11 @@ script_version_check() {
   local local_version
   local online_version
   local_version="$(grep -i "# Version" "${script_location}" | head -n 1 | cut -d'|' -f2 | sed 's/ //g')"
-  online_version="$(curl "${curl_argument[@]}" https://get.glennr.nl/unifi/update/unifi-update.sh | grep -i "# Version" | head -n 1 | cut -d'|' -f2 | sed 's/ //g')"
+  if command -v jq &> /dev/null; then
+    online_version="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-script-version?script=unifi-update" | jq -r '."latest-script-version"')"
+  else
+    online_version="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-script-version?script=unifi-update" | grep -oP '(?<="latest-script-version":")[0-9.]+')"
+  fi
   IFS='.' read -r -a local_parts <<< "${local_version}"
   IFS='.' read -r -a online_parts <<< "${online_version}"
   if [[ "${#local_parts[@]}" -gt "${#online_parts[@]}" ]]; then max_length="${#local_parts[@]}"; else max_length="${#online_parts[@]}"; fi
@@ -2049,13 +2068,14 @@ add_mongodb_repo() {
       fi
     fi
   fi
-  if [[ "$(curl "${curl_argument[@]}" https://get.glennr.nl/unifi/releases/mongodb-versions.json | jq -r '.versions."'"${mongodb_version_major_minor}"'".expired')" == 'true' ]]; then trusted_mongodb_repo=" trusted=yes"; fi
+  if [[ "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/mongodb-release?version=${mongodb_version_major_minor}" | jq -r '.expired')" == 'true' ]]; then trusted_mongodb_repo=" trusted=yes"; fi
   mongodb_key_check_time="$(date +%s)"
   jq --arg mongodb_key_check_time "${mongodb_key_check_time}" '."database" += {"mongodb-key-last-check": "'"${mongodb_key_check_time}"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
   eus_database_move
   if [[ "${try_different_mongodb_repo}" == 'true' ]]; then try_different_mongodb_repo_test="a different"; try_different_mongodb_repo_test_2="different "; else try_different_mongodb_repo_test="the"; try_different_mongodb_repo_test_2=""; fi
   if [[ "${try_http_mongodb_repo}" == 'true' ]]; then repo_http_https="http"; try_different_mongodb_repo_test="a HTTP instead of HTTPS"; try_different_mongodb_repo_test_2="HTTP "; else try_different_mongodb_repo_test="the"; try_different_mongodb_repo_test_2=""; fi
   if [[ -n "${mongodb_version_major_minor}" ]]; then
+    if [[ "${mongodb_version_major_minor}" != "4.4" ]]; then unset mongo_version_locked; fi
     if ! [[ -s "/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg" ]] || [[ "${mongodb_key_update}" == 'true' ]] || [[ "${try_different_mongodb_repo}" == 'true' ]] || [[ "${try_http_mongodb_repo}" == 'true' ]]; then
       echo -e "${WHITE_R}#${RESET} Adding key for MongoDB ${mongodb_version_major_minor}..."
       aptkey_depreciated
@@ -2723,6 +2743,19 @@ unifi_deb_package_modification() {
 #                                                                                                                                                                        #
 ##########################################################################################################################################################################
 
+java_required_variables() {
+  if [[ "${first_digit_unifi}" -gt '7' ]] || [[ "${first_digit_unifi}" == '7' && "${second_digit_unifi}" -ge "5" ]]; then
+    required_java_version="openjdk-17"
+    required_java_version_short="17"
+  elif [[ "${first_digit_unifi}" == '7' && "${second_digit_unifi}" =~ (3|4) ]]; then
+    required_java_version="openjdk-11"
+    required_java_version_short="11"
+  else
+    required_java_version="openjdk-8"
+    required_java_version_short="8"
+  fi
+}
+
 ignore_unifi_package_dependencies() {
   if [[ -z "${required_java_version}" ]]; then
     if [[ -z "${first_digit_unifi}" && -n "${first_digit_current_unifi}" ]]; then first_digit_unifi="${first_digit_current_unifi}"; unifi_version_modified="true"; fi
@@ -3214,8 +3247,9 @@ libssl_installation_check() {
     fi
     if [[ "${libssl_install_required}" == 'true' ]]; then
       if [[ "$(dpkg-query --showformat='${Version}' --show libc6 | sed 's/.*://' | sed 's/-.*//g' | cut -d'.' -f1)" -lt "2" ]] || [[ "$(dpkg-query --showformat='${Version}' --show libc6 | sed 's/.*://' | sed 's/-.*//g' | cut -d'.' -f1)" == "2" && "$(dpkg-query --showformat='${Version}' --show libc6 | sed 's/.*://' | sed 's/-.*//g' | cut -d'.' -f2)" -lt "29" ]]; then
-        if [[ "${os_codename}" =~ (trusty|qiana|rebecca|rafaela|rosa|xenial) ]]; then
+        if [[ "${os_codename}" =~ (trusty|qiana|rebecca|rafaela|rosa|xenial|bionic|cosmic|disco|eoan) ]]; then
           if [[ "${architecture}" =~ (amd64|i386) ]]; then
+            repo_url="http://security.ubuntu.com/ubuntu"
             repo_arguments="-security main"
           else
             repo_url="http://ports.ubuntu.com"
@@ -3456,6 +3490,39 @@ if "$(which dpkg)" -l mongodb-server 2> /dev/null | awk '{print $1}' | grep -iq 
   fi
 fi
 
+compress_and_relocate_database_recovery_logs() {
+  local recovery_epoch
+  recovery_epoch="$(date +%s)"
+  local log_files
+  log_files="$(grep -raEl "This version of MongoDB is too recent to start up on the existing data files|This may be due to an unsupported upgrade or downgrade.|UPGRADE PROBLEM" "/usr/lib/unifi/logs")"
+  if [[ -n "${log_files}" ]]; then
+    echo -e "${WHITE_R}#${RESET} Compressing the previous MongoDB logs into an archive..."
+    if command -v xz &> /dev/null; then
+      echo "Starting to compress the mongodb logs into \"${eus_dir}/logs/unifi-database-recovery-${recovery_epoch}.tar.xz\"" &>>"${eus_dir}/logs/database-recovery-log-compression.log"
+      if tar -Jcvf "${eus_dir}/logs/unifi-database-recovery-${recovery_epoch}.tar.xz" "${log_files}" &>>"${eus_dir}/logs/database-recovery-log-compression-debug.log"; then compress_success="true"; fi
+    elif command -v bzip2 &> /dev/null; then
+      echo "Starting to compress the mongodb logs into \"${eus_dir}/logs/unifi-database-recovery-${recovery_epoch}.tar.bz2\"" &>> "${eus_dir}/logs/database-recovery-log-compression.log"
+      if tar -jcvf "${eus_dir}/logs/unifi-database-recovery-${recovery_epoch}.tar.bz2" "${log_files}" &>> "${eus_dir}/logs/database-recovery-log-compression-debug.log"; then compress_success="true"; fi
+    elif command -v gzip &> /dev/null; then
+      echo "Starting to compress the mongodb logs into \"${eus_dir}/logs/unifi-database-recovery-${recovery_epoch}.tar.gz\"" &>> "${eus_dir}/logs/database-recovery-log-compression.log"
+      if tar -zcvf "${eus_dir}/logs/unifi-database-recovery-${recovery_epoch}.tar.gz" "${log_files}" &>> "${eus_dir}/logs/database-recovery-log-compression-debug.log"; then compress_success="true"; fi
+    elif command -v zip &> /dev/null; then
+      echo "Starting to compress the mongodb logs into \"${eus_dir}/logs/unifi-database-recovery-${recovery_epoch}.zip\"" &>> "${eus_dir}/logs/database-recovery-log-compression.log"
+      if zip "${eus_dir}/logs/unifi-database-recovery-${recovery_epoch}.zip" "${log_files}" &>> "${eus_dir}/logs/database-recovery-log-compression-debug.log"; then compress_success="true"; fi
+    else
+      echo -e "${YELLOW}#${RESET} Failed to locate any compression tool... \\n"
+    fi
+    if [[ "${compress_success}" == 'true' ]]; then
+      if command -v truncate &> /dev/null; then
+        truncate -s 0 "${log_files}" &>> "${eus_dir}/logs/database-recovery-log-compression-debug.log"
+      else
+        echo -n | tee "${log_files}" &>> "${eus_dir}/logs/database-recovery-log-compression-debug.log"
+      fi
+      echo -e "${GREEN}#${RESET} Successfully compressed the previous MongoDB logs into an archive! \\n"
+    fi
+  fi
+}
+
 # Check if user performed an incorrect MongoDB upgrade.
 if [[ -d "/usr/lib/unifi/logs/" ]]; then
   if [[ "$(command -v zgrep)" ]]; then grep_command="zgrep"; else grep_command="grep"; fi
@@ -3481,6 +3548,19 @@ elif "$(which dpkg)" -l mongodb-server 2> /dev/null | awk '{print $1}' | grep -i
   if [[ -n "${previous_mongodb_version}" ]]; then if [[ "${installed_mongodb_version_check::2}" != "${previous_mongodb_version::2}" ]] && [[ "${previous_mongodb_version::2}" != $(("${installed_mongodb_version_check::2}" - 2)) ]]; then unsupported_database_version_change="true"; fi; fi
 fi
 
+# Override MongoDB version change attempts when the application is up and running.
+if [[ "${unsupported_database_version_change}" == 'true' ]]; then
+  if grep -sioq "^unifi.https.port" "/usr/lib/unifi/data/system.properties"; then dmport="$(awk '/^unifi.https.port/' /usr/lib/unifi/data/system.properties | cut -d'=' -f2)"; else dmport="8443"; fi
+  if command -v jq &> /dev/null; then application_up="$(curl -sk "https://localhost:${dmport}/status" | jq -r '.meta.up' 2> /dev/null)"; else application_up="$(curl -sk "https://localhost:${dmport}/status" | grep -o '"up":[^,]*' | awk -F ':' '{print $2}')"; fi
+  if [[ "${application_up}" == 'true' ]]; then
+    echo -e "$(date +%F-%R) | The Network Application appears to be functioning, cancelling any unsupported MongoDB version change fix attempts..." &>> "${eus_dir}/logs/mongodb-unsupported-version-change-override.log"
+    echo -e "$(date +%F-%R) | previous_mongodb_version: ${previous_mongodb_version}, previous_mongodb_version_with_dot: ${previous_mongodb_version_with_dot}, unsupported_database_version_change: ${unsupported_database_version_change}" &>> "${eus_dir}/logs/mongodb-unsupported-version-change-override.log"
+    unset previous_mongodb_version
+    unset previous_mongodb_version_with_dot
+    unset unsupported_database_version_change
+  fi
+fi
+
 if [[ "${mongo_version_locked}" == '4.4.18' ]] || [[ "${unsupported_database_version_change}" == 'true' ]]; then
   if "$(which dpkg)" -l mongodb-org-server 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
     mongodb_org_version="$(dpkg-query --showformat='${Version}' --show mongodb-org-server | sed 's/.*://' | sed 's/-.*//g')"
@@ -3488,139 +3568,170 @@ if [[ "${mongo_version_locked}" == '4.4.18' ]] || [[ "${unsupported_database_ver
   elif "$(which dpkg)" -l mongodb-server 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
     mongodb_org_version="$(dpkg-query --showformat='${Version}' --show mongodb-server | sed 's/.*://' | sed 's/-.*//g')"
     mongodb_org_version_no_dots="${mongodb_org_version//./}"
-    if [[ "${mongodb_org_version_no_dots::2}" == '44' && "$(echo "${mongodb_org_version}" | cut -d'.' -f3)" -gt "18" ]] || [[ "${unsupported_database_version_change}" == 'true' ]]; then
-      echo ""
-      eus_directory_location="/tmp/EUS"
-      eus_create_directories "mongodb"
-      "$(which dpkg)" -l | grep "mongo-\\|mongodb-\\|mongod-" | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | awk '{print $2}' &> /tmp/EUS/mongodb/packages_list
-      check_add_mongodb_repo_variable
-      if [[ -n "${previous_mongodb_version}" ]]; then
-        if [[ "${previous_mongodb_version::2}" == "26" ]]; then
-          original_previous_mongodb_version="26"
-          original_previous_mongodb_version_with_dot="3.0"
-          previous_mongodb_version="30"
-          previous_mongodb_version_with_dot="3.0"
-        fi
-        mongodb_add_repo_downgrade_variable="add_mongodb_${previous_mongodb_version::2}_repo"
-        declare "$mongodb_add_repo_downgrade_variable=true"
-        mongodb_downgrade_process="true"
-      else
-        add_mongodb_44_repo="true"
+  fi
+  if [[ "${mongodb_org_version_no_dots::2}" == '44' && "$(echo "${mongodb_org_version}" | cut -d'.' -f3)" -gt "18" ]] || [[ "${unsupported_database_version_change}" == 'true' ]]; then
+    echo ""
+    eus_directory_location="/tmp/EUS"
+    eus_create_directories "mongodb"
+    "$(which dpkg)" -l | grep "mongo-\\|mongodb-\\|mongod-" | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | awk '{print $2}' &> /tmp/EUS/mongodb/packages_list
+    check_add_mongodb_repo_variable
+    if [[ -n "${previous_mongodb_version}" ]]; then
+      if [[ "${previous_mongodb_version::2}" == "26" ]]; then
+        original_previous_mongodb_version="26"
+        original_previous_mongodb_version_with_dot="3.0"
+        previous_mongodb_version="30"
+        previous_mongodb_version_with_dot="3.0"
       fi
-      if [[ -z "${mongo_version_locked}" ]]; then unset_mongo_version_locked="true"; fi
-      if [[ -n "${mongodb_org_v}" ]]; then unset_mongodb_org_v="true"; unset mongodb_org_v; fi
-      remove_older_mongodb_repositories
-      skip_mongodb_org_v="true"
-      add_mongodb_repo
-      mongodb_package_libssl="mongodb-org-server"
-      mongodb_package_version_libssl="${install_mongodb_version}"
-      libssl_installation_check
-      rm --force /tmp/EUS/mongodb/packages_remove_list &> /dev/null
-      cp /tmp/EUS/mongodb/packages_list /tmp/EUS/mongodb/packages_list.tmp &> /dev/null
-      while read -r installed_mongodb_package; do
-        if ! apt-cache policy "^${installed_mongodb_package}$" | grep -ioq "${install_mongodb_version}"; then
-          if [[ "${installed_mongodb_package}" == "mongodb-server" ]] && [[ "${previous_mongodb_version::2}" != "24" ]]; then if sed -i "s/mongodb-server/mongodb-org-server/g" /tmp/EUS/mongodb/packages_list; then echo "mongodb-server" &>> /tmp/EUS/mongodb/packages_remove_list; fi; fi
-          if [[ "${installed_mongodb_package}" == "mongodb-clients" ]] && [[ "${previous_mongodb_version::2}" != "24" ]]; then if sed -i "s/mongodb-clients/mongodb-org-shell/g" /tmp/EUS/mongodb/packages_list; then echo "mongodb-clients" &>> /tmp/EUS/mongodb/packages_remove_list; fi; fi
-          if [[ "${installed_mongodb_package}" == "mongo-tools" ]] && [[ "${previous_mongodb_version::2}" != "24" ]]; then if sed -i "s/mongo-tools/mongodb-org-tools/g" /tmp/EUS/mongodb/packages_list; then echo "mongo-tools" &>> /tmp/EUS/mongodb/packages_remove_list; fi; fi
-          if [[ "${installed_mongodb_package}" == "mongodb-org-database-tools-extra" && "${install_mongodb_version//./}" -lt "44" ]]; then echo "mongodb-org-database-tools-extra" &>> /tmp/EUS/mongodb/packages_remove_list; fi
-          sed -i "/${installed_mongodb_package}/d" /tmp/EUS/mongodb/packages_list
+      mongodb_add_repo_downgrade_variable="add_mongodb_${previous_mongodb_version::2}_repo"
+      declare "$mongodb_add_repo_downgrade_variable=true"
+      mongodb_downgrade_process="true"
+    else
+      add_mongodb_44_repo="true"
+    fi
+    if [[ -z "${mongo_version_locked}" ]]; then unset_mongo_version_locked="true"; fi
+    if [[ -n "${mongodb_org_v}" ]]; then unset_mongodb_org_v="true"; unset mongodb_org_v; fi
+    remove_older_mongodb_repositories
+    skip_mongodb_org_v="true"
+    add_mongodb_repo
+    mongodb_package_libssl="mongodb-org-server"
+    mongodb_package_version_libssl="${install_mongodb_version}"
+    libssl_installation_check
+    rm --force /tmp/EUS/mongodb/packages_remove_list &> /dev/null
+    cp /tmp/EUS/mongodb/packages_list /tmp/EUS/mongodb/packages_list.tmp &> /dev/null
+    while read -r installed_mongodb_package; do
+      if ! apt-cache policy "^${installed_mongodb_package}$" | grep -ioq "${install_mongodb_version}"; then
+        if [[ "${installed_mongodb_package}" == "mongodb-server" ]] && [[ "${previous_mongodb_version::2}" != "24" ]]; then if sed -i "s/mongodb-server/mongodb-org-server/g" /tmp/EUS/mongodb/packages_list; then echo "mongodb-server" &>> /tmp/EUS/mongodb/packages_remove_list; fi; fi
+        if [[ "${installed_mongodb_package}" == "mongodb-clients" ]] && [[ "${previous_mongodb_version::2}" != "24" ]]; then if sed -i "s/mongodb-clients/mongodb-org-shell/g" /tmp/EUS/mongodb/packages_list; then echo "mongodb-clients" &>> /tmp/EUS/mongodb/packages_remove_list; fi; fi
+        if [[ "${installed_mongodb_package}" == "mongo-tools" ]] && [[ "${previous_mongodb_version::2}" != "24" ]]; then if sed -i "s/mongo-tools/mongodb-org-tools/g" /tmp/EUS/mongodb/packages_list; then echo "mongo-tools" &>> /tmp/EUS/mongodb/packages_remove_list; fi; fi
+        if [[ "${installed_mongodb_package}" == "mongodb-org-database-tools-extra" && "${install_mongodb_version//./}" -lt "44" ]]; then echo "mongodb-org-database-tools-extra" &>> /tmp/EUS/mongodb/packages_remove_list; fi
+        sed -i "/${installed_mongodb_package}/d" /tmp/EUS/mongodb/packages_list
+      fi
+    done < "/tmp/EUS/mongodb/packages_list.tmp"
+    if "$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep -iq "mongod-armv8" && [[ "${install_mongodb_version//./}" != "70" ]]; then if sed -i "s/mongod-armv8/mongodb-org-server/g" /tmp/EUS/mongodb/packages_list; then echo "mongod-armv8" &>> /tmp/EUS/mongodb/packages_remove_list; fi; fi
+    rm --force "/tmp/EUS/mongodb/packages_list.tmp" &> /dev/null
+    while read -r package; do
+      if "$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep -iq "unifi "; then reinstall_unifi="true"; fi
+      check_dpkg_lock
+      echo -e "${WHITE_R}#${RESET} Removing ${package}..."
+      if DEBIAN_FRONTEND='noninteractive' apt-get -y --allow-downgrades "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' remove "${package}" &>> "${eus_dir}/logs/mongodb-unsupported-version-change.log"; then
+        echo -e "${GREEN}#${RESET} Successfully removed ${package}! \\n"
+      else
+        abort_reason="Failed to remove ${package} during the downgrade process."
+        abort
+      fi
+    done < /tmp/EUS/mongodb/packages_remove_list
+    while read -r mongodb_package; do
+      if [[ "${previous_mongodb_version::2}" == "24" ]]; then
+        if [[ "${mongodb_package}" == "mongodb-server" ]]; then
+          manually_setmongo_last_attempt_version="true"
+          mongo_last_attempt_version="2.6"
+          mongo_last_attempt_type="server"
+          mongo_last_attempt
+          if [[ "${mongo_last_attempt_install_success}" != 'true' ]]; then abort_reason="Failed to install mongodb-server through mongo_last_attempt function during the MongoDB Downgrade process."; abort_function_skip_reason="true"; abort; fi
+        elif [[ "${mongodb_package}" == "mongodb-clients" ]]; then
+          manually_setmongo_last_attempt_version="true"
+          mongo_last_attempt_version="2.6"
+          mongo_last_attempt_type="clients"
+          mongo_last_attempt
+          if [[ "${mongo_last_attempt_install_success}" != 'true' ]]; then abort_reason="Failed to install mongodb-clients through mongo_last_attempt function during the MongoDB Downgrade process."; abort_function_skip_reason="true"; abort; fi
         fi
-      done < "/tmp/EUS/mongodb/packages_list.tmp"
-      if "$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep -iq "mongod-armv8" && [[ "${install_mongodb_version//./}" != "70" ]]; then if sed -i "s/mongod-armv8/mongodb-org-server/g" /tmp/EUS/mongodb/packages_list; then echo "mongod-armv8" &>> /tmp/EUS/mongodb/packages_remove_list; fi; fi
-      rm --force "/tmp/EUS/mongodb/packages_list.tmp" &> /dev/null
-      while read -r package; do
-        if "$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep -iq "unifi "; then reinstall_unifi="true"; fi
+      else
         check_dpkg_lock
-        echo -e "${WHITE_R}#${RESET} Removing ${package}..."
-        if DEBIAN_FRONTEND='noninteractive' apt-get -y --allow-downgrades "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' remove "${package}" &>> "${eus_dir}/logs/mongodb-unsupported-version-change.log"; then
-          echo -e "${GREEN}#${RESET} Successfully removed ${package}! \\n"
+        echo -e "${WHITE_R}#${RESET} Downgrading ${mongodb_package}..."
+        if DEBIAN_FRONTEND='noninteractive' apt-get -y --allow-downgrades "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${mongodb_package}${install_mongodb_version_with_equality_sign}" &>> "${eus_dir}/logs/mongodb-unsupported-version-change.log"; then
+          echo -e "${GREEN}#${RESET} Successfully downgraded ${mongodb_package} to version ${install_mongodb_version}! \\n"
         else
-          abort_reason="Failed to remove ${package} during the downgrade process."
-          abort
-        fi
-      done < /tmp/EUS/mongodb/packages_remove_list
-      while read -r mongodb_package; do
-        if [[ "${previous_mongodb_version::2}" == "24" ]]; then
-          if [[ "${mongodb_package}" == "mongodb-server" ]]; then
-            manually_setmongo_last_attempt_version="true"
-            mongo_last_attempt_version="2.6"
-            mongo_last_attempt_type="server"
-            mongo_last_attempt
-            if [[ "${mongo_last_attempt_install_success}" != 'true' ]]; then abort_reason="Failed to install mongodb-server through mongo_last_attempt function during the MongoDB Downgrade process."; abort_function_skip_reason="true"; abort; fi
-          elif [[ "${mongodb_package}" == "mongodb-clients" ]]; then
-            manually_setmongo_last_attempt_version="true"
-            mongo_last_attempt_version="2.6"
-            mongo_last_attempt_type="clients"
-            mongo_last_attempt
-            if [[ "${mongo_last_attempt_install_success}" != 'true' ]]; then abort_reason="Failed to install mongodb-clients through mongo_last_attempt function during the MongoDB Downgrade process."; abort_function_skip_reason="true"; abort; fi
-          fi
-        else
-          check_dpkg_lock
-          echo -e "${WHITE_R}#${RESET} Downgrading ${mongodb_package}..."
+          add_apt_option_no_install_recommends="true"; get_apt_options
           if DEBIAN_FRONTEND='noninteractive' apt-get -y --allow-downgrades "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${mongodb_package}${install_mongodb_version_with_equality_sign}" &>> "${eus_dir}/logs/mongodb-unsupported-version-change.log"; then
             echo -e "${GREEN}#${RESET} Successfully downgraded ${mongodb_package} to version ${install_mongodb_version}! \\n"
           else
-            add_apt_option_no_install_recommends="true"; get_apt_options
-            if DEBIAN_FRONTEND='noninteractive' apt-get -y --allow-downgrades "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${mongodb_package}${install_mongodb_version_with_equality_sign}" &>> "${eus_dir}/logs/mongodb-unsupported-version-change.log"; then
-              echo -e "${GREEN}#${RESET} Successfully downgraded ${mongodb_package} to version ${install_mongodb_version}! \\n"
-            else
-              abort_reason="Failed to downgrade ${mongodb_package} from version ${mongodb_org_version} to ${install_mongodb_version}."
-              abort
-            fi
-            get_apt_options
-          fi
-        fi
-        echo -e "${WHITE_R}#${RESET} Preventing ${mongodb_package} from upgrading..."
-        if echo "${mongodb_package} hold" | "$(which dpkg)" --set-selections &>> "${eus_dir}/logs/package-hold.log"; then
-          echo -e "${GREEN}#${RESET} Successfully prevented ${mongodb_package} from upgrading! \\n"
-        else
-          echo -e "${RED}#${RESET} Failed to prevent ${mongodb_package} from upgrading...\\n"
-        fi
-      done < /tmp/EUS/mongodb/packages_list
-      sleep 2
-      rm --force /tmp/EUS/mongodb/packages_list &> /dev/null
-      if [[ -n "${mongodb_add_repo_downgrade_variable}" ]]; then
-        unset "${mongodb_add_repo_downgrade_variable}"
-        unset mongodb_downgrade_process
-      else
-        unset add_mongodb_44_repo
-      fi
-      if [[ "${reinstall_unifi}" == 'true' ]]; then
-        eus_directory_location="/tmp/EUS"
-        eus_create_directories "downloads"
-        fw_update_dl_link="$(curl "${curl_argument[@]}" https://get.glennr.nl/unifi/releases/unifi-network-application-versions.json | jq -r '.versions."'"$(dpkg-query --showformat='${Version}' --show unifi | awk -F '[-]' '{print $1}')"'".download_link' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
-        if [[ -z "${unifi_temp}" ]]; then unifi_temp="$(mktemp --tmpdir=/tmp/EUS/downloads "${unifi_deb_file_name}"_"$(dpkg-query --showformat='${Version}' --show unifi | awk -F '[-]' '{print $1}')"_XXXXX.deb)"; fi
-        echo -e "$(date +%F-%R) | URL used: ${fw_update_dl_link}" &>> "${eus_dir}/logs/unifi_download.log"
-        if curl --retry 3 "${nos_curl_argument[@]}" --output "$unifi_temp" "${fw_update_dl_link}" &>> "${eus_dir}/logs/unifi_download.log"; then
-          if command -v dpkg-deb &> /dev/null; then if ! dpkg-deb --info "${unifi_temp}" &> /dev/null; then echo -e "$(date +%F-%R) | The file downloaded via ${fw_update_dl_link} was not a debian file format..." &>> "${eus_dir}/logs/unifi_download.log"; abort_reason="Failed to download UniFi Network Application version $(dpkg-query --showformat='${Version}' --show unifi | awk -F '[-]' '{print $1}') during the MongoDB Downgrade process."; abort; fi; fi
-          echo -e "${GREEN}#${RESET} Successfully downloaded UniFi Network Application version $(dpkg-query --showformat='${Version}' --show unifi | awk -F '[-]' '{print $1}')! \\n"
-          unifi_deb_package_modification
-          ignore_unifi_package_dependencies
-          echo "unifi unifi/has_backup boolean true" 2> /dev/null | debconf-set-selections
-          # shellcheck disable=SC2086
-          if DEBIAN_FRONTEND='noninteractive' "$(which dpkg)" -i ${dpkg_ignore_depends_flag} "${unifi_temp}" &>> "${eus_dir}/logs/mongodb-downgrade.log"; then
-            echo -e "${GREEN}#${RESET} Successfully re-installed UniFi Network Application version $(dpkg-query --showformat='${Version}' --show unifi | awk -F '[-]' '{print $1}')! \\n"
-          else
-            abort_reason="Failed to reinstall UniFi Network Application $(dpkg-query --showformat='${Version}' --show unifi | awk -F '[-]' '{print $1}') during the MongoDB Downgrade process."
+            abort_reason="Failed to downgrade ${mongodb_package} from version ${mongodb_org_version} to ${install_mongodb_version}."
             abort
           fi
-        else
-          abort_reason="Failed to download UniFi Network Application version $(dpkg-query --showformat='${Version}' --show unifi | awk -F '[-]' '{print $1}') during the MongoDB Downgrade process."
-          abort
+          get_apt_options
         fi
       fi
-      if [[ "${unset_mongo_version_locked}" == 'true' ]]; then unset mongo_version_locked; fi
-      if [[ -n "${original_previous_mongodb_version}" ]]; then previous_mongodb_version="${original_previous_mongodb_version}"; fi
-      if [[ -n "${original_previous_mongodb_version_with_dot}" ]]; then previous_mongodb_version_with_dot="${original_previous_mongodb_version_with_dot}"; fi
-      if [[ "${unset_mongodb_org_v}" == 'true' ]]; then get_mongodb_org_v; fi
-      reverse_check_add_mongodb_repo_variable
-      if "$(which dpkg)" -l unifi 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
-        echo -e "${WHITE_R}#${RESET} Restarting the UniFi Network Application..."
-        if [[ "${limited_functionality}" == 'true' ]]; then
-          if service unifi restart &>> "${eus_dir}/logs/arm64-mongodb-downgrade.log"; then echo -e "${GREEN}#${RESET} Successfully restarted the UniFi Network Application! \\n"; else echo -e "${RED}#${RESET} Failed to restart the UniFi Network Application... \\n"; fi
-        else
-          if systemctl restart unifi &>> "${eus_dir}/logs/arm64-mongodb-downgrade.log"; then echo -e "${GREEN}#${RESET} Successfully restarted the UniFi Network Application! \\n"; else echo -e "${RED}#${RESET} Failed to restart the UniFi Network Application... \\n"; fi
+      echo -e "${WHITE_R}#${RESET} Preventing ${mongodb_package} from upgrading..."
+      if echo "${mongodb_package} hold" | "$(which dpkg)" --set-selections &>> "${eus_dir}/logs/package-hold.log"; then
+        echo -e "${GREEN}#${RESET} Successfully prevented ${mongodb_package} from upgrading! \\n"
+      else
+        echo -e "${RED}#${RESET} Failed to prevent ${mongodb_package} from upgrading...\\n"
+      fi
+    done < /tmp/EUS/mongodb/packages_list
+    sleep 2
+    rm --force /tmp/EUS/mongodb/packages_list &> /dev/null
+    if [[ -n "${mongodb_add_repo_downgrade_variable}" ]]; then
+      unset "${mongodb_add_repo_downgrade_variable}"
+      unset mongodb_downgrade_process
+    else
+      unset add_mongodb_44_repo
+    fi
+    if [[ "${reinstall_unifi}" == 'true' ]]; then
+      eus_directory_location="/tmp/EUS"
+      eus_create_directories "downloads"
+      if [[ "$(curl "${curl_argument[@]}" https://api.glennr.nl/api/network-release?status | jq -r '.[]')" == "OK" ]]; then
+        fw_update_dl_link="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-release?version=$(dpkg-query --showformat='${Version}' --show unifi | awk -F '[-]' '{print $1}')" | jq -r '."download_link"' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
+        fw_update_dl_link_sha256sum="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-release?version=$(dpkg-query --showformat='${Version}' --show unifi | awk -F '[-]' '{print $1}')" | jq -r '.sha256sum' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
+      fi
+      if [[ -z "${fw_update_dl_link}" ]]; then
+        fw_update_dl_link="$(curl "${curl_argument[@]}" --location --request GET "https://fw-update.ui.com/api/firmware-latest?filter=eq~~version_major~~$(dpkg-query --showformat='${Version}' --show unifi | awk -F '[.-]' '{print $1}')&filter=eq~~version_minor~~$(dpkg-query --showformat='${Version}' --show unifi | awk -F '[.-]' '{print $2}')&filter=eq~~version_patch~~$(dpkg-query --showformat='${Version}' --show unifi | awk -F '[.-]' '{print $3}')&filter=eq~~platform~~debian" | jq -r "._embedded.firmware[0]._links.data.href" | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
+        fw_update_dl_link_sha256sum="$(curl "${curl_argument[@]}" --location --request GET "https://fw-update.ui.com/api/firmware-latest?filter=eq~~version_major~~$(dpkg-query --showformat='${Version}' --show unifi | awk -F '[.-]' '{print $1}')&filter=eq~~version_minor~~$(dpkg-query --showformat='${Version}' --show unifi | awk -F '[.-]' '{print $2}')&filter=eq~~version_patch~~$(dpkg-query --showformat='${Version}' --show unifi | awk -F '[.-]' '{print $3}')&filter=eq~~platform~~debian" | jq -r "._embedded.firmware[0].sha256_checksum" | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
+      fi
+      if [[ -z "${unifi_temp}" ]]; then unifi_temp="$(mktemp --tmpdir=/tmp/EUS/downloads "${unifi_deb_file_name}"_"$(dpkg-query --showformat='${Version}' --show unifi | awk -F '[-]' '{print $1}')"_XXXXX.deb)"; fi
+      echo -e "$(date +%F-%R) | URL used: ${fw_update_dl_link}" &>> "${eus_dir}/logs/unifi_download.log"
+      echo -e "${WHITE_R}#${RESET} Downloading UniFi Network Application version $(dpkg-query --showformat='${Version}' --show unifi | awk -F '[-]' '{print $1}')..."
+      if curl --retry 3 "${nos_curl_argument[@]}" --output "$unifi_temp" "${fw_update_dl_link}" &>> "${eus_dir}/logs/unifi_download.log"; then
+        if command -v sha256sum &> /dev/null; then
+          if [[ "$(sha256sum "$unifi_temp" | awk '{print $1}')" != "${fw_update_dl_link_sha256sum}" ]]; then
+            if curl --retry 3 "${nos_curl_argument[@]}" --output "$unifi_temp" "${fw_update_dl_link}" &>> "${eus_dir}/logs/unifi_download.log"; then
+              if [[ "$(sha256sum "$unifi_temp" | awk '{print $1}')" != "${fw_update_dl_link_sha256sum}" ]]; then
+                abort_reason="Failed to download UniFi Network Application version $(dpkg-query --showformat='${Version}' --show unifi | awk -F '[-]' '{print $1}') during the MongoDB Downgrade process."
+                abort
+              fi
+            fi
+          fi
+        elif command -v dpkg-deb &> /dev/null; then
+          if ! dpkg-deb --info "${unifi_temp}" &> /dev/null; then
+            if curl --retry 3 "${nos_curl_argument[@]}" --output "$unifi_temp" "${fw_update_dl_link}" &>> "${eus_dir}/logs/unifi_download.log"; then
+              if ! dpkg-deb --info "${unifi_temp}" &> /dev/null; then
+                echo -e "$(date +%F-%R) | The file downloaded via ${fw_update_dl_link} was not a debian file format..." &>> "${eus_dir}/logs/unifi_download.log"
+                abort_reason="Failed to download UniFi Network Application version $(dpkg-query --showformat='${Version}' --show unifi | awk -F '[-]' '{print $1}') during the MongoDB Downgrade process."
+                abort
+              fi
+            fi
+          fi
         fi
+        echo -e "${GREEN}#${RESET} Successfully downloaded UniFi Network Application version $(dpkg-query --showformat='${Version}' --show unifi | awk -F '[-]' '{print $1}')! \\n"
+        unifi_deb_package_modification
+        ignore_unifi_package_dependencies
+        echo -e "${WHITE_R}#${RESET} Re-installing UniFi Network Application version $(dpkg-query --showformat='${Version}' --show unifi | awk -F '[-]' '{print $1}')..."
+        echo "unifi unifi/has_backup boolean true" 2> /dev/null | debconf-set-selections
+        # shellcheck disable=SC2086
+        if DEBIAN_FRONTEND='noninteractive' "$(which dpkg)" -i ${dpkg_ignore_depends_flag} "${unifi_temp}" &>> "${eus_dir}/logs/mongodb-unsupported-version-change.log"; then
+          echo -e "${GREEN}#${RESET} Successfully re-installed UniFi Network Application version $(dpkg-query --showformat='${Version}' --show unifi | awk -F '[-]' '{print $1}')! \\n"
+        else
+          abort_reason="Failed to reinstall UniFi Network Application $(dpkg-query --showformat='${Version}' --show unifi | awk -F '[-]' '{print $1}') during the MongoDB Downgrade process."
+          abort
+        fi
+      else
+        abort_reason="Failed to download UniFi Network Application version $(dpkg-query --showformat='${Version}' --show unifi | awk -F '[-]' '{print $1}') during the MongoDB Downgrade process."
+        abort
+      fi
+    fi
+    if grep -sioq "^unifi.https.port" "/usr/lib/unifi/data/system.properties"; then dmport="$(awk '/^unifi.https.port/' /usr/lib/unifi/data/system.properties | cut -d'=' -f2)"; else dmport="8443"; fi
+    if command -v jq &> /dev/null; then application_up="$(curl -sk "https://localhost:${dmport}/status" | jq -r '.meta.up' 2> /dev/null)"; else application_up="$(curl -sk "https://localhost:${dmport}/status" | grep -o '"up":[^,]*' | awk -F ':' '{print $2}')"; fi
+    if [[ "${application_up}" == 'true' ]]; then compress_and_relocate_database_recovery_logs; fi
+    if [[ "${unset_mongo_version_locked}" == 'true' ]]; then unset mongo_version_locked; fi
+    if [[ -n "${original_previous_mongodb_version}" ]]; then previous_mongodb_version="${original_previous_mongodb_version}"; fi
+    if [[ -n "${original_previous_mongodb_version_with_dot}" ]]; then previous_mongodb_version_with_dot="${original_previous_mongodb_version_with_dot}"; fi
+    if [[ "${unset_mongodb_org_v}" == 'true' ]]; then get_mongodb_org_v; fi
+    reverse_check_add_mongodb_repo_variable
+    if "$(which dpkg)" -l unifi 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+      echo -e "${WHITE_R}#${RESET} Restarting the UniFi Network Application..."
+      if [[ "${limited_functionality}" == 'true' ]]; then
+        if service unifi restart &>> "${eus_dir}/logs/arm64-mongodb-downgrade.log"; then echo -e "${GREEN}#${RESET} Successfully restarted the UniFi Network Application! \\n"; else echo -e "${RED}#${RESET} Failed to restart the UniFi Network Application... \\n"; fi
+      else
+        if systemctl restart unifi &>> "${eus_dir}/logs/arm64-mongodb-downgrade.log"; then echo -e "${GREEN}#${RESET} Successfully restarted the UniFi Network Application! \\n"; else echo -e "${RED}#${RESET} Failed to restart the UniFi Network Application... \\n"; fi
       fi
     fi
   fi
@@ -3679,19 +3790,6 @@ get_unifi_version() {
 }
 get_unifi_version
 get_mongodb_org_v
-
-java_required_variables() {
-  if [[ "${first_digit_unifi}" -gt '7' ]] || [[ "${first_digit_unifi}" == '7' && "${second_digit_unifi}" -ge "5" ]]; then
-    required_java_version="openjdk-17"
-    required_java_version_short="17"
-  elif [[ "${first_digit_unifi}" == '7' && "${second_digit_unifi}" =~ (3|4) ]]; then
-    required_java_version="openjdk-11"
-    required_java_version_short="11"
-  else
-    required_java_version="openjdk-8"
-    required_java_version_short="8"
-  fi
-}
 
 # Supported MongoDB Version
 mongo_version_max="36"
@@ -4015,7 +4113,7 @@ mail_server_recommendation() {
       echo -e "${YELLOW}#${RESET} Settings > System > Advanced > Email Services"
     fi
   }
-  net_mail_provider_setting="$("${mongocommand}" --quiet --port 27117 ace --eval "${mongoprefix}db.getCollection('setting').find({key:'super_mail'})${mongosuffix}" | sed 's/\(ObjectId(\|)\|NumberLong(\)//g' | jq -r '.[]."provider"')"
+  net_mail_provider_setting="$("${mongocommand}" --quiet --port 27117 ace --eval "${mongoprefix}db.getCollection('setting').find({key:'super_mail'})${mongosuffix}" | sed 's/\(ObjectId(\|)\|NumberLong(\)//g' | jq -r '.[]."provider"' 2> /dev/null)"
   if [[ "${net_mail_provider_setting}" == "disabled" ]]; then
     net_mail_server_recommendation
   elif [[ "${net_mail_provider_setting}" == "smtp" && "$("${mongocommand}" --quiet --port 27117 ace --eval "${mongoprefix}db.getCollection('setting').find({key:'super_smtp'})${mongosuffix}" | sed 's/\(ObjectId(\|)\|NumberLong(\)//g' | jq -r '.[]."enabled"')" != 'true' ]]; then
@@ -6110,9 +6208,8 @@ custom_url_upgrade_check() {
     if [[ "${cloudkey_generation}" == "1" ]]; then
       if [[ "${first_digit_unifi}" -gt '7' ]] || [[ "${first_digit_unifi}" == '7' && "${second_digit_unifi}" -ge '3' ]]; then
         header_red
-        unifi_latest_72=$(curl "${curl_argument[@]}" "https://get.glennr.nl/unifi/latest-versions/7.2/latest.version")
         echo -e "${WHITE_R}#${RESET} UniFi Network Application ${custom_application_digit_1}.${custom_application_digit_2}.${custom_application_digit_3} is not supported on your Gen1 UniFi Cloudkey (UC-CK)."
-        echo -e "${WHITE_R}#${RESET} The latest supported version on your Cloudkey is ${unifi_latest_72} and older.. \\n\\n"
+        echo -e "${WHITE_R}#${RESET} The latest supported version on your Cloudkey is $(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?version=7.2" | jq -r '.latest_version') and older.. \\n\\n"
         echo -e "${WHITE_R}#${RESET} Consider upgrading to a Gen2 Cloudkey:"
         echo -e "${WHITE_R}#${RESET} UniFi Cloud Key Gen2       | https://store.ui.com/products/unifi-cloud-key-gen2"
         echo -e "${WHITE_R}#${RESET} UniFi Cloud Key Gen2 Plus  | https://store.ui.com/products/unifi-cloudkey-gen2-plus\\n\\n"
@@ -6125,9 +6222,8 @@ custom_url_upgrade_check() {
         header_red
         mongodb_server_version=$("$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep "mongodb-server\\|mongodb-org-server\\|mongod-armv8" | awk '{print $3}' | sed 's/\.//g' | sed 's/.*://' | sed 's/-.*//g')
         if [[ "${mongodb_server_version::2}" -le "25" ]]; then unifi_latest_supported_version="7.3"; else unifi_latest_supported_version="7.4"; fi
-        unifi_latest_supported_version=$(curl "${curl_argument[@]}" "https://get.glennr.nl/unifi/latest-versions/${unifi_latest_supported_version}/latest.version")
         echo -e "${WHITE_R}#${RESET} Your 32-bit system/OS is no longer supported by UniFi Network Application ${custom_application_version}!"
-        echo -e "${WHITE_R}#${RESET} The latest supported version on your system/OS is ${unifi_latest_supported_version} and older..."
+        echo -e "${WHITE_R}#${RESET} The latest supported version on your system/OS is $(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?version=${unifi_latest_supported_version}" | jq -r '.latest_version') and older..."
         echo -e "${WHITE_R}#${RESET} Consider upgrading to a 64-bit system/OS!\\n\\n"
         author
         exit 0
@@ -6147,9 +6243,8 @@ custom_url_upgrade_check() {
         mongodb_server_version=$("$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep "mongodb-server\\|mongodb-org-server\\|mongod-armv8" | awk '{print $3}' | sed 's/\.//g' | sed 's/.*://' | sed 's/-.*//g')
         if [[ "${mongodb_server_version::2}" -lt "${minimum_required_mongodb_version}" ]]; then
           header_red
-          unifi_latest_supported_version=$(curl "${curl_argument[@]}" "https://get.glennr.nl/unifi/latest-versions/${unifi_latest_supported_version_number}/latest.version")
           echo -e "${WHITE_R}#${RESET} UniFi Network Application ${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi} requires MongoDB ${minimum_required_mongodb_version_dot} or newer."
-          echo -e "${WHITE_R}#${RESET} The latest version that you can run with MongoDB version $("$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep "mongodb-server\\|mongodb-org-server\\|mongod-armv8" | awk '{print $3}' | sed 's/.*://') is ${unifi_latest_supported_version} and older.. \\n\\n"
+          echo -e "${WHITE_R}#${RESET} The latest version that you can run with MongoDB version $("$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep "mongodb-server\\|mongodb-org-server\\|mongod-armv8" | awk '{print $3}' | sed 's/.*://') is $(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?version=${unifi_latest_supported_version_number}" | jq -r '.latest_version') and older.. \\n\\n"
           if [[ "${mongodb_org_v::2}" =~ (24|26|30|32|34) && "${mongo_version_max}" == "36" && "${mongodb_upgrade_supported}" == 'true' ]] || [[ "${mongodb_org_v::2}" =~ (24|26|30|32|34|36|40|42) && "${mongo_version_max}" == "44" && "${mongodb_upgrade_supported}" == 'true' ]]; then
             read -rp $'\033[39m#\033[0m Would you like to run the option to upgrade to MongoDB '${mongo_version_max_with_dot}'? (Y/n) ' yes_no
             case "$yes_no" in
@@ -6954,8 +7049,8 @@ mongodb_upgrade() {
       if [[ -z "${unifi_deb_md5}" ]]; then unifi_deb_md5="$(curl "${curl_argument[@]}" --location --request GET "http://fw-update.ui.com/api/firmware-latest?filter=eq~~version_major~~${first_digit_current_unifi}&filter=eq~~version_minor~~${second_digit_current_unifi}&filter=eq~~version_patch~~${third_digit_current_unifi}&filter=eq~~platform~~debian" | jq -r "._embedded.firmware[0].md5" | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"; fi
     fi
     if [[ -z "${unifi_deb_dl}" ]]; then
-      unifi_deb_dl="$(curl "${curl_argument[@]}" https://get.glennr.nl/unifi/releases/unifi-network-application-versions.json | jq -r '.versions."'"${first_digit_current_unifi}"."${second_digit_current_unifi}"."${third_digit_current_unifi}"'".download_link' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
-      unifi_deb_md5="$(curl "${curl_argument[@]}" https://get.glennr.nl/unifi/releases/unifi-network-application-versions.json | jq -r '.versions."'"${first_digit_current_unifi}"."${second_digit_current_unifi}"."${third_digit_current_unifi}"'".md5sum' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
+      unifi_deb_dl="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-release?version=${first_digit_current_unifi}"."${second_digit_current_unifi}"."${third_digit_current_unifi}" | jq -r '.download_link' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
+      unifi_deb_md5="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-release?version=${first_digit_current_unifi}"."${second_digit_current_unifi}"."${third_digit_current_unifi}" | jq -r '.md5sum' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
     fi
     if [[ -z "${unifi_deb_dl}" ]]; then
       unifi_deb_dl_failed="true"
@@ -7620,14 +7715,17 @@ else
   fi
 fi
 
-# Expired MongoDB key check
-if [[ "$(jq -r '.database."mongodb-key-last-check"' "${eus_dir}/db/db.json")" == 'null' ]]; then
-  mongodb_key_check_time="$(date +%s)"
-  jq --arg mongodb_key_check_time "${mongodb_key_check_time}" '."database" += {"mongodb-key-last-check": "'"${mongodb_key_check_time}"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+# Reset mongodb-key-last-check if exists in database due to issue fixed in script version Install 7.4.2 and Update 8.6.4.
+if [[ "$(jq -r '.database."mongodb-key-last-check"' "${eus_dir}/db/db.json")" != 'null' && "$(jq -r '.database."mongodb-key-check-reset"' "${eus_dir}/db/db.json")" != 'true' ]]; then
+  jq '.database |= (to_entries | map(if .key == "mongodb-key-last-check" then {key: .key, value: .value}, {key: "mongodb-key-check-reset", value: "true"} else . end) | from_entries)' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+  eus_database_move
+  jq '."database" += {"mongodb-key-last-check": "0"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
   eus_database_move
 fi
+
+# Expired MongoDB key check
 while read -r mongodb_repo_version; do
-  if [[ "$(curl "${curl_argument[@]}" https://get.glennr.nl/unifi/releases/mongodb-versions.json | jq -r '.versions."'"${mongodb_repo_version}"'".updated')" -ge "$(jq -r '.database."mongodb-key-last-check"' "${eus_dir}/db/db.json")" ]]; then
+  if [[ "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/mongodb-release?version=${mongodb_repo_version}" | jq -r '.updated')" -ge "$(jq -r '.database."mongodb-key-last-check"' "${eus_dir}/db/db.json")" ]]; then
     if [[ "${expired_header}" != 'true' ]]; then if header; then expired_header="true"; fi; fi
     if [[ "${expired_mongodb_check_message}" != 'true' ]]; then if echo -e "${WHITE_R}#${RESET} Checking for expired MongoDB repository keys..."; then expired_mongodb_check_message="true"; fi; fi
     if [[ "${expired_mongodb_check_message}" == 'true' ]]; then echo -e "${YELLOW}#${RESET} The script detected that the repository key for MongoDB version ${mongodb_repo_version} has been updated by MongoDB... \\n"; fi
@@ -7640,7 +7738,7 @@ while read -r mongodb_repo_version; do
     fi
   fi
   while read -r repo_file; do
-    if ! grep -ioq "trusted=yes" "${repo_file}" && [[ "$(curl "${curl_argument[@]}" https://get.glennr.nl/unifi/releases/mongodb-versions.json | jq -r '.versions."'"${mongodb_repo_version}"'".expired')" == 'true' ]]; then
+    if ! grep -ioq "trusted=yes" "${repo_file}" && [[ "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/mongodb-release?version=${mongodb_repo_version}" | jq -r '.expired')" == 'true' ]]; then
       if [[ "${expired_header}" != 'true' ]]; then if header; then expired_header="true"; fi; fi
       if [[ "${expired_mongodb_check_message}" != 'true' ]]; then if echo -e "${WHITE_R}#${RESET} Checking for expired MongoDB repository keys..."; then expired_mongodb_check_message="true"; fi; fi
       if [[ "${mongodb_repo_version//./}" =~ (30|32|34|36|40|42|44|50|60|70) ]]; then
@@ -7660,6 +7758,13 @@ while read -r mongodb_repo_version; do
   if [[ "${expired_mongodb_check_message_3}" != 'true' ]]; then if [[ "${expired_mongodb_check_message}" == 'true' && "${mongodb_key_update}" != 'true' && "${mongodb_expired_archived}" != 'true' ]]; then echo -e "${GREEN}#${RESET} The script didn't detect any expired MongoDB repository keys! \\n"; expired_mongodb_check_message_3="true"; sleep 3; fi; fi
 done < <(find /etc/apt/ -name "*.list" -type f -print0 | xargs -0 cat | grep mongodb | grep -io "[0-9].[0-9]" | awk '!NF || !seen[$0]++')
 if [[ "${mongodb_key_update}" == 'true' ]]; then run_apt_get_update; unset mongodb_key_update; get_mongodb_org_v; sleep 3; fi
+
+# Update the MongoDB Check time in the EUS database.
+if [[ "$(jq -r '.database."mongodb-key-last-check"' "${eus_dir}/db/db.json")" == 'null' ]]; then
+  mongodb_key_check_time="$(date +%s)"
+  jq --arg mongodb_key_check_time "${mongodb_key_check_time}" '."database" += {"mongodb-key-last-check": "'"${mongodb_key_check_time}"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+  eus_database_move
+fi
 
 daemon_reexec() {
   if [[ "${limited_functionality}" != 'true' ]]; then
@@ -7881,9 +7986,8 @@ application_upgrade_releases() {
   if [[ "${cloudkey_generation}" == "1" ]]; then
     if [[ "${first_digit_unifi}" -gt '7' ]] || [[ "${first_digit_unifi}" == '7' && "${second_digit_unifi}" -ge '3' ]]; then
       header_red
-      unifi_latest_72="$(curl "${curl_argument[@]}" "https://get.glennr.nl/unifi/latest-versions/7.2/latest.version")"
       echo -e "${WHITE_R}#${RESET} UniFi Network Application ${application_version_release_digit_1}.${application_version_release_digit_2}.${application_version_release_digit_3} is not supported on your Gen1 UniFi Cloudkey (UC-CK)."
-      echo -e "${WHITE_R}#${RESET} The latest supported version on your Cloudkey is ${unifi_latest_72} and older.. \\n\\n"
+      echo -e "${WHITE_R}#${RESET} The latest supported version on your Cloudkey is $(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?version=7.2" | jq -r '.latest_version') and older.. \\n\\n"
       echo -e "${WHITE_R}#${RESET} Consider upgrading to a Gen2 Cloudkey:"
       echo -e "${WHITE_R}#${RESET} UniFi Cloud Key Gen2       | https://store.ui.com/products/unifi-cloud-key-gen2"
       echo -e "${WHITE_R}#${RESET} UniFi Cloud Key Gen2 Plus  | https://store.ui.com/products/unifi-cloudkey-gen2-plus\\n\\n"
@@ -7896,9 +8000,8 @@ application_upgrade_releases() {
       header_red
       mongodb_server_version="$("$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep "mongodb-server\\|mongodb-org-server\\|mongod-armv8" | awk '{print $3}' | sed 's/\.//g' | sed 's/.*://' | sed 's/-.*//g')"
       if [[ "${mongodb_server_version::2}" -le "25" ]]; then unifi_latest_supported_version="7.3"; else unifi_latest_supported_version="7.4"; fi
-      unifi_latest_supported_version="$(curl "${curl_argument[@]}" "https://get.glennr.nl/unifi/latest-versions/${unifi_latest_supported_version}/latest.version")"
       echo -e "${WHITE_R}#${RESET} Your 32-bit system/OS is no longer supported by UniFi Network Application ${application_version_release}!"
-      echo -e "${WHITE_R}#${RESET} The latest supported version on your system/OS is ${unifi_latest_supported_version} and older..."
+      echo -e "${WHITE_R}#${RESET} The latest supported version on your system/OS is $(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?version=${unifi_latest_supported_version}" | jq -r '.latest_version') and older..."
       echo -e "${WHITE_R}#${RESET} Consider upgrading to a 64-bit system/OS!\\n\\n"
       author
       exit 0
@@ -7917,9 +8020,8 @@ application_upgrade_releases() {
     mongodb_server_version="$("$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep "mongodb-server\\|mongodb-org-server\\|mongod-armv8" | awk '{print $3}' | sed 's/\.//g' | sed 's/.*://' | sed 's/-.*//g')"
     if [[ "${mongodb_server_version::2}" -lt "${minimum_required_mongodb_version}" ]]; then
       header_red
-      unifi_latest_supported_version="$(curl "${curl_argument[@]}" "https://get.glennr.nl/unifi/latest-versions/${unifi_latest_supported_version_number}/latest.version")"
       echo -e "${WHITE_R}#${RESET} UniFi Network Application ${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi} requires MongoDB ${minimum_required_mongodb_version_dot} or newer."
-      echo -e "${WHITE_R}#${RESET} The latest version that you can run with MongoDB version $("$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep "mongodb-server\\|mongodb-org-server\\|mongod-armv8" | awk '{print $3}' | sed 's/.*://') is ${unifi_latest_supported_version} and older.. \\n\\n"
+      echo -e "${WHITE_R}#${RESET} The latest version that you can run with MongoDB version $("$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep "mongodb-server\\|mongodb-org-server\\|mongod-armv8" | awk '{print $3}' | sed 's/.*://') is $(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?version=${unifi_latest_supported_version_number}" | jq -r '.latest_version') and older.. \\n\\n"
       if [[ "${mongodb_org_v::2}" =~ (24|26|30|32|34) && "${mongo_version_max}" == "36" && "${mongodb_upgrade_supported}" == 'true' ]] || [[ "${mongodb_org_v::2}" =~ (24|26|30|32|34|36|40|42) && "${mongo_version_max}" == "44" && "${mongodb_upgrade_supported}" == 'true' ]] || [[ "${mongodb_org_v::2}" =~ (24|26|30|32|34|36|40|42|44|50|60) && "${mongo_version_max}" == "70" && "${mongodb_upgrade_supported}" == 'true' ]]; then
         read -rp $'\033[39m#\033[0m Would you like to run the option to upgrade to MongoDB '${mongo_version_max_with_dot}'? (Y/n) ' yes_no
         case "$yes_no" in
@@ -7959,7 +8061,7 @@ application_upgrade_releases() {
   echo -e "${WHITE_R}#${RESET} Downloading UniFi Network Application version ${application_version_release}..."
   eus_directory_location="/tmp/EUS"
   eus_create_directories "downloads"
-  fw_update_dl_link="$(curl "${curl_argument[@]}" https://get.glennr.nl/unifi/releases/unifi-network-application-versions.json | jq -r '.versions."'"${application_version_release}"'".download_link' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
+  fw_update_dl_link="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-release?version=${application_version_release}" | jq -r '.download_link' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
   if [[ -z "${unifi_temp}" ]]; then unifi_temp="$(mktemp --tmpdir=/tmp/EUS/downloads "${unifi_deb_file_name}"_"${application_version_release}"_XXXXX.deb)"; fi
   unifi_download_urls=(
     "https://dl.ui.com/unifi/${application_version}/${unifi_deb_file_name}.deb"

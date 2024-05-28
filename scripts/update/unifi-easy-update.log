@@ -11,6 +11,32 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 8.6.6
+  
+ - Added compression and relocating of the MongoDB logs if the unsupported MongoDB version change recovery was successfull.
+ - Added more compression methods to the support file creation process.
+ - Prevent MongoDB version changes if the Network Application is reporting up and running.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 8.6.5
+  
+ - Fixed an issue where an variable is empty, which could lead to MongoDB installation failures.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 8.6.4
+  
+ - Replaced all static content on get.glennr.nl with api.glennr.nl.
+ - Fixed repository logging.
+ - Fixed MongoDB installation failures on Ubuntu Bionic/Cosmic/Disco/Eoan.
+ - Fixed an issue where the MongoDB Upgrade process could fail if the MongoDB version lock was set to a incorrect version.
+ - Fixed an issue where the unsupported MongoDB Upgrade check wasn't working as expected.
+ - Fixed an issue where the script re-configured the MongoDB key check time before checking the keys.
+ - Fixed ugly error printing at end of the script in rare cases.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 8.6.3
   
  - Added details to the EUS database if the setup is running in a LXC container.

@@ -11,6 +11,13 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Encrypt Script  |  Version 2.7.5
+ 
+ - Replaced all static content on get.glennr.nl with api.glennr.nl.
+ - Fixed repository logging.
+ 
+ ###
+
  |  UniFi Easy Encrypt Script  |  Version 2.7.4
  
  - Fixed an issue where setups using apt version 1.5 or newer without apt-transport-https were using HTTP rather than HTTPS.
