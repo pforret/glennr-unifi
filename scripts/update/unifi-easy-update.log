@@ -11,6 +11,16 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 8.6.7
+  
+ - Improved logging.
+ - Improved adding the MongoDB repository key.
+ - Improved detection of existing repositories when using DEB822 format.
+ - Update the MongoDB repository signing key if there are multiple present in the gpg file.
+ - Fixed the unsupported MongoDB version change recovery process.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 8.6.6
   
  - Added compression and relocating of the MongoDB logs if the unsupported MongoDB version change recovery was successfull.

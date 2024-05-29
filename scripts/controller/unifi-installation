@@ -11,6 +11,18 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 7.4.5
+ 
+ - Added a check that ensures that the UniFi Network Application directories and files have the correct user/group set.
+ - Improved terminal output to the end user when MongoDB is already installed.
+ - Improved adding the MongoDB repository key.
+ - Improved logging.
+ - Improved detection of existing repositories when using DEB822 format.
+ - Update the MongoDB repository signing key if there are multiple present in the gpg file.
+ - Fixed the unsupported MongoDB version change recovery process.
+ 
+ ###
+
  |  UniFi Network Application Installation Script  |  Version 7.4.4
  
  - Added compression and relocating of the MongoDB logs if the unsupported MongoDB version change recovery was successfull.

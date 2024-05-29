@@ -50,7 +50,7 @@
 ###################################################################################################################################################################################################
 
 # Script                | UniFi Network Easy Installation Script
-# Version               | 7.4.5
+# Version               | 7.4.6
 # Application version   | 7.3.81-1529bd4a64
 # Debian Repo version   | 7.3.81-19636-1
 # Author                | Glenn Rietveld
@@ -1586,21 +1586,21 @@ add_mongodb_repo() {
       echo -e "${WHITE_R}#${RESET} Adding key for MongoDB ${mongodb_version_major_minor}..."
       aptkey_depreciated
       if [[ "${apt_key_deprecated}" == 'true' ]]; then
-        if curl "${curl_argument[@]}" -fSL "${repo_http_https}://pgp.mongodb.com/server-${mongodb_version_major_minor}.asc" 2>&1 | tee -a "${eus_dir}/logs/repository-keys.log" | gpg --dearmor --yes | tee -a "/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg" &> /dev/null; then
+        if curl "${curl_argument[@]}" -fSL "${repo_http_https}://pgp.mongodb.com/server-${mongodb_version_major_minor}.asc" 2>&1 | tee -a "${eus_dir}/logs/repository-keys.log" | gpg -o "/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg" --dearmor --yes &> /dev/null; then
           mongodb_curl_exit_status="${PIPESTATUS[0]}"
           mongodb_gpg_exit_status="${PIPESTATUS[2]}"
           if [[ "${mongodb_curl_exit_status}" -eq "0" && "${mongodb_gpg_exit_status}" -eq "0" && -s "/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg" ]]; then
             echo -e "${GREEN}#${RESET} Successfully added the key for MongoDB ${mongodb_version_major_minor}! \\n"
             signed_by_value=" signed-by=/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg"
           else
-            if curl "${curl_argument[@]}" -fSL "${repo_http_https}://www.mongodb.org/static/pgp/server-${mongodb_version_major_minor}.asc" 2>&1 | tee -a "${eus_dir}/logs/repository-keys.log" | gpg --dearmor --yes | tee -a "/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg" &> /dev/null; then
+            if curl "${curl_argument[@]}" -fSL "${repo_http_https}://www.mongodb.org/static/pgp/server-${mongodb_version_major_minor}.asc" 2>&1 | tee -a "${eus_dir}/logs/repository-keys.log" | gpg -o "/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg" --dearmor --yes &> /dev/null; then
               mongodb_curl_exit_status="${PIPESTATUS[0]}"
               mongodb_gpg_exit_status="${PIPESTATUS[2]}"
               if [[ "${mongodb_curl_exit_status}" -eq "0" && "${mongodb_gpg_exit_status}" -eq "0" && -s "/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg" ]]; then
                 echo -e "${GREEN}#${RESET} Successfully added the key for MongoDB ${mongodb_version_major_minor}! \\n"
                 signed_by_value=" signed-by=/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg"
               else
-                if curl "${curl_argument[@]}" --insecure -fSL "${repo_http_https}://pgp.mongodb.com/server-${mongodb_version_major_minor}.asc" 2>&1 | tee -a "${eus_dir}/logs/repository-keys.log" | gpg --dearmor --yes | tee -a "/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg" &> /dev/null; then
+                if curl "${curl_argument[@]}" --insecure -fSL "${repo_http_https}://pgp.mongodb.com/server-${mongodb_version_major_minor}.asc" 2>&1 | tee -a "${eus_dir}/logs/repository-keys.log" | gpg -o "/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg" --dearmor --yes &> /dev/null; then
                   mongodb_curl_exit_status="${PIPESTATUS[0]}"
                   mongodb_gpg_exit_status="${PIPESTATUS[2]}"
                   if [[ "${mongodb_curl_exit_status}" -eq "0" && "${mongodb_gpg_exit_status}" -eq "0" && -s "/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg" ]]; then
@@ -1895,17 +1895,60 @@ cleanup_archived_repos() {
 }
 cleanup_archived_repos
 
+unset_add_repositories_variables(){
+  unset repo_key_name
+  unset repo_url_arguments
+  unset repo_arguments
+  unset signed_by_value_repo_key
+  unset add_repositories_source_list_override
+  #unset deb822_repository_url_detected
+  if [[ "${os_id}" == "raspbian" ]]; then get_distro; fi
+}
+
 add_repositories() {
   # Check if repository is already added
   if grep -sq "^deb .*http\?s\?://$(echo "${repo_url}" | sed -e 's/https\:\/\///g' -e 's/http\:\/\///g')${repo_url_arguments}\?/\? ${repo_codename}${repo_arguments}" /etc/apt/sources.list /etc/apt/sources.list.d/*; then
     echo -e "$(date +%F-%R) | \"${repo_url}${repo_url_arguments} ${repo_codename}${repo_arguments}\" was found, not adding to repository lists. $(grep -srIl "^deb .*http\?s\?://$(echo "${repo_url}" | sed -e 's/https\:\/\///g' -e 's/http\:\/\///g')${repo_url_arguments}\?/\? ${repo_codename}${repo_arguments}" /etc/apt/sources.list /etc/apt/sources.list.d/*)..." &>> "${eus_dir}/logs/already-found-repository.log"
-    unset repo_key_name
-    unset repo_url_arguments
-    unset repo_arguments
-    unset signed_by_value_repo_key
-    unset add_repositories_source_list_override
-    if [[ "${os_id}" == "raspbian" ]]; then get_distro; fi
+    unset_add_repositories_variables
     return  # Repository already added, exit function
+  elif find /etc/apt/sources.list.d/ -name "*.sources" | grep -ioq /etc/apt; then
+    repo_arguments_trimmed="${repo_arguments#"${repo_arguments%%[![:space:]]*}"}" # remove leading space
+    while IFS= read -r repository_file; do
+      last_line_repository_file="$(tail -n1 "${repository_file}")"
+      while IFS= read -r line || [[ -n "${line}" ]]; do
+        if [[ -z "${line}" || "${last_line_repository_file}" == "${line}" ]]; then
+          if [[ -n "$section" ]]; then
+            section_types="$(grep -oPm1 'Types: \K.*' <<< "$section")"
+            section_url="$(grep -oPm1 'URIs: \K.*' <<< "$section" | grep -i "http\?s\?://$(echo "${repo_url}" | sed -e 's/https\:\/\///g' -e 's/http\:\/\///g')${repo_url_arguments}\?/\?")"
+            section_suites="$(grep -oPm1 'Suites: \K.*' <<< "$section")"
+            section_components="$(grep -oPm1 'Components: \K.*' <<< "$section")"
+            section_enabled="$(grep -oPm1 'Enabled: \K.*' <<< "$section")"
+            if [[ -z "${section_enabled}" ]]; then section_enabled="yes"; fi
+            if [[ -n "${section_url}" && "${section_enabled}" == 'yes' && "${section_types}" == *"deb"* && "${section_suites}" == *"${repo_codename}"* && "${section_components}" == *"${repo_arguments_trimmed}"* ]]; then
+              echo -e "$(date +%F-%R) | URIs: $section_url Types: $section_types Suites: $section_suites Components: $section_components was found, not adding to repository lists..." &>> "${eus_dir}/logs/already-found-repository.log"
+              unset_add_repositories_variables
+              unset section
+              unset section_types
+              unset section_components
+              unset section_suites
+              unset section_url
+              unset section_enabled
+              return
+            #elif [[ -n "${section_url}" && "${section_enabled}" == 'yes' ]]; then
+            #  deb822_repository_url_detected="true"
+            fi
+            unset section
+            unset section_types
+            unset section_components
+            unset section_suites
+            unset section_url
+            unset section_enabled
+          fi
+        else
+          section+="${line}"$'\n'
+        fi
+      done < "${repository_file}"
+    done < <(find /etc/apt/sources.list.d/ -name "*.sources" | grep -ioq /etc/apt)
   fi
   # Override the source list
   if [[ -n "${add_repositories_source_list_override}" ]]; then
@@ -2251,7 +2294,7 @@ if [[ -n "${unifi_package}" ]] || [[ "${recovery_required}" == 'true' ]]; then
         eus_directory_location="/tmp/EUS"
         eus_create_directories "downloads"
         if [[ -z "${unifi_temp}" ]]; then unifi_temp="$(mktemp --tmpdir=/tmp/EUS/downloads "unifi_sysvinit_all_${broken_unifi_install_version}_XXXXX.deb")"; fi
-        echo -e "$(date +%F-%R) | URL used: ${unifi_download_link}" &>> "${eus_dir}/logs/unifi-broken-install-download.log"
+        echo -e "$(date +%F-%R) | Downloading ${unifi_download_link} to ${unifi_temp}" &>> "${eus_dir}/logs/unifi-broken-install-download.log"
         if curl --retry 3 "${nos_curl_argument[@]}" --output "$unifi_temp" "${unifi_download_link}" &>> "${eus_dir}/logs/unifi-broken-install-download.log"; then
           if command -v dpkg-deb &> /dev/null; then
             if dpkg-deb --info "${unifi_temp}" &> /dev/null; then
@@ -2441,6 +2484,35 @@ system_properties_free_memory_check() {
   fi
 }
 
+unifi_folder_permission_check() {
+  if grep -isoq "users=" /etc/systemd/system/unifi.service.d/override.conf; then unifi_systemd_file="/etc/systemd/system/unifi.service.d/override.conf"; else unifi_systemd_file="/lib/systemd/system/unifi.service"; fi
+  network_application_user="$(grep '^User=' "${unifi_systemd_file}" | awk -F= '{print $2}')"
+  if [[ -z "${network_application_user}" ]]; then network_application_user="unifi"; fi
+  unifi_folder_permission_check_detected_files=()
+  while read -r unifi_directory; do
+    while read -r unifi_file_or_directory; do
+      if ! stat -c "%U:%G" "${unifi_file_or_directory}" | grep -q "${network_application_user}:${network_application_user}"; then
+        unifi_folder_permission_check_detected_files+=("${unifi_file_or_directory}")
+      fi
+    done < <(find "${unifi_directory}" -type d,f)
+  done < <(find /usr/lib/unifi/ -maxdepth 1 -type l -printf '%l\n')
+  if [[ "${#unifi_folder_permission_check_detected_files[@]}" -gt 0 ]]; then
+    for unifi_folder_permission_check_detected_file in "${unifi_folder_permission_check_detected_files[@]}"; do
+      original_user="$(find "${unifi_folder_permission_check_detected_file}" -maxdepth 0 -printf '%u\n')"
+      original_group="$(find "${unifi_folder_permission_check_detected_file}" -maxdepth 0 -printf '%g\n')"
+      if [[ "${original_user}" == "${network_application_user}" && "${original_group}" == "${network_application_user}" ]]; then
+        continue
+      else
+        if chown -R "${network_application_user}":"${network_application_user}" "${unifi_folder_permission_check_detected_file}" &>> "${eus_dir}/logs/unifi-folder-permission-update.log"; then
+          echo -e "$(date +%F-%R) | Successfully changed the user/group for ${unifi_folder_permission_check_detected_file} from ${original_user}:${original_group} to ${network_application_user}:${network_application_user}" &>> "${eus_dir}/logs/unifi-folder-permission-update.log"
+        else
+          echo -e "$(date +%F-%R) | Failed to change the user/group for ${unifi_folder_permission_check_detected_file} from ${original_user}:${original_group} to ${network_application_user}:${network_application_user}" &>> "${eus_dir}/logs/unifi-folder-permission-update.log"
+        fi
+      fi
+    done
+  fi
+}
+
 custom_url_question() {
   header
   echo -e "${WHITE_R}#${RESET} Please enter the application download URL below."
@@ -2460,7 +2532,7 @@ custom_url_download_check() {
   if [[ -z "${unifi_temp}" ]]; then unifi_temp="$(mktemp --tmpdir=/tmp/EUS/downloads unifi_sysvinit_all_XXXXX.deb)"; fi
   header
   echo -e "${WHITE_R}#${RESET} Downloading the application release..."
-  echo -e "$(date +%F-%R) | URL used: ${custom_download_url}" &>> "${eus_dir}/logs/unifi_custom_url_download.log"
+  echo -e "$(date +%F-%R) | Downloading ${custom_download_url} to ${unifi_temp}" &>> "${eus_dir}/logs/unifi_custom_url_download.log"
   if ! curl --retry 3 "${nos_curl_argument[@]}" --output "$unifi_temp" "${custom_download_url}" &>> "${eus_dir}/logs/unifi_custom_url_download.log"; then
     header_red
     echo -e "${WHITE_R}#${RESET} The URL you provided cannot be downloaded.. Please provide a working URL."
@@ -3129,7 +3201,7 @@ libssl_installation() {
   while read -r libssl_package; do
     libssl_package_empty="false"
     if ! libssl_temp="$(mktemp --tmpdir=/tmp "libssl${libssl_version}_XXXXX.deb")"; then abort_reason="Failed to create temporarily libssl download file."; abort; fi
-    echo -e "$(date +%F-%R) | URL used: ${libssl_repo_url}/pool/main/o/${libssl_url_arg}/${libssl_package}" &>> "${eus_dir}/logs/libssl.log"
+    echo -e "$(date +%F-%R) | Downloading ${libssl_repo_url}/pool/main/o/${libssl_url_arg}/${libssl_package} to ${libssl_temp}" &>> "${eus_dir}/logs/libssl.log"
     if curl --retry 3 "${nos_curl_argument[@]}" --output "$libssl_temp" "${libssl_repo_url}/pool/main/o/${libssl_url_arg}/${libssl_package}" &>> "${eus_dir}/logs/libssl.log"; then
       if command -v dpkg-deb &> /dev/null; then if ! dpkg-deb --info "${libssl_temp}" &> /dev/null; then echo -e "$(date +%F-%R) | The file downloaded via ${libssl_repo_url}/pool/main/o/${libssl_url_arg}/${libssl_package} was not a debian file format..." &>> "${eus_dir}/logs/libssl.log"; continue; fi; fi
       if [[ "${libssl_download_success_message}" != 'true' ]]; then echo -e "${GREEN}#${RESET} Successfully downloaded libssl! \\n"; libssl_download_success_message="true"; fi
@@ -3591,16 +3663,26 @@ if [[ "${script_option_skip}" != 'true' ]]; then
   script_removal
 fi
 
-# Reset mongodb-key-last-check if exists in database due to issue fixed in script version Install 7.4.2 and Update 8.6.4.
-if [[ "$(jq -r '.database."mongodb-key-last-check"' "${eus_dir}/db/db.json")" != 'null' && "$(jq -r '.database."mongodb-key-check-reset"' "${eus_dir}/db/db.json")" != 'true' ]]; then
-  jq '.database |= (to_entries | map(if .key == "mongodb-key-last-check" then {key: .key, value: .value}, {key: "mongodb-key-check-reset", value: "true"} else . end) | from_entries)' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
-  eus_database_move
-  jq '."database" += {"mongodb-key-last-check": "0"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+if [[ "$(jq '.database | has("mongodb-key-check-reset")' "${eus_dir}/db/db.json")" == 'true' ]]; then
+  jq 'del(.database."mongodb-key-check-reset")' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
   eus_database_move
 fi
 
 # Expired MongoDB key check
 while read -r mongodb_repo_version; do
+  # Update the MongoDB keys if there are multiple in 1 file.
+  while read -r mongodb_repository_list; do
+    if [[ "$(gpg "$(grep "signed-by" "${mongodb_repository_list}" | sed 's/.*signed-by=\([^ ]*\).*/\1/')" 2>&1 | grep -c "^pub")" -gt "1" ]]; then
+      if [[ "${mongodb_repo_version//./}" =~ (30|32|34|36|40|42|44|50|60|70) ]]; then
+        mongodb_key_update="true"
+        mongodb_version_major_minor="${mongodb_repo_version}"
+        mongodb_org_v="${mongodb_repo_version//./}"
+        add_mongodb_repo
+        continue
+      fi
+    fi
+  done < <(grep -riIl "${mongodb_repo_version} main\\|${mongodb_repo_version} multiverse" /etc/apt/sources.list /etc/apt/sources.list.d/)
+  #
   if [[ "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/mongodb-release?version=${mongodb_repo_version}" | jq -r '.updated')" -ge "$(jq -r '.database."mongodb-key-last-check"' "${eus_dir}/db/db.json")" ]]; then
     if [[ "${expired_header}" != 'true' ]]; then if header; then expired_header="true"; fi; fi
     if [[ "${expired_mongodb_check_message}" != 'true' ]]; then if echo -e "${WHITE_R}#${RESET} Checking for expired MongoDB repository keys..."; then expired_mongodb_check_message="true"; fi; fi
@@ -3836,7 +3918,7 @@ mongodb_upgrade_check
 echo -e "${WHITE_R}#${RESET} The package(s) below can be upgraded!"
 echo -e "\\n${WHITE_R}----${RESET}\\n"
 rm --force /tmp/EUS/upgrade/upgrade_list &> /dev/null
-{ apt-get --just-print upgrade 2>&1 | perl -ne 'if (/Inst\s([\w,\-,\d,\.,~,:,\+]+)\s\[([\w,\-,\d,\.,~,:,\+]+)\]\s\(([\w,\-,\d,\.,~,:,\+]+)\)? /i) {print "$1 ( \e[1;34m$2\e[0m -> \e[1;32m$3\e[0m )\n"}';} | while read -r line; do echo -en "${WHITE_R}-${RESET} $line\\n"; echo -en "$line\\n" | awk '{print $1}' &>> /tmp/EUS/upgrade/upgrade_list; done;
+{ apt-get --just-print upgrade 2>&1 | perl -ne 'if (/Inst\s([\w,\-,\d,\.,~,:,\+]+)\s\[([\w,\-,\d,\.,~,:,\+]+)\]\s\(([\w,\-,\d,\.,~,:,\+]+)\)? /i) {print "$1 ( \e[1;34m$2\e[0m -> \e[1;32m$3\e[0m )\n"}';} | while read -r line; do echo -en "${WHITE_R}-${RESET} ${line}\\n"; echo -en "${line}\\n" | awk '{print $1}' &>> /tmp/EUS/upgrade/upgrade_list; done;
 if [[ -f /tmp/EUS/upgrade/upgrade_list ]]; then number_of_updates=$(wc -l < /tmp/EUS/upgrade/upgrade_list); else number_of_updates='0'; fi
 if [[ "${number_of_updates}" == '0' ]]; then echo -e "${WHITE_R}#${RESET} There are no packages that need an upgrade..."; fi
 echo -e "\\n${WHITE_R}----${RESET}\\n"
@@ -3882,7 +3964,7 @@ mongo_last_attempt() {
       mongo_last_attempt_package_empty="false"
       echo -e "\\n${WHITE_R}#${RESET} Downloading ${mongo_last_attempt_name}..."
       if ! mongo_last_attempt_temp="$(mktemp --tmpdir=/tmp mongo_last_attempt_XXXXX.deb)"; then abort_reason="Failed to create temporarily MongoDB download file."; abort; fi
-      echo -e "$(date +%F-%R) | URL used: ${repo_archive}${mongo_last_attempt_package}" &>> "${eus_dir}/logs/unifi-database-required.log"
+      echo -e "$(date +%F-%R) | Downloading ${repo_archive}${mongo_last_attempt_package} to ${mongo_last_attempt_temp}" &>> "${eus_dir}/logs/unifi-database-required.log"
       if curl --retry 3 "${nos_curl_argument[@]}" --output "$mongo_last_attempt_temp" "${repo_archive}${mongo_last_attempt_package}" &>> "${eus_dir}/logs/unifi-database-required.log"; then
         if command -v dpkg-deb &> /dev/null; then if ! dpkg-deb --info "${mongo_last_attempt_temp}" &> /dev/null; then echo -e "$(date +%F-%R) | The file downloaded via ${repo_archive}${mongo_last_attempt_package} was not a debian file format..." &>> "${eus_dir}/logs/unifi-database-required.log"; continue; fi; fi
         if [[ "${mongo_last_attempt_download_success_message}" != 'true' ]]; then echo -e "${GREEN}#${RESET} Successfully downloaded ${mongo_last_attempt_name}! \\n"; mongo_last_attempt_download_success_message="true"; fi
@@ -4362,6 +4444,7 @@ if [[ "${mongodb_installed}" != 'true' ]]; then
     echo -e "${GREEN}#${RESET} MongoDB is already installed! \\n"
   fi
 else
+  echo -e "${GREEN}#${RESET} MongoDB is already installed! \\n"
   if "$(which dpkg)" -l mongodb-org-server 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
     mongodb_org_version="$(dpkg-query --showformat='${Version}' --show mongodb-org-server | sed 's/.*://' | sed 's/-.*//g')"
     mongodb_org_version_no_dots="${mongodb_org_version//./}"
@@ -4472,16 +4555,17 @@ if [[ "${mongo_version_locked}" == '4.4.18' ]] || [[ "${unsupported_database_ver
     libssl_installation_check
     rm --force /tmp/EUS/mongodb/packages_remove_list &> /dev/null
     cp /tmp/EUS/mongodb/packages_list /tmp/EUS/mongodb/packages_list.tmp &> /dev/null
+    recovery_install_mongodb_version="${install_mongodb_version//./}"
     while read -r installed_mongodb_package; do
       if ! apt-cache policy "^${installed_mongodb_package}$" | grep -ioq "${install_mongodb_version}"; then
         if [[ "${installed_mongodb_package}" == "mongodb-server" ]] && [[ "${previous_mongodb_version::2}" != "24" ]]; then if sed -i "s/mongodb-server/mongodb-org-server/g" /tmp/EUS/mongodb/packages_list; then echo "mongodb-server" &>> /tmp/EUS/mongodb/packages_remove_list; fi; fi
         if [[ "${installed_mongodb_package}" == "mongodb-clients" ]] && [[ "${previous_mongodb_version::2}" != "24" ]]; then if sed -i "s/mongodb-clients/mongodb-org-shell/g" /tmp/EUS/mongodb/packages_list; then echo "mongodb-clients" &>> /tmp/EUS/mongodb/packages_remove_list; fi; fi
         if [[ "${installed_mongodb_package}" == "mongo-tools" ]] && [[ "${previous_mongodb_version::2}" != "24" ]]; then if sed -i "s/mongo-tools/mongodb-org-tools/g" /tmp/EUS/mongodb/packages_list; then echo "mongo-tools" &>> /tmp/EUS/mongodb/packages_remove_list; fi; fi
-        if [[ "${installed_mongodb_package}" == "mongodb-org-database-tools-extra" && "${install_mongodb_version//./}" -lt "44" ]]; then echo "mongodb-org-database-tools-extra" &>> /tmp/EUS/mongodb/packages_remove_list; fi
+        if [[ "${installed_mongodb_package}" == "mongodb-org-database-tools-extra" && "${recovery_install_mongodb_version::2}" -lt "44" ]]; then echo "mongodb-org-database-tools-extra" &>> /tmp/EUS/mongodb/packages_remove_list; fi
         sed -i "/${installed_mongodb_package}/d" /tmp/EUS/mongodb/packages_list
       fi
     done < "/tmp/EUS/mongodb/packages_list.tmp"
-    if "$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep -iq "mongod-armv8" && [[ "${install_mongodb_version//./}" != "70" ]]; then if sed -i "s/mongod-armv8/mongodb-org-server/g" /tmp/EUS/mongodb/packages_list; then echo "mongod-armv8" &>> /tmp/EUS/mongodb/packages_remove_list; fi; fi
+    if "$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep -iq "mongod-armv8" && [[ "${recovery_install_mongodb_version::2}" != "70" ]]; then if sed -i "s/mongod-armv8/mongodb-org-server/g" /tmp/EUS/mongodb/packages_list; then echo "mongod-armv8" &>> /tmp/EUS/mongodb/packages_remove_list; fi; fi
     rm --force "/tmp/EUS/mongodb/packages_list.tmp" &> /dev/null
     while read -r package; do
       if "$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep -iq "unifi "; then reinstall_unifi="true"; fi
@@ -4552,7 +4636,7 @@ if [[ "${mongo_version_locked}" == '4.4.18' ]] || [[ "${unsupported_database_ver
         fw_update_dl_link_sha256sum="$(curl "${curl_argument[@]}" --location --request GET "https://fw-update.ui.com/api/firmware-latest?filter=eq~~version_major~~$(dpkg-query --showformat='${Version}' --show unifi | awk -F '[.-]' '{print $1}')&filter=eq~~version_minor~~$(dpkg-query --showformat='${Version}' --show unifi | awk -F '[.-]' '{print $2}')&filter=eq~~version_patch~~$(dpkg-query --showformat='${Version}' --show unifi | awk -F '[.-]' '{print $3}')&filter=eq~~platform~~debian" | jq -r "._embedded.firmware[0].sha256_checksum" | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
       fi
       if [[ -z "${unifi_temp}" ]]; then unifi_temp="$(mktemp --tmpdir=/tmp/EUS/downloads "${unifi_deb_file_name}"_"$(dpkg-query --showformat='${Version}' --show unifi | awk -F '[-]' '{print $1}')"_XXXXX.deb)"; fi
-      echo -e "$(date +%F-%R) | URL used: ${fw_update_dl_link}" &>> "${eus_dir}/logs/unifi_download.log"
+      echo -e "$(date +%F-%R) | Downloading ${fw_update_dl_link} to ${unifi_temp}" &>> "${eus_dir}/logs/unifi_download.log"
       if curl --retry 3 "${nos_curl_argument[@]}" --output "$unifi_temp" "${fw_update_dl_link}" &>> "${eus_dir}/logs/unifi_download.log"; then
         if command -v sha256sum &> /dev/null; then
           if [[ "$(sha256sum "$unifi_temp" | awk '{print $1}')" != "${fw_update_dl_link_sha256sum}" ]]; then
@@ -4974,12 +5058,12 @@ if [[ "${unifi_network_application_downloaded}" != 'true' ]]; then
   fi
   echo -e "${WHITE_R}#${RESET} Downloading the UniFi Network Application..."
   for unifi_download_url in "${unifi_download_urls[@]}"; do
-    echo -e "$(date +%F-%R) | URL used: ${unifi_download_url}" &>> "${eus_dir}/logs/unifi_download.log"
+    echo -e "$(date +%F-%R) | Downloading ${unifi_download_url} to ${unifi_temp}" &>> "${eus_dir}/logs/unifi_download.log"
     if curl --retry 3 "${nos_curl_argument[@]}" --output "${unifi_temp}" "${unifi_download_url}" &>> "${eus_dir}/logs/unifi_download.log"; then
       if command -v dpkg-deb &> /dev/null; then if ! dpkg-deb --info "${unifi_temp}" &> /dev/null; then echo -e "$(date +%F-%R) | The file downloaded via ${unifi_download_url} was not a debian file format..." &>> "${eus_dir}/logs/unifi_download.log"; continue; fi; fi
       echo -e "${GREEN}#${RESET} Successfully downloaded application version ${unifi_clean}! \\n"; unifi_downloaded="true"; break
     elif [[ "${unifi_download_url}" =~ ^https:// ]]; then
-      echo -e "$(date +%F-%R) | URL used: ${unifi_download_url/https:/http:}" &>> "${eus_dir}/logs/unifi_download.log"
+      echo -e "$(date +%F-%R) | Downloading ${unifi_download_url/https:/http:} to ${unifi_temp}" &>> "${eus_dir}/logs/unifi_download.log"
       if curl --retry 3 "${nos_curl_argument[@]}" --output "${unifi_temp}" "${unifi_download_url/https:/http:}" &>> "${eus_dir}/logs/unifi_download.log"; then
         if command -v dpkg-deb &> /dev/null; then if ! dpkg-deb --info "${unifi_temp}" &> /dev/null; then echo -e "$(date +%F-%R) | The file downloaded via ${unifi_download_url/https:/http:} was not a debian file format..." &>> "${eus_dir}/logs/unifi_download.log"; continue; fi; fi
         echo -e "${GREEN}#${RESET} Successfully downloaded application version ${unifi_clean} (using HTTP)! \\n"; unifi_downloaded="true"; break
@@ -5008,6 +5092,7 @@ else
   abort
 fi
 system_properties_free_memory_check
+unifi_folder_permission_check
 if ! [[ -d "/var/run/unifi" ]]; then install -o unifi -g unifi -m 750 -d /var/run/unifi &>> "${eus_dir}/logs/unifi-var-run-missing.log"; fi
 jq '."scripts"."'"${script_name}"'" += {"install-date": "'"$(date +%s)"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
 eus_database_move
