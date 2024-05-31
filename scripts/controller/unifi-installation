@@ -11,6 +11,15 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 7.4.6
+ 
+ - Added support for DEB822 repositories, it will use them if .sources repository lists exist.
+ - Added support for recovering broken DEB822 repositories.
+ - Improved the unsupported MongoDB version change process.
+ - Fixed awk errors if a file didn't exist.
+ 
+ ###
+
  |  UniFi Network Application Installation Script  |  Version 7.4.5
  
  - Added a check that ensures that the UniFi Network Application directories and files have the correct user/group set.

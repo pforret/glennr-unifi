@@ -50,7 +50,7 @@
 ###################################################################################################################################################################################################
 
 # Script                | UniFi Network Easy Installation Script
-# Version               | 7.4.6
+# Version               | 7.4.7
 # Application version   | 5.10.23-624af847f6
 # Debian Repo version   | 5.10.23-11668-1
 # Author                | Glenn Rietveld
@@ -123,14 +123,42 @@ if ! env | grep "LC_ALL\\|LANG" | grep -iq "en_US\\|C.UTF-8"; then
 fi
 
 cleanup_codename_mismatch_repos() {
+  if command -v jq &> /dev/null; then
+    list_of_distro_versions="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/list-versions?list-all" 2> /dev/null | jq -r '.[]' 2> /dev/null)"
+  else
+    list_of_distro_versions="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/list-versions?list-all" | sed -e 's/\[//g' -e 's/\]//g' -e 's/ //g' -e 's/,//g' | grep .)"
+  fi
+  found_codenames=()
   if [[ -f "/etc/apt/sources.list.d/glennr-install-script.list" ]]; then
-    awk '{print $3}' /etc/apt/sources.list.d/glennr-install-script.list | awk '!a[$0]++' | sed "/${os_codename}/d" | sed 's/ //g' &> /tmp/EUS/sourcelist
-    while read -r sourcelist_os_codename; do
-      sed -i "/${sourcelist_os_codename}/d" /etc/apt/sources.list.d/glennr-install-script.list &> /dev/null
-    done < /tmp/EUS/sourcelist
-    rm --force /tmp/EUS/sourcelist &> /dev/null
-    if ! [[ -s "/etc/apt/sources.list.d/glennr-install-script.list" ]]; then
-      rm --force /etc/apt/sources.list.d/glennr-install-script.list &> /dev/null
+    while IFS= read -r line; do
+      while read -r codename; do
+        if [[ "$line" == *"$codename"* && "$codename" != "$os_codename" ]]; then
+          found_codenames+=("$codename")
+        fi
+      done <<< "${list_of_distro_versions}"
+    done < <(grep -v '^[[:space:]]*$' "/etc/apt/sources.list.d/glennr-install-script.list")
+    unique_found_codenames=("$(printf "%s\n" "${found_codenames[@]}" | sort -u)")
+    if [[ "${#unique_found_codenames[@]}" -gt "0" ]]; then
+      for codename in "${unique_found_codenames[@]}"; do
+        sed -i "/$codename/d" "/etc/apt/sources.list.d/glennr-install-script.list" >/dev/null 2>&1
+      done
+    fi
+  fi
+  if [[ -f "/etc/apt/sources.list.d/glennr-install-script.sources" ]]; then
+    while IFS= read -r line; do
+      while read -r codename; do
+        if [[ "$line" == *"$codename"* && "$codename" != "$os_codename" ]]; then
+          found_codenames+=("$codename")
+        fi
+      done <<< "${list_of_distro_versions}"
+    done < <(grep -v '^[[:space:]]*$' "/etc/apt/sources.list.d/glennr-install-script.sources")
+    unique_found_codenames=("$(printf "%s\n" "${found_codenames[@]}" | sort -u)")
+    if [[ "${#unique_found_codenames[@]}" -gt "0" ]]; then
+      for codename in "${unique_found_codenames[@]}"; do
+        entry_block_start_line="$(awk '!/^#/ && /Types:/ { types_line=NR } /'"${codename}"'/ && !/^#/ && !seen[types_line]++ { print types_line }' "/etc/apt/sources.list.d/glennr-install-script.sources" | head -n1)"
+        entry_block_end_line="$(awk -v start_line="$entry_block_start_line" 'NR > start_line && NF == 0 { print NR-1; exit } END { if (NR > start_line && NF > 0) print NR }' "/etc/apt/sources.list.d/glennr-install-script.sources")"
+        sed -i "${entry_block_start_line},${entry_block_end_line}d" "/etc/apt/sources.list.d/glennr-install-script.sources" &>/dev/null
+      done
     fi
   fi
 }
@@ -142,8 +170,16 @@ cleanup_unifi_repos() {
       sed -e "/${pattern}/ s/^#*/#/g" -i "${repo_file}"
     done
   done < <(find /etc/apt/ -type f -name "*.list" -exec grep -ilE 'ui.com|ubnt.com' {} +)
+  # Handle .sources files if using DEB822 format
+  while read -r sources_file; do
+    for pattern in "${repo_file_patterns[@]}"; do
+      entry_block_start_line="$(awk '!/^#/ && /Types:/ { types_line=NR } /'"${pattern}"'/ && !/^#/ && !seen[types_line]++ { print types_line }' "${sources_file}" | head -n1)"
+      entry_block_end_line="$(awk -v start_line="$entry_block_start_line" 'NR > start_line && NF == 0 { print NR-1; exit } END { if (NR > start_line && NF > 0) print NR }' "${sources_file}")"
+      sed -i "${entry_block_start_line},${entry_block_end_line}s/^\([^#]\)/# \1/" "${sources_file}" &>/dev/null
+    done
+  done < <(find /etc/apt/sources.list.d/ -type f -name "*.sources")
 }
-if [[ "$(find /etc/apt/ -type f -name "*.list" -exec grep -lE '^[^#]*\b(ui|ubnt)\.com' {} + | wc -l)" -gt "1" ]]; then cleanup_unifi_repos; fi
+if [[ "$(find /etc/apt/ -type f \( -name "*.sources" -o -name "*.list" \) -exec grep -lE '^[^#]*\b(ui|ubnt)\.com' {} + | wc -l)" -gt "1" ]]; then cleanup_unifi_repos; fi
 
 check_dns() {
   system_dns_servers="($(grep -s '^nameserver' /etc/resolv.conf /run/systemd/resolve/resolv.conf | awk '{print $2}'))"
@@ -598,6 +634,8 @@ eus_directories() {
   if [[ "$(command -v stat)" ]]; then tmp_permissions="$(stat -c '%a' /tmp)"; echo -e "$(date +%F-%R) | \"/tmp\" has permissions \"${tmp_permissions}\"..." &>> "${eus_dir}/logs/update-tmp-permissions.log"; fi
   # shellcheck disable=SC2012
   if [[ "${tmp_permissions}" != '1777' ]]; then if [[ -z "${tmp_permissions}" ]]; then echo -e "$(date +%F-%R) | \"/tmp\" has permissions \"$(ls -ld /tmp | awk '{print $1}')\"..." &>> "${eus_dir}/logs/update-tmp-permissions.log"; fi; chmod 1777 /tmp &>> "${eus_dir}/logs/update-tmp-permissions.log"; fi
+  if find /etc/apt/sources.list.d/ -name "*.sources" | grep -ioq /etc/apt; then use_deb822_format="true"; fi
+  if [[ "${use_deb822_format}" == 'true' ]]; then source_file_format="sources"; else source_file_format="list"; fi
 }
 
 script_logo() {
@@ -976,36 +1014,69 @@ check_time_date_for_repositories() {
 cleanup_malformed_repositories() {
   if ls /tmp/EUS/apt/*.log 1> /dev/null 2>&1; then
     while IFS= read -r line; do
-      if [[ "${cleanup_malformed_repositories_found_message}" != 'true' ]]; then echo -e "${WHITE_R}#${RESET} There appear to be malformed repositories..."; cleanup_malformed_repositories_found_message="true"; fi
-      cleanup_malformed_repositories_file_path="$(echo "${line}" | sed -n 's/.*in list file \([^ ]*\) .*/\1/p')"
+      if [[ "${cleanup_malformed_repositories_found_message}" != 'true' ]]; then
+        echo -e "${WHITE_R}#${RESET} There appear to be malformed repositories..."
+        cleanup_malformed_repositories_found_message="true"
+      fi
+      cleanup_malformed_repositories_file_path="$(echo "${line}" | sed -n 's/.*\(in sources file \|in source list \|in list file \)\([^ ]*\) .*/\2/p')"
       cleanup_malformed_repositories_line_number="$(echo "${line}" | cut -d':' -f2 | cut -d' ' -f1)"
       if [[ -f "${cleanup_malformed_repositories_file_path}" ]]; then
-        if sed -i "${cleanup_malformed_repositories_line_number}s/^/#/" "${cleanup_malformed_repositories_file_path}" &>/dev/null; then cleanup_malformed_repositories_changes_made="true"; fi
-        echo "Duplicates commented out in '${cleanup_malformed_repositories_file_path}' at line $cleanup_malformed_repositories_line_number" &>> "${eus_dir}/logs/cleanup-malformed-repository-lists.log"
+        if [[ "${cleanup_malformed_repositories_file_path}" == *".sources" ]]; then
+          # Handle deb822 format
+          entry_block_start_line="$(awk -v cleanup_line="$cleanup_malformed_repositories_line_number" 'BEGIN { in_block = 0 } /^[^#]/ && !in_block { start_line = NR; in_block = 1 } in_block && ($0 ~ /^#Types:/ || (NR - start_line > 1 && NF == 0)) { block++; if (block == cleanup_line) print start_line; in_block = 0 }' "${cleanup_malformed_repositories_file_path}")"
+          entry_block_end_line="$(awk -v start_line="$entry_block_start_line" ' NR > start_line && NF == 0 { print NR-1; found=1; exit } NR > start_line { last_non_blank=NR } END { if (!found) print last_non_blank }' "${cleanup_malformed_repositories_file_path}")"
+          sed -i "${entry_block_start_line},${entry_block_end_line}s/^/#/" "${cleanup_malformed_repositories_file_path}" &>/dev/null
+        elif [[ "${cleanup_malformed_repositories_file_path}" == *".list" ]]; then
+          # Handle regular format
+          sed -i "${cleanup_malformed_repositories_line_number}s/^/#/" "${cleanup_malformed_repositories_file_path}" &>/dev/null
+        else
+          mv "${cleanup_malformed_repositories_file_path}" "{eus_dir}/repository/$(basename "${cleanup_malformed_repositories_file_path}").corrupted" &>/dev/null
+        fi
+        cleanup_malformed_repositories_changes_made="true"
+        echo "Malformed repository commented out in '${cleanup_malformed_repositories_file_path}' at line $cleanup_malformed_repositories_line_number" &>> "${eus_dir}/logs/cleanup-malformed-repository-lists.log"
       else
         echo "Warning: Invalid file path '${cleanup_malformed_repositories_file_path}'. Skipping." &>> "${eus_dir}/logs/cleanup-malformed-repository-lists.log"
       fi
-    done < <(grep -E '^E: Malformed entry |^E: Type .* is not known on line' /tmp/EUS/apt/*.log | awk -F': Malformed entry |: Type .*is not known on line ' '{print $2}' | sort -u 2>> /dev/null)
-    if [[ "${cleanup_malformed_repositories_changes_made}" = 'true' ]]; then echo -e "${GREEN}#${RESET} The malformed repositories have been commented out! \\n"; repository_changes_applied="true"; fi
+    done < <(grep -E '^E: Malformed entry |^E: Malformed stanza |^E: Type .* is not known on line' /tmp/EUS/apt/*.log | awk -F': Malformed entry |: Malformed stanza |: Type .*is not known on line ' '{print $2}' | sort -u 2>> /dev/null)
+    if [[ "${cleanup_malformed_repositories_changes_made}" = 'true' ]]; then
+      echo -e "${GREEN}#${RESET} The malformed repositories have been commented out! \\n"
+      repository_changes_applied="true"
+    fi   
     unset cleanup_malformed_repositories_found_message
     unset cleanup_malformed_repositories_changes_made
   fi
 }
 
+
 cleanup_duplicated_repositories() {
   if ls /tmp/EUS/apt/*.log 1> /dev/null 2>&1; then
     while IFS= read -r line; do
-      if [[ "${cleanup_duplicated_repositories_found_message}" != 'true' ]]; then echo -e "${WHITE_R}#${RESET} There appear to be duplicated repositories..."; cleanup_duplicated_repositories_found_message="true"; fi
+      if [[ "${cleanup_duplicated_repositories_found_message}" != 'true' ]]; then
+        echo -e "${WHITE_R}#${RESET} There appear to be duplicated repositories..."
+        cleanup_duplicated_repositories_found_message="true"
+      fi
       cleanup_duplicated_repositories_file_path="$(echo "${line}" | cut -d':' -f1)"
       cleanup_duplicated_repositories_line_number="$(echo "${line}" | cut -d':' -f2 | cut -d' ' -f1)"
       if [[ -f "${cleanup_duplicated_repositories_file_path}" ]]; then
-        if sed -i "${cleanup_duplicated_repositories_line_number}s/^/#/" "${cleanup_duplicated_repositories_file_path}" &>/dev/null; then cleanup_duplicated_repositories_changes_made="true"; fi
+        if [[ "${cleanup_duplicated_repositories_file_path}" == *".sources" ]]; then
+          # Handle deb822 format
+          entry_block_start_line="$(awk 'BEGIN { block = 0 } { if ($0 ~ /^Types:/) { block++ } if (block == '"$cleanup_duplicated_repositories_line_number"') { print NR; exit } }' "${cleanup_duplicated_repositories_file_path}")"
+          entry_block_end_line="$(awk -v start_line="$entry_block_start_line" ' NR > start_line && NF == 0 { print NR-1; found=1; exit } NR > start_line { last_non_blank=NR } END { if (!found) print last_non_blank }' "${cleanup_duplicated_repositories_file_path}")"
+          sed -i "${entry_block_start_line},${entry_block_end_line}s/^\([^#]\)/# \1/" "${cleanup_duplicated_repositories_file_path}" &>/dev/null
+        elif [[ "${cleanup_duplicated_repositories_file_path}" == *".list" ]]; then
+          # Handle regular format
+          sed -i "${cleanup_duplicated_repositories_line_number}s/^/#/" "${cleanup_duplicated_repositories_file_path}" &>/dev/null
+        fi
+        cleanup_duplicated_repositories_changes_made="true"
         echo "Duplicates commented out in '${cleanup_duplicated_repositories_file_path}' at line $cleanup_duplicated_repositories_line_number" &>> "${eus_dir}/logs/cleanup-duplicate-repository-lists.log"
       else
         echo "Warning: Invalid file path '${cleanup_duplicated_repositories_file_path}'. Skipping." &>> "${eus_dir}/logs/cleanup-duplicate-repository-lists.log"
       fi
     done < <(grep -E '^W: Target .+ is configured multiple times in ' "/tmp/EUS/apt/"*.log | awk -F' is configured multiple times in ' '{print $2}' | sort -u 2>> /dev/null)
-    if [[ "${cleanup_duplicated_repositories_changes_made}" = 'true' ]]; then echo -e "${GREEN}#${RESET} The duplicated repositories have been commented out! \\n"; repository_changes_applied="true"; fi
+    if [[ "${cleanup_duplicated_repositories_changes_made}" = 'true' ]]; then
+      echo -e "${GREEN}#${RESET} The duplicated repositories have been commented out! \\n"
+      repository_changes_applied="true"
+    fi
     unset cleanup_duplicated_repositories_found_message
     unset cleanup_duplicated_repositories_changes_made
   fi
@@ -1015,12 +1086,30 @@ cleanup_unavailable_repositories() {
   if ls /tmp/EUS/apt/*.log 1> /dev/null 2>&1; then
     if ! [[ -e "${eus_dir}/logs/upgrade.log" ]]; then return; fi
     while read -r domain; do
-      if ! grep -q "^#.*${domain}" /etc/apt/sources.list /etc/apt/sources.list.d/*.list; then
-        if [[ "${cleanup_unavailable_repositories_found_message}" != 'true' ]]; then echo -e "${WHITE_R}#${RESET} There are repositories that are causing issues..."; cleanup_unavailable_repositories_found_message="true"; fi
-        if sed -i -e "/^[^#].*${domain}/ s|^deb|# deb|g" /etc/apt/sources.list /etc/apt/sources.list.d/*.list &>/dev/null; then cleanup_unavailable_repositories_changes_made="true"; echo "Unavailable repository with domain ${domain} has been commented out" &>> "${eus_dir}/logs/cleanup-unavailable-repository-lists.log"; fi
+      if ! grep -q "^#.*${domain}" /etc/apt/sources.list /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; then
+        if [[ "${cleanup_unavailable_repositories_found_message}" != 'true' ]]; then
+          echo -e "${WHITE_R}#${RESET} There are repositories that are causing issues..."
+          cleanup_unavailable_repositories_found_message="true"
+        fi
+        for file in /etc/apt/sources.list.d/*.sources; do
+          if grep -q "${domain}" "${file}"; then
+            entry_block_start_line="$(awk '!/^#/ && /Types:/ { types_line=NR } /'"${domain}"'/ && !/^#/ && !seen[types_line]++ { print types_line }' "${file}" | head -n1)"
+            entry_block_end_line="$(awk -v start_line="$entry_block_start_line" 'NR > start_line && NF == 0 { print NR-1; exit } END { if (NR > start_line && NF > 0) print NR }' "${file}")"
+            sed -i "${entry_block_start_line},${entry_block_end_line}s/^\([^#]\)/# \1/" "${file}" &>/dev/null
+            cleanup_unavailable_repositories_changes_made="true"
+            echo "Unavailable repository with domain ${domain} has been commented out in '${file}'" &>> "${eus_dir}/logs/cleanup-unavailable-repository-lists.log"
+          fi
+        done
+        if sed -i -e "/^[^#].*${domain}/ s|^deb|# deb|g" /etc/apt/sources.list /etc/apt/sources.list.d/*.list &>/dev/null; then
+          cleanup_unavailable_repositories_changes_made="true"
+          echo "Unavailable repository with domain ${domain} has been commented out" &>> "${eus_dir}/logs/cleanup-unavailable-repository-lists.log"
+        fi
       fi
     done < <(awk '/Unauthorized|Failed/ {for (i=1; i<=NF; i++) if ($i ~ /^https?:\/\/([^\/]+)/) {split($i, parts, "/"); print parts[3]}}' "/tmp/EUS/apt/"*.log | sort -u 2>> /dev/null)
-    if [[ "${cleanup_unavailable_repositories_changes_made}" = 'true' ]]; then echo -e "${GREEN}#${RESET} Repositories causing errors have been commented out! \\n"; repository_changes_applied="true"; fi
+    if [[ "${cleanup_unavailable_repositories_changes_made}" = 'true' ]]; then
+      echo -e "${GREEN}#${RESET} Repositories causing errors have been commented out! \\n"
+      repository_changes_applied="true"
+    fi
     unset cleanup_unavailable_repositories_found_message
     unset cleanup_unavailable_repositories_changes_made
   fi
@@ -1031,7 +1120,10 @@ cleanup_conflicting_repositories() {
     while IFS= read -r logfile; do
       while IFS= read -r line; do
         if [[ ${line} == *"Conflicting values set for option Trusted regarding source"* ]]; then
-          if [[ "${cleanup_conflicting_repositories_found_message_1}" != 'true' ]]; then echo -e "${WHITE_R}#${RESET} There appear to be repositories with conflicting details..."; cleanup_conflicting_repositories_found_message_1="true"; fi
+          if [[ "${cleanup_conflicting_repositories_found_message_1}" != 'true' ]]; then
+            echo -e "${WHITE_R}#${RESET} There appear to be repositories with conflicting details..."
+            cleanup_conflicting_repositories_found_message_1="true"
+          fi
           # Extract the conflicting source URL and remove trailing slash
           source_url="$(echo "${line}" | grep -oP 'source \Khttps?://[^ /]*' | sed 's/ //g')"
           # Extract package name and version from the conflicting source URL
@@ -1039,42 +1131,71 @@ cleanup_conflicting_repositories() {
           version="$(echo "${line}" | awk -F'/' '{print $NF}' | sed 's/ //g')"
           # Loop through each file and awk to comment out the conflicting source
           while read -r file_with_conflict; do
-            if [[ "${cleanup_conflicting_repositories_message_1}" != 'true' ]]; then echo "Conflicting Trusted values for ${source_url}" &>> "${eus_dir}/logs/trusted-repository-conflict.log"; cleanup_conflicting_repositories_message_1="true"; fi
-            if awk -v source="${source_url}" -v package="${package_name}" -v ver="${version}" '
-              $0 ~ source && $0 ~ package && $0 ~ ver {
-                if ($0 !~ /^#/) {
-                  print "#" $0;
-                } else {
-                  print $0;
-                }
-                next
-              } 
-              1' "${file_with_conflict}" &> tmpfile; then mv tmpfile "${file_with_conflict}" &> /dev/null; cleanup_conflicting_repositories_changes_made="true"; fi
+            if [[ "${cleanup_conflicting_repositories_message_1}" != 'true' ]]; then
+              echo "Conflicting Trusted values for ${source_url}" &>> "${eus_dir}/logs/trusted-repository-conflict.log"
+              cleanup_conflicting_repositories_message_1="true"
+            fi
+            if [[ "${file_with_conflict}" == *".sources" ]]; then
+              # Handle deb822 format
+              entry_block_start_line="$(awk '!/^#/ && /Types:/ { types_line=NR } /'"${source_url}"'/ && !/^#/ && !seen[types_line]++ { print types_line }' "${file_with_conflict}" | head -n1)"
+              entry_block_end_line="$(awk -v start_line="$entry_block_start_line" 'NR > start_line && NF == 0 { print NR-1; exit } END { if (NR > start_line && NF > 0) print NR }' "${file_with_conflict}")"
+              sed -i "${entry_block_start_line},${entry_block_end_line}s/^\([^#]\)/# \1/" "${file_with_conflict}" &>/dev/null
+            elif [[ "${file_with_conflict}" == *".list" ]]; then
+              # Handle regular format
+              if awk -v source="${source_url}" -v package="${package_name}" -v ver="${version}" '
+                $0 ~ source && $0 ~ package && $0 ~ ver {
+                  if ($0 !~ /^#/) {
+                    print "#" $0;
+                  } else {
+                    print $0;
+                  }
+                  next
+                } 
+                1' "${file_with_conflict}" &> tmpfile; then mv tmpfile "${file_with_conflict}" &> /dev/null; cleanup_conflicting_repositories_changes_made="true"; fi
+            fi
             echo "awk command executed for ${file_with_conflict}" &>> "${eus_dir}/logs/trusted-repository-conflict.log"
-          done < <(grep -l "^deb.*${source_url}.*${package_name}.*${version}" /etc/apt/sources.list /etc/apt/sources.list.d/*)
+          done < <(grep -l "^deb.*${source_url}.*${package_name}.*${version}" /etc/apt/sources.list /etc/apt/sources.list.d/* /etc/apt/sources.list.d/*.sources)
           break
         elif [[ ${line} == *"Conflicting values set for option Signed-By regarding source"* ]]; then
-          if [[ "${cleanup_conflicting_repositories_found_message_2}" != 'true' ]]; then echo -e "${WHITE_R}#${RESET} There appear to be repositories with conflicting details..."; cleanup_conflicting_repositories_found_message_2="true"; fi
+          if [[ "${cleanup_conflicting_repositories_found_message_2}" != 'true' ]]; then
+            echo -e "${WHITE_R}#${RESET} There appear to be repositories with conflicting details..."
+            cleanup_conflicting_repositories_found_message_2="true"
+          fi
           # Extract the conflicting source URL and keys
           conflicting_source="$(echo "${line}" | grep -oP 'https?://[^ ]+' | sed 's/\/$//')"  # Remove trailing slash
           key1="$(echo "${line}" | grep -oP '/\S+\.gpg' | head -n 1 | sed 's/ //g')"
           key2="$(echo "${line}" | grep -oP '!= \S+\.gpg' | sed 's/!= //g' | sed 's/ //g')"
           # Loop through each file and awk to comment out the conflicting source
           while read -r file_with_conflict; do
-            if [[ "${cleanup_conflicting_repositories_message_2}" != 'true' ]]; then echo "Conflicting Signed-By values for ${conflicting_source}" &>> "${eus_dir}/logs/signed-by-repository-conflict.log"; echo "Conflicting keys: ${key1} != ${key2}" &>> "${eus_dir}/logs/signed-by-repository-conflict.log"; cleanup_conflicting_repositories_message_2="true"; fi
-            if awk -v source="${conflicting_source}" -v key1="${key1}" -v key2="${key2}" '
-              !/^#/ && $0 ~ source && ($0 ~ key1 || $0 ~ key2) {
-                print "#" $0;
-                next
-              } 
-              1' "${file_with_conflict}" &> tmpfile; then mv tmpfile "${file_with_conflict}" &> /dev/null; cleanup_conflicting_repositories_changes_made="true"; fi
+            if [[ "${cleanup_conflicting_repositories_message_2}" != 'true' ]]; then
+              echo "Conflicting Signed-By values for ${conflicting_source}" &>> "${eus_dir}/logs/signed-by-repository-conflict.log"
+              echo "Conflicting keys: ${key1} != ${key2}" &>> "${eus_dir}/logs/signed-by-repository-conflict.log"
+              cleanup_conflicting_repositories_message_2="true"
+            fi
+            if [[ "${file_with_conflict}" == *".sources" ]]; then
+              # Handle deb822 format
+              entry_block_start_line="$(awk '!/^#/ && /Types:/ { types_line=NR } /'"${source_url}"'/ && !/^#/ && !seen[types_line]++ { print types_line }' "${file_with_conflict}" | head -n1)"
+              entry_block_end_line="$(awk -v start_line="$entry_block_start_line" 'NR > start_line && NF == 0 { print NR-1; exit } END { if (NR > start_line && NF > 0) print NR }' "${file_with_conflict}")"
+              sed -i "${entry_block_start_line},${entry_block_end_line}s/^\([^#]\)/# \1/" "${file_with_conflict}" &>/dev/null
+            elif [[ "${file_with_conflict}" == *".list" ]]; then
+              # Handle regular format
+              if awk -v source="${conflicting_source}" -v key1="${key1}" -v key2="${key2}" '
+                !/^#/ && $0 ~ source && ($0 ~ key1 || $0 ~ key2) {
+                  print "#" $0;
+                  next
+                } 
+                1' "${file_with_conflict}" &> tmpfile; then mv tmpfile "${file_with_conflict}" &> /dev/null; cleanup_conflicting_repositories_changes_made="true"; fi
+            fi
             echo "awk command executed for ${file_with_conflict}" &>> "${eus_dir}/logs/signed-by-repository-conflict.log"
-          done < <(grep -l "^deb.*${conflicting_source}" /etc/apt/sources.list /etc/apt/sources.list.d/*)
+          done < <(grep -l "^deb.*${conflicting_source}" /etc/apt/sources.list /etc/apt/sources.list.d/* /etc/apt/sources.list.d/*.sources)
           break
         fi
       done < "${logfile}"
     done < <(grep -il "Conflicting values set for option Trusted regarding source\|Conflicting values set for option Signed-By regarding source" "/tmp/EUS/apt/"*.log 2>> /dev/null)
-    if [[ "${cleanup_conflicting_repositories_changes_made}" = 'true' ]]; then echo -e "${GREEN}#${RESET} Repositories causing errors have been commented out! \\n"; repository_changes_applied="true"; fi
+    if [[ "${cleanup_conflicting_repositories_changes_made}" = 'true' ]]; then
+      echo -e "${GREEN}#${RESET} Repositories causing errors have been commented out! \\n"
+      repository_changes_applied="true"
+    fi
     unset cleanup_conflicting_repositories_found_message_1
     unset cleanup_conflicting_repositories_found_message_2
     unset cleanup_conflicting_repositories_changes_made
@@ -1115,7 +1236,7 @@ run_apt_get_update() {
           echo -e "${WHITE_R}#${RESET} Trying different method to get key: ${key}"
           gpg -vvv --debug-all --keyserver keyserver.ubuntu.com --recv-keys "${key}" &> /tmp/EUS/apt/failed_key
           debug_key="$(grep "KS_GET" /tmp/EUS/apt/failed_key | grep -io "0x.*")"
-          if curl "${curl_argument[@]}" "https://keyserver.ubuntu.com/pks/lookup?op=get&search=${debug_key}" | gpg --dearmor --yes > "/tmp/EUS/apt/EUS-${key}.gpg"; then
+          if curl "${curl_argument[@]}" "https://keyserver.ubuntu.com/pks/lookup?op=get&search=${debug_key}" | gpg -o "/tmp/EUS/apt/EUS-${key}.gpg" --dearmor --yes &> /dev/null; then
             mv "/tmp/EUS/apt/EUS-${key}.gpg" /etc/apt/trusted.gpg.d/ && echo -e "${GREEN}#${RESET} Successfully added key ${key}!\\n" && echo "${key}" &>> /tmp/EUS/apt/missing_keys_done
           else
             echo -e "${RED}#${RESET} Failed to add key ${key}... \\n"
@@ -1138,7 +1259,6 @@ run_apt_get_update() {
   cleanup_unavailable_repositories
   cleanup_conflicting_repositories
   if [[ "${repository_changes_applied}" == 'true' ]]; then unset repository_changes_applied; run_apt_get_update; fi
-  rm --force "/tmp/EUS/apt/"*.log &> /dev/null
 }
 
 check_add_mongodb_repo_variable() {
@@ -1192,7 +1312,7 @@ add_glennr_mongod_repo() {
           glennr_gpg_exit_status="${PIPESTATUS[2]}"
           if [[ "${glennr_curl_exit_status}" -eq "0" && "${glennr_gpg_exit_status}" -eq "0" && -s "/etc/apt/keyrings/apt-glennr.gpg" ]]; then
             echo -e "${GREEN}#${RESET} Successfully added the key for the Glenn R. APT Repository! \\n"
-            signed_by_value=" signed-by=/etc/apt/keyrings/apt-glennr.gpg"
+            signed_by_value=" signed-by=/etc/apt/keyrings/apt-glennr.gpg"; deb822_signed_by_value="\nSigned-By: /etc/apt/keyrings/apt-glennr.gpg"
           else
             abort_reason="Failed to add the key for the Glenn R. APT Repository."
             abort
@@ -1211,11 +1331,18 @@ add_glennr_mongod_repo() {
         fi
       fi
     else
-      if [[ "${apt_key_deprecated}" == 'true' ]]; then signed_by_value=" signed-by=/etc/apt/keyrings/apt-glennr.gpg"; fi
+      if [[ "${apt_key_deprecated}" == 'true' ]]; then signed_by_value=" signed-by=/etc/apt/keyrings/apt-glennr.gpg"; deb822_signed_by_value="\nSigned-By: /etc/apt/keyrings/apt-glennr.gpg"; fi
     fi
     echo -e "${WHITE_R}#${RESET} Adding the Glenn R. APT reposity for mongod ${mongod_version_major_minor}..."
     if [[ "${architecture}" == 'arm64' ]]; then arch="arch=arm64"; elif [[ "${architecture}" == 'amd64' ]]; then arch="arch=amd64"; else arch="arch=amd64,arm64"; fi
-    if echo "deb [ ${arch}${signed_by_value} ] ${repo_http_https}://apt.glennr.nl/${mongod_codename} ${mongod_repo_type}" &> "/etc/apt/sources.list.d/glennr-mongod-${mongod_version_major_minor}.list"; then
+    if [[ "${use_deb822_format}" == 'true' ]]; then
+      # DEB822 format
+      mongod_repo_entry="Types: deb\nURIs: ${repo_http_https}://apt.glennr.nl/${mongod_codename}\nSuites: ${mongod_repo_type}${deb822_signed_by_value}\nArchitectures: ${arch//arch=/}"
+    else
+      # Traditional format
+      mongod_repo_entry="deb [ ${arch}${signed_by_value} ] ${repo_http_https}://apt.glennr.nl/${mongod_codename} ${mongod_repo_type}"
+    fi
+    if echo -e "${mongod_repo_entry}" &> "/etc/apt/sources.list.d/glennr-mongod-${mongod_version_major_minor}.${source_file_format}"; then
       echo -e "${GREEN}#${RESET} Successfully added the Glenn R. APT reposity for mongod ${mongod_version_major_minor}!\\n" && sleep 2
       if [[ "${mongodb_key_update}" != 'true' ]]; then
         run_apt_get_update
@@ -1234,22 +1361,24 @@ add_glennr_mongod_repo() {
   fi
   unset mongod_armv8_v
   unset signed_by_value
+  unset deb822_signed_by_value
 }
 
 add_extra_repo_mongodb() {
-  unset repo_arguments
+  unset repo_component
   unset repo_url
   if [[ "${os_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then
     if [[ "${architecture}" =~ (amd64|i386) ]]; then
       if [[ "${add_extra_repo_mongodb_security}" == 'true' ]]; then
         repo_url="http://security.ubuntu.com/ubuntu"
-        repo_arguments="-security main"
+        repo_codename_argument="-security"
+        repo_component="main"
       fi
     else
       repo_url="http://ports.ubuntu.com"
     fi
   fi
-  if [[ -z "${repo_arguments}" ]]; then repo_arguments=" main"; fi
+  if [[ -z "${repo_component}" ]]; then repo_component="main"; fi
   if [[ -z "${repo_url}" ]]; then get_repo_url; fi
   repo_codename="${add_extra_repo_mongodb_codename}"
   get_repo_url
@@ -1574,7 +1703,7 @@ add_mongodb_repo() {
       fi
     fi
   fi
-  if [[ "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/mongodb-release?version=${mongodb_version_major_minor}" | jq -r '.expired')" == 'true' ]]; then trusted_mongodb_repo=" trusted=yes"; fi
+  if [[ "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/mongodb-release?version=${mongodb_version_major_minor}" | jq -r '.expired')" == 'true' ]]; then trusted_mongodb_repo=" trusted=yes"; deb822_trusted_mongodb_repo="\nTrusted: yes"; fi
   mongodb_key_check_time="$(date +%s)"
   jq --arg mongodb_key_check_time "${mongodb_key_check_time}" '."database" += {"mongodb-key-last-check": "'"${mongodb_key_check_time}"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
   eus_database_move
@@ -1591,21 +1720,21 @@ add_mongodb_repo() {
           mongodb_gpg_exit_status="${PIPESTATUS[2]}"
           if [[ "${mongodb_curl_exit_status}" -eq "0" && "${mongodb_gpg_exit_status}" -eq "0" && -s "/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg" ]]; then
             echo -e "${GREEN}#${RESET} Successfully added the key for MongoDB ${mongodb_version_major_minor}! \\n"
-            signed_by_value=" signed-by=/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg"
+            signed_by_value=" signed-by=/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg"; deb822_signed_by_value="\nSigned-By: /etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg"
           else
             if curl "${curl_argument[@]}" -fSL "${repo_http_https}://www.mongodb.org/static/pgp/server-${mongodb_version_major_minor}.asc" 2>&1 | tee -a "${eus_dir}/logs/repository-keys.log" | gpg -o "/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg" --dearmor --yes &> /dev/null; then
               mongodb_curl_exit_status="${PIPESTATUS[0]}"
               mongodb_gpg_exit_status="${PIPESTATUS[2]}"
               if [[ "${mongodb_curl_exit_status}" -eq "0" && "${mongodb_gpg_exit_status}" -eq "0" && -s "/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg" ]]; then
                 echo -e "${GREEN}#${RESET} Successfully added the key for MongoDB ${mongodb_version_major_minor}! \\n"
-                signed_by_value=" signed-by=/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg"
+                signed_by_value=" signed-by=/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg"; deb822_signed_by_value="\nSigned-By: /etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg"
               else
                 if curl "${curl_argument[@]}" --insecure -fSL "${repo_http_https}://pgp.mongodb.com/server-${mongodb_version_major_minor}.asc" 2>&1 | tee -a "${eus_dir}/logs/repository-keys.log" | gpg -o "/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg" --dearmor --yes &> /dev/null; then
                   mongodb_curl_exit_status="${PIPESTATUS[0]}"
                   mongodb_gpg_exit_status="${PIPESTATUS[2]}"
                   if [[ "${mongodb_curl_exit_status}" -eq "0" && "${mongodb_gpg_exit_status}" -eq "0" && -s "/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg" ]]; then
                     echo -e "${GREEN}#${RESET} Successfully added the key for MongoDB ${mongodb_version_major_minor}! \\n"
-                    signed_by_value=" signed-by=/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg"
+                    signed_by_value=" signed-by=/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg"; deb822_signed_by_value="\nSigned-By: /etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg"
                   else
                     abort_reason="Failed to add the key for MongoDB ${mongodb_version_major_minor}."
                     abort
@@ -1644,11 +1773,18 @@ add_mongodb_repo() {
         fi
       fi
     else
-      if [[ "${apt_key_deprecated}" == 'true' ]]; then signed_by_value=" signed-by=/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg"; fi
+      if [[ "${apt_key_deprecated}" == 'true' ]]; then signed_by_value=" signed-by=/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg"; deb822_signed_by_value="\nSigned-By: /etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg"; fi
     fi
     echo -e "${WHITE_R}#${RESET} Adding ${try_different_mongodb_repo_test} MongoDB ${mongodb_version_major_minor} repository..."
     if [[ "${architecture}" == 'arm64' ]]; then arch="arch=arm64"; elif [[ "${architecture}" == 'amd64' ]]; then arch="arch=amd64"; else arch="arch=amd64,arm64"; fi
-    if echo "deb [ ${arch}${signed_by_value}${trusted_mongodb_repo} ] ${repo_http_https}://repo.mongodb.org/apt/${mongodb_codename}/mongodb-org/${mongodb_version_major_minor} ${mongodb_repo_type}" &> "/etc/apt/sources.list.d/mongodb-org-${mongodb_version_major_minor}.list"; then
+    if [[ "${use_deb822_format}" == 'true' ]]; then
+      # DEB822 format
+      mongodb_repo_entry="Types: deb\nURIs: ${repo_http_https}://repo.mongodb.org/apt/$(echo "${mongodb_codename}" | awk -F" " '{print $1}')\nSuites: $(echo "${mongodb_codename}" | awk -F" " '{print $2}')/mongodb-org/${mongodb_version_major_minor}\nComponents: ${mongodb_repo_type}${deb822_signed_by_value}\nArchitectures: ${arch//arch=/}${deb822_trusted_mongodb_repo}"
+    else
+      # Traditional format
+      mongodb_repo_entry="deb [ ${arch}${signed_by_value}${trusted_mongodb_repo} ] ${repo_http_https}://repo.mongodb.org/apt/${mongodb_codename}/mongodb-org/${mongodb_version_major_minor} ${mongodb_repo_type}"
+    fi
+    if echo -e "${mongodb_repo_entry}" &> "/etc/apt/sources.list.d/mongodb-org-${mongodb_version_major_minor}.${source_file_format}"; then
       echo -e "${GREEN}#${RESET} Successfully added the ${try_different_mongodb_repo_test_2}MongoDB ${mongodb_version_major_minor} repository!\\n" && sleep 2
       if [[ "${mongodb_key_update}" != 'true' ]]; then
         run_apt_get_update
@@ -1675,6 +1811,9 @@ add_mongodb_repo() {
   fi
   unset skip_mongodb_org_v
   unset signed_by_value
+  unset deb822_signed_by_value
+  unset deb822_trusted_mongodb_repo
+  unset trusted_mongodb_repo
 }
 
 # Check if system runs Unifi OS
@@ -1883,14 +2022,21 @@ get_repo_url
 
 cleanup_archived_repos() {
   if [[ "${archived_repo}" == "true" ]]; then
-    repo_file_patterns=( "deb.debian.org\\/debian ${os_codename}" "deb.debian.org\\/debian\\/ ${os_codename}" "ftp.*.debian.org\\/debian ${os_codename}" "ftp.*.debian.org\\/debian ${os_codename}" "ftp.*.debian.org\\/debian\\/ ${os_codename}" "security.debian.org ${os_codename}" "security.debian.org\\/ ${os_codename}" "security.debian.org\\/debian-security ${os_codename}" "security.debian.org\\/debian-security\\/ ${os_codename}" "ftp.debian.org\\/debian ${os_codename}" "ftp.debian.org\\/debian\\/ ${os_codename}" "http.debian.net\\/debian ${os_codename}" "http.debian.net\\/debian\\/ ${os_codename}" "*.archive.ubuntu.com\\/ubuntu ${os_codename}" "*.archive.ubuntu.com\\/ubuntu\\/ ${os_codename}" "archive.ubuntu.com\\/ubuntu ${os_codename}" "archive.ubuntu.com\\/ubuntu\\/ ${os_codename}" "security.ubuntu.com\\/ubuntu ${os_codename}" "security.ubuntu.com\\/ubuntu\\/ ${os_codename}" "archive.raspbian.org\\/raspbian ${os_codename}" "archive.raspbian.org\\/raspbian\\/ ${os_codename}" "archive.raspberrypi.org\\/raspbian ${os_codename}" "archive.raspberrypi.org\\/raspbian\\/ ${os_codename}" "httpredir.debian.org\\/debian ${os_codename}" "httpredir.debian.org\\/debian\\/ ${os_codename}" )
-    #repo_file_patterns=( "debian.org\\/debian ${os_codename}" "debian.org\\/debian\\/ ${os_codename}" "debian.net\\/debian ${os_codename}" "debian.net\\/debian\\/ ${os_codename}" "ubuntu.com\\/ubuntu ${os_codename}" "ubuntu.com\\/ubuntu\\/ ${os_codename}" )
-    while read -r repo_file; do
-      for pattern in "${repo_file_patterns[@]}"; do
-        sed -e "/${pattern}/ s/^#*/#/g" -i "${repo_file}"
+    repo_patterns=( "deb.debian.org\\/debian ${os_codename}" "deb.debian.org\\/debian\\/ ${os_codename}" "ftp.*.debian.org\\/debian ${os_codename}" "ftp.*.debian.org\\/debian ${os_codename}" "ftp.*.debian.org\\/debian\\/ ${os_codename}" "security.debian.org ${os_codename}" "security.debian.org\\/ ${os_codename}" "security.debian.org\\/debian-security ${os_codename}" "security.debian.org\\/debian-security\\/ ${os_codename}" "ftp.debian.org\\/debian ${os_codename}" "ftp.debian.org\\/debian\\/ ${os_codename}" "http.debian.net\\/debian ${os_codename}" "http.debian.net\\/debian\\/ ${os_codename}" "*.archive.ubuntu.com\\/ubuntu ${os_codename}" "*.archive.ubuntu.com\\/ubuntu\\/ ${os_codename}" "archive.ubuntu.com\\/ubuntu ${os_codename}" "archive.ubuntu.com\\/ubuntu\\/ ${os_codename}" "security.ubuntu.com\\/ubuntu ${os_codename}" "security.ubuntu.com\\/ubuntu\\/ ${os_codename}" "archive.raspbian.org\\/raspbian ${os_codename}" "archive.raspbian.org\\/raspbian\\/ ${os_codename}" "archive.raspberrypi.org\\/raspbian ${os_codename}" "archive.raspberrypi.org\\/raspbian\\/ ${os_codename}" "httpredir.debian.org\\/debian ${os_codename}" "httpredir.debian.org\\/debian\\/ ${os_codename}" )
+    # Handle .list files
+    while read -r list_file; do
+      for pattern in "${repo_patterns[@]}"; do
+        sed -Ei "s|^#*(${pattern})|#\1|g" "${list_file}"
       done
-    #done < <(find /etc/apt/ -type f -name "*.list" -exec grep -ilE 'deb.debian.org/debian|security.debian.org|ftp.[a-Z]{1,2}.debian.org/debian|ftp.debian.org/debian|[a-Z]{1,2}.archive.ubuntu.com/ubuntu|archive.ubuntu.com/ubuntu|security.ubuntu.com/ubuntu' {} +)
-    done < <(find /etc/apt/ -type f -name "*.list" -exec grep -ilE 'debian.org|debian.net|ubuntu.com|raspbian.org|raspberrypi.org' {} +)
+    done < <(find /etc/apt/ -type f -name "*.list")
+    while read -r sources_file; do
+      for pattern in "${repo_patterns[@]}"; do
+        entry_block_start_line="$(awk '!/^#/ && /Types:/ { types_line=NR } /'"${pattern}"'/ && !/^#/ && !seen[types_line]++ { print types_line }' "${sources_file}" | head -n1)"
+        entry_block_end_line="$(awk -v start_line="$entry_block_start_line" 'NR > start_line && NF == 0 { print NR-1; exit } END { if (NR > start_line && NF > 0) print NR }' "${sources_file}")"
+        sed -i "${entry_block_start_line},${entry_block_end_line}s/^\([^#]\)/# \1/" "${sources_file}" &>/dev/null
+        #sed -Ei "/Types: deb$/!b;:a;N;/\n(.*\n)?$(echo "${pattern}" | sed 's/\//\\\//g')/!ba;s/^#*/#/gm" "${sources_file}"
+      done
+    done < <(find /etc/apt/sources.list.d/ -type f -name "*.sources")
   fi
 }
 cleanup_archived_repos
@@ -1898,21 +2044,20 @@ cleanup_archived_repos
 unset_add_repositories_variables(){
   unset repo_key_name
   unset repo_url_arguments
-  unset repo_arguments
+  unset repo_component
   unset signed_by_value_repo_key
   unset add_repositories_source_list_override
-  #unset deb822_repository_url_detected
   if [[ "${os_id}" == "raspbian" ]]; then get_distro; fi
 }
 
 add_repositories() {
   # Check if repository is already added
-  if grep -sq "^deb .*http\?s\?://$(echo "${repo_url}" | sed -e 's/https\:\/\///g' -e 's/http\:\/\///g')${repo_url_arguments}\?/\? ${repo_codename}${repo_arguments}" /etc/apt/sources.list /etc/apt/sources.list.d/*; then
-    echo -e "$(date +%F-%R) | \"${repo_url}${repo_url_arguments} ${repo_codename}${repo_arguments}\" was found, not adding to repository lists. $(grep -srIl "^deb .*http\?s\?://$(echo "${repo_url}" | sed -e 's/https\:\/\///g' -e 's/http\:\/\///g')${repo_url_arguments}\?/\? ${repo_codename}${repo_arguments}" /etc/apt/sources.list /etc/apt/sources.list.d/*)..." &>> "${eus_dir}/logs/already-found-repository.log"
+  if grep -sq "^deb .*http\?s\?://$(echo "${repo_url}" | sed -e 's/https\:\/\///g' -e 's/http\:\/\///g')${repo_url_arguments}\?/\? ${repo_codename}${repo_codename_argument} ${repo_component}" /etc/apt/sources.list /etc/apt/sources.list.d/*; then
+    echo -e "$(date +%F-%R) | \"${repo_url}${repo_url_arguments} ${repo_codename}${repo_codename_argument} ${repo_component}\" was found, not adding to repository lists. $(grep -srIl "^deb .*http\?s\?://$(echo "${repo_url}" | sed -e 's/https\:\/\///g' -e 's/http\:\/\///g')${repo_url_arguments}\?/\? ${repo_codename}${repo_component}" /etc/apt/sources.list /etc/apt/sources.list.d/*)..." &>> "${eus_dir}/logs/already-found-repository.log"
     unset_add_repositories_variables
     return  # Repository already added, exit function
   elif find /etc/apt/sources.list.d/ -name "*.sources" | grep -ioq /etc/apt; then
-    repo_arguments_trimmed="${repo_arguments#"${repo_arguments%%[![:space:]]*}"}" # remove leading space
+    repo_component_trimmed="${repo_component#"${repo_component%%[![:space:]]*}"}" # remove leading space
     while IFS= read -r repository_file; do
       last_line_repository_file="$(tail -n1 "${repository_file}")"
       while IFS= read -r line || [[ -n "${line}" ]]; do
@@ -1924,7 +2069,7 @@ add_repositories() {
             section_components="$(grep -oPm1 'Components: \K.*' <<< "$section")"
             section_enabled="$(grep -oPm1 'Enabled: \K.*' <<< "$section")"
             if [[ -z "${section_enabled}" ]]; then section_enabled="yes"; fi
-            if [[ -n "${section_url}" && "${section_enabled}" == 'yes' && "${section_types}" == *"deb"* && "${section_suites}" == *"${repo_codename}"* && "${section_components}" == *"${repo_arguments_trimmed}"* ]]; then
+            if [[ -n "${section_url}" && "${section_enabled}" == 'yes' && "${section_types}" == *"deb"* && "${section_suites}" == *"${repo_codename}${repo_codename_argument}"* && "${section_components}" == *"${repo_component_trimmed}"* ]]; then
               echo -e "$(date +%F-%R) | URIs: $section_url Types: $section_types Suites: $section_suites Components: $section_components was found, not adding to repository lists..." &>> "${eus_dir}/logs/already-found-repository.log"
               unset_add_repositories_variables
               unset section
@@ -1934,8 +2079,6 @@ add_repositories() {
               unset section_url
               unset section_enabled
               return
-            #elif [[ -n "${section_url}" && "${section_enabled}" == 'yes' ]]; then
-            #  deb822_repository_url_detected="true"
             fi
             unset section
             unset section_types
@@ -1952,19 +2095,21 @@ add_repositories() {
   fi
   # Override the source list
   if [[ -n "${add_repositories_source_list_override}" ]]; then
-    add_repositories_source_list="/etc/apt/sources.list.d/${add_repositories_source_list_override}"
+    add_repositories_source_list="/etc/apt/sources.list.d/${add_repositories_source_list_override}.${source_file_format}"
   else
-    add_repositories_source_list="/etc/apt/sources.list.d/glennr-install-script.list"
+    add_repositories_source_list="/etc/apt/sources.list.d/glennr-install-script.${source_file_format}"
   fi
+
   # Add repository key if required
   if [[ "${apt_key_deprecated}" == 'true' && -n "${repo_key}" && -n "${repo_key_name}" ]]; then
     if gpg --no-default-keyring --keyring "/etc/apt/keyrings/${repo_key_name}.gpg" --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys "${repo_key}" &> /dev/null; then
-      signed_by_value_repo_key=" signed-by=/etc/apt/keyrings/${repo_key_name}.gpg"
+      signed_by_value_repo_key="signed-by=/etc/apt/keyrings/${repo_key_name}.gpg"
     else
       abort_reason="Failed to add repository key ${repo_key}."
       abort
     fi
   fi
+
   # Handle Debian versions
   if [[ "${os_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) && "$(command -v jq)" ]]; then
     os_version_number="$(lsb_release -rs | tr '[:upper:]' '[:lower:]' | cut -d'.' -f1)"
@@ -1975,18 +2120,46 @@ add_repositories() {
       check_debian_version="${os_version_number}-security"
     fi
     if [[ "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/debian-release?version=${check_debian_version}" | jq -r '.expired')" == 'true' ]]; then 
-      signed_by_value_repo_key+=" trusted=yes"
+      if [[ "${use_deb822_format}" == 'true' ]]; then
+        deb822_trusted="\nTrusted: yes"
+      else
+        signed_by_value_repo_key+=" trusted=yes"
+      fi
     fi
   fi
+
+  # Prepare repository entry
+  if [[ -n "${signed_by_value_repo_key}" && -n "${repo_arch_value}" ]]; then
+    local brackets="[${signed_by_value_repo_key}${repo_arch_value}] "
+  else
+    local brackets=""
+  fi
+
+  # Attempt to find the repository signing key for Debian/Ubuntu.
+  if [[ -z "${signed_by_value_repo_key}" && "${use_deb822_format}" == 'true' ]] && echo "${repo_url}" | grep -ioq "archive.ubuntu\\|security.ubuntu\\|deb.debian"; then
+    signed_by_value_repo_key="signed-by=$(find /usr/share/keyrings/ /etc/apt/keyrings/ -name "$(echo "${repo_url}" | sed -e 's/https\:\/\///g' -e 's/http\:\/\///g' -e 's/\/.*//g' -e 's/\.com//g' -e 's/\./-/g' -e 's/\./-/g' -e 's/security-ubuntu/archive-ubuntu/g' | awk -F'-' '{print $2 "-" $1}')*" | sed '/removed/d' | head -n1)"
+  fi
+
+  # Determine format
+  if [[ "${use_deb822_format}" == 'true' ]]; then
+    repo_component_trimmed="${repo_component#"${repo_component%%[![:space:]]*}"}" # remove leading space
+    repo_entry="Types: deb\nURIs: ${repo_url}\nSuites: ${repo_codename}${repo_codename_argument}\nComponents: ${repo_component_trimmed}"
+    if [[ -n "${signed_by_value_repo_key}" ]]; then repo_entry+="\nSigned-By: ${signed_by_value_repo_key/signed-by=/}"; fi
+    if [[ -n "${repo_arch_value}" ]]; then repo_entry+="\nArchitectures: ${repo_arch_value//arch=/}"; fi
+    if [[ -n "${deb822_trusted}" ]]; then repo_entry+="${deb822_trusted}"; fi
+    repo_entry+="\n"
+  else
+    repo_entry="deb ${brackets}${repo_url}${repo_url_arguments} ${repo_codename}${repo_codename_argument} ${repo_component}"
+  fi
+
   # Add repository to sources list
-  if [[ -n "${signed_by_value_repo_key}" && -n "${repo_arch_value}" ]]; then local brackets="[${signed_by_value_repo_key}${repo_arch_value}] "; else local brackets=""; fi
-  local repo_entry="deb ${brackets}${repo_url}${repo_url_arguments} ${repo_codename}${repo_arguments}"
   if echo -e "${repo_entry}" >> "${add_repositories_source_list}"; then
-    echo -e "$(date +%F-%R) | Successfully added \"deb ${brackets}${repo_url}${repo_url_arguments} ${repo_codename}${repo_arguments}\" to ${add_repositories_source_list}!" &>> "${eus_dir}/logs/added-repository.log"
+    echo -e "$(date +%F-%R) | Successfully added \"${repo_entry}\" to ${add_repositories_source_list}!" &>> "${eus_dir}/logs/added-repository.log"
   else
     abort_reason="Failed to add repository."
     abort
-  fi 
+  fi
+
   # Handle HTTP repositories
   if [[ "${add_repositories_http_or_https}" == 'http' ]]; then
     eus_create_directories "repositories"
@@ -1997,14 +2170,17 @@ add_repositories() {
       fi
       sed -i '/https/{s/^/#/}' "${https_repo_needs_http_file}" &>> "${eus_dir}/logs/https-repo-needs-http.log"
       sed -i 's/##/#/g' "${https_repo_needs_http_file}" &>> "${eus_dir}/logs/https-repo-needs-http.log"
-    done < <(grep -ril "^deb https*://$(echo "${repo_url}" | sed -e 's/https\:\/\///g' -e 's/http\:\/\///g') ${repo_codename}${repo_arguments}" /etc/apt/sources.list /etc/apt/sources.list.d/*)
+    done < <(grep -ril "^deb https*://$(echo "${repo_url}" | sed -e 's/https\:\/\///g' -e 's/http\:\/\///g') ${repo_codename}${repo_codename_argument} ${repo_component}" /etc/apt/sources.list /etc/apt/sources.list.d/*)
   fi 
+
   # Clean up unset variables
   unset repo_key_name
   unset repo_url_arguments
-  unset repo_arguments
+  unset repo_component
   unset signed_by_value_repo_key
+  unset repo_arch_value
   unset add_repositories_source_list_override
+
   # Check if OS codename changed and reset variables
   if [[ "${os_codename_changed}" == 'true' ]]; then 
     unset os_codename_changed
@@ -2129,13 +2305,13 @@ broken_packages_check() {
 # Add default repositories
 check_default_repositories() {
   if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then
-    if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish) ]]; then repo_arguments=" main universe"; add_repositories; fi
-    if [[ "${repo_codename}" =~ (jammy|kinetic|lunar|mantic|noble) ]]; then repo_arguments=" main"; add_repositories; fi
-    repo_arguments="-security main universe"
+    if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish) ]]; then repo_component="main universe"; add_repositories; fi
+    if [[ "${repo_codename}" =~ (jammy|kinetic|lunar|mantic|noble) ]]; then repo_component="main"; add_repositories; fi
+    repo_codename_argument="-security"; repo_component="main universe"
   elif [[ "${repo_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
-    if [[ "${repo_codename}" =~ (jessie|stretch|buster) ]]; then repo_url_arguments="-security/"; repo_arguments="/updates main"; add_repositories; fi
-    if [[ "${repo_codename}" =~ (bullseye|bookworm|trixie|forky) ]]; then repo_url_arguments="-security/"; repo_arguments="-security main"; add_repositories; fi
-    repo_arguments=" main"
+    if [[ "${repo_codename}" =~ (jessie|stretch|buster) ]]; then repo_url_arguments="-security/"; repo_codename_argument="/updates"; repo_component="main"; add_repositories; fi
+    if [[ "${repo_codename}" =~ (bullseye|bookworm|trixie|forky) ]]; then repo_url_arguments="-security/"; repo_codename_argument="-security"; repo_component="main"; add_repositories; fi
+    repo_component="main"
   fi
   add_repositories
 }
@@ -2159,30 +2335,32 @@ check_unmet_dependencies() {
               list_of_distro_versions="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/list-versions?distribution=${os_id}" | sed -e 's/\[//g' -e 's/\]//g' -e 's/ //g' -e 's/,//g' | grep .)"
             fi
             while read -r version; do
-              add_repositories_source_list_override="glennr-install-script-unmet.list"
+              add_repositories_source_list_override="glennr-install-script-unmet"
               repo_codename="${version}"
-              repo_arguments=" main"
+              repo_component="main"
               get_repo_url
               add_repositories
               if [[ "${os_id}" == "ubuntu" && "${distro_api}" == "true" ]]; then
                 get_repo_url_security_url="true"
                 get_repo_url
-                repo_arguments="-security main"
+                repo_codename_argument="-security"
+                repo_component="main"
                 add_repositories
               elif [[ "${os_id}" == "debian" && "${distro_api}" == "true" ]]; then
                 repo_url_arguments="-security/"
-                repo_arguments="-security main"
+                repo_codename_argument="-security"
+                repo_component="main"
                 add_repositories
               fi
               run_apt_get_update
               if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${dependency_to_install}" &>> "${eus_dir}/logs/unmet-dependency.log"; then
                 echo -e "\\nSuccessfully installed ${dependency} after adding the repositories for ${version} \\n" &>> "${eus_dir}/logs/unmet-dependency.log"
                 sed -i "s/Depends: ${dependency_no_version}/Depends (completed): ${dependency_no_version}/g" "${log_file}" 2>> "${eus_dir}/logs/unmet-dependency-sed.log"
-                rm --force "/etc/apt/sources.list.d/glennr-install-script-unmet.list" &> /dev/null
+                rm --force "/etc/apt/sources.list.d/glennr-install-script-unmet.${source_file_format}" &> /dev/null
                 break
               fi
             done <<< "${list_of_distro_versions}"
-            if [[ -e "/etc/apt/sources.list.d/glennr-install-script-unmet.list" ]]; then rm --force "/etc/apt/sources.list.d/glennr-install-script-unmet.list" &> /dev/null; fi
+            if [[ -e "/etc/apt/sources.list.d/glennr-install-script-unmet.${source_file_format}" ]]; then rm --force "/etc/apt/sources.list.d/glennr-install-script-unmet.${source_file_format}" &> /dev/null; fi
           fi
         fi
       done < <(grep "Depends:" "${log_file}" | sed 's/.*Depends: //' | sed 's/).*//' | sort | uniq)
@@ -2468,8 +2646,10 @@ system_properties_check() {
 
 system_properties_free_memory_check() {
   if [[ "$(awk '/MemAvailable/{printf "%d", $2 / 1024 / 1024}' /proc/meminfo)" -le "1" ]]; then
-    current_xms="$(awk -F= '/^unifi.xms/{print $2}' "/usr/lib/unifi/data/system.properties")"
-    current_xmx="$(awk -F= '/^unifi.xmx/{print $2}' "/usr/lib/unifi/data/system.properties")"
+    if [[ -e "/usr/lib/unifi/data/system.properties" ]]; then
+	  current_xms="$(awk -F= '/^unifi.xms/{print $2}' "/usr/lib/unifi/data/system.properties")"
+      current_xmx="$(awk -F= '/^unifi.xmx/{print $2}' "/usr/lib/unifi/data/system.properties")"
+    fi
     if [[ -z "$current_xms" ]]; then
       echo "unifi.xms=256" >> "/usr/lib/unifi/data/system.properties"
     elif [[ "$current_xms" -lt "256" ]]; then
@@ -2491,22 +2671,26 @@ unifi_folder_permission_check() {
   unifi_folder_permission_check_detected_files=()
   while read -r unifi_directory; do
     while read -r unifi_file_or_directory; do
-      if ! stat -c "%U:%G" "${unifi_file_or_directory}" | grep -q "${network_application_user}:${network_application_user}"; then
-        unifi_folder_permission_check_detected_files+=("${unifi_file_or_directory}")
+      if [[ -e "${unifi_file_or_directory}" ]]; then
+        if ! stat -c "%U:%G" "${unifi_file_or_directory}" 2> /dev/null | grep -q "${network_application_user}:${network_application_user}"; then
+          unifi_folder_permission_check_detected_files+=("${unifi_file_or_directory}")
+        fi
       fi
     done < <(find "${unifi_directory}" -type d,f)
   done < <(find /usr/lib/unifi/ -maxdepth 1 -type l -printf '%l\n')
   if [[ "${#unifi_folder_permission_check_detected_files[@]}" -gt 0 ]]; then
     for unifi_folder_permission_check_detected_file in "${unifi_folder_permission_check_detected_files[@]}"; do
-      original_user="$(find "${unifi_folder_permission_check_detected_file}" -maxdepth 0 -printf '%u\n')"
-      original_group="$(find "${unifi_folder_permission_check_detected_file}" -maxdepth 0 -printf '%g\n')"
-      if [[ "${original_user}" == "${network_application_user}" && "${original_group}" == "${network_application_user}" ]]; then
-        continue
-      else
-        if chown -R "${network_application_user}":"${network_application_user}" "${unifi_folder_permission_check_detected_file}" &>> "${eus_dir}/logs/unifi-folder-permission-update.log"; then
-          echo -e "$(date +%F-%R) | Successfully changed the user/group for ${unifi_folder_permission_check_detected_file} from ${original_user}:${original_group} to ${network_application_user}:${network_application_user}" &>> "${eus_dir}/logs/unifi-folder-permission-update.log"
+      if [[ -e "${unifi_folder_permission_check_detected_file}" ]]; then
+        original_user="$(find "${unifi_folder_permission_check_detected_file}" -maxdepth 0 -printf '%u\n')"
+        original_group="$(find "${unifi_folder_permission_check_detected_file}" -maxdepth 0 -printf '%g\n')"
+        if [[ "${original_user}" == "${network_application_user}" && "${original_group}" == "${network_application_user}" ]]; then
+          continue
         else
-          echo -e "$(date +%F-%R) | Failed to change the user/group for ${unifi_folder_permission_check_detected_file} from ${original_user}:${original_group} to ${network_application_user}:${network_application_user}" &>> "${eus_dir}/logs/unifi-folder-permission-update.log"
+          if chown -R "${network_application_user}":"${network_application_user}" "${unifi_folder_permission_check_detected_file}" &>> "${eus_dir}/logs/unifi-folder-permission-update.log"; then
+            echo -e "$(date +%F-%R) | Successfully changed the user/group for ${unifi_folder_permission_check_detected_file} from ${original_user}:${original_group} to ${network_application_user}:${network_application_user}" &>> "${eus_dir}/logs/unifi-folder-permission-update.log"
+          else
+            echo -e "$(date +%F-%R) | Failed to change the user/group for ${unifi_folder_permission_check_detected_file} from ${original_user}:${original_group} to ${network_application_user}:${network_application_user}" &>> "${eus_dir}/logs/unifi-folder-permission-update.log"
+          fi
         fi
       fi
     done
@@ -2654,12 +2838,13 @@ if ! "$(which dpkg)" -l curl 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^
   if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install curl &>> "${eus_dir}/logs/required.log"; then
     echo -e "${RED}#${RESET} Failed to install curl in the first run...\\n"
     if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then
-      if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic) ]]; then repo_arguments="-security main"; fi
-      if [[ "${repo_codename}" =~ (disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then repo_arguments=" main"; fi
+      if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic) ]]; then repo_codename_argument="-security"; repo_component="main"; fi
+      if [[ "${repo_codename}" =~ (disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then repo_component="main"; fi
     elif [[ "${repo_codename}" == "jessie" ]]; then
-      repo_arguments="/updates main"
+      repo_codename_argument="/updates"
+      repo_component="main"
     elif [[ "${repo_codename}" =~ (stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
-      repo_arguments=" main"
+      repo_component="main"
     fi
     add_repositories
     required_package="curl"
@@ -2677,7 +2862,7 @@ if ! "$(which dpkg)" -l sudo 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^
   echo -e "${WHITE_R}#${RESET} Installing sudo..."
   if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install sudo &>> "${eus_dir}/logs/required.log"; then
     echo -e "${RED}#${RESET} Failed to install sudo in the first run...\\n"
-    repo_arguments=" main"
+    repo_component="main"
     add_repositories
     required_package="sudo"
     apt_get_install_package
@@ -2694,13 +2879,13 @@ if ! "$(which dpkg)" -l jq 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi
   if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install jq &>> "${eus_dir}/logs/required.log"; then
     echo -e "${RED}#${RESET} Failed to install jq in the first run...\\n"
     if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then
-      if [[ "${repo_codename}" =~ (focal|groovy|hirsute|impish) ]]; then repo_arguments=" main universe"; add_repositories; fi
-      if [[ "${repo_codename}" =~ (jammy|kinetic|lunar|mantic|noble) ]]; then repo_arguments=" main"; add_repositories; fi
-      repo_arguments="-security main universe"
+      if [[ "${repo_codename}" =~ (focal|groovy|hirsute|impish) ]]; then repo_component="main universe"; add_repositories; fi
+      if [[ "${repo_codename}" =~ (jammy|kinetic|lunar|mantic|noble) ]]; then repo_component="main"; add_repositories; fi
+      repo_codename_argument="-security"; repo_component="main universe"
     elif [[ "${repo_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
-      if [[ "${repo_codename}" =~ (jessie|stretch|buster) ]]; then repo_url_arguments="-security/"; repo_arguments="/updates main"; add_repositories; fi
-      if [[ "${repo_codename}" =~ (bullseye|bookworm|trixie|forky) ]]; then repo_url_arguments="-security/"; repo_arguments="-security main"; add_repositories; fi
-      repo_arguments=" main"
+      if [[ "${repo_codename}" =~ (jessie|stretch|buster) ]]; then repo_url_arguments="-security/"; repo_codename_argument="/updates"; repo_component="main"; add_repositories; fi
+      if [[ "${repo_codename}" =~ (bullseye|bookworm|trixie|forky) ]]; then repo_url_arguments="-security/"; repo_codename_argument="-security"; repo_component="main"; add_repositories; fi
+      repo_component="main"
     fi
     add_repositories
     required_package="jq"
@@ -2719,9 +2904,9 @@ if ! "$(which dpkg)" -l lsb-release 2> /dev/null | awk '{print $1}' | grep -iq "
   if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install lsb-release &>> "${eus_dir}/logs/required.log"; then
     echo -e "${RED}#${RESET} Failed to install lsb-release in the first run...\\n"
     if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then
-      repo_arguments=" main universe"
+      repo_component="main universe"
     elif [[ "${repo_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
-      repo_arguments=" main"
+      repo_component="main"
     fi
     add_repositories
     required_package="lsb-release"
@@ -2736,7 +2921,7 @@ if ! "$(which dpkg)" -l net-tools 2> /dev/null | awk '{print $1}' | grep -iq "^i
   echo -e "${WHITE_R}#${RESET} Installing net-tools..."
   if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install net-tools &>> "${eus_dir}/logs/required.log"; then
     echo -e "${RED}#${RESET} Failed to install net-tools in the first run...\\n"
-    repo_arguments=" main"
+    repo_component="main"
     add_repositories
     required_package="net-tools"
     apt_get_install_package
@@ -2754,13 +2939,14 @@ if "$(which dpkg)" -l apt 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\
       if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install apt-transport-https &>> "${eus_dir}/logs/required.log"; then
         echo -e "${RED}#${RESET} Failed to install apt-transport-https in the first run...\\n"
         if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then
-          if [[ "${repo_codename}" =~ (precise|trusty|xenial) ]]; then repo_arguments="-security main"; fi
-          if [[ "${repo_codename}" =~ (bionic|cosmic) ]]; then repo_arguments="-security main universe"; fi
-          if [[ "${repo_codename}" =~ (disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then repo_arguments=" main universe"; fi
+          if [[ "${repo_codename}" =~ (precise|trusty|xenial) ]]; then repo_codename_argument="-security"; repo_component="main"; fi
+          if [[ "${repo_codename}" =~ (bionic|cosmic) ]]; then repo_codename_argument="-security"; repo_component="main universe"; fi
+          if [[ "${repo_codename}" =~ (disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then repo_component="main universe"; fi
         elif [[ "${repo_codename}" == "jessie" ]]; then
-          repo_arguments="/updates main"
+          repo_codename_argument="/updates"
+          repo_component="main"
         elif [[ "${repo_codename}" =~ (stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
-          repo_arguments=" main"
+          repo_component="main"
         fi
         add_repositories
         required_package="apt-transport-https"
@@ -2779,14 +2965,14 @@ if ! "$(which dpkg)" -l software-properties-common 2> /dev/null | awk '{print $1
   if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install software-properties-common &>> "${eus_dir}/logs/required.log"; then
     echo -e "${RED}#${RESET} Failed to install software-properties-common in the first run...\\n"
     if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then
-      if [[ "${repo_codename}" =~ (precise) ]]; then repo_arguments="-security main"; fi
-      if [[ "${repo_codename}" =~ (trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then repo_arguments=" main"; fi
+      if [[ "${repo_codename}" =~ (precise) ]]; then repo_codename_argument="-security"; repo_component="main"; fi
+      if [[ "${repo_codename}" =~ (trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then repo_component="main"; fi
     elif [[ "${repo_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
-      if [[ "${repo_codename}" =~ (jessie) ]]; then repo_url_arguments="-security/"; repo_arguments="/updates main"; fi
-      if [[ "${repo_codename}" =~ (stretch|buster|bullseye|bookworm|trixie|forky) ]]; then repo_arguments=" main"; fi
+      if [[ "${repo_codename}" =~ (jessie) ]]; then repo_url_arguments="-security/"; repo_codename_argument="/updates"; repo_component="main"; fi
+      if [[ "${repo_codename}" =~ (stretch|buster|bullseye|bookworm|trixie|forky) ]]; then repo_component="main"; fi
     fi
     add_repositories
-    if [[ "${repo_codename}" =~ (stretch) ]]; then repo_url_arguments="-security/"; repo_arguments="/updates main"; add_repositories; fi
+    if [[ "${repo_codename}" =~ (stretch) ]]; then repo_url_arguments="-security/"; repo_codename_argument="/updates"; repo_component="main"; add_repositories; fi
     required_package="software-properties-common"
     apt_get_install_package
   else
@@ -2800,11 +2986,11 @@ if ! "$(which dpkg)" -l dirmngr 2> /dev/null | awk '{print $1}' | grep -iq "^ii\
   if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install dirmngr &>> "${eus_dir}/logs/required.log"; then
     echo -e "${RED}#${RESET} Failed to install dirmngr in the first run...\\n"
     if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then
-      repo_arguments=" universe"
+      repo_component="universe"
       add_repositories
-      repo_arguments=" main restricted"
+      repo_component="main restricted"
     elif [[ "${repo_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
-      repo_arguments=" main"
+      repo_component="main"
     fi
     add_repositories
     required_package="dirmngr"
@@ -2826,9 +3012,9 @@ if ! "$(which dpkg)" -l netcat netcat-traditional 2> /dev/null | awk '{print $1}
   if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${required_package}" &>> "${eus_dir}/logs/required.log"; then
     echo -e "${RED}#${RESET} Failed to install ${required_package} in the first run...\\n"
     if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then
-      repo_arguments=" universe"
+      repo_component="universe"
     elif [[ "${repo_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
-      repo_arguments=" main"
+      repo_component="main"
     fi
     add_repositories
     apt_get_install_package
@@ -2844,10 +3030,10 @@ if ! "$(which dpkg)" -l psmisc 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\
   if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install psmisc &>> "${eus_dir}/logs/required.log"; then
     echo -e "${RED}#${RESET} Failed to install psmisc in the first run...\\n"
     if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then
-      if [[ "${repo_codename}" =~ (precise) ]]; then repo_arguments="-updates main restricted"; fi
-      if [[ "${repo_codename}" =~ (trusty|xenial|bionic|cosmicdisco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then repo_arguments=" universe"; fi
+      if [[ "${repo_codename}" =~ (precise) ]]; then repo_codename_argument="-updates"; repo_component="main restricted"; fi
+      if [[ "${repo_codename}" =~ (trusty|xenial|bionic|cosmicdisco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then repo_component="universe"; fi
     elif [[ "${repo_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
-      repo_arguments=" main"
+      repo_component="main"
     fi
     add_repositories
     required_package="psmisc"
@@ -2863,11 +3049,11 @@ if ! "$(which dpkg)" -l gnupg 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|
   if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install gnupg &>> "${eus_dir}/logs/required.log"; then
     echo -e "${RED}#${RESET} Failed to install gnupg in the first run...\\n"
     if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then
-      if [[ "${repo_codename}" =~ (precise|trusty|xenial) ]]; then repo_arguments="-security main"; fi
-      if [[ "${repo_codename}" =~ (bionic|cosmic) ]]; then repo_arguments="-security main universe"; fi
-      if [[ "${repo_codename}" =~ (disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then repo_arguments=" main universe"; fi
+      if [[ "${repo_codename}" =~ (precise|trusty|xenial) ]]; then repo_codename_argument="-security"; repo_component="main"; fi
+      if [[ "${repo_codename}" =~ (bionic|cosmic) ]]; then repo_codename_argument="-security"; repo_component="main universe"; fi
+      if [[ "${repo_codename}" =~ (disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then repo_component="main universe"; fi
     elif [[ "${repo_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
-      repo_arguments=" main"
+      repo_component="main"
     fi
     add_repositories
     required_package="gnupg"
@@ -2885,12 +3071,13 @@ if ! "$(which dpkg)" -l perl 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^
   if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install perl &>> "${eus_dir}/logs/required.log"; then
     echo -e "${RED}#${RESET} Failed to install perl in the first run...\\n"
     if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then
-      if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic) ]]; then repo_arguments="-security main"; fi
-      if [[ "${repo_codename}" =~ (disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then repo_arguments=" main"; fi
+      if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic) ]]; then repo_codename_argument="-security"; repo_component="main"; fi
+      if [[ "${repo_codename}" =~ (disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then repo_component="main"; fi
     elif [[ "${repo_codename}" == "jessie" ]]; then
-      repo_arguments="/updates main"
+      repo_codename_argument="/updates"
+      repo_component="main"
     elif [[ "${repo_codename}" =~ (stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
-      repo_arguments=" main"
+      repo_component="main"
     fi
     add_repositories
     required_package="perl"
@@ -2907,11 +3094,11 @@ if [[ "${fqdn_specified}" == 'true' ]]; then
     if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install dnsutils &>> "${eus_dir}/logs/required.log"; then
       echo -e "${RED}#${RESET} Failed to install dnsutils in the first run...\\n"
       if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then
-        if [[ "${repo_codename}" =~ (precise|trusty|xenial) ]]; then repo_arguments="-security main"; fi
-        if [[ "${repo_codename}" =~ (bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then repo_arguments=" main"; fi
+        if [[ "${repo_codename}" =~ (precise|trusty|xenial) ]]; then repo_codename_argument="-security"; repo_component="main"; fi
+        if [[ "${repo_codename}" =~ (bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then repo_component="main"; fi
       elif [[ "${repo_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
-        if [[ "${repo_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then repo_url_arguments="-security/"; repo_arguments="/updates main"; add_repositories; fi
-        repo_arguments=" main"
+        if [[ "${repo_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then repo_url_arguments="-security/"; repo_codename_argument="/updates"; repo_component="main"; add_repositories; fi
+        repo_component="main"
       fi
       add_repositories
       required_package="dnsutils"
@@ -2930,9 +3117,9 @@ unifi_required_packages_check() {
     if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install logrotate &>> "${eus_dir}/logs/required.log"; then
       echo -e "${RED}#${RESET} Failed to install logrotate in the first run...\\n"
       if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then
-        repo_arguments=" universe"
+        repo_component="universe"
       elif [[ "${repo_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
-        repo_arguments=" main"
+        repo_component="main"
       fi
       add_repositories
       required_package="logrotate"
@@ -2948,11 +3135,12 @@ unifi_required_packages_check() {
     if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install procps &>> "${eus_dir}/logs/required.log"; then
       echo -e "${RED}#${RESET} Failed to install procps in the first run...\\n"
       if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then
-        if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then repo_arguments="-security main"; fi
+        if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then repo_codename_argument="-security"; repo_component="main"; fi
       elif [[ "${repo_codename}" == "jessie" ]]; then
-        repo_arguments="/updates main"
+        repo_codename_argument="/updates"
+        repo_component="main"
       elif [[ "${repo_codename}" =~ (stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
-        repo_arguments=" main"
+        repo_component="main"
       fi
       add_repositories
       required_package="procps"
@@ -2968,9 +3156,9 @@ unifi_required_packages_check() {
     if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install adduser &>> "${eus_dir}/logs/required.log"; then
       echo -e "${RED}#${RESET} Failed to install adduser in the first run...\\n"
       if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then
-        repo_arguments=" universe"
+        repo_component="universe"
       elif [[ "${repo_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
-        repo_arguments=" main"
+        repo_component="main"
       fi
       add_repositories
       required_package="adduser"
@@ -3285,7 +3473,7 @@ libssl_installation_check() {
   fi
   if [[ -z "${required_libssl_version}" ]]; then
     if [[ "${mongo_version_max}" == '70' ]]; then
-      if grep -sioq "jammy" "/etc/apt/sources.list.d/mongodb-org-7.0.list"; then
+      if grep -sioq "jammy" "/etc/apt/sources.list.d/mongodb-org-7.0.list" "/etc/apt/sources.list.d/mongodb-org-7.0.sources"; then
         required_libssl_version="libssl3"
       else
         required_libssl_version="libssl1.1"
@@ -3323,16 +3511,18 @@ libssl_installation_check() {
         if [[ "${os_codename}" =~ (trusty|qiana|rebecca|rafaela|rosa|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish) ]]; then
           if [[ "${architecture}" =~ (amd64|i386) ]]; then
             repo_url="http://security.ubuntu.com/ubuntu"
-            repo_arguments="-security main"
+            repo_codename_argument="-security"
+            repo_component="main"
           else
             repo_url="http://ports.ubuntu.com"
-            repo_arguments="-security main universe"
+            repo_codename_argument="-security"
+            repo_component="main universe"
           fi
           repo_codename="jammy"
         elif [[ "${os_codename}" =~ (jessie|stretch|buster|bullseye) ]]; then
           repo_codename="bookworm"
           get_repo_url
-          repo_arguments=" main"
+          repo_component="main"
         fi
         add_repositories
         run_apt_get_update
@@ -3361,17 +3551,18 @@ libssl_installation_check() {
         if [[ "${os_codename}" =~ (trusty|qiana|rebecca|rafaela|rosa|xenial|bionic|cosmic|disco|eoan) ]]; then
           if [[ "${architecture}" =~ (amd64|i386) ]]; then
             repo_url="http://security.ubuntu.com/ubuntu"
-            repo_arguments="-security main"
+            repo_codename_argument="-security"
+            repo_component="main"
           else
             repo_url="http://ports.ubuntu.com"
-            repo_arguments=" main universe"
+            repo_component="main universe"
           fi
           repo_codename="focal"
           get_repo_url
         elif [[ "${os_codename}" =~ (jessie|stretch|buster) ]]; then
           repo_codename="bullseye"
           get_repo_url
-          repo_arguments=" main"
+          repo_component="main"
         fi
         add_repositories
         run_apt_get_update
@@ -3672,7 +3863,7 @@ fi
 while read -r mongodb_repo_version; do
   # Update the MongoDB keys if there are multiple in 1 file.
   while read -r mongodb_repository_list; do
-    if [[ "$(gpg "$(grep "signed-by" "${mongodb_repository_list}" | sed 's/.*signed-by=\([^ ]*\).*/\1/')" 2>&1 | grep -c "^pub")" -gt "1" ]]; then
+    if [[ "$(gpg "$(grep -iE "(signed-by=|Signed-By:|Signed-By )[[:space:]]*[^ ]*" "${mongodb_repository_list}" | sed -E 's/.*(signed-by=|Signed-By:|Signed-By )[[:space:]]*([^ ]*).*/\2/' | head -n 1)" 2>&1 | grep -c "^pub")" -gt "1" ]]; then
       if [[ "${mongodb_repo_version//./}" =~ (30|32|34|36|40|42|44|50|60|70) ]]; then
         mongodb_key_update="true"
         mongodb_version_major_minor="${mongodb_repo_version}"
@@ -3773,6 +3964,7 @@ unifi_deb_package_modification() {
     fi
     eus_temp_dir="$(mktemp -d --tmpdir=${eus_dir} unifi.deb.XXX)"
     echo -e "${WHITE_R}#${RESET} This setup is using ${unifi_deb_package_modification_message_1}... Editing the UniFi Network Application dependencies..."
+    echo -e "\\n------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/unifi-custom-deb-file.log"
     if dpkg-deb -x "${unifi_temp}" "${eus_temp_dir}" &>> "${eus_dir}/logs/unifi-custom-deb-file.log"; then
       if dpkg-deb --control "${unifi_temp}" "${eus_temp_dir}/DEBIAN" &>> "${eus_dir}/logs/unifi-custom-deb-file.log"; then
         if [[ -e "${eus_temp_dir}/DEBIAN/control" ]]; then
@@ -4047,12 +4239,12 @@ mongodb_installation() {
   unset mongodb_key_update
   if [[ "${glennr_compiled_mongod}" == 'true' ]]; then
     get_distro
-    if [[ "$(find /etc/apt/ -type f -name "*.list" -exec grep -ilE 'raspbian.|raspberrypi.' {} + | wc -l)" -ge "1" ]]; then
+    if [[ "$(find /etc/apt/ -type f \( -name "*.sources" -o -name "*.list" \) -exec grep -lE 'raspbian.|raspberrypi.' {} + | wc -l)" -ge "1" ]]; then
       if [[ "${os_codename}" =~ (jessie|stretch|buster|bullseye) ]]; then
         repo_codename="bookworm"
         use_raspberrypi_repo="true"
         get_repo_url
-        repo_arguments=" main"
+        repo_component="main"
         add_repositories
         run_apt_get_update
       fi
@@ -4080,7 +4272,7 @@ mongodb_installation() {
             repo_codename="bookworm"
             get_repo_url
           fi
-          repo_arguments=" main"
+          repo_component="main"
           add_repositories
           run_apt_get_update
         fi
@@ -4201,10 +4393,10 @@ mongodb_server_clients_installation() {
   if ! DEBIAN_FRONTEND='noninteractive' apt-get -y --allow-downgrades "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install mongodb-server mongodb-clients &>> "${eus_dir}/logs/mongodb-server-client-install.log"; then
     echo -e "${RED}#${RESET} Failed to install mongodb-server and mongodb-clients in the first run...\\n"
     if [[ "${os_codename}" =~ (trusty|qiana|rebecca|rafaela|rosa|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|sarah|serena|sonya|sylvia|tara|tessa|tina|tricia) ]]; then
-      repo_arguments=" main universe"
+      repo_component="main universe"
       repo_codename="xenial"
     elif [[ "${os_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
-      repo_arguments=" main"
+      repo_component="main"
       repo_codename="stretch"
     fi
     get_repo_url
@@ -4264,7 +4456,7 @@ mongodb_installation_armhf() {
   aptkey_depreciated
   if [[ -z "${raspbian_repo_url}" ]]; then raspbian_repo_url="${http_or_https}://archive.raspbian.org/raspbian"; fi
   if [[ "${apt_key_deprecated}" == 'true' ]]; then
-    if curl "${curl_argument[@]}" -fSL "${raspbian_repo_url}.public.key" 2>&1 | tee -a "${eus_dir}/logs/repository-keys.log" | gpg --dearmor --yes | tee -a "/etc/apt/keyrings/raspbian.gpg" &> /dev/null; then
+    if curl "${curl_argument[@]}" -fSL "${raspbian_repo_url}.public.key" 2>&1 | tee -a "${eus_dir}/logs/repository-keys.log" | gpg -o "/etc/apt/keyrings/raspbian.gpg" --dearmor --yes &> /dev/null; then
       raspbian_curl_exit_status="${PIPESTATUS[0]}"
       raspbian_gpg_exit_status="${PIPESTATUS[2]}"
       if [[ "${raspbian_curl_exit_status}" -eq "0" && "${raspbian_gpg_exit_status}" -eq "0" && -s "/etc/apt/keyrings/raspbian.gpg" ]]; then
@@ -4326,18 +4518,7 @@ header
 echo -e "${WHITE_R}#${RESET} Preparing for MongoDB installation..."
 sleep 2
 if [[ "${mongodb_installed}" != 'true' ]]; then
-  # Remove all current MongoDB Repository Entries
-  echo -e "\\n${WHITE_R}#${RESET} Checking for MongoDB repository entries..."
-  if grep -qriIl "mongo" /etc/apt/sources.list*; then
-    echo -ne "${YELLOW}#${RESET} Removing repository entries for MongoDB..." && sleep 1
-    sed -i '/mongodb/d' /etc/apt/sources.list
-    if ls /etc/apt/sources.list.d/mongodb* > /dev/null 2>&1; then
-      rm /etc/apt/sources.list.d/mongodb*  2> /dev/null
-    fi
-    echo -e "\\r${GREEN}#${RESET} Successfully removed all MongoDB repository entries! \\n"
-  else
-    echo -e "\\r${YELLOW}#${RESET} There were no MongoDB Repository entries! \\n"
-  fi
+  remove_older_mongodb_repositories
   if [[ "${broken_unifi_install}" == 'true' ]]; then
     if [[ -z "${previous_mongodb_version}" ]]; then previous_mongodb_version="$(grep -sEio "db version v[0-9].[0-9].[0-9]{1,2}|buildInfo\":{\"version\":\"[0-9].[0-9].[0-9]{1,2}\"" /usr/lib/unifi/logs/mongod.log  | tail -n1 | sed -e 's/db version v//g' -e 's/buildInfo":{"version":"//g' -e 's/"//g' | sed 's/\.//g')"; fi
     if [[ -n "${previous_mongodb_version}" ]]; then
@@ -4558,9 +4739,10 @@ if [[ "${mongo_version_locked}" == '4.4.18' ]] || [[ "${unsupported_database_ver
     recovery_install_mongodb_version="${install_mongodb_version//./}"
     while read -r installed_mongodb_package; do
       if ! apt-cache policy "^${installed_mongodb_package}$" | grep -ioq "${install_mongodb_version}"; then
-        if [[ "${installed_mongodb_package}" == "mongodb-server" ]] && [[ "${previous_mongodb_version::2}" != "24" ]]; then if sed -i "s/mongodb-server/mongodb-org-server/g" /tmp/EUS/mongodb/packages_list; then echo "mongodb-server" &>> /tmp/EUS/mongodb/packages_remove_list; fi; fi
-        if [[ "${installed_mongodb_package}" == "mongodb-clients" ]] && [[ "${previous_mongodb_version::2}" != "24" ]]; then if sed -i "s/mongodb-clients/mongodb-org-shell/g" /tmp/EUS/mongodb/packages_list; then echo "mongodb-clients" &>> /tmp/EUS/mongodb/packages_remove_list; fi; fi
-        if [[ "${installed_mongodb_package}" == "mongo-tools" ]] && [[ "${previous_mongodb_version::2}" != "24" ]]; then if sed -i "s/mongo-tools/mongodb-org-tools/g" /tmp/EUS/mongodb/packages_list; then echo "mongo-tools" &>> /tmp/EUS/mongodb/packages_remove_list; fi; fi
+        if [[ "${installed_mongodb_package}" == "mongodb-server-core" ]] && [[ "${previous_mongodb_version::2}" != "24" ]]; then if sed -i "s/mongodb-server-core$/mongodb-org-server/g" /tmp/EUS/mongodb/packages_list; then echo "mongodb-server-core" &>> /tmp/EUS/mongodb/packages_remove_list; fi; fi
+        if [[ "${installed_mongodb_package}" == "mongodb-server" ]] && [[ "${previous_mongodb_version::2}" != "24" ]]; then if sed -i "s/mongodb-server$/mongodb-org-server/g" /tmp/EUS/mongodb/packages_list; then echo "mongodb-server" &>> /tmp/EUS/mongodb/packages_remove_list; fi; fi
+        if [[ "${installed_mongodb_package}" == "mongodb-clients" ]] && [[ "${previous_mongodb_version::2}" != "24" ]]; then if sed -i "s/mongodb-clients$/mongodb-org-shell/g" /tmp/EUS/mongodb/packages_list; then echo "mongodb-clients" &>> /tmp/EUS/mongodb/packages_remove_list; fi; fi
+        if [[ "${installed_mongodb_package}" == "mongo-tools" ]] && [[ "${previous_mongodb_version::2}" != "24" ]]; then if sed -i "s/mongo-tools$/mongodb-org-tools/g" /tmp/EUS/mongodb/packages_list; then echo "mongo-tools" &>> /tmp/EUS/mongodb/packages_remove_list; fi; fi
         if [[ "${installed_mongodb_package}" == "mongodb-org-database-tools-extra" && "${recovery_install_mongodb_version::2}" -lt "44" ]]; then echo "mongodb-org-database-tools-extra" &>> /tmp/EUS/mongodb/packages_remove_list; fi
         sed -i "/${installed_mongodb_package}/d" /tmp/EUS/mongodb/packages_list
       fi
@@ -4739,11 +4921,11 @@ adoptium_java() {
     echo -e "${WHITE_R}#${RESET} Adding the key for adoptium packages..."
     aptkey_depreciated
     if [[ "${apt_key_deprecated}" == 'true' ]]; then
-      if curl "${curl_argument[@]}" -fSL "https://packages.adoptium.net/artifactory/api/gpg/key/public" 2>&1 | tee -a "${eus_dir}/logs/repository-keys.log" | gpg --dearmor --yes | tee -a "/etc/apt/keyrings/packages-adoptium.gpg" &> /dev/null; then
+      if curl "${curl_argument[@]}" -fSL "https://packages.adoptium.net/artifactory/api/gpg/key/public" 2>&1 | tee -a "${eus_dir}/logs/repository-keys.log" | gpg -o "/etc/apt/keyrings/packages-adoptium.gpg" --dearmor --yes &> /dev/null; then
         adoptium_curl_exit_status="${PIPESTATUS[0]}"
         adoptium_gpg_exit_status="${PIPESTATUS[2]}"
         if [[ "${adoptium_curl_exit_status}" -eq "0" && "${adoptium_gpg_exit_status}" -eq "0" && -s "/etc/apt/keyrings/packages-adoptium.gpg" ]]; then
-          echo -e "${GREEN}#${RESET} Successfully added the key for adoptium packages! \\n"; signed_by_value_adoptium="[ signed-by=/etc/apt/keyrings/packages-adoptium.gpg ]"
+          echo -e "${GREEN}#${RESET} Successfully added the key for adoptium packages! \\n"; signed_by_value_adoptium="[ signed-by=/etc/apt/keyrings/packages-adoptium.gpg ]"; deb822_signed_by_value="\nSigned-By: /etc/apt/keyrings/packages-adoptium.gpg"
         else
           abort_reason="Failed to add the key for adoptium packages."; abort
         fi
@@ -4766,7 +4948,14 @@ adoptium_java() {
       fi
     fi
     echo -e "${WHITE_R}#${RESET} Adding the adoptium packages repository..."
-    if echo "deb ${signed_by_value_adoptium}${http_or_https}://packages.adoptium.net/artifactory/deb ${os_codename} main" &> /etc/apt/sources.list.d/glennr-packages-adoptium.list; then
+    if [[ "${use_deb822_format}" == 'true' ]]; then
+      # DEB822 format
+      adoptium_repo_entry="Types: deb\nURIs: ${http_or_https}://packages.adoptium.net/artifactory/deb\nSuites: ${os_codename}\nComponents: main${deb822_signed_by_value}"
+    else
+      # Traditional format
+      adoptium_repo_entry="deb [ ${signed_by_value_adoptium} ] ${http_or_https}://packages.adoptium.net/artifactory/deb ${os_codename} main"
+    fi
+    if echo -e "${adoptium_repo_entry}" &> "/etc/apt/sources.list.d/glennr-packages-adoptium.${source_file_format}"; then
       echo -e "${GREEN}#${RESET} Successfully added the adoptium packages repository!\\n" && sleep 2
     else
       abort_reason="Failed to add the adoptium packages repository."
@@ -4774,12 +4963,12 @@ adoptium_java() {
     fi
     if [[ "${os_codename}" =~ (jessie|stretch) ]]; then
       repo_codename="buster"
-      repo_arguments=" main"
+      repo_component="main"
       get_repo_url
       add_repositories
       get_distro
     fi
-    repo_arguments=" main"
+    repo_component="main"
     get_repo_url
     add_repositories
     run_apt_get_update
@@ -4793,24 +4982,27 @@ openjdk_java() {
   if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic) ]]; then
     if [[ "${architecture}" =~ (amd64|i386) ]]; then
       repo_url="http://ppa.launchpad.net/openjdk-r/ppa/ubuntu"
-      repo_arguments=" main"
+      repo_component="main"
       repo_key="EB9B1D8886F44E2A"
       repo_key_name="openjdk-ppa"
     else
       repo_url="http://ports.ubuntu.com"
-      repo_arguments="-security main universe"
+      repo_codename_argument="-security"
+      repo_component="main universe"
     fi
     add_repositories
   elif [[ "${repo_codename}" =~ (disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then
     if [[ "${architecture}" =~ (amd64|i386) ]]; then
       repo_url="http://security.ubuntu.com/ubuntu"
-      repo_arguments="-security main universe"
+      repo_codename_argument="-security"
+      repo_component="main universe"
     else
       repo_url="http://ports.ubuntu.com"
-      repo_arguments="-security main universe"
+      repo_codename_argument="-security"
+      repo_component="main universe"
     fi
     add_repositories
-    repo_arguments=" main"
+    repo_component="main"
     add_repositories
   elif [[ "${os_codename}" == "jessie" ]]; then
     check_dpkg_lock
@@ -4842,7 +5034,7 @@ openjdk_java() {
   elif [[ "${repo_codename}" =~ (stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
     if [[ "${required_java_version}" == "openjdk-8" ]]; then
       repo_codename="stretch"
-      repo_arguments=" main"
+      repo_component="main"
       get_repo_url
       add_repositories
     elif [[ "${required_java_version}" =~ (openjdk-11|openjdk-17) ]]; then
@@ -4850,7 +5042,7 @@ openjdk_java() {
       if [[ "${repo_codename}" =~ (bookworm|trixie|forky) ]] && [[ "${required_java_version}" =~ (openjdk-11) ]]; then repo_codename="unstable"; fi
       if [[ "${repo_codename}" =~ (trixie|forky) ]] && [[ "${required_java_version}" =~ (openjdk-17) ]]; then repo_codename="bookworm"; fi
       if [[ "${repo_codename}" =~ (stretch|buster) ]] && [[ "${required_java_version}" =~ (openjdk-17) ]]; then repo_codename="bullseye"; fi
-      repo_arguments=" main"
+      repo_component="main"
       get_repo_url
       add_repositories
     fi
@@ -5010,9 +5202,9 @@ for unifi_dependency in "${unifi_dependencies_list[@]}"; do
     echo -e "\\n------- UniFi Dependecy \"${unifi_dependency}\" installation ------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/apt.log"
     if ! apt-cache search --names-only ^"${unifi_dependency}" | grep -ioq "${unifi_dependency}"; then
       if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then
-        repo_arguments=" main universe"
+        repo_component="main universe"
       elif [[ "${repo_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
-        repo_arguments=" main"
+        repo_component="main"
       fi
       add_repositories
     fi
@@ -5144,23 +5336,40 @@ if [[ "${script_option_skip}" != 'true' || "${script_option_add_repository}" == 
         header
         echo -e "${WHITE_R}#${RESET} Adding the UniFi Network Application repository for branch ${first_digit_unifi}.${second_digit_unifi}... \\n"
         sleep 3
-        sed -i '/unifi/d' /etc/apt/sources.list
-        rm --force /etc/apt/sources.list.d/100-ubnt-unifi.list 2> /dev/null
+        # Handle .list files in Traditional format
+        while read -r list_file; do
+          sed -Ei "s|^#*(unifi)|#\1|g" "${list_file}"
+        done < <(find /etc/apt/ -type f -name "*.list")
+        # Handle .sources files if using DEB822 format
+        while read -r sources_file; do
+          entry_block_start_line="$(awk '!/^#/ && /Types:/ { types_line=NR } /'"unifi"'/ && !/^#/ && !seen[types_line]++ { print types_line }' "${sources_file}" | head -n1)"
+          entry_block_end_line="$(awk -v start_line="$entry_block_start_line" 'NR > start_line && NF == 0 { print NR-1; exit } END { if (NR > start_line && NF > 0) print NR }' "${sources_file}")"
+          sed -i "${entry_block_start_line},${entry_block_end_line}s/^\([^#]\)/# \1/" "${sources_file}" &>/dev/null
+        done < <(find /etc/apt/sources.list.d/ -type f -name "*.sources")
+        rm --force /etc/apt/sources.list.d/100-ubnt-unifi.* 2> /dev/null
         echo -e "${WHITE_R}#${RESET} Downloading the UniFi Network Application repository key..."
-        if curl "${curl_argument[@]}" -fSL "https://dl.ui.com/unifi/unifi-repo.gpg" | gpg --dearmor --yes 2>&1 | tee -a "/etc/apt/keyrings/unifi-repo.gpg" &> /dev/null; then
+        if curl "${curl_argument[@]}" -fSL "https://dl.ui.com/unifi/unifi-repo.gpg" | gpg -o "/etc/apt/keyrings/unifi-repo.gpg" --dearmor --yes &> /dev/null; then
           unifi_curl_exit_status="${PIPESTATUS[0]}"
           unifi_gpg_exit_status="${PIPESTATUS[2]}"
           if [[ "${unifi_curl_exit_status}" -eq "0" && "${unifi_gpg_exit_status}" -eq "0" && -s "/etc/apt/keyrings/unifi-repo.gpg" ]]; then
+            signed_by_value_unifi="/etc/apt/keyrings/unifi-repo.gpg"
             echo -e "${GREEN}#${RESET} Successfully downloaded the key for the UniFi Network Application repository! \\n"
             echo -e "${WHITE_R}#${RESET} Adding the UniFi Network Application repository..."
             if [[ "${architecture}" == 'arm64' ]]; then arch="arch=arm64"; elif [[ "${architecture}" == 'amd64' ]]; then arch="arch=amd64"; else arch="arch=amd64,arm64"; fi
-            if echo "deb [ ${arch} signed-by=/etc/apt/keyrings/unifi-repo.gpg ] https://www.ui.com/downloads/unifi/debian unifi-${first_digit_unifi}.${second_digit_unifi} ubiquiti" &> /etc/apt/sources.list.d/100-ubnt-unifi.list; then
+            if [[ "${use_deb822_format}" == 'true' ]]; then
+              # DEB822 format
+              unifi_repo_entry="Types: deb\nURIs: ${http_or_https}://www.ui.com/downloads/unifi/debian\nSuites: unifi-${first_digit_unifi}.${second_digit_unifi}\nComponents: ubiquiti\nSigned-By: ${signed_by_value_unifi}\nArchitectures: ${arch//arch=/}"
+            else
+              # Traditional format
+              unifi_repo_entry="deb [ ${arch} signed-by=${signed_by_value_unifi} ] ${http_or_https}://www.ui.com/downloads/unifi/debian unifi-${first_digit_unifi}.${second_digit_unifi} ubiquiti"
+            fi
+            if echo -e "${unifi_repo_entry}" &> "/etc/apt/sources.list.d/100-ubnt-unifi.${source_file_format}"; then
               echo -e "${GREEN}#${RESET} Successfully added UniFi Network Application source list! \\n"
               run_apt_get_update
               echo -ne "\\r${WHITE_R}#${RESET} Checking if the added UniFi Network Application repository is valid..." && sleep 1
-              if grep -ioq "unifi-${first_digit_unifi}.${second_digit_unifi} Release' does not" /tmp/EUS/apt/apt_update; then
+              if grep -sioq "unifi-${first_digit_unifi}.${second_digit_unifi} Release' does not" /tmp/EUS/apt/apt-update.log; then
                 echo -ne "\\r${RED}#${RESET} The added UniFi Repository is not valid/used, the repository list will be removed! \\n"
-                rm -f /etc/apt/sources.list.d/100-ubnt-unifi.list &> /dev/null
+                rm -f "/etc/apt/sources.list.d/100-ubnt-unifi.${source_file_format}" &> /dev/null
               else
                 echo -ne "\\r${GREEN}#${RESET} The added UniFi Network Application Repository is valid! \\n"
               fi

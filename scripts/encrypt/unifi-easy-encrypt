@@ -11,6 +11,14 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Encrypt Script  |  Version 2.7.6
+ 
+ - Added support for DEB822 repositories, it will use them if .sources repository lists exist.
+ - Added support for recovering broken DEB822 repositories.
+ - Added more compression methods to the support file creation process.
+ 
+ ###
+
  |  UniFi Easy Encrypt Script  |  Version 2.7.5
  
  - Replaced all static content on get.glennr.nl with api.glennr.nl.

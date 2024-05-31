@@ -11,6 +11,16 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 8.6.8
+  
+ - Added support for DEB822 repositories, it will use them if .sources repository lists exist.
+ - Added support for recovering broken DEB822 repositories.
+ - Added support for updating to Release Candidate 8.2.93.
+ - Improved the unsupported MongoDB version change process.
+ - Fixed UniFi installation failures for setups using non-default required java versions during the MongoDB recovery process.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 8.6.7
   
  - Improved logging.
