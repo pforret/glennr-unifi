@@ -11,6 +11,31 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 7.4.9
+ 
+ - Fixed an issue where the broken UniFi recovery process could stall.
+ 
+ ####
+
+ |  UniFi Network Application Installation Script  |  Version 7.4.8
+ 
+ - Improved the unsupported MongoDB version change process.
+ 
+ ####
+
+ |  UniFi Network Application Installation Script  |  Version 7.4.7
+ 
+ - Improved cleaning up distribution mismatched in the scripts repository lists.
+ - Improved finding the default debian repository key file on the system.
+ - Improved cleaning up repository conflicts on setups using DEB822.
+ - Improved verification for GPG keys.
+ - Fixed typo when adding the Glenn R. APT repository.
+ - Fixed an issue where checking for existing repository list entries didn't work for .sources files.
+ - Fixed an issue where the script could install a unsupported MongoDB Upgrade after the user choose to install a newer version on arm64 setups if mongodb-server-org is already installed, but is older than 7.0.
+ - Fixed an issue where MongoDB downgrades/installations could fail if the key already existed on the setup, but wasn't up-to-date.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 7.4.6
  
  - Added support for DEB822 repositories, it will use them if .sources repository lists exist.

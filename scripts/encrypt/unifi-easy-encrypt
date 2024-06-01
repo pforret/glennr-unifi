@@ -11,6 +11,15 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Encrypt Script  |  Version 2.7.7
+ 
+ - Improved cleaning up distribution mismatched in the scripts repository lists.
+ - Improved finding the default debian repository key file on the system.
+ - Improved cleaning up repository conflicts on setups using DEB822.
+ - Fixed an issue where checking for existing repository list entries didn't work for .sources files.
+ 
+ ###
+
  |  UniFi Easy Encrypt Script  |  Version 2.7.6
  
  - Added support for DEB822 repositories, it will use them if .sources repository lists exist.

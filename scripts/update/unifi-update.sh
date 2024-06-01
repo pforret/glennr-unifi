@@ -2,7 +2,7 @@
 
 # UniFi Network Application Easy Update Script.
 # Script   | UniFi Network Easy Update Script
-# Version  | 8.6.9
+# Version  | 8.7.1
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -74,7 +74,16 @@ if ! grep -iq "udm" /usr/lib/version &> /dev/null; then
   fi
 fi
 
+get_unifi_version() {
+  unifi="$("$(which dpkg)" -l | grep "unifi " | awk '{print $3}' | sed 's/-.*//')"
+  first_digit_unifi="$(echo "${unifi}" | cut -d'.' -f1)"
+  second_digit_unifi="$(echo "${unifi}" | cut -d'.' -f2)"
+  third_digit_unifi="$(echo "${unifi}" | cut -d'.' -f3)"
+  unifi_release="$("$(which dpkg)" -l | grep "unifi " | awk '{print $3}' | sed 's/-.*//' | sed 's/\.//g')"
+}
+
 cleanup_codename_mismatch_repos() {
+  get_distro
   if command -v jq &> /dev/null; then
     list_of_distro_versions="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/list-versions?list-all" 2> /dev/null | jq -r '.[]' 2> /dev/null)"
   else
@@ -89,7 +98,7 @@ cleanup_codename_mismatch_repos() {
         fi
       done <<< "${list_of_distro_versions}"
     done < <(grep -v '^[[:space:]]*$' "/etc/apt/sources.list.d/glennr-install-script.list")
-    unique_found_codenames=("$(printf "%s\n" "${found_codenames[@]}" | sort -u)")
+    IFS=$'\n' read -r -d '' -a unique_found_codenames < <(printf "%s\n" "${found_codenames[@]}" | sort -u && printf '\0')
     if [[ "${#unique_found_codenames[@]}" -gt "0" ]]; then
       for codename in "${unique_found_codenames[@]}"; do
         sed -i "/$codename/d" "/etc/apt/sources.list.d/glennr-install-script.list" >/dev/null 2>&1
@@ -104,7 +113,7 @@ cleanup_codename_mismatch_repos() {
         fi
       done <<< "${list_of_distro_versions}"
     done < <(grep -v '^[[:space:]]*$' "/etc/apt/sources.list.d/glennr-install-script.sources")
-    unique_found_codenames=("$(printf "%s\n" "${found_codenames[@]}" | sort -u)")
+    IFS=$'\n' read -r -d '' -a unique_found_codenames < <(printf "%s\n" "${found_codenames[@]}" | sort -u && printf '\0')
     if [[ "${#unique_found_codenames[@]}" -gt "0" ]]; then
       for codename in "${unique_found_codenames[@]}"; do
         entry_block_start_line="$(awk '!/^#/ && /Types:/ { types_line=NR } /'"${codename}"'/ && !/^#/ && !seen[types_line]++ { print types_line }' "/etc/apt/sources.list.d/glennr-install-script.sources" | head -n1)"
@@ -192,12 +201,12 @@ check_unifi_folder_permissions() {
 
 check_docker_setup() {
   if [[ -f /.dockerenv ]] || grep -q '/docker/' /proc/1/cgroup || { command -v pgrep &>/dev/null && (pgrep -f "^dockerd" &>/dev/null || pgrep -f "^containerd" &>/dev/null); }; then docker_setup="true"; else docker_setup="false"; fi
-  if [[ -n "$(command -v jq)" && -e "${eus_dir}/db/db.json" ]]; then jq '."database" += {"docker-container": "'"${docker_setup}"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"; eus_database_move; fi
+  if [[ -n "$(command -v jq)" && -e "${eus_dir}/db/db.json" ]]; then jq --arg docker_setup "${docker_setup}" '."database" += {"docker-container": "'"${docker_setup}"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"; eus_database_move; fi
 }
 
 check_lxc_setup() {
   if grep -sqa "lxc" /proc/1/environ /proc/self/mountinfo /proc/1/environ; then lxc_setup="true"; container_system="true"; else lxc_setup="false"; fi
-  if [[ -n "$(command -v jq)" && -e "${eus_dir}/db/db.json" ]]; then jq '."database" += {"lxc-container": "'"${lxc_setup}"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"; eus_database_move; fi
+  if [[ -n "$(command -v jq)" && -e "${eus_dir}/db/db.json" ]]; then jq --arg lxc_setup "${lxc_setup}" '."database" += {"lxc-container": "'"${lxc_setup}"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"; eus_database_move; fi
 }
 
 update_eus_db() {
@@ -218,7 +227,7 @@ update_eus_db() {
     ((script_total_runs=script_total_runs+1))
     jq --arg script_total_runs "${script_total_runs}" '."scripts"."'"${script_name}"'" += {"total-runs": "'"${script_total_runs}"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
     eus_database_move
-    jq '."database" += {"name-servers": "'"${system_dns_servers}"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+    jq --arg system_dns_servers "${system_dns_servers}" '."database" += {"name-servers": "'"${system_dns_servers}"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
     eus_database_move
   fi
   check_docker_setup
@@ -476,7 +485,7 @@ support_file() {
       jq '.scripts."'"${script_name}"'" |= . + {"support": (.support + {("'"${support_file_name}"'"): {"abort-reason": "'"${abort_reason}"'","upload-results": ""}})}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
       eus_database_move
     fi
-    tar cJvfh "${support_file}" --exclude="${eus_dir}/unifi_db" --exclude="/tmp/EUS/downloads" --exclude="/usr/lib/unifi/logs/remote" "/tmp/EUS" "${eus_dir}" "/usr/lib/unifi/logs" "/etc/apt/sources.list" "/etc/apt/sources.list.d/" "/etc/apt/preferences" "/etc/apt/keyrings" "/etc/apt/preferences.d/" "/etc/default/unifi" "/etc/environment" "/var/log/dpkg.log" "/etc/systemd/system/unifi.service.d/" "/lib/systemd/system/unifi.service" &> /dev/null
+    tar cJvfh "${support_file}" --exclude="${eus_dir}/unifi_db" --exclude="/tmp/EUS/downloads" --exclude="/usr/lib/unifi/logs/remote" "/tmp/EUS" "${eus_dir}" "/usr/lib/unifi/logs" "/etc/apt/sources.list" "/etc/apt/sources.list.d/" "/etc/apt/preferences" "/etc/apt/keyrings" "/etc/apt/preferences.d/" "/etc/default/unifi" "/etc/environment" "/var/log/dpkg.log*" "/etc/systemd/system/unifi.service.d/" "/lib/systemd/system/unifi.service" &> /dev/null
   elif "$(which dpkg)" -l zstd 2> /dev/null | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
     support_file="/tmp/eus-support-${support_file_uuid}${support_file_time}.tar.zst"
     support_file_name="$(basename "${support_file}")"
@@ -484,7 +493,7 @@ support_file() {
       jq '.scripts."'"${script_name}"'" |= . + {"support": (.support + {("'"${support_file_name}"'"): {"abort-reason": "'"${abort_reason}"'","upload-results": ""}})}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
       eus_database_move
     fi
-    tar --use-compress-program=zstd -cvf "${support_file}" --exclude="${eus_dir}/unifi_db" --exclude="/tmp/EUS/downloads" --exclude="/usr/lib/unifi/logs/remote" "/tmp/EUS" "${eus_dir}" "/usr/lib/unifi/logs" "/etc/apt/sources.list" "/etc/apt/sources.list.d/" "/etc/apt/preferences" "/etc/apt/keyrings" "/etc/apt/preferences.d/" "/etc/default/unifi" "/etc/environment" "/var/log/dpkg.log" "/etc/systemd/system/unifi.service.d/" "/lib/systemd/system/unifi.service" &> /dev/null
+    tar --use-compress-program=zstd -cvf "${support_file}" --exclude="${eus_dir}/unifi_db" --exclude="/tmp/EUS/downloads" --exclude="/usr/lib/unifi/logs/remote" "/tmp/EUS" "${eus_dir}" "/usr/lib/unifi/logs" "/etc/apt/sources.list" "/etc/apt/sources.list.d/" "/etc/apt/preferences" "/etc/apt/keyrings" "/etc/apt/preferences.d/" "/etc/default/unifi" "/etc/environment" "/var/log/dpkg.log*" "/etc/systemd/system/unifi.service.d/" "/lib/systemd/system/unifi.service" &> /dev/null
   elif "$(which dpkg)" -l tar 2> /dev/null | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
     support_file="/tmp/eus-support-${support_file_uuid}${support_file_time}.tar.gz"
     support_file_name="$(basename "${support_file}")"
@@ -492,7 +501,7 @@ support_file() {
       jq '.scripts."'"${script_name}"'" |= . + {"support": (.support + {("'"${support_file_name}"'"): {"abort-reason": "'"${abort_reason}"'","upload-results": ""}})}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
       eus_database_move
     fi
-    tar czvfh "${support_file}" --exclude="${eus_dir}/unifi_db" --exclude="/tmp/EUS/downloads" --exclude="/usr/lib/unifi/logs/remote" "/tmp/EUS" "${eus_dir}" "/usr/lib/unifi/logs" "/etc/apt/sources.list" "/etc/apt/sources.list.d/" "/etc/apt/preferences" "/etc/apt/keyrings" "/etc/apt/preferences.d/" "/etc/default/unifi" "/etc/environment" "/var/log/dpkg.log" "/etc/systemd/system/unifi.service.d/" "/lib/systemd/system/unifi.service" &> /dev/null
+    tar czvfh "${support_file}" --exclude="${eus_dir}/unifi_db" --exclude="/tmp/EUS/downloads" --exclude="/usr/lib/unifi/logs/remote" "/tmp/EUS" "${eus_dir}" "/usr/lib/unifi/logs" "/etc/apt/sources.list" "/etc/apt/sources.list.d/" "/etc/apt/preferences" "/etc/apt/keyrings" "/etc/apt/preferences.d/" "/etc/default/unifi" "/etc/environment" "/var/log/dpkg.log*" "/etc/systemd/system/unifi.service.d/" "/lib/systemd/system/unifi.service" &> /dev/null
   elif "$(which dpkg)" -l zip 2> /dev/null | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
     support_file="/tmp/eus-support-${support_file_uuid}${support_file_time}.zip"
     support_file_name="$(basename "${support_file}")"
@@ -500,7 +509,7 @@ support_file() {
       jq '.scripts."'"${script_name}"'" |= . + {"support": (.support + {("'"${support_file_name}"'"): {"abort-reason": "'"${abort_reason}"'","upload-results": ""}})}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
       eus_database_move
     fi
-    zip -r "${support_file}" "/tmp/EUS/" "${eus_dir}/" "/usr/lib/unifi/logs/" "/etc/apt/sources.list" "/etc/apt/sources.list.d/" "/etc/apt/preferences" "/etc/apt/keyrings" "/etc/apt/preferences.d/" "/etc/default/unifi" "/etc/environment" "/var/log/dpkg.log" "/etc/systemd/system/unifi.service.d/" "/lib/systemd/system/unifi.service" -x "${eus_dir}/unifi_db/*" -x "/tmp/EUS/downloads" -x "/usr/lib/unifi/logs/remote" &> /dev/null
+    zip -r "${support_file}" "/tmp/EUS/" "${eus_dir}/" "/usr/lib/unifi/logs/" "/etc/apt/sources.list" "/etc/apt/sources.list.d/" "/etc/apt/preferences" "/etc/apt/keyrings" "/etc/apt/preferences.d/" "/etc/default/unifi" "/etc/environment" "/var/log/dpkg.log*" "/etc/systemd/system/unifi.service.d/" "/lib/systemd/system/unifi.service" -x "${eus_dir}/unifi_db/*" -x "/tmp/EUS/downloads" -x "/usr/lib/unifi/logs/remote" &> /dev/null
   fi
   if [[ -n "${support_file}" ]]; then
     echo -e "${WHITE_R}#${RESET} Support file has been created here: ${support_file} \\n"
@@ -1076,8 +1085,10 @@ cleanup_archived_repos
 unset_add_repositories_variables(){
   unset repo_key_name
   unset repo_url_arguments
+  unset repo_codename_argument
   unset repo_component
   unset signed_by_value_repo_key
+  unset repo_arch_value
   unset add_repositories_source_list_override
   if [[ "${os_id}" == "raspbian" ]]; then get_distro; fi
 }
@@ -1123,7 +1134,7 @@ add_repositories() {
           section+="${line}"$'\n'
         fi
       done < "${repository_file}"
-    done < <(find /etc/apt/sources.list.d/ -name "*.sources" | grep -ioq /etc/apt)
+    done < <(find /etc/apt/sources.list.d/ -name "*.sources" | grep -i /etc/apt)
   fi
   # Override the source list
   if [[ -n "${add_repositories_source_list_override}" ]]; then
@@ -1131,7 +1142,6 @@ add_repositories() {
   else
     add_repositories_source_list="/etc/apt/sources.list.d/glennr-install-script.${source_file_format}"
   fi
-
   # Add repository key if required
   if [[ "${apt_key_deprecated}" == 'true' && -n "${repo_key}" && -n "${repo_key_name}" ]]; then
     if gpg --no-default-keyring --keyring "/etc/apt/keyrings/${repo_key_name}.gpg" --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys "${repo_key}" &> /dev/null; then
@@ -1141,7 +1151,6 @@ add_repositories() {
       abort
     fi
   fi
-
   # Handle Debian versions
   if [[ "${os_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) && "$(command -v jq)" ]]; then
     os_version_number="$(lsb_release -rs | tr '[:upper:]' '[:lower:]' | cut -d'.' -f1)"
@@ -1159,19 +1168,17 @@ add_repositories() {
       fi
     fi
   fi
-
   # Prepare repository entry
   if [[ -n "${signed_by_value_repo_key}" && -n "${repo_arch_value}" ]]; then
     local brackets="[${signed_by_value_repo_key}${repo_arch_value}] "
   else
     local brackets=""
   fi
-
   # Attempt to find the repository signing key for Debian/Ubuntu.
   if [[ -z "${signed_by_value_repo_key}" && "${use_deb822_format}" == 'true' ]] && echo "${repo_url}" | grep -ioq "archive.ubuntu\\|security.ubuntu\\|deb.debian"; then
-    signed_by_value_repo_key="signed-by=$(find /usr/share/keyrings/ /etc/apt/keyrings/ -name "$(echo "${repo_url}" | sed -e 's/https\:\/\///g' -e 's/http\:\/\///g' -e 's/\/.*//g' -e 's/\.com//g' -e 's/\./-/g' -e 's/\./-/g' -e 's/security-ubuntu/archive-ubuntu/g' | awk -F'-' '{print $2 "-" $1}')*" | sed '/removed/d' | head -n1)"
+    signed_by_value_repo_key_find="$(echo "${repo_url}" | sed -e 's/https\:\/\///g' -e 's/http\:\/\///g' -e 's/\/.*//g' -e 's/\.com//g' -e 's/\./-/g' -e 's/\./-/g' -e 's/deb-debian/archive-debian/g' -e 's/security-ubuntu/archive-ubuntu/g' | awk -F'-' '{print $2 "-" $1}')"
+    if [[ -n "${signed_by_value_repo_key_find}" ]]; then signed_by_value_repo_key="signed-by=$(find /usr/share/keyrings/ /etc/apt/keyrings/ -name "${signed_by_value_repo_key_find}*" | sed '/removed/d' | head -n1)"; fi
   fi
-
   # Determine format
   if [[ "${use_deb822_format}" == 'true' ]]; then
     repo_component_trimmed="${repo_component#"${repo_component%%[![:space:]]*}"}" # remove leading space
@@ -1183,7 +1190,6 @@ add_repositories() {
   else
     repo_entry="deb ${brackets}${repo_url}${repo_url_arguments} ${repo_codename}${repo_codename_argument} ${repo_component}"
   fi
-
   # Add repository to sources list
   if echo -e "${repo_entry}" >> "${add_repositories_source_list}"; then
     echo -e "$(date +%F-%R) | Successfully added \"${repo_entry}\" to ${add_repositories_source_list}!" &>> "${eus_dir}/logs/added-repository.log"
@@ -1191,7 +1197,6 @@ add_repositories() {
     abort_reason="Failed to add repository."
     abort
   fi
-
   # Handle HTTP repositories
   if [[ "${add_repositories_http_or_https}" == 'http' ]]; then
     eus_create_directories "repositories"
@@ -1204,15 +1209,8 @@ add_repositories() {
       sed -i 's/##/#/g' "${https_repo_needs_http_file}" &>> "${eus_dir}/logs/https-repo-needs-http.log"
     done < <(grep -ril "^deb https*://$(echo "${repo_url}" | sed -e 's/https\:\/\///g' -e 's/http\:\/\///g') ${repo_codename}${repo_codename_argument} ${repo_component}" /etc/apt/sources.list /etc/apt/sources.list.d/*)
   fi 
-
   # Clean up unset variables
-  unset repo_key_name
-  unset repo_url_arguments
-  unset repo_component
-  unset signed_by_value_repo_key
-  unset repo_arch_value
-  unset add_repositories_source_list_override
-
+  unset_add_repositories_variables
   # Check if OS codename changed and reset variables
   if [[ "${os_codename_changed}" == 'true' ]]; then 
     unset os_codename_changed
@@ -1290,7 +1288,7 @@ fi
 # Check if UniFi is already installed.
 if ! "$(which dpkg)" -l unifi 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi"; then
   header_red
-  echo -e "${WHITE_R}#${RESET} UniFi is not installed on your system!"
+  echo -e "${WHITE_R}#${RESET} UniFi is not installed on your system or is in a broken state!"
   if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Do you want to run the Easy Installation Script? (Y/n) ' yes_no; fi
   case "$yes_no" in
       [Yy]*|"") curl "${curl_argument[@]}" --remote-name https://get.glennr.nl/unifi/install/install_latest/unifi-latest.sh && bash unifi-latest.sh --skip; exit 0;;
@@ -1722,7 +1720,7 @@ cleanup_conflicting_repositories() {
                 1' "${file_with_conflict}" &> tmpfile; then mv tmpfile "${file_with_conflict}" &> /dev/null; cleanup_conflicting_repositories_changes_made="true"; fi
             fi
             echo "awk command executed for ${file_with_conflict}" &>> "${eus_dir}/logs/trusted-repository-conflict.log"
-          done < <(grep -l "^deb.*${source_url}.*${package_name}.*${version}" /etc/apt/sources.list /etc/apt/sources.list.d/* /etc/apt/sources.list.d/*.sources)
+          done < <(grep -sl "^deb.*${source_url}.*${package_name}.*${version}\\|^URIs: *${source_url}" /etc/apt/sources.list /etc/apt/sources.list.d/* /etc/apt/sources.list.d/*.sources | awk '!NF || !seen[$0]++')
           break
         elif [[ ${line} == *"Conflicting values set for option Signed-By regarding source"* ]]; then
           if [[ "${cleanup_conflicting_repositories_found_message_2}" != 'true' ]]; then
@@ -1755,7 +1753,7 @@ cleanup_conflicting_repositories() {
                 1' "${file_with_conflict}" &> tmpfile; then mv tmpfile "${file_with_conflict}" &> /dev/null; cleanup_conflicting_repositories_changes_made="true"; fi
             fi
             echo "awk command executed for ${file_with_conflict}" &>> "${eus_dir}/logs/signed-by-repository-conflict.log"
-          done < <(grep -l "^deb.*${conflicting_source}" /etc/apt/sources.list /etc/apt/sources.list.d/* /etc/apt/sources.list.d/*.sources)
+          done < <(grep -sl "^deb.*${conflicting_source}\\|^URIs: *${conflicting_source}" /etc/apt/sources.list /etc/apt/sources.list.d/* /etc/apt/sources.list.d/*.sources | awk '!NF || !seen[$0]++')
           break
         fi
       done < "${logfile}"
@@ -1875,7 +1873,7 @@ add_glennr_mongod_repo() {
     fi
   fi
   if [[ -n "${mongod_version_major_minor}" ]]; then
-    if ! [[ -s "/etc/apt/keyrings/apt-glennr.gpg" ]]; then
+    if ! gpg --list-packets "/etc/apt/keyrings/apt-glennr.gpg" &> /dev/null; then
       echo -e "${WHITE_R}#${RESET} Adding key for the Glenn R. APT Repository..."
       aptkey_depreciated
       if [[ "${apt_key_deprecated}" == 'true' ]]; then
@@ -1905,7 +1903,7 @@ add_glennr_mongod_repo() {
     else
       if [[ "${apt_key_deprecated}" == 'true' ]]; then signed_by_value=" signed-by=/etc/apt/keyrings/apt-glennr.gpg"; deb822_signed_by_value="\nSigned-By: /etc/apt/keyrings/apt-glennr.gpg"; fi
     fi
-    echo -e "${WHITE_R}#${RESET} Adding the Glenn R. APT reposity for mongod ${mongod_version_major_minor}..."
+    echo -e "${WHITE_R}#${RESET} Adding the Glenn R. APT repository for mongod ${mongod_version_major_minor}..."
     if [[ "${architecture}" == 'arm64' ]]; then arch="arch=arm64"; elif [[ "${architecture}" == 'amd64' ]]; then arch="arch=amd64"; else arch="arch=amd64,arm64"; fi
     if [[ "${use_deb822_format}" == 'true' ]]; then
       # DEB822 format
@@ -1915,7 +1913,7 @@ add_glennr_mongod_repo() {
       mongod_repo_entry="deb [ ${arch}${signed_by_value} ] ${repo_http_https}://apt.glennr.nl/${mongod_codename} ${mongod_repo_type}"
     fi
     if echo -e "${mongod_repo_entry}" &> "/etc/apt/sources.list.d/glennr-mongod-${mongod_version_major_minor}.${source_file_format}"; then
-      echo -e "${GREEN}#${RESET} Successfully added the Glenn R. APT reposity for mongod ${mongod_version_major_minor}!\\n" && sleep 2
+      echo -e "${GREEN}#${RESET} Successfully added the Glenn R. APT repository for mongod ${mongod_version_major_minor}!\\n" && sleep 2
       if [[ "${mongodb_key_update}" != 'true' ]]; then
         run_apt_get_update
         mongod_upgrade_to_version_with_dot="$(apt-cache policy mongod-armv8 | grep -i "${mongo_version_max_with_dot}" | grep -i Candidate | sed -e 's/ //g' -e 's/*//g' | cut -d':' -f2)"
@@ -1927,7 +1925,7 @@ add_glennr_mongod_repo() {
         fi
       fi
     else
-      abort_reason="Failed to add the Glenn R. APT reposity for mongod ${mongod_version_major_minor}."
+      abort_reason="Failed to add the Glenn R. APT repository for mongod ${mongod_version_major_minor}."
       abort
     fi
   fi
@@ -2286,8 +2284,9 @@ add_mongodb_repo() {
   if [[ "${try_different_mongodb_repo}" == 'true' ]]; then try_different_mongodb_repo_test="a different"; try_different_mongodb_repo_test_2="different "; else try_different_mongodb_repo_test="the"; try_different_mongodb_repo_test_2=""; fi
   if [[ "${try_http_mongodb_repo}" == 'true' ]]; then repo_http_https="http"; try_different_mongodb_repo_test="a HTTP instead of HTTPS"; try_different_mongodb_repo_test_2="HTTP "; else try_different_mongodb_repo_test="the"; try_different_mongodb_repo_test_2=""; fi
   if [[ -n "${mongodb_version_major_minor}" ]]; then
+    if gpg --list-packets "/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg" &> /dev/null && [[ "${mongodb_key_update}" != 'true' ]]; then if [[ "$(gpg --show-keys --with-colons "/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg" 2> /dev/null | awk -F':' '$1=="pub"{print $7}' | head -n1)" -le "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/mongodb-release?version=${mongodb_version_major_minor}" | jq -r '.updated')" ]]; then expired_existing_mongodb_key="true"; fi; fi
     if [[ "${mongodb_version_major_minor}" != "4.4" ]]; then unset mongo_version_locked; fi
-    if ! [[ -s "/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg" ]] || [[ "${mongodb_key_update}" == 'true' ]] || [[ "${try_different_mongodb_repo}" == 'true' ]] || [[ "${try_http_mongodb_repo}" == 'true' ]]; then
+    if ! gpg --list-packets "/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg" &> /dev/null || [[ "${expired_existing_mongodb_key}" == 'true' ]] || [[ "${mongodb_key_update}" == 'true' ]] || [[ "${try_different_mongodb_repo}" == 'true' ]] || [[ "${try_http_mongodb_repo}" == 'true' ]]; then
       echo -e "${WHITE_R}#${RESET} Adding key for MongoDB ${mongodb_version_major_minor}..."
       aptkey_depreciated
       if [[ "${apt_key_deprecated}" == 'true' ]]; then
@@ -3910,25 +3909,27 @@ if [[ "${mongo_version_locked}" == '4.4.18' ]] || [[ "${unsupported_database_ver
       unset add_mongodb_44_repo
     fi
     if [[ "${reinstall_unifi}" == 'true' ]]; then
+      reinstall_unifi_version="$(head -n1 /usr/lib/unifi/data/db/version | sed 's/[^0-9.]//g' 2> /dev/null)"
+      if [[ -z "${reinstall_unifi_version}" ]]; then reinstall_unifi_version="$(dpkg-query --showformat='${Version}' --show unifi | awk -F '[-]' '{print $1}')"; fi
       eus_directory_location="/tmp/EUS"
       eus_create_directories "downloads"
       if [[ "$(curl "${curl_argument[@]}" https://api.glennr.nl/api/network-release?status | jq -r '.[]')" == "OK" ]]; then
-        fw_update_dl_link="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-release?version=$(dpkg-query --showformat='${Version}' --show unifi | awk -F '[-]' '{print $1}')" | jq -r '."download_link"' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
-        fw_update_dl_link_sha256sum="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-release?version=$(dpkg-query --showformat='${Version}' --show unifi | awk -F '[-]' '{print $1}')" | jq -r '.sha256sum' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
+        fw_update_dl_link="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-release?version=${reinstall_unifi_version}" | jq -r '."download_link"' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
+        fw_update_dl_link_sha256sum="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-release?version=${reinstall_unifi_version}" | jq -r '.sha256sum' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
       fi
       if [[ -z "${fw_update_dl_link}" ]]; then
-        fw_update_dl_link="$(curl "${curl_argument[@]}" --location --request GET "https://fw-update.ui.com/api/firmware-latest?filter=eq~~version_major~~$(dpkg-query --showformat='${Version}' --show unifi | awk -F '[.-]' '{print $1}')&filter=eq~~version_minor~~$(dpkg-query --showformat='${Version}' --show unifi | awk -F '[.-]' '{print $2}')&filter=eq~~version_patch~~$(dpkg-query --showformat='${Version}' --show unifi | awk -F '[.-]' '{print $3}')&filter=eq~~platform~~debian" | jq -r "._embedded.firmware[0]._links.data.href" | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
-        fw_update_dl_link_sha256sum="$(curl "${curl_argument[@]}" --location --request GET "https://fw-update.ui.com/api/firmware-latest?filter=eq~~version_major~~$(dpkg-query --showformat='${Version}' --show unifi | awk -F '[.-]' '{print $1}')&filter=eq~~version_minor~~$(dpkg-query --showformat='${Version}' --show unifi | awk -F '[.-]' '{print $2}')&filter=eq~~version_patch~~$(dpkg-query --showformat='${Version}' --show unifi | awk -F '[.-]' '{print $3}')&filter=eq~~platform~~debian" | jq -r "._embedded.firmware[0].sha256_checksum" | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
+        fw_update_dl_link="$(curl "${curl_argument[@]}" --location --request GET "https://fw-update.ui.com/api/firmware-latest?filter=eq~~version_major~~$(awk -F'.' '{print $1}' <<< "${reinstall_unifi_version}")&filter=eq~~version_minor~~$(awk -F'.' '{print $2}' <<< "${reinstall_unifi_version}")&filter=eq~~version_patch~~$(awk -F'.' '{print $3}' <<< "${reinstall_unifi_version}")&filter=eq~~platform~~debian" | jq -r "._embedded.firmware[0]._links.data.href" | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
+        fw_update_dl_link_sha256sum="$(curl "${curl_argument[@]}" --location --request GET "https://fw-update.ui.com/api/firmware-latest?filter=eq~~version_major~~$(awk -F'.' '{print $1}' <<< "${reinstall_unifi_version}")&filter=eq~~version_minor~~$(awk -F'.' '{print $2}' <<< "${reinstall_unifi_version}")&filter=eq~~version_patch~~$(awk -F'.' '{print $3}' <<< "${reinstall_unifi_version}")&filter=eq~~platform~~debian" | jq -r "._embedded.firmware[0].sha256_checksum" | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
       fi
-      if [[ -z "${unifi_temp}" ]]; then unifi_temp="$(mktemp --tmpdir=/tmp/EUS/downloads "${unifi_deb_file_name}"_"$(dpkg-query --showformat='${Version}' --show unifi | awk -F '[-]' '{print $1}')"_XXXXX.deb)"; fi
+      if [[ -z "${unifi_temp}" ]]; then unifi_temp="$(mktemp --tmpdir=/tmp/EUS/downloads "${unifi_deb_file_name}"_"${reinstall_unifi_version}"_XXXXX.deb)"; fi
       echo -e "$(date +%F-%R) | Downloading ${fw_update_dl_link} to ${unifi_temp}" &>> "${eus_dir}/logs/unifi_download.log"
-      echo -e "${WHITE_R}#${RESET} Downloading UniFi Network Application version $(dpkg-query --showformat='${Version}' --show unifi | awk -F '[-]' '{print $1}')..."
+      echo -e "${WHITE_R}#${RESET} Downloading UniFi Network Application version ${reinstall_unifi_version}..."
       if curl --retry 3 "${nos_curl_argument[@]}" --output "$unifi_temp" "${fw_update_dl_link}" &>> "${eus_dir}/logs/unifi_download.log"; then
         if command -v sha256sum &> /dev/null; then
           if [[ "$(sha256sum "$unifi_temp" | awk '{print $1}')" != "${fw_update_dl_link_sha256sum}" ]]; then
             if curl --retry 3 "${nos_curl_argument[@]}" --output "$unifi_temp" "${fw_update_dl_link}" &>> "${eus_dir}/logs/unifi_download.log"; then
               if [[ "$(sha256sum "$unifi_temp" | awk '{print $1}')" != "${fw_update_dl_link_sha256sum}" ]]; then
-                abort_reason="Failed to download UniFi Network Application version $(dpkg-query --showformat='${Version}' --show unifi | awk -F '[-]' '{print $1}') during the MongoDB Downgrade process."
+                abort_reason="Failed to download UniFi Network Application version ${reinstall_unifi_version} during the MongoDB Downgrade process."
                 abort
               fi
             fi
@@ -3938,28 +3939,28 @@ if [[ "${mongo_version_locked}" == '4.4.18' ]] || [[ "${unsupported_database_ver
             if curl --retry 3 "${nos_curl_argument[@]}" --output "$unifi_temp" "${fw_update_dl_link}" &>> "${eus_dir}/logs/unifi_download.log"; then
               if ! dpkg-deb --info "${unifi_temp}" &> /dev/null; then
                 echo -e "$(date +%F-%R) | The file downloaded via ${fw_update_dl_link} was not a debian file format..." &>> "${eus_dir}/logs/unifi_download.log"
-                abort_reason="Failed to download UniFi Network Application version $(dpkg-query --showformat='${Version}' --show unifi | awk -F '[-]' '{print $1}') during the MongoDB Downgrade process."
+                abort_reason="Failed to download UniFi Network Application version ${reinstall_unifi_version} during the MongoDB Downgrade process."
                 abort
               fi
             fi
           fi
         fi
-        echo -e "${GREEN}#${RESET} Successfully downloaded UniFi Network Application version $(dpkg-query --showformat='${Version}' --show unifi | awk -F '[-]' '{print $1}')! \\n"
+        echo -e "${GREEN}#${RESET} Successfully downloaded UniFi Network Application version ${reinstall_unifi_version}! \\n"
         get_unifi_version
         java_required_variables
         unifi_deb_package_modification
         ignore_unifi_package_dependencies
-        echo -e "${WHITE_R}#${RESET} Re-installing UniFi Network Application version $(dpkg-query --showformat='${Version}' --show unifi | awk -F '[-]' '{print $1}')..."
+        echo -e "${WHITE_R}#${RESET} Re-installing UniFi Network Application version ${reinstall_unifi_version}..."
         echo "unifi unifi/has_backup boolean true" 2> /dev/null | debconf-set-selections
         # shellcheck disable=SC2086
         if DEBIAN_FRONTEND='noninteractive' "$(which dpkg)" -i ${dpkg_ignore_depends_flag} "${unifi_temp}" &>> "${eus_dir}/logs/mongodb-unsupported-version-change.log"; then
-          echo -e "${GREEN}#${RESET} Successfully re-installed UniFi Network Application version $(dpkg-query --showformat='${Version}' --show unifi | awk -F '[-]' '{print $1}')! \\n"
+          echo -e "${GREEN}#${RESET} Successfully re-installed UniFi Network Application version ${reinstall_unifi_version}! \\n"
         else
-          abort_reason="Failed to reinstall UniFi Network Application $(dpkg-query --showformat='${Version}' --show unifi | awk -F '[-]' '{print $1}') during the MongoDB Downgrade process."
+          abort_reason="Failed to reinstall UniFi Network Application ${reinstall_unifi_version} during the MongoDB Downgrade process."
           abort
         fi
       else
-        abort_reason="Failed to download UniFi Network Application version $(dpkg-query --showformat='${Version}' --show unifi | awk -F '[-]' '{print $1}') during the MongoDB Downgrade process."
+        abort_reason="Failed to download UniFi Network Application version ${reinstall_unifi_version} during the MongoDB Downgrade process."
         abort
       fi
     fi
@@ -4026,13 +4027,6 @@ if "$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep -iq "mon
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
-get_unifi_version() {
-  unifi="$("$(which dpkg)" -l | grep "unifi " | awk '{print $3}' | sed 's/-.*//')"
-  first_digit_unifi="$(echo "${unifi}" | cut -d'.' -f1)"
-  second_digit_unifi="$(echo "${unifi}" | cut -d'.' -f2)"
-  third_digit_unifi="$(echo "${unifi}" | cut -d'.' -f3)"
-  unifi_release="$("$(which dpkg)" -l | grep "unifi " | awk '{print $3}' | sed 's/-.*//' | sed 's/\.//g')"
-}
 get_unifi_version
 get_mongodb_org_v
 
@@ -4278,28 +4272,28 @@ author() {
 backup_save_location() {
   if [[ "${backup_location}" == "custom" ]]; then
     if echo "${auto_dir}" | grep -q '/$'; then
-      echo -e "${WHITE_R}#${RESET} Your UniFi Network Application backup is saved here: ${WHITE_R}${auto_dir}glennr-unifi-backups/${RESET}"
+      echo -e "${WHITE_R}#${RESET} Your UniFi Network Application backup is saved here: ${WHITE_R}${auto_dir}glennr-unifi-backups/${RESET} \\n"
     else
-      echo -e "${WHITE_R}#${RESET} Your UniFi Network Application backup is saved here: ${WHITE_R}${auto_dir}/glennr-unifi-backups/${RESET}"
+      echo -e "${WHITE_R}#${RESET} Your UniFi Network Application backup is saved here: ${WHITE_R}${auto_dir}/glennr-unifi-backups/${RESET} \\n"
     fi
   elif [[ "${backup_location}" == "sd_card" ]]; then
-    echo -e "${WHITE_R}#${RESET} Your UniFi Network Application backup is saved here: ${WHITE_R}/data/glennr-unifi-backups/${RESET}"
+    echo -e "${WHITE_R}#${RESET} Your UniFi Network Application backup is saved here: ${WHITE_R}/data/glennr-unifi-backups/${RESET} \\n"
   elif [[ "${backup_location}" == "sd_card_unifi_os" ]]; then
-    echo -e "${WHITE_R}#${RESET} Your UniFi Network Application backup is saved here: ${WHITE_R}/sdcard/glennr-unifi-backups/${RESET}"
+    echo -e "${WHITE_R}#${RESET} Your UniFi Network Application backup is saved here: ${WHITE_R}/sdcard/glennr-unifi-backups/${RESET} \\n"
   elif [[ "${backup_location}" == "unifi_dir" ]]; then
-    echo -e "${WHITE_R}#${RESET} Your UniFi Network Application backup is saved here: ${WHITE_R}/usr/lib/unifi/data/backup/glennr-unifi-backups/${RESET}"
+    echo -e "${WHITE_R}#${RESET} Your UniFi Network Application backup is saved here: ${WHITE_R}/usr/lib/unifi/data/backup/glennr-unifi-backups/${RESET} \\n"
   fi
 }
 
 auto_backup_write_warning() {
   if [[ "${application_login}" == 'success' ]]; then
-    autobackup_status="$("${mongocommand}" --quiet --port 27117 ace --eval "${mongoprefix}db.getCollection('setting').find({key:'super_mgmt'})${mongosuffix}" | sed 's/\(ObjectId(\|)\|NumberLong(\)//g' | jq -r '.[]."autobackup_enabled"')"
+    autobackup_status="$("${mongocommand}" --quiet --port 27117 ace --eval "${mongoprefix}db.getCollection('setting').find({key:'super_mgmt'})${mongosuffix}" | sed 's/\(ObjectId(\|)\|NumberLong(\)//g' 2> /dev/null | jq -r '.[]."autobackup_enabled"' 2> /dev/null)"
     if [[ "${autobackup_status}" == 'true' && "${unifi_write_permission}" == "false" ]]; then
       echo -e "${RED}#${RESET} Your autobackups path is set to '${WHITE_R}${auto_dir}${RESET}', user UniFi is not able to backup to that location.."
-      echo -e "${RED}#${RESET} I recommend checking the path and make sure the user UniFi has permissions to that directory.. or use the default location."
+      echo -e "${RED}#${RESET} I recommend checking the path and make sure the user UniFi has permissions to that directory.. or use the default location. \\n"
     elif [[ "${autobackup_status}" == 'false' ]]; then
       echo -e "${RED}#${RESET} You currently don't have autobackups turned on.."
-      echo -e "${RED}#${RESET} I highly recommend turning that on, let it run daily settings only backups..."
+      echo -e "${RED}#${RESET} I highly recommend turning that on, let it run daily settings only backups... \\n"
     fi
   fi
 }
@@ -4307,7 +4301,7 @@ auto_backup_write_warning() {
 override_inform_host() {
   header
   echo -e "${WHITE_R}#${RESET} Checking if the Hostname/IP override is turned on.."
-  if [[ "$("${mongocommand}" --quiet --port 27117 ace --eval "${mongoprefix}db.getCollection('setting').find({key:'super_mgmt'})${mongosuffix}" | sed 's/\(ObjectId(\|)\|NumberLong(\)//g' | jq -r '.[]."override_inform_host"')" != 'true' ]]; then
+  if [[ "$("${mongocommand}" --quiet --port 27117 ace --eval "${mongoprefix}db.getCollection('setting').find({key:'super_mgmt'})${mongosuffix}" | sed 's/\(ObjectId(\|)\|NumberLong(\)//g' 2> /dev/null | jq -r '.[]."override_inform_host"' 2> /dev/null)" != 'true' ]]; then
     header_red
     echo -e "${RED}#${RESET} Override Inform Host is currently disabled, I recommend turning this on when doing a mass upgrade."
     echo -e "${RED}#${RESET} The Hostname/IP needs to be accessible for all adopted devices."
@@ -4326,12 +4320,12 @@ override_inform_host() {
 
 mail_server_recommendation() {
   net_check_remote_access() {
-    net_remote_access_status="$("${mongocommand}" --quiet --port 27117 ace --eval "${mongoprefix}db.getCollection('setting').find({key:'super_cloudaccess'})${mongosuffix}" | sed 's/\(ObjectId(\|)\|NumberLong(\)//g' | jq -r '.[]."enabled"')"
+    net_remote_access_status="$("${mongocommand}" --quiet --port 27117 ace --eval "${mongoprefix}db.getCollection('setting').find({key:'super_cloudaccess'})${mongosuffix}" | sed 's/\(ObjectId(\|)\|NumberLong(\)//g' 2> /dev/null | jq -r '.[]."enabled"' 2> /dev/null)"
   }
   net_enable_cloud_mail() {
     echo -e "${WHITE_R}#${RESET} Enabling UI Cloud Email..."
     # shellcheck disable=SC2016
-    net_enable_cloud_mail_status="$("${mongocommand}" --quiet --port 27117 ace --eval ''"${mongoprefix}"'db.getCollection("setting").updateOne({key: "super_mail"}, {"$set": {provider: "cloud"}}) )' | jq -r '."modifiedCount"')"
+    net_enable_cloud_mail_status="$("${mongocommand}" --quiet --port 27117 ace --eval ''"${mongoprefix}"'db.getCollection("setting").updateOne({key: "super_mail"}, {"$set": {provider: "cloud"}}) )' 2> /dev/null | jq -r '."modifiedCount"' 2> /dev/null)"
     if [[ "${net_enable_cloud_mail_status}" == '1' ]]; then
       echo -e "${GREEN}#${RESET} Successfully enabled UI Cloud Email! \\n"
     else
@@ -4350,19 +4344,34 @@ mail_server_recommendation() {
           [Nn]*)
             echo -e "${YELLOW}#${RESET} Alright... not touching your Email Server Configuration... Please configure one yourself... \\n"
             echo -e "${YELLOW}#${RESET} UniFi Network Application Settings"
-            echo -e "${YELLOW}#${RESET} Settings > System > Advanced > Email Services";;
+            echo -e "${YELLOW}#${RESET} Settings > System > Advanced > Email Services \\n";;
       esac
     else
       echo -e "${YELLOW}#${RESET} You do not have an Email Server configurated... this is recommended! \\n"
       echo -e "${YELLOW}#${RESET} UniFi Network Application Settings"
-      echo -e "${YELLOW}#${RESET} Settings > System > Advanced > Email Services"
+      echo -e "${YELLOW}#${RESET} Settings > System > Advanced > Email Services \\n"
     fi
   }
-  net_mail_provider_setting="$("${mongocommand}" --quiet --port 27117 ace --eval "${mongoprefix}db.getCollection('setting').find({key:'super_mail'})${mongosuffix}" | sed 's/\(ObjectId(\|)\|NumberLong(\)//g' | jq -r '.[]."provider"' 2> /dev/null)"
+  net_mail_provider_setting="$("${mongocommand}" --quiet --port 27117 ace --eval "${mongoprefix}db.getCollection('setting').find({key:'super_mail'})${mongosuffix}" | sed 's/\(ObjectId(\|)\|NumberLong(\)//g' 2> /dev/null | jq -r '.[]."provider"' 2> /dev/null)"
   if [[ "${net_mail_provider_setting}" == "disabled" ]]; then
     net_mail_server_recommendation
-  elif [[ "${net_mail_provider_setting}" == "smtp" && "$("${mongocommand}" --quiet --port 27117 ace --eval "${mongoprefix}db.getCollection('setting').find({key:'super_smtp'})${mongosuffix}" | sed 's/\(ObjectId(\|)\|NumberLong(\)//g' | jq -r '.[]."enabled"')" != 'true' ]]; then
+  elif [[ "${net_mail_provider_setting}" == "smtp" && "$("${mongocommand}" --quiet --port 27117 ace --eval "${mongoprefix}db.getCollection('setting').find({key:'super_smtp'})${mongosuffix}" | sed 's/\(ObjectId(\|)\|NumberLong(\)//g' 2> /dev/null | jq -r '.[]."enabled"' 2> /dev/null)" != 'true' ]]; then
     net_mail_server_recommendation
+  fi
+}
+
+check_mongodb_connection() {
+  mongo_wait_initialize="0"
+  mongo_max_wait_time="30"
+  mongo_wait_interval="5"
+  mongo_total_checks="$((mongo_max_wait_time / mongo_wait_interval))"
+  until "${mongocommand}" --port 27117 --eval "print(\"waited for connection\")" &> /dev/null; do
+    ((mongo_wait_initialize++))
+    sleep "${mongo_wait_interval}"
+    if [[ "${mongo_wait_initialize}" -ge "${mongo_total_checks}" ]]; then break; fi
+  done
+  if [[ "${mongo_wait_initialize}" -lt "${mongo_total_checks}" ]]; then
+    mongodb_connected="true"
   fi
 }
 
@@ -4370,11 +4379,9 @@ unifi_update_finish() {
   if [[ "${application_login}" == 'success' ]]; then
     application_login_attempt
   fi
-  unset UNIFI
-  unifi=$("$(which dpkg)" -l | grep "unifi " | awk '{print $3}' | sed 's/-.*//')
   login_cleanup
   header
-  echo -e "${WHITE_R}#${RESET} Your UniFi Network Application has been successfully updated to ${unifi}"
+  echo -e "${WHITE_R}#${RESET} Your UniFi Network Application has been successfully updated to $(dpkg-query --showformat='${Version}' --show unifi | awk -F '[-]' '{print $1}')"
   if [[ "${script_option_do_not_start_unifi}" == 'true' ]]; then
     echo -e "${WHITE_R}#${RESET} You've used the script option \"Do Not Start UniFi\"... Stopping the service..."
     echo -e "$(date +%F-%R) | Script option \"Do Not Start UniFi\" was used... Stopping the UniFi Network Application..." &>> "${eus_dir}/logs/script-option-do-not-start-unifi.log"
@@ -4385,13 +4392,10 @@ unifi_update_finish() {
     fi
   fi
   backup_save_location
-  echo ""
-  auto_backup_write_warning
-  if [[ "${first_digit_unifi}" -ge '6' ]] || [[ "${first_digit_unifi}" -ge '5' && "${second_digit_unifi}" -ge '12' ]]; then
-    if "${mongocommand}" --port 27117 --eval "print(\"waited for connection\")" &> /dev/null; then
-      echo ""
-      mail_server_recommendation
-    fi
+  check_mongodb_connection
+  if [[ "${mongodb_connected}" == 'true' ]]; then
+    auto_backup_write_warning
+    if [[ "${first_digit_unifi}" -ge '6' ]] || [[ "${first_digit_unifi}" -ge '5' && "${second_digit_unifi}" -ge '12' ]]; then mail_server_recommendation; fi
   fi
   if [[ "${keystore_alias_checked}" == "true" ]]; then
     echo -e "\\n${WHITE_R}#${RESET} The script has detected a invalid keystore and removed it..."
@@ -4411,13 +4415,10 @@ unifi_update_latest() {
     echo -e "${WHITE_R}#${RESET} Your UniFi Network Application is already on the latest stable release! ( ${WHITE_R}$unifi${RESET} )"
   fi
   backup_save_location
-  echo ""
-  auto_backup_write_warning
-  if [[ "${first_digit_unifi}" -ge '6' ]] || [[ "${first_digit_unifi}" -ge '5' && "${second_digit_unifi}" -ge '12' ]]; then
-    if "${mongocommand}" --port 27117 --eval "print(\"waited for connection\")" &> /dev/null; then
-      echo ""
-      mail_server_recommendation
-    fi
+  check_mongodb_connection
+  if [[ "${mongodb_connected}" == 'true' ]]; then
+    auto_backup_write_warning
+    if [[ "${first_digit_unifi}" -ge '6' ]] || [[ "${first_digit_unifi}" -ge '5' && "${second_digit_unifi}" -ge '12' ]]; then mail_server_recommendation; fi
   fi
   echo -e "\\n"
   author
@@ -4452,9 +4453,9 @@ devices_update_finish() {
       echo -e "${WHITE_R}#${RESET} Your UniFi devices have been successfully ${unifi_upgrade_devices_var_2}d!"
     fi
   fi
-  if [[ "${first_digit_unifi}" -ge '6' ]] || [[ "${first_digit_unifi}" -ge '5' && "${second_digit_unifi}" -ge '12' ]]; then
-    echo ""
-    mail_server_recommendation
+  check_mongodb_connection
+  if [[ "${mongodb_connected}" == 'true' ]]; then
+    if [[ "${first_digit_unifi}" -ge '6' ]] || [[ "${first_digit_unifi}" -ge '5' && "${second_digit_unifi}" -ge '12' ]]; then mail_server_recommendation; fi
   fi
   echo -e "\\n"
   author
@@ -6105,7 +6106,7 @@ unifi_firmware_requirement() {
   if [[ "${required_upgrade}" == 'true' && "${run_unifi_firmware_check}" != 'no' ]]; then
     header
     echo -e "${WHITE_R}#${RESET} Your devices need to be updated in order to work with the newer UniFi Network Application releease..."
-    echo -e "${WHITE_R}#${RESET} What would you like to do?"
+    echo -e "${WHITE_R}#${RESET} What would you like to do? \\n"
     echo -e " [   ${WHITE_R}1${RESET}   ]  |  Update all devices via the script ( default )"
     echo -e " [   ${WHITE_R}2${RESET}   ]  |  Don't upgrade the devices"
     echo -e " [   ${WHITE_R}3${RESET}   ]  |  cancel\\n\\n\\n"
@@ -6615,7 +6616,7 @@ custom_url_install() {
   ignore_unifi_package_dependencies
   if [[ "${current_application_digit_1}${current_application_digit_2}" -le "80" && "${custom_application_digit_1}${custom_application_digit_2}" -ge "81" ]]; then
     echo -e "${WHITE_R}#${RESET} Upgrading your UniFi Network Application from \"${current_application_version}\" to \"${custom_application_version}\" may take a while"
-    echo -e "${WHITE_R}#${RESET} because it needs to migrate $("${mongocommand}" --quiet --port 27117 ace_stat --eval "${mongoprefix}db.dpi.stats() )" | jq '.count') Traffic Identification records..."
+    echo -e "${WHITE_R}#${RESET} because it needs to migrate $("${mongocommand}" --quiet --port 27117 ace_stat --eval "${mongoprefix}db.dpi.stats() )" 2> /dev/null | jq '.count' 2> /dev/null) Traffic Identification records..."
   else
     echo -e "${WHITE_R}#${RESET} Upgrading your UniFi Network Application from \"${current_application_version}\" to \"${custom_application_version}\".."
   fi
@@ -6790,6 +6791,7 @@ repair_unifi_database() {
 }
 
 mongodb_upgrade_space_check() {
+  mongodb_upgrade_method="regular"
   free_space_kilobyte="$(df -k ${eus_dir}/ | awk '{print $4}' | tail -n1)"
   unifi_database_size_kilobyte="$(du -s "${unifi_database_location}" | awk '{print $1}')"
   if [[ "${free_space_kilobyte}" -lt "$((unifi_database_size_kilobyte*10/100 + unifi_database_size_kilobyte + unifi_database_size_kilobyte))" ]]; then
@@ -6802,22 +6804,28 @@ mongodb_upgrade_space_check() {
       header_red
       echo -e "${WHITE_R}#${RESET} Your UniFi Network Application database is $(du -sh "${unifi_database_location}" | awk '{print $1}') in size and you have $(df -H ${eus_dir}/ | awk '{print $4}' | tail -n1) of available space..."
       echo -e "${WHITE_R}#${RESET} The MongoDB Upgrade might fail due to not having enough space to export/import the database...\\n"
-      if [[ "$(find "$(readlink -f /usr/lib/unifi/data/backup/autobackup/)" -maxdepth 1 -type f -name "*.unf" | wc -l)" -gt '5' ]]; then
+      if [[ "$(find "$(readlink -f /usr/lib/unifi/data/backup/autobackup/)" -maxdepth 1 -type f -name "*.unf" | wc -l)" -gt '3' ]]; then
         cleanup_backup_files_during_mongodb_upgrade="true"
         cleanup_backup_files_dir="$(readlink -f /usr/lib/unifi/data/backup/autobackup/)"
         cleanup_backup_files
         if [[ "${cleanup_backup_files_during_mongodb_upgrade_complete}" == 'true' ]]; then mongodb_upgrade_space_check; return; fi
       fi
-      read -rp $'\033[39m#\033[0m Do you want to continue with the MongoDB Upgrade? (y/N) ' yes_no
-      case "$yes_no" in
-         [Nn]*|"")
-            echo -e "${YELLOW}#${RESET} OK... Please free up disk space before running the MongoDB Upgrade again..."
-            cancel_script;;
-         [Yy]*) ;;
+      echo -e "${WHITE_R}#${RESET} How would you like to proceed with the MongoDB upgrade process?\\n"
+      echo -e "\\n${WHITE_R}---${RESET}\\n"
+      echo -e " [   ${WHITE_R}1 ${RESET}   ]  |  Regular method, with a higher chance of failure due to low disk space."
+      echo -e " [   ${WHITE_R}2 ${RESET}   ]  |  No statistics method, with a lower chance of failure."
+      echo -e " [   ${WHITE_R}3 ${RESET}   ]  |  I want to free up disk space before attempting again."
+      echo -e "\\n"
+      read -rp $'Your choice | \033[39m' choice
+      case "$choice" in
+         1) migrate_unifi_database_without_stats="false";;
+         2) migrate_unifi_database_without_stats="true"; mongodb_upgrade_method="no statistics"; migrate_unifi_database_without_stats_message_1=", without statistics";;
+         3) echo -e "${YELLOW}#${RESET} OK... Please free up disk space before running the MongoDB Upgrade again..."; cancel_script;;
+	     *) header_red; echo -e "${WHITE_R}#${RESET} Option ${choice} is not a valid..."; sleep 3; mongodb_upgrade_space_check;;
       esac
     fi
   fi
-  jq '.scripts["'"$script_name"'"].tasks += {"mongodb-upgrade ('"${mongodb_upgrade_date}"')": [.scripts["'"$script_name"'"].tasks["mongodb-upgrade ('"${mongodb_upgrade_date}"')"][0] + {"free disk space":"'"${free_space_kilobyte}"'","database size":"'"${unifi_database_size_kilobyte}"'","unifi_db_eus_dir":"'"${unifi_db_eus_dir}"'"}]}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+  jq '.scripts["'"$script_name"'"].tasks += {"mongodb-upgrade ('"${mongodb_upgrade_date}"')": [.scripts["'"$script_name"'"].tasks["mongodb-upgrade ('"${mongodb_upgrade_date}"')"][0] + {"method":"'"${mongodb_upgrade_method}"'","free disk space":"'"${free_space_kilobyte}"'","database size":"'"${unifi_database_size_kilobyte}"'","unifi_db_eus_dir":"'"${unifi_db_eus_dir}"'"}]}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
   eus_database_move
 }
 
@@ -7858,7 +7866,7 @@ script_removal() {
   fi
   read -rp $'\033[39m#\033[0m Do you want to keep the script on your system after completion? (Y/n) ' yes_no
   case "$yes_no" in
-      [Yy]*|"") ;;
+      [Yy]*|"") echo "";;
       [Nn]*) delete_script="true";;
   esac
 }

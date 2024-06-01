@@ -11,6 +11,32 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 8.7.1
+  
+ - Added the ability to perform the MongoDB Upgrade process without statistics if disk space is low.
+ - Improved error handling.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 8.7.0
+  
+ - Improved the unsupported MongoDB version change process.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 8.6.9
+  
+ - Improved cleaning up distribution mismatched in the scripts repository lists.
+ - Improved finding the default debian repository key file on the system.
+ - Improved cleaning up repository conflicts on setups using DEB822.
+ - Improved verification for GPG keys.
+ - Improved error handling at the end of the script, it will now only print certain messages if it can connect with the MongoDB.
+ - Fixed typo when adding the Glenn R. APT repository.
+ - Fixed an issue where checking for existing repository list entries didn't work for .sources files.
+ - Fixed an issue where MongoDB downgrades/installations could fail if the key already existed on the setup, but wasn't up-to-date.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 8.6.8
   
  - Added support for DEB822 repositories, it will use them if .sources repository lists exist.
