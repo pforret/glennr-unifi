@@ -2,7 +2,7 @@
 
 # UniFi Easy Encrypt script.
 # Script   | UniFi Network Easy Encrypt Script
-# Version  | 2.7.6
+# Version  | 2.7.9
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -200,6 +200,7 @@ support_file() {
   lscpu &> "/tmp/EUS/support/lscpu-results"
   ps -p $$ -o command= &> "/tmp/EUS/support/script-usage"
   echo "$PATH" &> "/tmp/EUS/support/PATH"
+  cp "${script_location}" "/tmp/EUS/support/${script_file_name}" &> /dev/null
   "$(which dpkg)" -l | grep "mongo\\|oracle\\|openjdk\\|unifi\\|temurin" &> "/tmp/EUS/support/unifi-packages-list"
   "$(which dpkg)" -l &> "/tmp/EUS/support/dpkg-packages-list"
   journalctl -u unifi -p debug --since "1 week ago" --no-pager &> "/tmp/EUS/support/ujournal.log"
@@ -393,7 +394,7 @@ support_file() {
       jq '.scripts."'"${script_name}"'" |= . + {"support": (.support + {("'"${support_file_name}"'"): {"abort-reason": "'"${abort_reason}"'","upload-results": ""}})}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
       eus_database_move
     fi
-    tar cJvfh "${support_file}" --exclude="${eus_dir}/unifi_db" --exclude="/tmp/EUS/downloads" --exclude="/usr/lib/unifi/logs/remote" "/tmp/EUS" "${eus_dir}" "/usr/lib/unifi/logs" "/etc/apt/sources.list" "/etc/apt/sources.list.d/" "/etc/apt/preferences" "/etc/apt/keyrings" "/etc/apt/preferences.d/" "/etc/default/unifi" "/etc/environment" "/var/log/dpkg.log*" "/etc/systemd/system/unifi.service.d/" "/lib/systemd/system/unifi.service" &> /dev/null
+    tar cJvfh "${support_file}" --exclude="${eus_dir}/unifi_db" --exclude="/tmp/EUS/downloads" --exclude="/usr/lib/unifi/logs/remote" "/tmp/EUS" "${eus_dir}" "/usr/lib/unifi/logs" "/etc/apt/sources.list" "/etc/apt/sources.list.d/" "/etc/apt/preferences" "/etc/apt/keyrings" "/etc/apt/preferences.d/" "/etc/default/unifi" "/etc/environment" "/var/log/dpkg.log"* "/etc/systemd/system/unifi.service.d/" "/lib/systemd/system/unifi.service" &> /dev/null
   elif "$(which dpkg)" -l zstd 2> /dev/null | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
     support_file="/tmp/eus-support-${support_file_uuid}${support_file_time}.tar.zst"
     support_file_name="$(basename "${support_file}")"
@@ -401,7 +402,7 @@ support_file() {
       jq '.scripts."'"${script_name}"'" |= . + {"support": (.support + {("'"${support_file_name}"'"): {"abort-reason": "'"${abort_reason}"'","upload-results": ""}})}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
       eus_database_move
     fi
-    tar --use-compress-program=zstd -cvf "${support_file}" --exclude="${eus_dir}/unifi_db" --exclude="/tmp/EUS/downloads" --exclude="/usr/lib/unifi/logs/remote" "/tmp/EUS" "${eus_dir}" "/usr/lib/unifi/logs" "/etc/apt/sources.list" "/etc/apt/sources.list.d/" "/etc/apt/preferences" "/etc/apt/keyrings" "/etc/apt/preferences.d/" "/etc/default/unifi" "/etc/environment" "/var/log/dpkg.log*" "/etc/systemd/system/unifi.service.d/" "/lib/systemd/system/unifi.service" &> /dev/null
+    tar --use-compress-program=zstd -cvf "${support_file}" --exclude="${eus_dir}/unifi_db" --exclude="/tmp/EUS/downloads" --exclude="/usr/lib/unifi/logs/remote" "/tmp/EUS" "${eus_dir}" "/usr/lib/unifi/logs" "/etc/apt/sources.list" "/etc/apt/sources.list.d/" "/etc/apt/preferences" "/etc/apt/keyrings" "/etc/apt/preferences.d/" "/etc/default/unifi" "/etc/environment" "/var/log/dpkg.log"* "/etc/systemd/system/unifi.service.d/" "/lib/systemd/system/unifi.service" &> /dev/null
   elif "$(which dpkg)" -l tar 2> /dev/null | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
     support_file="/tmp/eus-support-${support_file_uuid}${support_file_time}.tar.gz"
     support_file_name="$(basename "${support_file}")"
@@ -409,7 +410,7 @@ support_file() {
       jq '.scripts."'"${script_name}"'" |= . + {"support": (.support + {("'"${support_file_name}"'"): {"abort-reason": "'"${abort_reason}"'","upload-results": ""}})}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
       eus_database_move
     fi
-    tar czvfh "${support_file}" --exclude="${eus_dir}/unifi_db" --exclude="/tmp/EUS/downloads" --exclude="/usr/lib/unifi/logs/remote" "/tmp/EUS" "${eus_dir}" "/usr/lib/unifi/logs" "/etc/apt/sources.list" "/etc/apt/sources.list.d/" "/etc/apt/preferences" "/etc/apt/keyrings" "/etc/apt/preferences.d/" "/etc/default/unifi" "/etc/environment" "/var/log/dpkg.log*" "/etc/systemd/system/unifi.service.d/" "/lib/systemd/system/unifi.service" &> /dev/null
+    tar czvfh "${support_file}" --exclude="${eus_dir}/unifi_db" --exclude="/tmp/EUS/downloads" --exclude="/usr/lib/unifi/logs/remote" "/tmp/EUS" "${eus_dir}" "/usr/lib/unifi/logs" "/etc/apt/sources.list" "/etc/apt/sources.list.d/" "/etc/apt/preferences" "/etc/apt/keyrings" "/etc/apt/preferences.d/" "/etc/default/unifi" "/etc/environment" "/var/log/dpkg.log"* "/etc/systemd/system/unifi.service.d/" "/lib/systemd/system/unifi.service" &> /dev/null
   elif "$(which dpkg)" -l zip 2> /dev/null | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
     support_file="/tmp/eus-support-${support_file_uuid}${support_file_time}.zip"
     support_file_name="$(basename "${support_file}")"
@@ -417,7 +418,7 @@ support_file() {
       jq '.scripts."'"${script_name}"'" |= . + {"support": (.support + {("'"${support_file_name}"'"): {"abort-reason": "'"${abort_reason}"'","upload-results": ""}})}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
       eus_database_move
     fi
-    zip -r "${support_file}" "/tmp/EUS/" "${eus_dir}/" "/usr/lib/unifi/logs/" "/etc/apt/sources.list" "/etc/apt/sources.list.d/" "/etc/apt/preferences" "/etc/apt/keyrings" "/etc/apt/preferences.d/" "/etc/default/unifi" "/etc/environment" "/var/log/dpkg.log*" "/etc/systemd/system/unifi.service.d/" "/lib/systemd/system/unifi.service" -x "${eus_dir}/unifi_db/*" -x "/tmp/EUS/downloads" -x "/usr/lib/unifi/logs/remote" &> /dev/null
+    zip -r "${support_file}" "/tmp/EUS/" "${eus_dir}/" "/usr/lib/unifi/logs/" "/etc/apt/sources.list" "/etc/apt/sources.list.d/" "/etc/apt/preferences" "/etc/apt/keyrings" "/etc/apt/preferences.d/" "/etc/default/unifi" "/etc/environment" "/var/log/dpkg.log"* "/etc/systemd/system/unifi.service.d/" "/lib/systemd/system/unifi.service" -x "${eus_dir}/unifi_db/*" -x "/tmp/EUS/downloads" -x "/usr/lib/unifi/logs/remote" &> /dev/null
   fi
   if [[ -n "${support_file}" ]]; then
     echo -e "${WHITE_R}#${RESET} Support file has been created here: ${support_file} \\n"
@@ -1110,19 +1111,20 @@ get_repo_url
 
 cleanup_archived_repos() {
   if [[ "${archived_repo}" == "true" ]]; then
-    repo_patterns=( "deb.debian.org\\/debian ${os_codename}" "deb.debian.org\\/debian\\/ ${os_codename}" "ftp.*.debian.org\\/debian ${os_codename}" "ftp.*.debian.org\\/debian ${os_codename}" "ftp.*.debian.org\\/debian\\/ ${os_codename}" "security.debian.org ${os_codename}" "security.debian.org\\/ ${os_codename}" "security.debian.org\\/debian-security ${os_codename}" "security.debian.org\\/debian-security\\/ ${os_codename}" "ftp.debian.org\\/debian ${os_codename}" "ftp.debian.org\\/debian\\/ ${os_codename}" "http.debian.net\\/debian ${os_codename}" "http.debian.net\\/debian\\/ ${os_codename}" "*.archive.ubuntu.com\\/ubuntu ${os_codename}" "*.archive.ubuntu.com\\/ubuntu\\/ ${os_codename}" "archive.ubuntu.com\\/ubuntu ${os_codename}" "archive.ubuntu.com\\/ubuntu\\/ ${os_codename}" "security.ubuntu.com\\/ubuntu ${os_codename}" "security.ubuntu.com\\/ubuntu\\/ ${os_codename}" "archive.raspbian.org\\/raspbian ${os_codename}" "archive.raspbian.org\\/raspbian\\/ ${os_codename}" "archive.raspberrypi.org\\/raspbian ${os_codename}" "archive.raspberrypi.org\\/raspbian\\/ ${os_codename}" "httpredir.debian.org\\/debian ${os_codename}" "httpredir.debian.org\\/debian\\/ ${os_codename}" )
+    repo_patterns=( "deb.debian.org\\/debian ${os_codename}" "deb.debian.org\\/debian\\/ ${os_codename}" "ftp.*.debian.org\\/debian ${os_codename}" "ftp.*.debian.org\\/debian ${os_codename}" "ftp.*.debian.org\\/debian\\/ ${os_codename}" "security.debian.org ${os_codename}" "security.debian.org\\/ ${os_codename}" "security.debian.org\\/debian-security ${os_codename}" "security.debian.org\\/debian-security\\/ ${os_codename}" "ftp.debian.org\\/debian ${os_codename}" "ftp.debian.org\\/debian\\/ ${os_codename}" "http.debian.net\\/debian ${os_codename}" "http.debian.net\\/debian\\/ ${os_codename}" "\\*.archive.ubuntu.com\\/ubuntu ${os_codename}" "\\*.archive.ubuntu.com\\/ubuntu\\/ ${os_codename}" "archive.ubuntu.com\\/ubuntu ${os_codename}" "archive.ubuntu.com\\/ubuntu\\/ ${os_codename}" "security.ubuntu.com\\/ubuntu ${os_codename}" "security.ubuntu.com\\/ubuntu\\/ ${os_codename}" "archive.raspbian.org\\/raspbian ${os_codename}" "archive.raspbian.org\\/raspbian\\/ ${os_codename}" "archive.raspberrypi.org\\/raspbian ${os_codename}" "archive.raspberrypi.org\\/raspbian\\/ ${os_codename}" "httpredir.debian.org\\/debian ${os_codename}" "httpredir.debian.org\\/debian\\/ ${os_codename}" )
     # Handle .list files
     while read -r list_file; do
       for pattern in "${repo_patterns[@]}"; do
-        sed -Ei "s|^#*(${pattern})|#\1|g" "${list_file}"
+        sed -Ei "/^#*${pattern}/!s|^(${pattern})|#\1|g" "${list_file}"
       done
     done < <(find /etc/apt/ -type f -name "*.list")
     while read -r sources_file; do
       for pattern in "${repo_patterns[@]}"; do
         entry_block_start_line="$(awk '!/^#/ && /Types:/ { types_line=NR } /'"${pattern}"'/ && !/^#/ && !seen[types_line]++ { print types_line }' "${sources_file}" | head -n1)"
         entry_block_end_line="$(awk -v start_line="$entry_block_start_line" 'NR > start_line && NF == 0 { print NR-1; exit } END { if (NR > start_line && NF > 0) print NR }' "${sources_file}")"
-        sed -i "${entry_block_start_line},${entry_block_end_line}s/^\([^#]\)/# \1/" "${sources_file}" &>/dev/null
-        #sed -Ei "/Types: deb$/!b;:a;N;/\n(.*\n)?$(echo "${pattern}" | sed 's/\//\\\//g')/!ba;s/^#*/#/gm" "${sources_file}"
+        if [[ -n "${entry_block_start_line}" && -n "${entry_block_end_line}" ]]; then
+          sed -i "${entry_block_start_line},${entry_block_end_line}s/^\([^#]\)/# \1/" "${sources_file}" &>/dev/null
+        fi
       done
     done < <(find /etc/apt/sources.list.d/ -type f -name "*.sources")
   fi
@@ -1453,7 +1455,7 @@ cleanup_malformed_repositories() {
         echo -e "${WHITE_R}#${RESET} There appear to be malformed repositories..."
         cleanup_malformed_repositories_found_message="true"
       fi
-      cleanup_malformed_repositories_file_path="$(echo "${line}" | sed -n 's/.*\(in sources file \|in source list \|in list file \)\([^ ]*\) .*/\2/p')"
+      cleanup_malformed_repositories_file_path="$(echo "${line}" | sed -n 's/.*\(in sources file \|in source file \|in source list \|in list file \)\([^ ]*\).*/\2/p')"
       cleanup_malformed_repositories_line_number="$(echo "${line}" | cut -d':' -f2 | cut -d' ' -f1)"
       if [[ -f "${cleanup_malformed_repositories_file_path}" ]]; then
         if [[ "${cleanup_malformed_repositories_file_path}" == *".sources" ]]; then
@@ -1472,7 +1474,7 @@ cleanup_malformed_repositories() {
       else
         echo "Warning: Invalid file path '${cleanup_malformed_repositories_file_path}'. Skipping." &>> "${eus_dir}/logs/cleanup-malformed-repository-lists.log"
       fi
-    done < <(grep -E '^E: Malformed entry |^E: Malformed stanza |^E: Type .* is not known on line' /tmp/EUS/apt/*.log | awk -F': Malformed entry |: Malformed stanza |: Type .*is not known on line ' '{print $2}' | sort -u 2>> /dev/null)
+    done < <(grep -E '^E: Malformed entry |^E: Malformed line |^E: Malformed stanza |^E: Type .* is not known on line' /tmp/EUS/apt/*.log | awk -F': Malformed entry |: Malformed line |: Malformed stanza |: Type .*is not known on line ' '{print $2}' | sort -u 2>> /dev/null)
     if [[ "${cleanup_malformed_repositories_changes_made}" = 'true' ]]; then
       echo -e "${GREEN}#${RESET} The malformed repositories have been commented out! \\n"
       repository_changes_applied="true"
@@ -1481,7 +1483,6 @@ cleanup_malformed_repositories() {
     unset cleanup_malformed_repositories_changes_made
   fi
 }
-
 
 cleanup_duplicated_repositories() {
   if ls /tmp/EUS/apt/*.log 1> /dev/null 2>&1; then
@@ -1657,14 +1658,14 @@ run_apt_get_update() {
         echo -e "${WHITE_R}#${RESET} Key ${key} is missing.. adding!"
         http_proxy="$(env | grep -i "http.*Proxy" | cut -d'=' -f2 | sed 's/[";]//g')"
         if [[ -n "$http_proxy" ]]; then
-          if apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --keyserver-options http-proxy="${http_proxy}" --recv-keys "$key" &> /dev/null; then echo -e "${GREEN}#${RESET} Successfully added key ${key}!\\n"; else fail_key="true"; fi
+          if apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --keyserver-options http-proxy="${http_proxy}" --recv-keys "$key" &>> "${eus_dir}/logs/key-recovery.log"; then echo "${key}" &>> /tmp/EUS/apt/missing_keys_done; echo -e "${GREEN}#${RESET} Successfully added key ${key}!\\n"; else fail_key="true"; fi
         elif [[ -f /etc/apt/apt.conf ]]; then
           apt_http_proxy="$(grep "http.*Proxy" /etc/apt/apt.conf | awk '{print $2}' | sed 's/[";]//g')"
           if [[ -n "${apt_http_proxy}" ]]; then
-            if apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --keyserver-options http-proxy="${apt_http_proxy}" --recv-keys "$key" &> /dev/null; then echo -e "${GREEN}#${RESET} Successfully added key ${key}!\\n"; else fail_key="true"; fi
+            if apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --keyserver-options http-proxy="${apt_http_proxy}" --recv-keys "$key" &>> "${eus_dir}/logs/key-recovery.log"; then echo "${key}" &>> /tmp/EUS/apt/missing_keys_done; echo -e "${GREEN}#${RESET} Successfully added key ${key}!\\n"; else fail_key="true"; fi
           fi
         else
-          if apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv "$key" &> /dev/null && echo -e "${GREEN}#${RESET} Successfully added key ${key}!\\n"; then echo "${key}" &>> /tmp/EUS/apt/missing_keys_done; else fail_key="true"; fi
+          if apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv "$key" &>> "${eus_dir}/logs/key-recovery.log"; then echo "${key}" &>> /tmp/EUS/apt/missing_keys_done; echo -e "${GREEN}#${RESET} Successfully added key ${key}!\\n"; else fail_key="true"; fi
         fi
         if [[ "${fail_key}" == 'true' ]]; then
           echo -e "${RED}#${RESET} Failed to add key ${key}... \\n"
@@ -1672,7 +1673,7 @@ run_apt_get_update() {
           gpg -vvv --debug-all --keyserver keyserver.ubuntu.com --recv-keys "${key}" &> /tmp/EUS/apt/failed_key
           debug_key="$(grep "KS_GET" /tmp/EUS/apt/failed_key | grep -io "0x.*")"
           if curl "${curl_argument[@]}" "https://keyserver.ubuntu.com/pks/lookup?op=get&search=${debug_key}" | gpg -o "/tmp/EUS/apt/EUS-${key}.gpg" --dearmor --yes &> /dev/null; then
-            mv "/tmp/EUS/apt/EUS-${key}.gpg" /etc/apt/trusted.gpg.d/ && echo -e "${GREEN}#${RESET} Successfully added key ${key}!\\n" && echo "${key}" &>> /tmp/EUS/apt/missing_keys_done
+            if mv "/tmp/EUS/apt/EUS-${key}.gpg" /etc/apt/trusted.gpg.d/; then echo -e "${GREEN}#${RESET} Successfully added key ${key}!\\n"; echo "${key}" &>> /tmp/EUS/apt/missing_keys_done; else echo -e "${RED}#${RESET} Failed to add key ${key}... \\n"; echo "${key}" &>> /tmp/EUS/apt/missing_keys_failed; fi
           else
             echo -e "${RED}#${RESET} Failed to add key ${key}... \\n"
             echo "${key}" &>> /tmp/EUS/apt/missing_keys_failed

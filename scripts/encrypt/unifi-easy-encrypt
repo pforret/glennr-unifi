@@ -11,9 +11,17 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Encrypt Script  |  Version 2.7.9
+ 
+ - Improved the apt-get update process.
+ 
+ ###
+
  |  UniFi Easy Encrypt Script  |  Version 2.7.8
  
  - Improved support files.
+ - Improved handling malformed repository source lists.
+ - Fixed sed errors when cleaning up archived repositories.
  
  ###
 

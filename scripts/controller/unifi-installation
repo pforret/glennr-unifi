@@ -11,6 +11,26 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 7.5.2
+ 
+ - Improved the apt-get update process.
+ 
+ ####
+
+ |  UniFi Network Application Installation Script  |  Version 7.5.1
+ 
+ - Added a new api.glennr.nl for pre-built UniFi packages for MongoDB Compiled by Glenn R. and temurin java.
+ - Added a free space check for /var/log if the source differs from /.
+ - Improved handling malformed repository source lists.
+ - Improved the MongoDB Unsupported Version change process.
+ - Improved the Java installation process on setups without the default repositories.
+ - Improved detecting the last known good MongoDB version.
+ - Fixed an issue where older UniFi Network Application versions couldn't start.
+ - Fixed sed errors when cleaning up archived repositories.
+ - Tell users to use 64-bit OS on 64-bit capable devices.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 7.5.0
  
  - Improved support files.
