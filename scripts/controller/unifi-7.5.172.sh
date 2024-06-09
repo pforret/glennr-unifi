@@ -50,7 +50,7 @@
 ###################################################################################################################################################################################################
 
 # Script                | UniFi Network Easy Installation Script
-# Version               | 7.5.2
+# Version               | 7.5.4
 # Application version   | 7.5.172-39991973d0
 # Debian Repo version   | 7.5.172-22697-1
 # Author                | Glenn Rietveld
@@ -989,15 +989,14 @@ check_time_date_for_repositories() {
           ntp_status="$(timedatectl show --property=NTP 2> /dev/null | awk -F '[=]' '{print $2}')"
           if [[ -z "${ntp_status}" ]]; then ntp_status="$(timedatectl status 2> /dev/null | grep -i ntp | cut -d':' -f2 | sed -e 's/ //g')"; fi
           if [[ -z "${ntp_status}" ]]; then ntp_status="$(timedatectl status 2> /dev/null | grep "systemd-timesyncd" | awk -F '[:]' '{print$2}' | sed -e 's/ //g')"; fi
-          if [[ "${ntp_status}" != 'yes' ]]; then
-            if command -v jq &> /dev/null; then
-              timedatectl set-time "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/current-time?timezone=${timezone}" | jq -r '."current_time"' | sed '/null/d')" &>> "${eus_dir}/logs/invalid-time.log"
-            else
-              timedatectl set-time "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/current-time?timezone=${timezone}" | grep -o '"current_time":"[^"]*"' | cut -d'"' -f4)" &>> "${eus_dir}/logs/invalid-time.log"
-            fi
-            if "$(which dpkg)" -l systemd-timesyncd 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then timedatectl set-ntp true &>> "${eus_dir}/logs/invalid-time.log"; fi
-            repository_changes_applied="true"
+          if [[ "${ntp_status}" == 'yes' ]]; then if "$(which dpkg)" -l systemd-timesyncd 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then timedatectl set-ntp false &>> "${eus_dir}/logs/invalid-time.log"; fi; fi
+          if command -v jq &> /dev/null; then
+            timedatectl set-time "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/current-time?timezone=${timezone}" | jq -r '."current_time"' | sed '/null/d')" &>> "${eus_dir}/logs/invalid-time.log"
+          else
+            timedatectl set-time "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/current-time?timezone=${timezone}" | grep -o '"current_time":"[^"]*"' | cut -d'"' -f4)" &>> "${eus_dir}/logs/invalid-time.log"
           fi
+          if "$(which dpkg)" -l systemd-timesyncd 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then timedatectl set-ntp true &>> "${eus_dir}/logs/invalid-time.log"; fi
+          repository_changes_applied="true"
         elif command -v date &> /dev/null; then
           if command -v jq &> /dev/null; then
             date +%Y%m%d -s "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/current-time?timezone=${timezone}" | jq -r '."current_time"' | sed '/null/d' | cut -d' ' -f1)" &>> "${eus_dir}/logs/invalid-time.log"
@@ -1035,9 +1034,9 @@ cleanup_malformed_repositories() {
           mv "${cleanup_malformed_repositories_file_path}" "{eus_dir}/repository/$(basename "${cleanup_malformed_repositories_file_path}").corrupted" &>/dev/null
         fi
         cleanup_malformed_repositories_changes_made="true"
-        echo "Malformed repository commented out in '${cleanup_malformed_repositories_file_path}' at line $cleanup_malformed_repositories_line_number" &>> "${eus_dir}/logs/cleanup-malformed-repository-lists.log"
+        echo -e "$(date +%F-%R) | Malformed repository commented out in '${cleanup_malformed_repositories_file_path}' at line $cleanup_malformed_repositories_line_number" &>> "${eus_dir}/logs/cleanup-malformed-repository-lists.log"
       else
-        echo "Warning: Invalid file path '${cleanup_malformed_repositories_file_path}'. Skipping." &>> "${eus_dir}/logs/cleanup-malformed-repository-lists.log"
+        echo -e "$(date +%F-%R) | Warning: Invalid file path '${cleanup_malformed_repositories_file_path}'. Skipping." &>> "${eus_dir}/logs/cleanup-malformed-repository-lists.log"
       fi
     done < <(grep -E '^E: Malformed entry |^E: Malformed line |^E: Malformed stanza |^E: Type .* is not known on line' /tmp/EUS/apt/*.log | awk -F': Malformed entry |: Malformed line |: Malformed stanza |: Type .*is not known on line ' '{print $2}' | sort -u 2>> /dev/null)
     if [[ "${cleanup_malformed_repositories_changes_made}" = 'true' ]]; then
@@ -1069,9 +1068,9 @@ cleanup_duplicated_repositories() {
           sed -i "${cleanup_duplicated_repositories_line_number}s/^/#/" "${cleanup_duplicated_repositories_file_path}" &>/dev/null
         fi
         cleanup_duplicated_repositories_changes_made="true"
-        echo "Duplicates commented out in '${cleanup_duplicated_repositories_file_path}' at line $cleanup_duplicated_repositories_line_number" &>> "${eus_dir}/logs/cleanup-duplicate-repository-lists.log"
+        echo -e "$(date +%F-%R) | Duplicates commented out in '${cleanup_duplicated_repositories_file_path}' at line $cleanup_duplicated_repositories_line_number" &>> "${eus_dir}/logs/cleanup-duplicate-repository-lists.log"
       else
-        echo "Warning: Invalid file path '${cleanup_duplicated_repositories_file_path}'. Skipping." &>> "${eus_dir}/logs/cleanup-duplicate-repository-lists.log"
+        echo -e "$(date +%F-%R) | Warning: Invalid file path '${cleanup_duplicated_repositories_file_path}'. Skipping." &>> "${eus_dir}/logs/cleanup-duplicate-repository-lists.log"
       fi
     done < <(grep -E '^W: Target .+ is configured multiple times in ' "/tmp/EUS/apt/"*.log | awk -F' is configured multiple times in ' '{print $2}' | sort -u 2>> /dev/null)
     if [[ "${cleanup_duplicated_repositories_changes_made}" = 'true' ]]; then
@@ -1098,12 +1097,12 @@ cleanup_unavailable_repositories() {
             entry_block_end_line="$(awk -v start_line="$entry_block_start_line" 'NR > start_line && NF == 0 { print NR-1; exit } END { if (NR > start_line && NF > 0) print NR }' "${file}")"
             sed -i "${entry_block_start_line},${entry_block_end_line}s/^\([^#]\)/# \1/" "${file}" &>/dev/null
             cleanup_unavailable_repositories_changes_made="true"
-            echo "Unavailable repository with domain ${domain} has been commented out in '${file}'" &>> "${eus_dir}/logs/cleanup-unavailable-repository-lists.log"
+            echo -e "$(date +%F-%R) | Unavailable repository with domain ${domain} has been commented out in '${file}'" &>> "${eus_dir}/logs/cleanup-unavailable-repository-lists.log"
           fi
         done
         if sed -i -e "/^[^#].*${domain}/ s|^deb|# deb|g" /etc/apt/sources.list /etc/apt/sources.list.d/*.list &>/dev/null; then
           cleanup_unavailable_repositories_changes_made="true"
-          echo "Unavailable repository with domain ${domain} has been commented out" &>> "${eus_dir}/logs/cleanup-unavailable-repository-lists.log"
+          echo -e "$(date +%F-%R) | Unavailable repository with domain ${domain} has been commented out" &>> "${eus_dir}/logs/cleanup-unavailable-repository-lists.log"
         fi
       fi
     done < <(awk '/Unauthorized|Failed/ {for (i=1; i<=NF; i++) if ($i ~ /^https?:\/\/([^\/]+)/) {split($i, parts, "/"); print parts[3]}}' "/tmp/EUS/apt/"*.log | sort -u 2>> /dev/null)
@@ -1133,7 +1132,7 @@ cleanup_conflicting_repositories() {
           # Loop through each file and awk to comment out the conflicting source
           while read -r file_with_conflict; do
             if [[ "${cleanup_conflicting_repositories_message_1}" != 'true' ]]; then
-              echo "Conflicting Trusted values for ${source_url}" &>> "${eus_dir}/logs/trusted-repository-conflict.log"
+              echo -e "$(date +%F-%R) | Conflicting Trusted values for ${source_url}" &>> "${eus_dir}/logs/trusted-repository-conflict.log"
               cleanup_conflicting_repositories_message_1="true"
             fi
             if [[ "${file_with_conflict}" == *".sources" ]]; then
@@ -1154,7 +1153,7 @@ cleanup_conflicting_repositories() {
                 } 
                 1' "${file_with_conflict}" &> tmpfile; then mv tmpfile "${file_with_conflict}" &> /dev/null; cleanup_conflicting_repositories_changes_made="true"; fi
             fi
-            echo "awk command executed for ${file_with_conflict}" &>> "${eus_dir}/logs/trusted-repository-conflict.log"
+            echo -e "$(date +%F-%R) | awk command executed for ${file_with_conflict}" &>> "${eus_dir}/logs/trusted-repository-conflict.log"
           done < <(grep -sl "^deb.*${source_url}.*${package_name}.*${version}\\|^URIs: *${source_url}" /etc/apt/sources.list /etc/apt/sources.list.d/* /etc/apt/sources.list.d/*.sources | awk '!NF || !seen[$0]++')
           break
         elif [[ ${line} == *"Conflicting values set for option Signed-By regarding source"* ]]; then
@@ -1169,8 +1168,8 @@ cleanup_conflicting_repositories() {
           # Loop through each file and awk to comment out the conflicting source
           while read -r file_with_conflict; do
             if [[ "${cleanup_conflicting_repositories_message_2}" != 'true' ]]; then
-              echo "Conflicting Signed-By values for ${conflicting_source}" &>> "${eus_dir}/logs/signed-by-repository-conflict.log"
-              echo "Conflicting keys: ${key1} != ${key2}" &>> "${eus_dir}/logs/signed-by-repository-conflict.log"
+              echo -e "$(date +%F-%R) | Conflicting Signed-By values for ${conflicting_source}" &>> "${eus_dir}/logs/signed-by-repository-conflict.log"
+              echo -e "$(date +%F-%R) | Conflicting keys: ${key1} != ${key2}" &>> "${eus_dir}/logs/signed-by-repository-conflict.log"
               cleanup_conflicting_repositories_message_2="true"
             fi
             if [[ "${file_with_conflict}" == *".sources" ]]; then
@@ -1187,7 +1186,7 @@ cleanup_conflicting_repositories() {
                 } 
                 1' "${file_with_conflict}" &> tmpfile; then mv tmpfile "${file_with_conflict}" &> /dev/null; cleanup_conflicting_repositories_changes_made="true"; fi
             fi
-            echo "awk command executed for ${file_with_conflict}" &>> "${eus_dir}/logs/signed-by-repository-conflict.log"
+            echo -e "$(date +%F-%R) | awk command executed for ${file_with_conflict}" &>> "${eus_dir}/logs/signed-by-repository-conflict.log"
           done < <(grep -sl "^deb.*${conflicting_source}\\|^URIs: *${conflicting_source}" /etc/apt/sources.list /etc/apt/sources.list.d/* /etc/apt/sources.list.d/*.sources | awk '!NF || !seen[$0]++')
           break
         fi
@@ -1371,7 +1370,8 @@ add_extra_repo_mongodb() {
   if [[ "${os_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then
     if [[ "${architecture}" =~ (amd64|i386) ]]; then
       if [[ "${add_extra_repo_mongodb_security}" == 'true' ]]; then
-        repo_url="http://security.ubuntu.com/ubuntu"
+        get_repo_url_security_url="true"
+        get_repo_url
         repo_codename_argument="-security"
         repo_component="main"
       fi
@@ -1989,7 +1989,16 @@ get_repo_url() {
       if [[ "${os_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then
         if curl "${curl_argument[@]}" "${http_or_https}://old-releases.ubuntu.com/ubuntu/dists/" 2> /dev/null | grep -iq "${os_codename}" 2> /dev/null; then archived_repo="true"; fi
         if [[ "${architecture}" =~ (amd64|i386) ]]; then
-          if [[ "${archived_repo}" == "true" ]]; then repo_url="${http_or_https}://old-releases.ubuntu.com/ubuntu"; else repo_url="http://archive.ubuntu.com/ubuntu"; fi
+          if [[ "${archived_repo}" == "true" ]]; then
+            repo_url="${http_or_https}://old-releases.ubuntu.com/ubuntu"
+          else
+            if [[ "${get_repo_url_security_url}" == "true" ]]; then
+              repo_url="http://security.ubuntu.com/ubuntu"
+              unset get_repo_url_security_url
+            else
+              repo_url="http://archive.ubuntu.com/ubuntu"
+            fi
+          fi
         else
           if [[ "${archived_repo}" == "true" ]]; then repo_url="${http_or_https}://old-releases.ubuntu.com/ubuntu"; else repo_url="http://ports.ubuntu.com"; fi
         fi
@@ -2471,7 +2480,7 @@ if [[ -n "${unifi_package}" ]] || [[ "${recovery_required}" == 'true' ]]; then
               unifi_network_application_downloaded="true"
               echo -e "${GREEN}#${RESET} The script will install UniFi Network Application version ${broken_unifi_install_version}! \\n"
             else
-              echo -e "$(date +%F-%R) | The file downloaded via ${unifi_download_link} was not a debian file format..." &>> "${eus_dir}/logs/unifi_download.log"
+              echo -e "$(date +%F-%R) | The file downloaded via ${unifi_download_link} was not a debian file format..." &>> "${eus_dir}/logs/unifi-download.log"
             fi
           else
             unifi_network_application_downloaded="true"
@@ -3549,7 +3558,8 @@ libssl_installation_check() {
       if [[ "$(dpkg-query --showformat='${Version}' --show libc6 | sed 's/.*://' | sed 's/-.*//g' | cut -d'.' -f1)" -lt "2" ]] || [[ "$(dpkg-query --showformat='${Version}' --show libc6 | sed 's/.*://' | sed 's/-.*//g' | cut -d'.' -f1)" == "2" && "$(dpkg-query --showformat='${Version}' --show libc6 | sed 's/.*://' | sed 's/-.*//g' | cut -d'.' -f2)" -lt "34" ]]; then
         if [[ "${os_codename}" =~ (trusty|qiana|rebecca|rafaela|rosa|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish) ]]; then
           if [[ "${architecture}" =~ (amd64|i386) ]]; then
-            repo_url="http://security.ubuntu.com/ubuntu"
+            get_repo_url_security_url="true"
+            get_repo_url
             repo_codename_argument="-security"
             repo_component="main"
           else
@@ -3589,7 +3599,8 @@ libssl_installation_check() {
       if [[ "$(dpkg-query --showformat='${Version}' --show libc6 | sed 's/.*://' | sed 's/-.*//g' | cut -d'.' -f1)" -lt "2" ]] || [[ "$(dpkg-query --showformat='${Version}' --show libc6 | sed 's/.*://' | sed 's/-.*//g' | cut -d'.' -f1)" == "2" && "$(dpkg-query --showformat='${Version}' --show libc6 | sed 's/.*://' | sed 's/-.*//g' | cut -d'.' -f2)" -lt "29" ]]; then
         if [[ "${os_codename}" =~ (trusty|qiana|rebecca|rafaela|rosa|xenial|bionic|cosmic|disco|eoan) ]]; then
           if [[ "${architecture}" =~ (amd64|i386) ]]; then
-            repo_url="http://security.ubuntu.com/ubuntu"
+            get_repo_url_security_url="true"
+            get_repo_url
             repo_codename_argument="-security"
             repo_component="main"
           else
@@ -4002,12 +4013,12 @@ unifi_deb_package_modification() {
     fi
     if [[ -n "${pre_build_fw_update_dl_link}" ]]; then
       if [[ -z "${unifi_temp}" ]]; then unifi_temp="$(mktemp --tmpdir=/tmp/EUS/downloads "${unifi_deb_file_name}_${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi}"_XXXXX.deb)"; fi
-      echo -e "$(date +%F-%R) | Downloading ${pre_build_fw_update_dl_link} to ${unifi_temp}" &>> "${eus_dir}/logs/unifi_download.log"
+      echo -e "$(date +%F-%R) | Downloading ${pre_build_fw_update_dl_link} to ${unifi_temp}" &>> "${eus_dir}/logs/unifi-download.log"
       echo -e "${WHITE_R}#${RESET} Downloading UniFi Network Application version ${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi} built for ${unifi_deb_package_modification_message_1}..."
-      if curl --retry 3 "${nos_curl_argument[@]}" --output "$unifi_temp" "${pre_build_fw_update_dl_link}" &>> "${eus_dir}/logs/unifi_download.log"; then
+      if curl --retry 3 "${nos_curl_argument[@]}" --output "$unifi_temp" "${pre_build_fw_update_dl_link}" &>> "${eus_dir}/logs/unifi-download.log"; then
         if command -v sha256sum &> /dev/null; then
           if [[ "$(sha256sum "$unifi_temp" | awk '{print $1}')" != "${pre_build_fw_update_dl_link_sha256sum}" ]]; then
-            if curl --retry 3 "${nos_curl_argument[@]}" --output "$unifi_temp" "${pre_build_fw_update_dl_link}" &>> "${eus_dir}/logs/unifi_download.log"; then
+            if curl --retry 3 "${nos_curl_argument[@]}" --output "$unifi_temp" "${pre_build_fw_update_dl_link}" &>> "${eus_dir}/logs/unifi-download.log"; then
               if [[ "$(sha256sum "$unifi_temp" | awk '{print $1}')" != "${pre_build_fw_update_dl_link_sha256sum}" ]]; then
                 pre_build_download_failure="true"
               fi
@@ -4015,9 +4026,9 @@ unifi_deb_package_modification() {
           fi
         elif command -v dpkg-deb &> /dev/null; then
           if ! dpkg-deb --info "${unifi_temp}" &> /dev/null; then
-            if curl --retry 3 "${nos_curl_argument[@]}" --output "$unifi_temp" "${pre_build_fw_update_dl_link}" &>> "${eus_dir}/logs/unifi_download.log"; then
+            if curl --retry 3 "${nos_curl_argument[@]}" --output "$unifi_temp" "${pre_build_fw_update_dl_link}" &>> "${eus_dir}/logs/unifi-download.log"; then
               if ! dpkg-deb --info "${unifi_temp}" &> /dev/null; then
-                echo -e "$(date +%F-%R) | The file downloaded via ${pre_build_fw_update_dl_link} was not a debian file format..." &>> "${eus_dir}/logs/unifi_download.log"
+                echo -e "$(date +%F-%R) | The file downloaded via ${pre_build_fw_update_dl_link} was not a debian file format..." &>> "${eus_dir}/logs/unifi-download.log"
                 pre_build_download_failure="true"
               fi
             fi
@@ -4883,12 +4894,12 @@ if [[ "${mongo_version_locked}" == '4.4.18' ]] || [[ "${unsupported_database_ver
         fw_update_dl_link_sha256sum="$(curl "${curl_argument[@]}" --location --request GET "https://fw-update.ui.com/api/firmware-latest?filter=eq~~version_major~~$(awk -F'.' '{print $1}' <<< "${reinstall_unifi_version}")&filter=eq~~version_minor~~$(awk -F'.' '{print $2}' <<< "${reinstall_unifi_version}")&filter=eq~~version_patch~~$(awk -F'.' '{print $3}' <<< "${reinstall_unifi_version}")&filter=eq~~platform~~debian" | jq -r "._embedded.firmware[0].sha256_checksum" | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
       fi
       if [[ -z "${unifi_temp}" ]]; then unifi_temp="$(mktemp --tmpdir=/tmp/EUS/downloads "${unifi_deb_file_name}"_"${reinstall_unifi_version}"_XXXXX.deb)"; fi
-      echo -e "$(date +%F-%R) | Downloading ${fw_update_dl_link} to ${unifi_temp}" &>> "${eus_dir}/logs/unifi_download.log"
+      echo -e "$(date +%F-%R) | Downloading ${fw_update_dl_link} to ${unifi_temp}" &>> "${eus_dir}/logs/unifi-download.log"
       echo -e "${WHITE_R}#${RESET} Downloading UniFi Network Application version ${reinstall_unifi_version}..."
-      if curl --retry 3 "${nos_curl_argument[@]}" --output "$unifi_temp" "${fw_update_dl_link}" &>> "${eus_dir}/logs/unifi_download.log"; then
+      if curl --retry 3 "${nos_curl_argument[@]}" --output "$unifi_temp" "${fw_update_dl_link}" &>> "${eus_dir}/logs/unifi-download.log"; then
         if command -v sha256sum &> /dev/null; then
           if [[ "$(sha256sum "$unifi_temp" | awk '{print $1}')" != "${fw_update_dl_link_sha256sum}" ]]; then
-            if curl --retry 3 "${nos_curl_argument[@]}" --output "$unifi_temp" "${fw_update_dl_link}" &>> "${eus_dir}/logs/unifi_download.log"; then
+            if curl --retry 3 "${nos_curl_argument[@]}" --output "$unifi_temp" "${fw_update_dl_link}" &>> "${eus_dir}/logs/unifi-download.log"; then
               if [[ "$(sha256sum "$unifi_temp" | awk '{print $1}')" != "${fw_update_dl_link_sha256sum}" ]]; then
                 abort_reason="Failed to download UniFi Network Application version ${reinstall_unifi_version} during the MongoDB Downgrade process."
                 abort
@@ -4897,9 +4908,9 @@ if [[ "${mongo_version_locked}" == '4.4.18' ]] || [[ "${unsupported_database_ver
           fi
         elif command -v dpkg-deb &> /dev/null; then
           if ! dpkg-deb --info "${unifi_temp}" &> /dev/null; then
-            if curl --retry 3 "${nos_curl_argument[@]}" --output "$unifi_temp" "${fw_update_dl_link}" &>> "${eus_dir}/logs/unifi_download.log"; then
+            if curl --retry 3 "${nos_curl_argument[@]}" --output "$unifi_temp" "${fw_update_dl_link}" &>> "${eus_dir}/logs/unifi-download.log"; then
               if ! dpkg-deb --info "${unifi_temp}" &> /dev/null; then
-                echo -e "$(date +%F-%R) | The file downloaded via ${fw_update_dl_link} was not a debian file format..." &>> "${eus_dir}/logs/unifi_download.log"
+                echo -e "$(date +%F-%R) | The file downloaded via ${fw_update_dl_link} was not a debian file format..." &>> "${eus_dir}/logs/unifi-download.log"
                 abort_reason="Failed to download UniFi Network Application version ${reinstall_unifi_version} during the MongoDB Downgrade process."
                 abort
               fi
@@ -4994,7 +5005,7 @@ adoptium_java() {
         adoptium_curl_exit_status="${PIPESTATUS[0]}"
         adoptium_gpg_exit_status="${PIPESTATUS[2]}"
         if [[ "${adoptium_curl_exit_status}" -eq "0" && "${adoptium_gpg_exit_status}" -eq "0" && -s "/etc/apt/keyrings/packages-adoptium.gpg" ]]; then
-          echo -e "${GREEN}#${RESET} Successfully added the key for adoptium packages! \\n"; signed_by_value_adoptium="[ signed-by=/etc/apt/keyrings/packages-adoptium.gpg ]"; deb822_signed_by_value="\nSigned-By: /etc/apt/keyrings/packages-adoptium.gpg"
+          echo -e "${GREEN}#${RESET} Successfully added the key for adoptium packages! \\n"; signed_by_value_adoptium="signed-by=/etc/apt/keyrings/packages-adoptium.gpg"; deb822_signed_by_value="\nSigned-By: /etc/apt/keyrings/packages-adoptium.gpg"
         else
           abort_reason="Failed to add the key for adoptium packages."; abort
         fi
@@ -5063,7 +5074,8 @@ openjdk_java() {
     add_repositories
   elif [[ "${repo_codename}" =~ (disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then
     if [[ "${architecture}" =~ (amd64|i386) ]]; then
-      repo_url="http://security.ubuntu.com/ubuntu"
+      get_repo_url_security_url="true"
+      get_repo_url
       repo_codename_argument="-security"
       repo_component="main universe"
     else
@@ -5320,14 +5332,14 @@ if [[ "${unifi_network_application_downloaded}" != 'true' ]]; then
   fi
   echo -e "${WHITE_R}#${RESET} Downloading the UniFi Network Application..."
   for unifi_download_url in "${unifi_download_urls[@]}"; do
-    echo -e "$(date +%F-%R) | Downloading ${unifi_download_url} to ${unifi_temp}" &>> "${eus_dir}/logs/unifi_download.log"
-    if curl --retry 3 "${nos_curl_argument[@]}" --output "${unifi_temp}" "${unifi_download_url}" &>> "${eus_dir}/logs/unifi_download.log"; then
-      if command -v dpkg-deb &> /dev/null; then if ! dpkg-deb --info "${unifi_temp}" &> /dev/null; then echo -e "$(date +%F-%R) | The file downloaded via ${unifi_download_url} was not a debian file format..." &>> "${eus_dir}/logs/unifi_download.log"; continue; fi; fi
+    echo -e "$(date +%F-%R) | Downloading ${unifi_download_url} to ${unifi_temp}" &>> "${eus_dir}/logs/unifi-download.log"
+    if curl --retry 3 "${nos_curl_argument[@]}" --output "${unifi_temp}" "${unifi_download_url}" &>> "${eus_dir}/logs/unifi-download.log"; then
+      if command -v dpkg-deb &> /dev/null; then if ! dpkg-deb --info "${unifi_temp}" &> /dev/null; then echo -e "$(date +%F-%R) | The file downloaded via ${unifi_download_url} was not a debian file format..." &>> "${eus_dir}/logs/unifi-download.log"; continue; fi; fi
       echo -e "${GREEN}#${RESET} Successfully downloaded application version ${unifi_clean}! \\n"; unifi_downloaded="true"; break
     elif [[ "${unifi_download_url}" =~ ^https:// ]]; then
-      echo -e "$(date +%F-%R) | Downloading ${unifi_download_url/https:/http:} to ${unifi_temp}" &>> "${eus_dir}/logs/unifi_download.log"
-      if curl --retry 3 "${nos_curl_argument[@]}" --output "${unifi_temp}" "${unifi_download_url/https:/http:}" &>> "${eus_dir}/logs/unifi_download.log"; then
-        if command -v dpkg-deb &> /dev/null; then if ! dpkg-deb --info "${unifi_temp}" &> /dev/null; then echo -e "$(date +%F-%R) | The file downloaded via ${unifi_download_url/https:/http:} was not a debian file format..." &>> "${eus_dir}/logs/unifi_download.log"; continue; fi; fi
+      echo -e "$(date +%F-%R) | Downloading ${unifi_download_url/https:/http:} to ${unifi_temp}" &>> "${eus_dir}/logs/unifi-download.log"
+      if curl --retry 3 "${nos_curl_argument[@]}" --output "${unifi_temp}" "${unifi_download_url/https:/http:}" &>> "${eus_dir}/logs/unifi-download.log"; then
+        if command -v dpkg-deb &> /dev/null; then if ! dpkg-deb --info "${unifi_temp}" &> /dev/null; then echo -e "$(date +%F-%R) | The file downloaded via ${unifi_download_url/https:/http:} was not a debian file format..." &>> "${eus_dir}/logs/unifi-download.log"; continue; fi; fi
         echo -e "${GREEN}#${RESET} Successfully downloaded application version ${unifi_clean} (using HTTP)! \\n"; unifi_downloaded="true"; break
       fi
     fi
@@ -5343,10 +5355,11 @@ check_service_overrides
 unifi_required_packages_check
 system_properties_check
 echo -e "${WHITE_R}#${RESET} Installing the UniFi Network Application..."
+echo -e "\\n------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/unifi-install.log"
 echo "unifi unifi/has_backup boolean true" 2> /dev/null | debconf-set-selections
 check_dpkg_lock
 # shellcheck disable=SC2086
-if DEBIAN_FRONTEND=noninteractive "$(which dpkg)" -i ${dpkg_ignore_depends_flag} "${unifi_temp}" &>> "${eus_dir}/logs/unifi_install.log"; then
+if DEBIAN_FRONTEND=noninteractive "$(which dpkg)" -i ${dpkg_ignore_depends_flag} "${unifi_temp}" &>> "${eus_dir}/logs/unifi-install.log"; then
   echo -e "${GREEN}#${RESET} Successfully installed the UniFi Network Application! \\n"
   if [[ "${unifi_ports_in_use}" == 'true' ]]; then change_default_unifi_ports; fi
 else

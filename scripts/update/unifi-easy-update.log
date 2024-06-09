@@ -11,6 +11,20 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 8.7.7
+  
+ - Fixed an issue where the script could add double brackets when adding the Adoptium Java repository.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 8.7.6
+  
+ - Improved the incorrect time/date check, it will now temporarily disable NTP if time/date is invalid.
+ - Improved adding repositories.
+ - Fixed an issue where the script could add a incorrect repository entry.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 8.7.5
   
  - Improved the apt-get update process.

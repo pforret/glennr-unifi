@@ -2,7 +2,7 @@
 
 # UniFi Easy Encrypt script.
 # Script   | UniFi Network Easy Encrypt Script
-# Version  | 2.7.9
+# Version  | 2.8.0
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -1084,8 +1084,9 @@ get_repo_url() {
       if [[ "${http_or_https}" == "http" ]]; then api_repo_url_procotol="&protocol=insecure"; fi
       distro_api_output="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/distro?distribution=${os_id}&version=${os_codename}&architecture=${architecture}${api_repo_url_procotol}" 2> /dev/null)"
       archived_repo="$(echo "${distro_api_output}" | jq -r '.codename_eol')"
-      repo_url="$(echo "${distro_api_output}" | jq -r '.repository')"
-      if [[ "${os_id}" == "raspbian" ]]; then get_distro; fi
+      if [[ "${get_repo_url_security_url}" == "true" ]]; then get_repo_url_url_argument="security_repository"; unset get_repo_url_security_url; else get_repo_url_url_argument="repository"; fi
+      repo_url="$(echo "${distro_api_output}" | jq -r ".${get_repo_url_url_argument}")"
+      distro_api="true"
     else
       if [[ "${os_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then
         if curl "${curl_argument[@]}" "${http_or_https}://old-releases.ubuntu.com/ubuntu/dists/" 2> /dev/null | grep -iq "${os_codename}" 2> /dev/null; then archived_repo="true"; fi
@@ -1304,6 +1305,58 @@ if ! [[ "${os_codename}" =~ (xenial|sarah|serena|sonya|sylvia|bionic|tara|tessa|
   exit 1
 fi
 
+check_unmet_dependencies() {
+  if ls /tmp/EUS/apt/*.log 1> /dev/null 2>&1; then
+    while IFS= read -r log_file; do
+      while read -r dependency; do
+        if [[ "${check_unmet_dependencies_repositories_added}" != "true" ]]; then check_default_repositories; check_unmet_dependencies_repositories_added="true"; fi
+        dependency_no_version="$(echo "${dependency}" | awk -F' ' '{print $1}')"
+        dependency="$(echo "${dependency}" | tr -d '()' | tr -d ',' | sed -e 's/ *= */=/g' -e 's/~//g')"
+        if echo "${dependency}" | grep -ioq ">="; then dependency_to_install="${dependency_no_version}"; else dependency_to_install="${dependency}"; fi
+        if [[ -n "${dependency_to_install}" ]]; then
+          echo -e "Attempting to install unmet dependency: ${dependency_to_install} \\n" &>> "${eus_dir}/logs/unmet-dependency.log"
+          if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${dependency_to_install}" &>> "${eus_dir}/logs/unmet-dependency.log"; then
+            sed -i "s/Depends: ${dependency_no_version}/Depends (completed): ${dependency_no_version}/g" "${log_file}" 2>> "${eus_dir}/logs/unmet-dependency-sed.log"
+          else
+            if command -v jq &> /dev/null; then
+              list_of_distro_versions="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/list-versions?distribution=${os_id}" 2> /dev/null | jq -r '.[]' 2> /dev/null)"
+            else
+              list_of_distro_versions="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/list-versions?distribution=${os_id}" | sed -e 's/\[//g' -e 's/\]//g' -e 's/ //g' -e 's/,//g' | grep .)"
+            fi
+            while read -r version; do
+              add_repositories_source_list_override="glennr-install-script-unmet"
+              repo_codename="${version}"
+              repo_component="main"
+              get_repo_url
+              add_repositories
+              if [[ "${os_id}" == "ubuntu" && "${distro_api}" == "true" ]]; then
+                get_repo_url_security_url="true"
+                get_repo_url
+                repo_codename_argument="-security"
+                repo_component="main"
+                add_repositories
+              elif [[ "${os_id}" == "debian" && "${distro_api}" == "true" ]]; then
+                repo_url_arguments="-security/"
+                repo_codename_argument="-security"
+                repo_component="main"
+                add_repositories
+              fi
+              run_apt_get_update
+              if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${dependency_to_install}" &>> "${eus_dir}/logs/unmet-dependency.log"; then
+                echo -e "\\nSuccessfully installed ${dependency} after adding the repositories for ${version} \\n" &>> "${eus_dir}/logs/unmet-dependency.log"
+                sed -i "s/Depends: ${dependency_no_version}/Depends (completed): ${dependency_no_version}/g" "${log_file}" 2>> "${eus_dir}/logs/unmet-dependency-sed.log"
+                rm --force "/etc/apt/sources.list.d/glennr-install-script-unmet.${source_file_format}" &> /dev/null
+                break
+              fi
+            done <<< "${list_of_distro_versions}"
+            if [[ -e "/etc/apt/sources.list.d/glennr-install-script-unmet.${source_file_format}" ]]; then rm --force "/etc/apt/sources.list.d/glennr-install-script-unmet.${source_file_format}" &> /dev/null; fi
+          fi
+        fi
+      done < <(grep "Depends:" "${log_file}" | sed 's/.*Depends: //' | sed 's/).*//' | sort | uniq)
+    done < <(grep -lE '^E: Unable to correct problems, you have held broken packages.|^The following packages have unmet dependencies' /tmp/EUS/apt/*.log | sort -u 2>> /dev/null)
+  fi
+}
+
 check_dpkg_interrupted() {
   if [[ -e "/var/lib/dpkg/info/*.status" ]] || tail -n5 "${eus_dir}/logs/"* | grep -iq "you must manually run 'sudo dpkg --configure -a' to correct the problem\\|you must manually run 'dpkg --configure -a' to correct the problem"; then
     echo -e "${WHITE_R}#${RESET} Looks like dpkg was interrupted... running \"dpkg --configure -a\"... \\n" | tee -a "${eus_dir}/logs/dpkg-interrupted.log"
@@ -1424,15 +1477,14 @@ check_time_date_for_repositories() {
           ntp_status="$(timedatectl show --property=NTP 2> /dev/null | awk -F '[=]' '{print $2}')"
           if [[ -z "${ntp_status}" ]]; then ntp_status="$(timedatectl status 2> /dev/null | grep -i ntp | cut -d':' -f2 | sed -e 's/ //g')"; fi
           if [[ -z "${ntp_status}" ]]; then ntp_status="$(timedatectl status 2> /dev/null | grep "systemd-timesyncd" | awk -F '[:]' '{print$2}' | sed -e 's/ //g')"; fi
-          if [[ "${ntp_status}" != 'yes' ]]; then
-            if command -v jq &> /dev/null; then
-              timedatectl set-time "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/current-time?timezone=${timezone}" | jq -r '."current_time"' | sed '/null/d')" &>> "${eus_dir}/logs/invalid-time.log"
-            else
-              timedatectl set-time "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/current-time?timezone=${timezone}" | grep -o '"current_time":"[^"]*"' | cut -d'"' -f4)" &>> "${eus_dir}/logs/invalid-time.log"
-            fi
-            if "$(which dpkg)" -l systemd-timesyncd 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then timedatectl set-ntp true &>> "${eus_dir}/logs/invalid-time.log"; fi
-            repository_changes_applied="true"
+          if [[ "${ntp_status}" == 'yes' ]]; then if "$(which dpkg)" -l systemd-timesyncd 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then timedatectl set-ntp false &>> "${eus_dir}/logs/invalid-time.log"; fi; fi
+          if command -v jq &> /dev/null; then
+            timedatectl set-time "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/current-time?timezone=${timezone}" | jq -r '."current_time"' | sed '/null/d')" &>> "${eus_dir}/logs/invalid-time.log"
+          else
+            timedatectl set-time "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/current-time?timezone=${timezone}" | grep -o '"current_time":"[^"]*"' | cut -d'"' -f4)" &>> "${eus_dir}/logs/invalid-time.log"
           fi
+          if "$(which dpkg)" -l systemd-timesyncd 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then timedatectl set-ntp true &>> "${eus_dir}/logs/invalid-time.log"; fi
+          repository_changes_applied="true"
         elif command -v date &> /dev/null; then
           if command -v jq &> /dev/null; then
             date +%Y%m%d -s "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/current-time?timezone=${timezone}" | jq -r '."current_time"' | sed '/null/d' | cut -d' ' -f1)" &>> "${eus_dir}/logs/invalid-time.log"
@@ -1470,9 +1522,9 @@ cleanup_malformed_repositories() {
           mv "${cleanup_malformed_repositories_file_path}" "{eus_dir}/repository/$(basename "${cleanup_malformed_repositories_file_path}").corrupted" &>/dev/null
         fi
         cleanup_malformed_repositories_changes_made="true"
-        echo "Malformed repository commented out in '${cleanup_malformed_repositories_file_path}' at line $cleanup_malformed_repositories_line_number" &>> "${eus_dir}/logs/cleanup-malformed-repository-lists.log"
+        echo -e "$(date +%F-%R) | Malformed repository commented out in '${cleanup_malformed_repositories_file_path}' at line $cleanup_malformed_repositories_line_number" &>> "${eus_dir}/logs/cleanup-malformed-repository-lists.log"
       else
-        echo "Warning: Invalid file path '${cleanup_malformed_repositories_file_path}'. Skipping." &>> "${eus_dir}/logs/cleanup-malformed-repository-lists.log"
+        echo -e "$(date +%F-%R) | Warning: Invalid file path '${cleanup_malformed_repositories_file_path}'. Skipping." &>> "${eus_dir}/logs/cleanup-malformed-repository-lists.log"
       fi
     done < <(grep -E '^E: Malformed entry |^E: Malformed line |^E: Malformed stanza |^E: Type .* is not known on line' /tmp/EUS/apt/*.log | awk -F': Malformed entry |: Malformed line |: Malformed stanza |: Type .*is not known on line ' '{print $2}' | sort -u 2>> /dev/null)
     if [[ "${cleanup_malformed_repositories_changes_made}" = 'true' ]]; then
@@ -1504,9 +1556,9 @@ cleanup_duplicated_repositories() {
           sed -i "${cleanup_duplicated_repositories_line_number}s/^/#/" "${cleanup_duplicated_repositories_file_path}" &>/dev/null
         fi
         cleanup_duplicated_repositories_changes_made="true"
-        echo "Duplicates commented out in '${cleanup_duplicated_repositories_file_path}' at line $cleanup_duplicated_repositories_line_number" &>> "${eus_dir}/logs/cleanup-duplicate-repository-lists.log"
+        echo -e "$(date +%F-%R) | Duplicates commented out in '${cleanup_duplicated_repositories_file_path}' at line $cleanup_duplicated_repositories_line_number" &>> "${eus_dir}/logs/cleanup-duplicate-repository-lists.log"
       else
-        echo "Warning: Invalid file path '${cleanup_duplicated_repositories_file_path}'. Skipping." &>> "${eus_dir}/logs/cleanup-duplicate-repository-lists.log"
+        echo -e "$(date +%F-%R) | Warning: Invalid file path '${cleanup_duplicated_repositories_file_path}'. Skipping." &>> "${eus_dir}/logs/cleanup-duplicate-repository-lists.log"
       fi
     done < <(grep -E '^W: Target .+ is configured multiple times in ' "/tmp/EUS/apt/"*.log | awk -F' is configured multiple times in ' '{print $2}' | sort -u 2>> /dev/null)
     if [[ "${cleanup_duplicated_repositories_changes_made}" = 'true' ]]; then
@@ -1533,12 +1585,12 @@ cleanup_unavailable_repositories() {
             entry_block_end_line="$(awk -v start_line="$entry_block_start_line" 'NR > start_line && NF == 0 { print NR-1; exit } END { if (NR > start_line && NF > 0) print NR }' "${file}")"
             sed -i "${entry_block_start_line},${entry_block_end_line}s/^\([^#]\)/# \1/" "${file}" &>/dev/null
             cleanup_unavailable_repositories_changes_made="true"
-            echo "Unavailable repository with domain ${domain} has been commented out in '${file}'" &>> "${eus_dir}/logs/cleanup-unavailable-repository-lists.log"
+            echo -e "$(date +%F-%R) | Unavailable repository with domain ${domain} has been commented out in '${file}'" &>> "${eus_dir}/logs/cleanup-unavailable-repository-lists.log"
           fi
         done
         if sed -i -e "/^[^#].*${domain}/ s|^deb|# deb|g" /etc/apt/sources.list /etc/apt/sources.list.d/*.list &>/dev/null; then
           cleanup_unavailable_repositories_changes_made="true"
-          echo "Unavailable repository with domain ${domain} has been commented out" &>> "${eus_dir}/logs/cleanup-unavailable-repository-lists.log"
+          echo -e "$(date +%F-%R) | Unavailable repository with domain ${domain} has been commented out" &>> "${eus_dir}/logs/cleanup-unavailable-repository-lists.log"
         fi
       fi
     done < <(awk '/Unauthorized|Failed/ {for (i=1; i<=NF; i++) if ($i ~ /^https?:\/\/([^\/]+)/) {split($i, parts, "/"); print parts[3]}}' "/tmp/EUS/apt/"*.log | sort -u 2>> /dev/null)
@@ -1568,7 +1620,7 @@ cleanup_conflicting_repositories() {
           # Loop through each file and awk to comment out the conflicting source
           while read -r file_with_conflict; do
             if [[ "${cleanup_conflicting_repositories_message_1}" != 'true' ]]; then
-              echo "Conflicting Trusted values for ${source_url}" &>> "${eus_dir}/logs/trusted-repository-conflict.log"
+              echo -e "$(date +%F-%R) | Conflicting Trusted values for ${source_url}" &>> "${eus_dir}/logs/trusted-repository-conflict.log"
               cleanup_conflicting_repositories_message_1="true"
             fi
             if [[ "${file_with_conflict}" == *".sources" ]]; then
@@ -1589,7 +1641,7 @@ cleanup_conflicting_repositories() {
                 } 
                 1' "${file_with_conflict}" &> tmpfile; then mv tmpfile "${file_with_conflict}" &> /dev/null; cleanup_conflicting_repositories_changes_made="true"; fi
             fi
-            echo "awk command executed for ${file_with_conflict}" &>> "${eus_dir}/logs/trusted-repository-conflict.log"
+            echo -e "$(date +%F-%R) | awk command executed for ${file_with_conflict}" &>> "${eus_dir}/logs/trusted-repository-conflict.log"
           done < <(grep -sl "^deb.*${source_url}.*${package_name}.*${version}\\|^URIs: *${source_url}" /etc/apt/sources.list /etc/apt/sources.list.d/* /etc/apt/sources.list.d/*.sources | awk '!NF || !seen[$0]++')
           break
         elif [[ ${line} == *"Conflicting values set for option Signed-By regarding source"* ]]; then
@@ -1604,8 +1656,8 @@ cleanup_conflicting_repositories() {
           # Loop through each file and awk to comment out the conflicting source
           while read -r file_with_conflict; do
             if [[ "${cleanup_conflicting_repositories_message_2}" != 'true' ]]; then
-              echo "Conflicting Signed-By values for ${conflicting_source}" &>> "${eus_dir}/logs/signed-by-repository-conflict.log"
-              echo "Conflicting keys: ${key1} != ${key2}" &>> "${eus_dir}/logs/signed-by-repository-conflict.log"
+              echo -e "$(date +%F-%R) | Conflicting Signed-By values for ${conflicting_source}" &>> "${eus_dir}/logs/signed-by-repository-conflict.log"
+              echo -e "$(date +%F-%R) | Conflicting keys: ${key1} != ${key2}" &>> "${eus_dir}/logs/signed-by-repository-conflict.log"
               cleanup_conflicting_repositories_message_2="true"
             fi
             if [[ "${file_with_conflict}" == *".sources" ]]; then
@@ -1622,7 +1674,7 @@ cleanup_conflicting_repositories() {
                 } 
                 1' "${file_with_conflict}" &> tmpfile; then mv tmpfile "${file_with_conflict}" &> /dev/null; cleanup_conflicting_repositories_changes_made="true"; fi
             fi
-            echo "awk command executed for ${file_with_conflict}" &>> "${eus_dir}/logs/signed-by-repository-conflict.log"
+            echo -e "$(date +%F-%R) | awk command executed for ${file_with_conflict}" &>> "${eus_dir}/logs/signed-by-repository-conflict.log"
           done < <(grep -sl "^deb.*${conflicting_source}\\|^URIs: *${conflicting_source}" /etc/apt/sources.list /etc/apt/sources.list.d/* /etc/apt/sources.list.d/*.sources | awk '!NF || !seen[$0]++')
           break
         fi
@@ -1868,6 +1920,8 @@ apt_get_install_package() {
     if [[ "${PIPESTATUS[0]}" -eq "0" ]]; then
       echo -e "${GREEN}#${RESET} Successfully ${apt_get_install_package_variable_2} ${required_package}! \\n"; sleep 2
     else
+      check_unmet_dependencies
+      broken_packages_check
       add_apt_option_no_install_recommends="true"; get_apt_options
       if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${required_package}" 2>&1 | tee -a "${eus_dir}/logs/apt.log" > /tmp/EUS/apt/apt.log; then
         if [[ "${PIPESTATUS[0]}" -eq "0" ]]; then
@@ -2126,6 +2180,29 @@ if [[ -n "${auto_dns_challenge_provider}" ]]; then
   fi
 fi
 
+check_snapd_running() {
+  if [[ "${os_codename}" =~ (precise|maya|trusty|qiana|rebecca|rafaela|rosa) ]]; then
+    if ! systemctl status snapd | grep -iq running; then
+      echo -e "${WHITE_R}#${RESET} snapd doesn't appear to be running... Trying to start it..."
+      if systemctl start snapd &> /dev/null; then echo -e "${GREEN}#${RESET} Successfully started snapd!"; sleep 3; fi
+      if ! systemctl status snapd | grep -iq running; then
+        abort_reason="snapd isn't running"
+        abort
+      fi
+    fi
+  else
+    if ! systemctl is-active -q snapd; then
+      if [[ "${installing_required_package}" != 'yes' ]]; then echo -e "\\n${GREEN}---${RESET}\\n"; else header; fi
+      echo -e "${WHITE_R}#${RESET} snapd doesn't appear to be running... Trying to start it..."
+      if systemctl start snapd &> /dev/null; then echo -e "${GREEN}#${RESET} Successfully started snapd!"; sleep 3; fi
+      if ! systemctl is-active -q snapd; then
+        abort_reason="snapd isn't running"
+        abort
+      fi
+    fi
+  fi
+}
+
 certbot_install_function() {
   if [[ "${dns_manual_flag}" == '--non-interactive' ]]; then return; fi
   if [[ "${own_certificate}" != "true" ]]; then
@@ -2137,6 +2214,7 @@ certbot_install_function() {
       if ! dpkg -l certbot 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi"; then
         if dpkg -l | awk '{print$2}' | grep -iq "^snapd$" && [[ "${try_snapd}" != 'false' ]]; then
           if [[ "${installing_required_package}" != 'yes' ]]; then install_required_packages; fi
+          check_snapd_running
           echo -e "\\n------- update ------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/snapd.log"
           echo -e "${WHITE_R}#${RESET} Updating snapd..."
           if snap install core &>> "${eus_dir}/logs/snapd.log"; snap refresh core &>> "${eus_dir}/logs/snapd.log"; then

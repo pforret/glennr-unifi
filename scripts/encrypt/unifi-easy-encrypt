@@ -11,6 +11,14 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Encrypt Script  |  Version 2.8.0
+ 
+ - Improved the incorrect time/date check, it will now temporarily disable NTP if time/date is invalid.
+ - Improved adding repositories.
+ - Fixed an issue where snapd steps failed when it's not running.
+ 
+ ###
+
  |  UniFi Easy Encrypt Script  |  Version 2.7.9
  
  - Improved the apt-get update process.

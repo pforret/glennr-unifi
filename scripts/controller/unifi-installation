@@ -11,6 +11,19 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 7.5.4
+ 
+ - Fixed an issue where the script could add double brackets when adding the Adoptium Java repository.
+ 
+ ####
+
+ |  UniFi Network Application Installation Script  |  Version 7.5.3
+ 
+ - Improved the incorrect time/date check, it will now temporarily disable NTP if time/date is invalid.
+ - Improved adding repositories.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 7.5.2
  
  - Improved the apt-get update process.
