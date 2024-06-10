@@ -11,6 +11,13 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 7.5.5
+ 
+ - Fixed an edge case where malformed repositories weren't being commented out properly.
+ - Fixed an issue where the script could add an incorrect DEB822 repository.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 7.5.4
  
  - Fixed an issue where the script could add double brackets when adding the Adoptium Java repository.

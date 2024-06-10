@@ -2,7 +2,7 @@
 
 # UniFi Network Application Easy Update Script.
 # Script   | UniFi Network Easy Update Script
-# Version  | 8.7.7
+# Version  | 8.7.8
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -1600,7 +1600,7 @@ cleanup_malformed_repositories() {
       if [[ -f "${cleanup_malformed_repositories_file_path}" ]]; then
         if [[ "${cleanup_malformed_repositories_file_path}" == *".sources" ]]; then
           # Handle deb822 format
-          entry_block_start_line="$(awk -v cleanup_line="$cleanup_malformed_repositories_line_number" 'BEGIN { in_block = 0 } /^[^#]/ && !in_block { start_line = NR; in_block = 1 } in_block && ($0 ~ /^#Types:/ || (NR - start_line > 1 && NF == 0)) { block++; if (block == cleanup_line) print start_line; in_block = 0 }' "${cleanup_malformed_repositories_file_path}")"
+          entry_block_start_line="$(awk -v cleanup_line="${cleanup_malformed_repositories_line_number}" 'BEGIN { block = 0; in_block = 0; start_line = 0 } /^[^#]/ { if (!in_block) { start_line = NR; in_block = 1; } } /^$/ { if (in_block) { block++; in_block = 0; if (block == cleanup_line) { print start_line; } } } END { if (in_block) { block++; if (block == cleanup_line) { print start_line; } } }' "${cleanup_malformed_repositories_file_path}")"
           entry_block_end_line="$(awk -v start_line="$entry_block_start_line" ' NR > start_line && NF == 0 { print NR-1; found=1; exit } NR > start_line { last_non_blank=NR } END { if (!found) print last_non_blank }' "${cleanup_malformed_repositories_file_path}")"
           sed -i "${entry_block_start_line},${entry_block_end_line}s/^/#/" "${cleanup_malformed_repositories_file_path}" &>/dev/null
         elif [[ "${cleanup_malformed_repositories_file_path}" == *".list" ]]; then
@@ -1917,7 +1917,7 @@ add_glennr_mongod_repo() {
     if [[ "${architecture}" == 'arm64' ]]; then arch="arch=arm64"; elif [[ "${architecture}" == 'amd64' ]]; then arch="arch=amd64"; else arch="arch=amd64,arm64"; fi
     if [[ "${use_deb822_format}" == 'true' ]]; then
       # DEB822 format
-      mongod_repo_entry="Types: deb\nURIs: ${repo_http_https}://apt.glennr.nl/${mongod_codename}\nSuites: ${mongod_repo_type}${deb822_signed_by_value}\nArchitectures: ${arch//arch=/}"
+      mongod_repo_entry="Types: deb\nURIs: ${repo_http_https}://apt.glennr.nl/$(echo "${mongod_codename}" | awk -F" " '{print $1}')\nSuites: $(echo "${mongod_codename}" | awk -F" " '{print $2}')\nComponents: ${mongod_repo_type}\nArchitectures: ${arch//arch=/}${deb822_signed_by_value}"
     else
       # Traditional format
       mongod_repo_entry="deb [ ${arch}${signed_by_value} ] ${repo_http_https}://apt.glennr.nl/${mongod_codename} ${mongod_repo_type}"

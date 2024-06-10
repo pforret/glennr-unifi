@@ -11,6 +11,13 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 8.7.8
+  
+ - Fixed an edge case where malformed repositories weren't being commented out properly.
+ - Fixed an issue where the script could add an incorrect DEB822 repository.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 8.7.7
   
  - Fixed an issue where the script could add double brackets when adding the Adoptium Java repository.
