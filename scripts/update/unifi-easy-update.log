@@ -11,6 +11,13 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 8.7.9
+  
+ - Improved messaging when downloading/building UniFi for other Java versions/MongoDB compiled by Glenn R.
+ - Fixed sed errors on setups that are not using source.list.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 8.7.8
   
  - Fixed an edge case where malformed repositories weren't being commented out properly.

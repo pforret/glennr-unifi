@@ -11,6 +11,13 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 7.5.6
+ 
+ - Improved messaging when downloading/building UniFi for other Java versions/MongoDB compiled by Glenn R.
+ - Fixed sed errors on setups that are not using source.list.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 7.5.5
  
  - Fixed an edge case where malformed repositories weren't being commented out properly.

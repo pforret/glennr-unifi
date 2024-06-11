@@ -50,7 +50,7 @@
 ###################################################################################################################################################################################################
 
 # Script                | UniFi Network Easy Installation Script
-# Version               | 7.5.5
+# Version               | 7.5.6
 # Application version   | 5.10.20-b06c46ec1d
 # Debian Repo version   | 5.10.20-11657-1
 # Author                | Glenn Rietveld
@@ -1086,7 +1086,7 @@ cleanup_unavailable_repositories() {
   if ls /tmp/EUS/apt/*.log 1> /dev/null 2>&1; then
     if ! [[ -e "${eus_dir}/logs/upgrade.log" ]]; then return; fi
     while read -r domain; do
-      if ! grep -q "^#.*${domain}" /etc/apt/sources.list /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; then
+      if ! grep -sq "^#.*${domain}" /etc/apt/sources.list /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; then
         if [[ "${cleanup_unavailable_repositories_found_message}" != 'true' ]]; then
           echo -e "${WHITE_R}#${RESET} There are repositories that are causing issues..."
           cleanup_unavailable_repositories_found_message="true"
@@ -1906,8 +1906,7 @@ author() {
   if [[ "${archived_repo}" == 'true' && "${unifi_core_system}" == 'true' ]]; then echo -e "\\n${WHITE_R}----${RESET}\\n\\n${RED}# ${RESET}Please update to the latest UniFi OS Release!\\n"; fi
   echo -e "${WHITE_R}#${RESET} ${GRAY_R}Author   |  ${WHITE_R}Glenn R.${RESET}"
   echo -e "${WHITE_R}#${RESET} ${GRAY_R}Email    |  ${WHITE_R}glennrietveld8@hotmail.nl${RESET}"
-  echo -e "${WHITE_R}#${RESET} ${GRAY_R}Website  |  ${WHITE_R}https://GlennR.nl${RESET}"
-  echo -e "\\n\\n"
+  echo -e "${WHITE_R}#${RESET} ${GRAY_R}Website  |  ${WHITE_R}https://GlennR.nl${RESET}\\n\\n"
 }
 
 # Set architecture
@@ -2178,7 +2177,7 @@ add_repositories() {
       fi
       sed -i '/https/{s/^/#/}' "${https_repo_needs_http_file}" &>> "${eus_dir}/logs/https-repo-needs-http.log"
       sed -i 's/##/#/g' "${https_repo_needs_http_file}" &>> "${eus_dir}/logs/https-repo-needs-http.log"
-    done < <(grep -ril "^deb https*://$(echo "${repo_url}" | sed -e 's/https\:\/\///g' -e 's/http\:\/\///g') ${repo_codename}${repo_codename_argument} ${repo_component}" /etc/apt/sources.list /etc/apt/sources.list.d/*)
+    done < <(grep -sril "^deb https*://$(echo "${repo_url}" | sed -e 's/https\:\/\///g' -e 's/http\:\/\///g') ${repo_codename}${repo_codename_argument} ${repo_component}" /etc/apt/sources.list /etc/apt/sources.list.d/*)
   fi 
   # Clean up unset variables
   unset_add_repositories_variables
@@ -3426,6 +3425,21 @@ EOF
   fi
 }
 
+remove_older_mongodb_repositories() {
+  echo -e "${WHITE_R}#${RESET} Checking for older MongoDB repository entries..."
+  if grep -qriIl "mongo" /etc/apt/sources.list*; then
+    echo -ne "${WHITE_R}#${RESET} Removing old repository entries for MongoDB..." && sleep 1
+    if [[ -e "/etc/apt/sources.list" ]]; then sed -i '/mongodb/d' /etc/apt/sources.list; fi
+    if ls /etc/apt/sources.list.d/mongodb* > /dev/null 2>&1; then
+      rm /etc/apt/sources.list.d/mongodb*  2> /dev/null
+    fi
+    echo -e "\\r${GREEN}#${RESET} Successfully removed all older MongoDB repository entries! \\n"
+  else
+    echo -e "\\r${YELLOW}#${RESET} There were no older MongoDB Repository entries! \\n"
+  fi
+  sleep 2
+}
+
 ###################################################################################################################################################################################################
 #                                                                                                                                                                                                 #
 #                                                                                             libssl                                                                                              #
@@ -3691,18 +3705,7 @@ if [[ "${mongodb_version_installed_no_dots::2}" -gt "${mongo_version_max}" ]]; t
             abort
           fi
         fi
-        sleep 2
-        echo -e "${WHITE_R}#${RESET} Checking for MongoDB repository entries..."
-        if grep -qriIl "mongo" /etc/apt/sources.list*; then
-          echo -ne "${YELLOW}#${RESET} Removing repository entries for MongoDB..." && sleep 1
-          sed -i '/mongodb/d' /etc/apt/sources.list
-          if ls /etc/apt/sources.list.d/mongodb* > /dev/null 2>&1; then
-            rm /etc/apt/sources.list.d/mongodb* 2> /dev/null
-          fi
-          echo -e "\\r${GREEN}#${RESET} Successfully removed all MongoDB repository entries! \\n"
-        else
-          echo -e "\\r${YELLOW}#${RESET} There were no MongoDB Repository entries! \\n"
-        fi
+        remove_older_mongodb_repositories
         sleep 2
         while read -r mongodb_package_purge; do
           check_dpkg_lock
@@ -3908,7 +3911,7 @@ while read -r mongodb_repo_version; do
         continue
       fi
     fi
-  done < <(grep -riIl "${mongodb_repo_version} main\\|${mongodb_repo_version} multiverse" /etc/apt/sources.list /etc/apt/sources.list.d/)
+  done < <(grep -sriIl "${mongodb_repo_version} main\\|${mongodb_repo_version} multiverse" /etc/apt/sources.list /etc/apt/sources.list.d/)
   #
   if [[ "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/mongodb-release?version=${mongodb_repo_version}" | jq -r '.updated')" -ge "$(jq -r '.database."mongodb-key-last-check"' "${eus_dir}/db/db.json")" ]]; then
     if [[ "${expired_header}" != 'true' ]]; then if header; then expired_header="true"; fi; fi
@@ -3939,7 +3942,7 @@ while read -r mongodb_repo_version; do
         mongodb_expired_archived="true"
       fi
     fi
-  done < <(grep -riIl "${mongodb_repo_version} main\\|${mongodb_repo_version} multiverse" /etc/apt/sources.list /etc/apt/sources.list.d/)
+  done < <(grep -sriIl "${mongodb_repo_version} main\\|${mongodb_repo_version} multiverse" /etc/apt/sources.list /etc/apt/sources.list.d/)
   if [[ "${expired_mongodb_check_message_3}" != 'true' ]]; then if [[ "${expired_mongodb_check_message}" == 'true' && "${mongodb_key_update}" != 'true' && "${mongodb_expired_archived}" != 'true' ]]; then echo -e "${GREEN}#${RESET} The script didn't detect any expired MongoDB repository keys! \\n"; expired_mongodb_check_message_3="true"; sleep 3; fi; fi
 done < <(find /etc/apt/ -name "*.list" -type f -print0 | xargs -0 cat | grep mongodb | grep -io "[0-9].[0-9]" | awk '!NF || !seen[$0]++')
 if [[ "${mongodb_key_update}" == 'true' ]]; then run_apt_get_update; unset mongodb_key_update; sleep 3; fi
@@ -4037,6 +4040,7 @@ unifi_deb_package_modification() {
       fi
     fi
     if [[ "${pre_build_download_failure}" == 'true' ]] || [[ -z "${pre_build_fw_update_dl_link}" ]]; then
+      if [[ "${pre_build_download_failure}" == 'true' ]]; then echo -e "${RED}#${RESET} Failed to download UniFi Network Application version ${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi} built for ${unifi_deb_package_modification_message_1}! \\n${RED}#${RESET} The script will attempt to built it locally... \\n"; fi
       eus_temp_dir="$(mktemp -d --tmpdir=${eus_dir} unifi.deb.XXX)"
       echo -e "${WHITE_R}#${RESET} This setup is using ${unifi_deb_package_modification_message_1}... Editing the UniFi Network Application dependencies..."
       echo -e "\\n------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/unifi-custom-deb-file.log"
@@ -4075,6 +4079,8 @@ unifi_deb_package_modification() {
         echo -e "${RED}#${RESET} Failed to edit the dependencies of the UniFi Network Application deb file...\\n"
       fi
       rm -rf "${eus_temp_dir}" &> /dev/null
+    else
+      echo -e "${WHITE_R}#${RESET} Successfully downloaded UniFi Network Application version ${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi} built for ${unifi_deb_package_modification_message_1}! \\n"
     fi
   fi
 }
@@ -4103,21 +4109,6 @@ ignore_unifi_package_dependencies() {
 #                                                                                 Installation Script starts here                                                                                 #
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
-
-remove_older_mongodb_repositories() {
-  echo -e "${WHITE_R}#${RESET} Checking for older MongoDB repository entries..."
-  if grep -qriIl "mongo" /etc/apt/sources.list*; then
-    echo -ne "${WHITE_R}#${RESET} Removing old repository entries for MongoDB..." && sleep 1
-    sed -i '/mongodb/d' /etc/apt/sources.list
-    if ls /etc/apt/sources.list.d/mongodb* > /dev/null 2>&1; then
-      rm /etc/apt/sources.list.d/mongodb*  2> /dev/null
-    fi
-    echo -e "\\r${GREEN}#${RESET} Successfully removed all older MongoDB repository entries! \\n"
-  else
-    echo -e "\\r${YELLOW}#${RESET} There were no older MongoDB Repository entries! \\n"
-  fi
-  sleep 2
-}
 
 mongodb_upgrade_check() {
   while read -r mongodb_upgrade_check_package; do
