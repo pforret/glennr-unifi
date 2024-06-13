@@ -11,6 +11,13 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 7.5.7
+ 
+ - Fixed an issue where the script could think MongoDB was still installed.
+ - Fixed an issue where the installation could fail if it fails to download UniFi built for specific Java/MongoDB versions.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 7.5.6
  
  - Improved messaging when downloading/building UniFi for other Java versions/MongoDB compiled by Glenn R.

@@ -2,7 +2,7 @@
 
 # UniFi Network Application Easy Update Script.
 # Script   | UniFi Network Easy Update Script
-# Version  | 8.7.9
+# Version  | 8.8.0
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -1107,7 +1107,7 @@ unset_add_repositories_variables(){
 add_repositories() {
   # Check if repository is already added
   if grep -sq "^deb .*http\?s\?://$(echo "${repo_url}" | sed -e 's/https\:\/\///g' -e 's/http\:\/\///g')${repo_url_arguments}\?/\? ${repo_codename}${repo_codename_argument} ${repo_component}" /etc/apt/sources.list /etc/apt/sources.list.d/*; then
-    echo -e "$(date +%F-%R) | \"${repo_url}${repo_url_arguments} ${repo_codename}${repo_codename_argument} ${repo_component}\" was found, not adding to repository lists. $(grep -srIl "^deb .*http\?s\?://$(echo "${repo_url}" | sed -e 's/https\:\/\///g' -e 's/http\:\/\///g')${repo_url_arguments}\?/\? ${repo_codename}${repo_component}" /etc/apt/sources.list /etc/apt/sources.list.d/*)..." &>> "${eus_dir}/logs/already-found-repository.log"
+    echo -e "$(date +%F-%R) | \"${repo_url}${repo_url_arguments} ${repo_codename}${repo_codename_argument} ${repo_component}\" was found, not adding to repository lists. $(grep -srIl "^deb .*http\?s\?://$(echo "${repo_url}" | sed -e 's/https\:\/\///g' -e 's/http\:\/\///g')${repo_url_arguments}\?/\? ${repo_codename}${repo_codename_argument} ${repo_component}" /etc/apt/sources.list /etc/apt/sources.list.d/*)..." &>> "${eus_dir}/logs/already-found-repository.log"
     unset_add_repositories_variables
     return  # Repository already added, exit function
   elif find /etc/apt/sources.list.d/ -name "*.sources" | grep -ioq /etc/apt; then
@@ -1380,6 +1380,7 @@ broken_packages_check() {
 
 # Add default repositories
 check_default_repositories() {
+  get_repo_url
   if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then
     if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish) ]]; then repo_component="main universe"; add_repositories; fi
     if [[ "${repo_codename}" =~ (jammy|kinetic|lunar|mantic|noble) ]]; then repo_component="main"; add_repositories; fi
@@ -2984,22 +2985,22 @@ unifi_deb_package_modification() {
       unifi_deb_package_modification_message_1="${non_default_java_package}"
     fi
     if [[ -n "${pre_build_fw_update_dl_link}" ]]; then
-      if [[ -z "${unifi_temp}" ]]; then unifi_temp="$(mktemp --tmpdir=/tmp/EUS/downloads "${unifi_deb_file_name}_${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi}"_XXXXX.deb)"; fi
-      echo -e "$(date +%F-%R) | Downloading ${pre_build_fw_update_dl_link} to ${unifi_temp}" &>> "${eus_dir}/logs/unifi-download.log"
+      if [[ -z "${gr_unifi_temp}" ]]; then gr_unifi_temp="$(mktemp --tmpdir=/tmp/EUS/downloads "${unifi_deb_file_name}_${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi}"_XXXXX.deb)"; fi
+      echo -e "$(date +%F-%R) | Downloading ${pre_build_fw_update_dl_link} to ${gr_unifi_temp}" &>> "${eus_dir}/logs/unifi-download.log"
       echo -e "${WHITE_R}#${RESET} Downloading UniFi Network Application version ${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi} built for ${unifi_deb_package_modification_message_1}..."
-      if curl --retry 3 "${nos_curl_argument[@]}" --output "$unifi_temp" "${pre_build_fw_update_dl_link}" &>> "${eus_dir}/logs/unifi-download.log"; then
+      if curl --retry 3 "${nos_curl_argument[@]}" --output "$gr_unifi_temp" "${pre_build_fw_update_dl_link}" &>> "${eus_dir}/logs/unifi-download.log"; then
         if command -v sha256sum &> /dev/null; then
-          if [[ "$(sha256sum "$unifi_temp" | awk '{print $1}')" != "${pre_build_fw_update_dl_link_sha256sum}" ]]; then
-            if curl --retry 3 "${nos_curl_argument[@]}" --output "$unifi_temp" "${pre_build_fw_update_dl_link}" &>> "${eus_dir}/logs/unifi-download.log"; then
-              if [[ "$(sha256sum "$unifi_temp" | awk '{print $1}')" != "${pre_build_fw_update_dl_link_sha256sum}" ]]; then
+          if [[ "$(sha256sum "$gr_unifi_temp" | awk '{print $1}')" != "${pre_build_fw_update_dl_link_sha256sum}" ]]; then
+            if curl --retry 3 "${nos_curl_argument[@]}" --output "$gr_unifi_temp" "${pre_build_fw_update_dl_link}" &>> "${eus_dir}/logs/unifi-download.log"; then
+              if [[ "$(sha256sum "$gr_unifi_temp" | awk '{print $1}')" != "${pre_build_fw_update_dl_link_sha256sum}" ]]; then
                 pre_build_download_failure="true"
               fi
             fi
           fi
         elif command -v dpkg-deb &> /dev/null; then
-          if ! dpkg-deb --info "${unifi_temp}" &> /dev/null; then
-            if curl --retry 3 "${nos_curl_argument[@]}" --output "$unifi_temp" "${pre_build_fw_update_dl_link}" &>> "${eus_dir}/logs/unifi-download.log"; then
-              if ! dpkg-deb --info "${unifi_temp}" &> /dev/null; then
+          if ! dpkg-deb --info "${gr_unifi_temp}" &> /dev/null; then
+            if curl --retry 3 "${nos_curl_argument[@]}" --output "$gr_unifi_temp" "${pre_build_fw_update_dl_link}" &>> "${eus_dir}/logs/unifi-download.log"; then
+              if ! dpkg-deb --info "${gr_unifi_temp}" &> /dev/null; then
                 echo -e "$(date +%F-%R) | The file downloaded via ${pre_build_fw_update_dl_link} was not a debian file format..." &>> "${eus_dir}/logs/unifi-download.log"
                 pre_build_download_failure="true"
               fi
@@ -3050,6 +3051,7 @@ unifi_deb_package_modification() {
       rm -rf "${eus_temp_dir}" &> /dev/null
     else
       echo -e "${WHITE_R}#${RESET} Successfully downloaded UniFi Network Application version ${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi} built for ${unifi_deb_package_modification_message_1}! \\n"
+      unifi_temp="${gr_unifi_temp}"
     fi
   fi
 }
@@ -6549,7 +6551,7 @@ custom_url_upgrade_check() {
         if [[ "${mongodb_server_version::2}" -lt "${minimum_required_mongodb_version}" ]]; then
           header_red
           echo -e "${WHITE_R}#${RESET} UniFi Network Application ${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi} requires MongoDB ${minimum_required_mongodb_version_dot} or newer."
-          echo -e "${WHITE_R}#${RESET} The latest version that you can run with MongoDB version $("$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep "mongodb-server\\|mongodb-org-server\\|mongod-armv8" | awk '{print $3}' | sed 's/.*://') is $(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?version=${unifi_latest_supported_version_number}" | jq -r '.latest_version') and older.. \\n\\n"
+          echo -e "${WHITE_R}#${RESET} The latest version that you can run with MongoDB version $("$(which dpkg)" -l | grep "mongodb-server\\|mongodb-org-server\\|mongod-armv8" | awk '{print $3}' | sed -e 's/.*://' -e 's/-.*//') is $(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?version=${unifi_latest_supported_version_number}" | jq -r '.latest_version') and older.. \\n\\n"
           if [[ "${mongodb_org_v::2}" =~ (24|26|30|32|34) && "${mongo_version_max}" == "36" && "${mongodb_upgrade_supported}" == 'true' ]] || [[ "${mongodb_org_v::2}" =~ (24|26|30|32|34|36|40|42) && "${mongo_version_max}" == "44" && "${mongodb_upgrade_supported}" == 'true' ]]; then
             read -rp $'\033[39m#\033[0m Would you like to run the option to upgrade to MongoDB '${mongo_version_max_with_dot}'? (Y/n) ' yes_no
             case "$yes_no" in
@@ -6863,7 +6865,7 @@ mongodb_upgrade_space_check() {
       header_red
       echo -e "${WHITE_R}#${RESET} Your UniFi Network Application database is $(du -sh "${unifi_database_location}" | awk '{print $1}') in size and you have $(df -H ${eus_dir}/ | awk '{print $4}' | tail -n1) of available space..."
       echo -e "${WHITE_R}#${RESET} The MongoDB Upgrade might fail due to not having enough space to export/import the database...\\n"
-      if [[ "$(find "$(readlink -f /usr/lib/unifi/data/backup/autobackup/)" -maxdepth 1 -type f -name "*.unf" | wc -l)" -gt '3' ]]; then
+      if [[ "$(find "$(readlink -f /usr/lib/unifi/data/backup/autobackup/)" -maxdepth 1 -type f -name "*.unf" | wc -l)" -gt '5' ]] && [[ "${cleanup_backup_files_during_mongodb_upgrade_complete}" != 'true' ]]; then
         cleanup_backup_files_during_mongodb_upgrade="true"
         cleanup_backup_files_dir="$(readlink -f /usr/lib/unifi/data/backup/autobackup/)"
         cleanup_backup_files
@@ -8370,7 +8372,7 @@ application_upgrade_releases() {
     if [[ "${mongodb_server_version::2}" -lt "${minimum_required_mongodb_version}" ]]; then
       header_red
       echo -e "${WHITE_R}#${RESET} UniFi Network Application ${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi} requires MongoDB ${minimum_required_mongodb_version_dot} or newer."
-      echo -e "${WHITE_R}#${RESET} The latest version that you can run with MongoDB version $("$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep "mongodb-server\\|mongodb-org-server\\|mongod-armv8" | awk '{print $3}' | sed 's/.*://') is $(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?version=${unifi_latest_supported_version_number}" | jq -r '.latest_version') and older.. \\n\\n"
+      echo -e "${WHITE_R}#${RESET} The latest version that you can run with MongoDB version $("$(which dpkg)" -l | grep "mongodb-server\\|mongodb-org-server\\|mongod-armv8" | awk '{print $3}' | sed -e 's/.*://' -e 's/-.*//') is $(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?version=${unifi_latest_supported_version_number}" | jq -r '.latest_version') and older.. \\n\\n"
       if [[ "${mongodb_org_v::2}" =~ (24|26|30|32|34) && "${mongo_version_max}" == "36" && "${mongodb_upgrade_supported}" == 'true' ]] || [[ "${mongodb_org_v::2}" =~ (24|26|30|32|34|36|40|42) && "${mongo_version_max}" == "44" && "${mongodb_upgrade_supported}" == 'true' ]] || [[ "${mongodb_org_v::2}" =~ (24|26|30|32|34|36|40|42|44|50|60) && "${mongo_version_max}" == "70" && "${mongodb_upgrade_supported}" == 'true' ]]; then
         read -rp $'\033[39m#\033[0m Would you like to run the option to upgrade to MongoDB '${mongo_version_max_with_dot}'? (Y/n) ' yes_no
         case "$yes_no" in

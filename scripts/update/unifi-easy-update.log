@@ -11,6 +11,13 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 8.8.0
+  
+ - Fixed an constant loop when cleaning up space during the MongoDB Upgrade process.
+ - Fixed an issue where the updates could fail if it fails to download UniFi built for specific Java/MongoDB versions.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 8.7.9
   
  - Improved messaging when downloading/building UniFi for other Java versions/MongoDB compiled by Glenn R.

@@ -50,7 +50,7 @@
 ###################################################################################################################################################################################################
 
 # Script                | UniFi Network Easy Installation Script
-# Version               | 7.5.6
+# Version               | 7.5.7
 # Application version   | 7.0.22-8c2c64c175
 # Debian Repo version   | 7.0.22-17284-1
 # Author                | Glenn Rietveld
@@ -2066,7 +2066,7 @@ unset_add_repositories_variables(){
 add_repositories() {
   # Check if repository is already added
   if grep -sq "^deb .*http\?s\?://$(echo "${repo_url}" | sed -e 's/https\:\/\///g' -e 's/http\:\/\///g')${repo_url_arguments}\?/\? ${repo_codename}${repo_codename_argument} ${repo_component}" /etc/apt/sources.list /etc/apt/sources.list.d/*; then
-    echo -e "$(date +%F-%R) | \"${repo_url}${repo_url_arguments} ${repo_codename}${repo_codename_argument} ${repo_component}\" was found, not adding to repository lists. $(grep -srIl "^deb .*http\?s\?://$(echo "${repo_url}" | sed -e 's/https\:\/\///g' -e 's/http\:\/\///g')${repo_url_arguments}\?/\? ${repo_codename}${repo_component}" /etc/apt/sources.list /etc/apt/sources.list.d/*)..." &>> "${eus_dir}/logs/already-found-repository.log"
+    echo -e "$(date +%F-%R) | \"${repo_url}${repo_url_arguments} ${repo_codename}${repo_codename_argument} ${repo_component}\" was found, not adding to repository lists. $(grep -srIl "^deb .*http\?s\?://$(echo "${repo_url}" | sed -e 's/https\:\/\///g' -e 's/http\:\/\///g')${repo_url_arguments}\?/\? ${repo_codename}${repo_codename_argument} ${repo_component}" /etc/apt/sources.list /etc/apt/sources.list.d/*)..." &>> "${eus_dir}/logs/already-found-repository.log"
     unset_add_repositories_variables
     return  # Repository already added, exit function
   elif find /etc/apt/sources.list.d/ -name "*.sources" | grep -ioq /etc/apt; then
@@ -2304,6 +2304,7 @@ broken_packages_check() {
 
 # Add default repositories
 check_default_repositories() {
+  get_repo_url
   if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then
     if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish) ]]; then repo_component="main universe"; add_repositories; fi
     if [[ "${repo_codename}" =~ (jammy|kinetic|lunar|mantic|noble) ]]; then repo_component="main"; add_repositories; fi
@@ -3224,6 +3225,7 @@ unifi_required_packages_check
 ###################################################################################################################################################################################################
 
 check_mongodb_installed() {
+  unset mongodb_installed
   "$(which dpkg)" -l | grep "mongodb-server\\|mongodb-org-server\\|mongod-armv8" | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | awk '{print $3}' | sed 's/.*://' | sed 's/-.*//g' &> /tmp/EUS/mongodb_versions
   if ! [[ -s "/tmp/EUS/mongodb_versions" ]]; then
     if [[ -n "$(command -v mongod)" ]]; then
@@ -4015,22 +4017,22 @@ unifi_deb_package_modification() {
       unifi_deb_package_modification_message_1="${non_default_java_package}"
     fi
     if [[ -n "${pre_build_fw_update_dl_link}" ]]; then
-      if [[ -z "${unifi_temp}" ]]; then unifi_temp="$(mktemp --tmpdir=/tmp/EUS/downloads "${unifi_deb_file_name}_${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi}"_XXXXX.deb)"; fi
-      echo -e "$(date +%F-%R) | Downloading ${pre_build_fw_update_dl_link} to ${unifi_temp}" &>> "${eus_dir}/logs/unifi-download.log"
+      if [[ -z "${gr_unifi_temp}" ]]; then gr_unifi_temp="$(mktemp --tmpdir=/tmp/EUS/downloads "${unifi_deb_file_name}_${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi}"_XXXXX.deb)"; fi
+      echo -e "$(date +%F-%R) | Downloading ${pre_build_fw_update_dl_link} to ${gr_unifi_temp}" &>> "${eus_dir}/logs/unifi-download.log"
       echo -e "${WHITE_R}#${RESET} Downloading UniFi Network Application version ${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi} built for ${unifi_deb_package_modification_message_1}..."
-      if curl --retry 3 "${nos_curl_argument[@]}" --output "$unifi_temp" "${pre_build_fw_update_dl_link}" &>> "${eus_dir}/logs/unifi-download.log"; then
+      if curl --retry 3 "${nos_curl_argument[@]}" --output "$gr_unifi_temp" "${pre_build_fw_update_dl_link}" &>> "${eus_dir}/logs/unifi-download.log"; then
         if command -v sha256sum &> /dev/null; then
-          if [[ "$(sha256sum "$unifi_temp" | awk '{print $1}')" != "${pre_build_fw_update_dl_link_sha256sum}" ]]; then
-            if curl --retry 3 "${nos_curl_argument[@]}" --output "$unifi_temp" "${pre_build_fw_update_dl_link}" &>> "${eus_dir}/logs/unifi-download.log"; then
-              if [[ "$(sha256sum "$unifi_temp" | awk '{print $1}')" != "${pre_build_fw_update_dl_link_sha256sum}" ]]; then
+          if [[ "$(sha256sum "$gr_unifi_temp" | awk '{print $1}')" != "${pre_build_fw_update_dl_link_sha256sum}" ]]; then
+            if curl --retry 3 "${nos_curl_argument[@]}" --output "$gr_unifi_temp" "${pre_build_fw_update_dl_link}" &>> "${eus_dir}/logs/unifi-download.log"; then
+              if [[ "$(sha256sum "$gr_unifi_temp" | awk '{print $1}')" != "${pre_build_fw_update_dl_link_sha256sum}" ]]; then
                 pre_build_download_failure="true"
               fi
             fi
           fi
         elif command -v dpkg-deb &> /dev/null; then
-          if ! dpkg-deb --info "${unifi_temp}" &> /dev/null; then
-            if curl --retry 3 "${nos_curl_argument[@]}" --output "$unifi_temp" "${pre_build_fw_update_dl_link}" &>> "${eus_dir}/logs/unifi-download.log"; then
-              if ! dpkg-deb --info "${unifi_temp}" &> /dev/null; then
+          if ! dpkg-deb --info "${gr_unifi_temp}" &> /dev/null; then
+            if curl --retry 3 "${nos_curl_argument[@]}" --output "$gr_unifi_temp" "${pre_build_fw_update_dl_link}" &>> "${eus_dir}/logs/unifi-download.log"; then
+              if ! dpkg-deb --info "${gr_unifi_temp}" &> /dev/null; then
                 echo -e "$(date +%F-%R) | The file downloaded via ${pre_build_fw_update_dl_link} was not a debian file format..." &>> "${eus_dir}/logs/unifi-download.log"
                 pre_build_download_failure="true"
               fi
@@ -4081,6 +4083,7 @@ unifi_deb_package_modification() {
       rm -rf "${eus_temp_dir}" &> /dev/null
     else
       echo -e "${WHITE_R}#${RESET} Successfully downloaded UniFi Network Application version ${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi} built for ${unifi_deb_package_modification_message_1}! \\n"
+      unifi_temp="${gr_unifi_temp}"
     fi
   fi
 }
@@ -4956,7 +4959,7 @@ if [[ "${first_digit_unifi}" -gt '7' ]] || [[ "${first_digit_unifi}" == '7' && "
   if [[ "${mongodb_server_version::2}" -lt "${minimum_required_mongodb_version}" ]]; then
     header_red
     echo -e "${WHITE_R}#${RESET} UniFi Network Application ${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi} requires MongoDB ${minimum_required_mongodb_version_dot} or newer."
-    echo -e "${WHITE_R}#${RESET} The latest version that you can run with MongoDB version $("$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep "mongodb-server\\|mongodb-org-server\\|mongod-armv8" | awk '{print $3}' | sed 's/.*://') is $(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?version=${unifi_latest_supported_version_number}" | jq -r '.latest_version') and older.. \\n\\n"
+    echo -e "${WHITE_R}#${RESET} The latest version that you can run with MongoDB version $("$(which dpkg)" -l | grep "mongodb-server\\|mongodb-org-server\\|mongod-armv8" | awk '{print $3}' | sed -e 's/.*://' -e 's/-.*//') is $(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?version=${unifi_latest_supported_version_number}" | jq -r '.latest_version') and older.. \\n\\n"
     echo -e "${WHITE_R}#${RESET} Upgrade to MongoDB ${minimum_required_mongodb_version_dot} or newer, or perform a fresh install with the latest OS."
     echo -e "${WHITE_R}#${RESET} Installation Script   | https://community.ui.com/questions/ccbc7530-dd61-40a7-82ec-22b17f027776\\n\\n"
     if [[ "$(getconf LONG_BIT)" == '32' ]]; then
