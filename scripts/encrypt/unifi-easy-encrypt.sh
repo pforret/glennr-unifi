@@ -2,7 +2,7 @@
 
 # UniFi Easy Encrypt script.
 # Script   | UniFi Network Easy Encrypt Script
-# Version  | 2.8.1
+# Version  | 2.8.2
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -1010,8 +1010,7 @@ author() {
   if [[ "${archived_repo}" == 'true' && "${unifi_core_system}" == 'true' ]]; then echo -e "\\n${WHITE_R}----${RESET}\\n\\n${RED}# Please update to the latest UniFi OS Release!\\n"; fi
   echo -e "${WHITE_R}#${RESET} ${GRAY_R}Author   |  ${WHITE_R}Glenn R.${RESET}"
   echo -e "${WHITE_R}#${RESET} ${GRAY_R}Email    |  ${WHITE_R}glennrietveld8@hotmail.nl${RESET}"
-  echo -e "${WHITE_R}#${RESET} ${GRAY_R}Website  |  ${WHITE_R}https://GlennR.nl${RESET}"
-  echo -e "\\n\\n"
+  echo -e "${WHITE_R}#${RESET} ${GRAY_R}Website  |  ${WHITE_R}https://GlennR.nl${RESET}\\n\\n"
 }
 
 # Set architecture
@@ -1104,7 +1103,7 @@ get_repo_url() {
     if [[ "${os_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then
       repo_url="http://archive.ubuntu.com/ubuntu"
     elif [[ "${os_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
-      repo_url="${http_or_https}://archive.debian.org/debian"
+      repo_url="${http_or_https}://deb.debian.org/debian"
     fi
   fi
 }
@@ -1146,7 +1145,7 @@ unset_add_repositories_variables(){
 add_repositories() {
   # Check if repository is already added
   if grep -sq "^deb .*http\?s\?://$(echo "${repo_url}" | sed -e 's/https\:\/\///g' -e 's/http\:\/\///g')${repo_url_arguments}\?/\? ${repo_codename}${repo_codename_argument} ${repo_component}" /etc/apt/sources.list /etc/apt/sources.list.d/*; then
-    echo -e "$(date +%F-%R) | \"${repo_url}${repo_url_arguments} ${repo_codename}${repo_codename_argument} ${repo_component}\" was found, not adding to repository lists. $(grep -srIl "^deb .*http\?s\?://$(echo "${repo_url}" | sed -e 's/https\:\/\///g' -e 's/http\:\/\///g')${repo_url_arguments}\?/\? ${repo_codename}${repo_component}" /etc/apt/sources.list /etc/apt/sources.list.d/*)..." &>> "${eus_dir}/logs/already-found-repository.log"
+    echo -e "$(date +%F-%R) | \"${repo_url}${repo_url_arguments} ${repo_codename}${repo_codename_argument} ${repo_component}\" was found, not adding to repository lists. $(grep -srIl "^deb .*http\?s\?://$(echo "${repo_url}" | sed -e 's/https\:\/\///g' -e 's/http\:\/\///g')${repo_url_arguments}\?/\? ${repo_codename}${repo_codename_argument} ${repo_component}" /etc/apt/sources.list /etc/apt/sources.list.d/*)..." &>> "${eus_dir}/logs/already-found-repository.log"
     unset_add_repositories_variables
     return  # Repository already added, exit function
   elif find /etc/apt/sources.list.d/ -name "*.sources" | grep -ioq /etc/apt; then
@@ -1232,7 +1231,7 @@ add_repositories() {
   # Determine format
   if [[ "${use_deb822_format}" == 'true' ]]; then
     repo_component_trimmed="${repo_component#"${repo_component%%[![:space:]]*}"}" # remove leading space
-    repo_entry="Types: deb\nURIs: ${repo_url}\nSuites: ${repo_codename}${repo_codename_argument}\nComponents: ${repo_component_trimmed}"
+    repo_entry="Types: deb\nURIs: ${repo_url}${repo_url_arguments}\nSuites: ${repo_codename}${repo_codename_argument}\nComponents: ${repo_component_trimmed}"
     if [[ -n "${signed_by_value_repo_key}" ]]; then repo_entry+="\nSigned-By: ${signed_by_value_repo_key/signed-by=/}"; fi
     if [[ -n "${repo_arch_value}" ]]; then repo_entry+="\nArchitectures: ${repo_arch_value//arch=/}"; fi
     if [[ -n "${deb822_trusted}" ]]; then repo_entry+="${deb822_trusted}"; fi
@@ -1257,7 +1256,7 @@ add_repositories() {
       fi
       sed -i '/https/{s/^/#/}' "${https_repo_needs_http_file}" &>> "${eus_dir}/logs/https-repo-needs-http.log"
       sed -i 's/##/#/g' "${https_repo_needs_http_file}" &>> "${eus_dir}/logs/https-repo-needs-http.log"
-    done < <(grep -ril "^deb https*://$(echo "${repo_url}" | sed -e 's/https\:\/\///g' -e 's/http\:\/\///g') ${repo_codename}${repo_codename_argument} ${repo_component}" /etc/apt/sources.list /etc/apt/sources.list.d/*)
+    done < <(grep -sril "^deb https*://$(echo "${repo_url}" | sed -e 's/https\:\/\///g' -e 's/http\:\/\///g') ${repo_codename}${repo_codename_argument} ${repo_component}" /etc/apt/sources.list /etc/apt/sources.list.d/*)
   fi 
   # Clean up unset variables
   unset_add_repositories_variables
@@ -1574,7 +1573,7 @@ cleanup_unavailable_repositories() {
   if ls /tmp/EUS/apt/*.log 1> /dev/null 2>&1; then
     if ! [[ -e "${eus_dir}/logs/upgrade.log" ]]; then return; fi
     while read -r domain; do
-      if ! grep -q "^#.*${domain}" /etc/apt/sources.list /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; then
+      if ! grep -sq "^#.*${domain}" /etc/apt/sources.list /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; then
         if [[ "${cleanup_unavailable_repositories_found_message}" != 'true' ]]; then
           echo -e "${WHITE_R}#${RESET} There are repositories that are causing issues..."
           cleanup_unavailable_repositories_found_message="true"
@@ -4609,7 +4608,7 @@ get_repo_url() {
     if [[ "\${os_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic) ]]; then
       repo_url="http://archive.ubuntu.com/ubuntu"
     elif [[ "\${os_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
-      repo_url="\${http_or_https}://archive.debian.org/debian"
+      repo_url="\${http_or_https}://deb.debian.org/debian"
     fi
   fi
 }
@@ -4653,7 +4652,7 @@ add_repositories() {
       fi
       sed -i '/https/{s/^/#/}' "\${https_repo_needs_http_file}" &>> "${eus_dir}/logs/https-repo-needs-http.log"
       sed -i 's/##/#/g' "\${https_repo_needs_http_file}" &>> "${eus_dir}/logs/https-repo-needs-http.log"
-    done < <(grep -ril "^deb https*://\$(echo "\${repo_url}" | sed -e 's/https\:\/\///g' -e 's/http\:\/\///g') \${repo_codename}\${repo_component}" /etc/apt/sources.list /etc/apt/sources.list.d/*)
+    done < <(grep -sril "^deb https*://\$(echo "\${repo_url}" | sed -e 's/https\:\/\///g' -e 's/http\:\/\///g') \${repo_codename}\${repo_component}" /etc/apt/sources.list /etc/apt/sources.list.d/*)
   fi
   if [[ "\${os_codename_changed}" == 'true' ]]; then unset os_codename_changed; get_distro; get_repo_url; fi
 }

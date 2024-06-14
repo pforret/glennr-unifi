@@ -50,7 +50,7 @@
 ###################################################################################################################################################################################################
 
 # Script                | UniFi Network Easy Installation Script
-# Version               | 7.5.7
+# Version               | 7.5.8
 # Application version   | 7.1.67-c58de44a45
 # Debian Repo version   | 7.1.67-17883-1
 # Author                | Glenn Rietveld
@@ -2021,7 +2021,7 @@ get_repo_url() {
     if [[ "${os_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then
       repo_url="http://archive.ubuntu.com/ubuntu"
     elif [[ "${os_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
-      repo_url="${http_or_https}://archive.debian.org/debian"
+      repo_url="${http_or_https}://deb.debian.org/debian"
       if [[ "${architecture}" == 'armhf' ]]; then
         raspbian_repo_url="${http_or_https}://archive.raspbian.org/raspbian"
       fi
@@ -2152,7 +2152,7 @@ add_repositories() {
   # Determine format
   if [[ "${use_deb822_format}" == 'true' ]]; then
     repo_component_trimmed="${repo_component#"${repo_component%%[![:space:]]*}"}" # remove leading space
-    repo_entry="Types: deb\nURIs: ${repo_url}\nSuites: ${repo_codename}${repo_codename_argument}\nComponents: ${repo_component_trimmed}"
+    repo_entry="Types: deb\nURIs: ${repo_url}${repo_url_arguments}\nSuites: ${repo_codename}${repo_codename_argument}\nComponents: ${repo_component_trimmed}"
     if [[ -n "${signed_by_value_repo_key}" ]]; then repo_entry+="\nSigned-By: ${signed_by_value_repo_key/signed-by=/}"; fi
     if [[ -n "${repo_arch_value}" ]]; then repo_entry+="\nArchitectures: ${repo_arch_value//arch=/}"; fi
     if [[ -n "${deb822_trusted}" ]]; then repo_entry+="${deb822_trusted}"; fi

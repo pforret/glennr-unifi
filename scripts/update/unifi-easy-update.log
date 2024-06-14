@@ -11,6 +11,12 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 8.8.1
+  
+ - Fixed an issue where the script could add invalid repositories.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 8.8.0
   
  - Fixed an constant loop when cleaning up space during the MongoDB Upgrade process.
