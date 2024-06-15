@@ -11,6 +11,25 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 7.6.1
+ 
+ - Fixed an issue where the script printed unnecessary new lines.
+ 
+ ####
+
+ |  UniFi Network Application Installation Script  |  Version 7.6.0
+ 
+ - Improved UniFi Network Installation process for older versions.
+ 
+ ####
+
+ |  UniFi Network Application Installation Script  |  Version 7.5.9
+ 
+ - Fixed an issue where it kept printing "installing libssl" while trying multiple versions.
+ - Fixed installation failures on setups that needed a modified deb file due to missing folders.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 7.5.8
  
  - Fixed an issue where the script could add invalid repositories.

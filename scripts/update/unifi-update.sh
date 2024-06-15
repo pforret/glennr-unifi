@@ -2,7 +2,7 @@
 
 # UniFi Network Application Easy Update Script.
 # Script   | UniFi Network Easy Update Script
-# Version  | 8.8.1
+# Version  | 8.8.4
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -3280,7 +3280,7 @@ java_cleanup_not_required_versions() {
          [Yy]*)
             header
             while read -r java_package; do
-              echo -e "${WHITE_R}#${RESET} Removing ${java_package}... \\n"
+              echo -e "${WHITE_R}#${RESET} Removing ${java_package}..."
               if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' remove "${java_package}" &>> "${eus_dir}/logs/java-uninstall.log"; then
                 echo -e "${GREEN}#${RESET} Successfully removed ${java_package}! \\n"
               else
@@ -3388,7 +3388,7 @@ libssl_installation() {
       if command -v dpkg-deb &> /dev/null; then if ! dpkg-deb --info "${libssl_temp}" &> /dev/null; then echo -e "$(date +%F-%R) | The file downloaded via ${libssl_repo_url}/pool/main/o/${libssl_url_arg}/${libssl_package} was not a debian file format..." &>> "${eus_dir}/logs/libssl.log"; continue; fi; fi
       if [[ "${libssl_download_success_message}" != 'true' ]]; then echo -e "${GREEN}#${RESET} Successfully downloaded libssl! \\n"; libssl_download_success_message="true"; fi
       check_dpkg_lock
-      echo -e "${WHITE_R}#${RESET} Installing libssl..."
+      if [[ "${libssl_installing_message}" != 'true' ]]; then echo -e "${WHITE_R}#${RESET} Installing libssl..."; libssl_installing_message="true"; fi
       if DEBIAN_FRONTEND='noninteractive' apt-get -y --allow-downgrades "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "$libssl_temp" &>> "${eus_dir}/logs/libssl.log"; then
         echo -e "${GREEN}#${RESET} Successfully installed libssl! \\n"
         libssl_install_success="true"
@@ -6512,6 +6512,7 @@ custom_url_upgrade_check() {
   if [[ "${application_upgrade}" == 'yes' ]]; then
     first_digit_unifi="${custom_application_digit_1}"
     second_digit_unifi="${custom_application_digit_2}"
+    third_digit_unifi="${custom_application_digit_3}"
     if [[ "${cloudkey_generation}" == "1" ]]; then
       if [[ "${first_digit_unifi}" -gt '7' ]] || [[ "${first_digit_unifi}" == '7' && "${second_digit_unifi}" -ge '3' ]]; then
         header_red
@@ -6618,6 +6619,7 @@ custom_url_download_check() {
     custom_application_version=$(awk '/version/{print$2}' "${unifi_temp}.tmp" | grep -io "5.*\\|6.*\\|7.*\\|8.*" | cut -d'-' -f1 | cut -d'/' -f1)
     custom_application_version_first_digit=$(echo "${custom_application_version}" | cut -d'.' -f1)
     custom_application_version_second_digit=$(echo "${custom_application_version}" | cut -d'.' -f2)
+    custom_application_version_third_digit=$(echo "${custom_application_version}" | cut -d'.' -f3)
     if awk '/description:/{print}' "${unifi_temp}.tmp" | cut -d":" -f2 | grep -siq "unifi os network"; then
       unifi_os_package="true"
     elif [[ "${unifi_core_system}" == 'true' ]] && [[ "${package_details}" != 'unifi-native' ]]; then
@@ -7212,7 +7214,7 @@ mongodb_upgrade() {
   jq '.scripts["'"$script_name"'"].tasks += {"mongodb-upgrade ('"${mongodb_upgrade_date}"')": [.scripts["'"$script_name"'"].tasks["mongodb-upgrade ('"${mongodb_upgrade_date}"')"][0] + {"add-mongodb-repo":"'"${mongodb_add_repo_variables_true_statements[*]}"'"}]}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
   eus_database_move
   #
-  "$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | awk '{print$2}' | grep "unifi" | awk '{print $1}' &> /tmp/EUS/mongodb/unifi_package_list
+  "$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | awk '{print$2}' | grep "^unifi" | awk '{print $1}' &> /tmp/EUS/mongodb/unifi_package_list
   token="$("${mongocommand}" --quiet --port 27117 ace --eval 'db.setting.find({"key": "super_fwupdate"}).forEach(function(document){ print(document.x_sso_token) })' | grep -Eio "[0-9,a-z]{8}-[0-9,a-z]{4}-[0-9,a-z]{4}-[0-9,a-z]{4}-[0-9,a-z]{12}")"
   while read -r unifi_package; do
     echo -e "${WHITE_R}#${RESET} Stopping service ${unifi_package}..."
@@ -8437,7 +8439,7 @@ application_upgrade_releases() {
   ignore_unifi_package_dependencies
   if [[ "${application_current_digit_1}${application_current_digit_2}" -le "80" && "${application_version_release_digit_1}${application_version_release_digit_2}" -ge "81" ]]; then
     echo -e "${WHITE_R}#${RESET} Upgrading your UniFi Network Application from \"${unifi_current}\" to \"${application_version_release}\" may take a while"
-    echo -e "${WHITE_R}#${RESET} because it needs to migrate $("${mongocommand}" --quiet --port 27117 ace_stat --eval "${mongoprefix}db.dpi.stats() )" | jq '.count') Traffic Identification records..."
+    echo -e "${WHITE_R}#${RESET} because it needs to migrate $("${mongocommand}" --quiet --port 27117 ace_stat --eval "${mongoprefix}db.dpi.stats() )" 2> /dev/null | jq '.count' 2> /dev/null) Traffic Identification records..."
   else
     echo -e "${WHITE_R}#${RESET} Upgrading your UniFi Network Application from \"${unifi_current}\" to \"${application_version_release}\"..."
   fi

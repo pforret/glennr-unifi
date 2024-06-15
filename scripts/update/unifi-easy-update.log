@@ -11,6 +11,25 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 8.8.4
+  
+ - Hide parse errors during the upgrade process if the database is not yet avaialble.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 8.8.3
+  
+ - Fixed an issue where the script could attempt to stop packages with the word "unifi" surrounded by other letters/numbers.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 8.8.2
+  
+ - Fixed an issue where it kept printing "installing libssl" while trying multiple versions.
+ - Fixed an issue where the script tries to download incorrect UniFi versions from api.glennr.nl.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 8.8.1
   
  - Fixed an issue where the script could add invalid repositories.

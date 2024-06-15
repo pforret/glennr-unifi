@@ -50,7 +50,7 @@
 ###################################################################################################################################################################################################
 
 # Script                | UniFi Network Easy Installation Script
-# Version               | 7.5.8
+# Version               | 7.6.1
 # Application version   | 6.1.70-fbf03b3a76
 # Debian Repo version   | 6.1.70-15057-1
 # Author                | Glenn Rietveld
@@ -3458,7 +3458,7 @@ libssl_installation() {
       if command -v dpkg-deb &> /dev/null; then if ! dpkg-deb --info "${libssl_temp}" &> /dev/null; then echo -e "$(date +%F-%R) | The file downloaded via ${libssl_repo_url}/pool/main/o/${libssl_url_arg}/${libssl_package} was not a debian file format..." &>> "${eus_dir}/logs/libssl.log"; continue; fi; fi
       if [[ "${libssl_download_success_message}" != 'true' ]]; then echo -e "${GREEN}#${RESET} Successfully downloaded libssl! \\n"; libssl_download_success_message="true"; fi
       check_dpkg_lock
-      echo -e "${WHITE_R}#${RESET} Installing libssl..."
+      if [[ "${libssl_installing_message}" != 'true' ]]; then echo -e "${WHITE_R}#${RESET} Installing libssl..."; libssl_installing_message="true"; fi
       if DEBIAN_FRONTEND='noninteractive' apt-get -y --allow-downgrades "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "$libssl_temp" &>> "${eus_dir}/logs/libssl.log"; then
         echo -e "${GREEN}#${RESET} Successfully installed libssl! \\n"
         libssl_install_success="true"
@@ -4017,6 +4017,8 @@ unifi_deb_package_modification() {
       unifi_deb_package_modification_message_1="${non_default_java_package}"
     fi
     if [[ -n "${pre_build_fw_update_dl_link}" ]]; then
+      eus_directory_location="/tmp/EUS"
+      eus_create_directories "downloads"
       if [[ -z "${gr_unifi_temp}" ]]; then gr_unifi_temp="$(mktemp --tmpdir=/tmp/EUS/downloads "${unifi_deb_file_name}_${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi}"_XXXXX.deb)"; fi
       echo -e "$(date +%F-%R) | Downloading ${pre_build_fw_update_dl_link} to ${gr_unifi_temp}" &>> "${eus_dir}/logs/unifi-download.log"
       echo -e "${WHITE_R}#${RESET} Downloading UniFi Network Application version ${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi} built for ${unifi_deb_package_modification_message_1}..."
@@ -5204,7 +5206,7 @@ if [[ "${required_java_version_installed}" == 'true' && "${unsupported_java_vers
        [Yy]*)
           header
           while read -r java_package; do
-            echo -e "${WHITE_R}#${RESET} Removing ${java_package}... \\n"
+            echo -e "${WHITE_R}#${RESET} Removing ${java_package}..."
             if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' remove "${java_package}" &>> "${eus_dir}/logs/java-uninstall.log"; then
               echo -e "${GREEN}#${RESET} Successfully removed ${java_package}! \\n"
             else
@@ -5277,6 +5279,7 @@ for unifi_dependency in "${unifi_dependencies_list[@]}"; do
     if [[ "${unifi_dependencies_mesasge}" != 'true' ]]; then header; echo -e "${WHITE_R}#${RESET} Preparing installation of the UniFi Network Application dependencies...\\n"; sleep 2; unifi_dependencies_mesasge="true"; fi
     echo -e "\\n------- UniFi Dependecy \"${unifi_dependency}\" installation ------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/apt.log"
     if ! apt-cache search --names-only ^"${unifi_dependency}" | grep -ioq "${unifi_dependency}"; then
+      get_repo_url
       if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble) ]]; then
         repo_component="main universe"
       elif [[ "${repo_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
@@ -5305,7 +5308,9 @@ header
 echo -e "${WHITE_R}#${RESET} Installing your UniFi Network Application ( ${WHITE_R}${unifi_clean}${RESET} )...\\n"
 sleep 2
 if [[ "${unifi_network_application_downloaded}" != 'true' ]]; then
-  if [[ -z "${unifi_temp}" ]]; then unifi_temp="$(mktemp --tmpdir=/tmp unifi_sysvinit_all_"${unifi_clean}"_XXX.deb)"; fi
+  eus_directory_location="/tmp/EUS"
+  eus_create_directories "downloads"
+  if [[ -z "${unifi_temp}" ]]; then unifi_temp="$(mktemp --tmpdir=/tmp/EUS/downloads unifi_sysvinit_all_"${unifi_clean}"_XXX.deb)"; fi
   unifi_fwupdate="$(curl "${curl_argument[@]}" "https://fw-update.ui.com/api/firmware-latest?filter=eq~~version_major~~${first_digit_unifi}&filter=eq~~version_minor~~${second_digit_unifi}&filter=eq~~version_patch~~${third_digit_unifi}&filter=eq~~platform~~debian" | jq -r "._embedded.firmware[]._links.data.href" | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
   if [[ -z "${unifi_fwupdate}" ]]; then unifi_fwupdate="$(curl "${curl_argument[@]}" "http://fw-update.ui.com/api/firmware-latest?filter=eq~~version_major~~${first_digit_unifi}&filter=eq~~version_minor~~${second_digit_unifi}&filter=eq~~version_patch~~${third_digit_unifi}&filter=eq~~platform~~debian" | jq -r "._embedded.firmware[]._links.data.href" | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"; fi
   glennr_unifi_dl="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-release?version=${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi}" | jq -r '."download_link"' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
