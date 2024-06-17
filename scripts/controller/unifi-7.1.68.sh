@@ -50,7 +50,7 @@
 ###################################################################################################################################################################################################
 
 # Script                | UniFi Network Easy Installation Script
-# Version               | 7.6.1
+# Version               | 7.6.2
 # Application version   | 7.1.68-124045abd4
 # Debian Repo version   | 7.1.68-17885-1
 # Author                | Glenn Rietveld
@@ -2570,7 +2570,7 @@ old_systemd_version_check() {
     old_systemd_version="true"
     /usr/sbin/unifi-network-service-helper create-dirs &>> "${eus_dir}/logs/old-systemd.log"
     if ! [[ -d "/etc/systemd/system/unifi.service.d/" ]]; then eus_directory_location="/etc/systemd/system"; eus_create_directories "unifi.service.d"; fi
-    unifi_helpers="$(grep "unifi-network-service-helper" /lib/systemd/system/unifi.service | while read -r helper; do echo "${helper//+/}"; done)"
+    unifi_helpers="$(grep "unifi-network-service-helper" /lib/systemd/system/unifi.service | grep "=+" | while read -r helper; do echo "${helper//+/}"; done)"
     if echo -e "[Service]\nPermissionsStartOnly=true\nExecStartPre=/usr/sbin/unifi-network-service-helper create-dirs\n${unifi_helpers}" &> /etc/systemd/system/unifi.service.d/override.conf; then
       daemon_reexec
       systemctl daemon-reload &>> "${eus_dir}/logs/old-systemd.log"

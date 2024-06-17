@@ -2,7 +2,7 @@
 
 # UniFi Network Application Easy Update Script.
 # Script   | UniFi Network Easy Update Script
-# Version  | 8.8.4
+# Version  | 8.8.5
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -665,7 +665,7 @@ abort() {
   if [[ -f "/tmp/EUS/mongodb/unifi_package_list" ]]; then
     while read -r unifi_package; do
       echo -e "${WHITE_R}#${RESET} Starting service ${unifi_package}..."
-      if [[ "${unifi_package}" == "unifi" ]]; then old_systemd_version_check; fi
+      if [[ "${unifi_package}" == "unifi" ]]; then check_service_overrides; old_systemd_version_check; fi
       if [[ "${limited_functionality}" == 'true' ]]; then
         if [[ "${old_systemd_version}" == 'true' && "${unifi_package}" == "unifi" ]]; then if [[ "${old_systemd_version_check_unifi_restart}" == 'true' ]]; then echo -e "${GREEN}#${RESET} Successfully started service ${unifi_package}! \\n"; else echo -e "${RED}#${RESET} Failed to start service ${unifi_package}... \\n"; fi; elif ! service "${unifi_package}" start &> /dev/null; then echo -e "${RED}#${RESET} Failed to start service ${unifi_package}... \\n"; else echo -e "${GREEN}#${RESET} Successfully started service ${unifi_package}! \\n"; fi
       else
@@ -4574,7 +4574,7 @@ old_systemd_version_check() {
     old_systemd_version="true"
     /usr/sbin/unifi-network-service-helper create-dirs &>> "${eus_dir}/logs/old-systemd.log"
     if ! [[ -d "/etc/systemd/system/unifi.service.d/" ]]; then eus_directory_location="/etc/systemd/system"; eus_create_directories "unifi.service.d"; fi
-    unifi_helpers="$(grep "unifi-network-service-helper" /lib/systemd/system/unifi.service | while read -r helper; do echo "${helper//+/}"; done)"
+    unifi_helpers="$(grep "unifi-network-service-helper" /lib/systemd/system/unifi.service | grep "=+" | while read -r helper; do echo "${helper//+/}"; done)"
     if echo -e "[Service]\nPermissionsStartOnly=true\nExecStartPre=/usr/sbin/unifi-network-service-helper create-dirs\n${unifi_helpers}" &> /etc/systemd/system/unifi.service.d/override.conf; then
       daemon_reexec
       systemctl daemon-reload &>> "${eus_dir}/logs/old-systemd.log"
