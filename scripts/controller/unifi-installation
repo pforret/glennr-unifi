@@ -11,6 +11,13 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 7.6.3
+ 
+ - Attempt the HTTP repository for MongoDB if the expected version cannot be located.
+ - Improved pre-build download verification.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 7.6.2
  
  - Fixed possible startup issues on setups using old systemd versions.

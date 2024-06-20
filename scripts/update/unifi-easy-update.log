@@ -11,6 +11,14 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 8.8.6
+  
+ - Attempt the HTTP repository for MongoDB if the expected version cannot be located.
+ - Improved pre-build download verification.
+ - Fixed update issue on UniFi OS consoles.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 8.8.5
   
  - Fixed possible startup issues on setups using old systemd versions.

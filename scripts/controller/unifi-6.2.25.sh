@@ -50,7 +50,7 @@
 ###################################################################################################################################################################################################
 
 # Script                | UniFi Network Easy Installation Script
-# Version               | 7.6.2
+# Version               | 7.6.3
 # Application version   | 6.2.25-de0c6132b7
 # Debian Repo version   | 6.2.25-15316-1
 # Author                | Glenn Rietveld
@@ -1797,6 +1797,7 @@ add_mongodb_repo() {
           mongodb_org_upgrade_to_version_with_dot="$(apt-cache policy mongodb-org-server | grep -i "${previous_mongodb_version_with_dot}" | grep -i Candidate | sed -e 's/ //g' -e 's/*//g' | cut -d':' -f2)"
           if [[ -z "${mongodb_org_upgrade_to_version_with_dot}" ]]; then mongodb_org_upgrade_to_version_with_dot="$(apt-cache policy mongodb-org-server | grep -i "${previous_mongodb_version_with_dot}" | sed -e 's/500//g' -e 's/-1//g' -e 's/100//g' -e 's/ //g' -e '/http/d' -e 's/*//g' | cut -d':' -f2 | sed '/mongodb/d' | sort -r -V | head -n 1)"; fi
         fi
+        if [[ -z "${mongodb_org_upgrade_to_version_with_dot}" && "${try_http_mongodb_repo}" != "true" ]]; then try_http_mongodb_repo="true"; add_mongodb_repo; return; fi
         mongodb_org_upgrade_to_version="${mongodb_org_upgrade_to_version_with_dot//./}"
         if [[ -n "${mongo_version_locked}" ]]; then install_mongodb_version="${mongo_version_locked}"; install_mongodb_version_with_equality_sign="=${mongo_version_locked}"; fi
         if [[ "${mongodb_org_upgrade_to_version::2}" == "${mongo_version_max}" ]] || [[ "${mongodb_downgrade_process}" == "true" ]]; then
@@ -4024,10 +4025,12 @@ unifi_deb_package_modification() {
       echo -e "${WHITE_R}#${RESET} Downloading UniFi Network Application version ${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi} built for ${unifi_deb_package_modification_message_1}..."
       if curl --retry 3 "${nos_curl_argument[@]}" --output "$gr_unifi_temp" "${pre_build_fw_update_dl_link}" &>> "${eus_dir}/logs/unifi-download.log"; then
         if command -v sha256sum &> /dev/null; then
-          if [[ "$(sha256sum "$gr_unifi_temp" | awk '{print $1}')" != "${pre_build_fw_update_dl_link_sha256sum}" ]]; then
+          if [[ "$(sha256sum "$gr_unifi_temp" | awk '{print $1}')" == "${pre_build_fw_update_dl_link_sha256sum}" ]]; then
+            pre_build_download_failure="false"
+          else
             if curl --retry 3 "${nos_curl_argument[@]}" --output "$gr_unifi_temp" "${pre_build_fw_update_dl_link}" &>> "${eus_dir}/logs/unifi-download.log"; then
-              if [[ "$(sha256sum "$gr_unifi_temp" | awk '{print $1}')" != "${pre_build_fw_update_dl_link_sha256sum}" ]]; then
-                pre_build_download_failure="true"
+              if [[ "$(sha256sum "$gr_unifi_temp" | awk '{print $1}')" == "${pre_build_fw_update_dl_link_sha256sum}" ]]; then
+                pre_build_download_failure="false"
               fi
             fi
           fi
@@ -4036,15 +4039,15 @@ unifi_deb_package_modification() {
             if curl --retry 3 "${nos_curl_argument[@]}" --output "$gr_unifi_temp" "${pre_build_fw_update_dl_link}" &>> "${eus_dir}/logs/unifi-download.log"; then
               if ! dpkg-deb --info "${gr_unifi_temp}" &> /dev/null; then
                 echo -e "$(date +%F-%R) | The file downloaded via ${pre_build_fw_update_dl_link} was not a debian file format..." &>> "${eus_dir}/logs/unifi-download.log"
-                pre_build_download_failure="true"
+                pre_build_download_failure="false"
               fi
             fi
           fi
         fi
       fi
     fi
-    if [[ "${pre_build_download_failure}" == 'true' ]] || [[ -z "${pre_build_fw_update_dl_link}" ]]; then
-      if [[ "${pre_build_download_failure}" == 'true' ]]; then echo -e "${RED}#${RESET} Failed to download UniFi Network Application version ${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi} built for ${unifi_deb_package_modification_message_1}! \\n${RED}#${RESET} The script will attempt to built it locally... \\n"; fi
+    if [[ "${pre_build_download_failure}" != 'false' ]] || [[ -z "${pre_build_fw_update_dl_link}" ]]; then
+      if [[ "${pre_build_download_failure}" != 'false' ]]; then echo -e "${RED}#${RESET} Failed to download UniFi Network Application version ${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi} built for ${unifi_deb_package_modification_message_1}! \\n${RED}#${RESET} The script will attempt to built it locally... \\n"; fi
       eus_temp_dir="$(mktemp -d --tmpdir=${eus_dir} unifi.deb.XXX)"
       echo -e "${WHITE_R}#${RESET} This setup is using ${unifi_deb_package_modification_message_1}... Editing the UniFi Network Application dependencies..."
       echo -e "\\n------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/unifi-custom-deb-file.log"
