@@ -11,6 +11,15 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 7.6.4
+ 
+ - Improved the installation process for Glenn R. compiled MongoDB dependencies.
+ - Always first try to remove mongodb-server prior to mongodb-server-core, this should fix some MongoDB Upgrade issues.
+ - Remove UniFi Packages during the unsupported MongoDB version change check, reinstall the Network Application if it was installed.
+ - Fixed inability to recover arm64 setups running unsupported MongoDB 7.0 version if mongodb-org-database is installed as well, it will try to migrate those to Glenn R. compiled MongoDB.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 7.6.3
  
  - Attempt the HTTP repository for MongoDB if the expected version cannot be located.
