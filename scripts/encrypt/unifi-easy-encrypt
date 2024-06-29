@@ -11,6 +11,13 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Encrypt Script  |  Version 2.8.3
+ 
+ - Fixed an issue where unsupported providers were available on UniFi OS Consoles.
+ - Fixed retry script sed error.
+ 
+ ###
+
  |  UniFi Easy Encrypt Script  |  Version 2.8.2
  
  - Fixed an issue where the script could add invalid repositories.

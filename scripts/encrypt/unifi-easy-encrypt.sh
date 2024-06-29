@@ -2,7 +2,7 @@
 
 # UniFi Easy Encrypt script.
 # Script   | UniFi Network Easy Encrypt Script
-# Version  | 2.8.2
+# Version  | 2.8.3
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -80,7 +80,7 @@ retry_script_option() {
     cp "${0}" /root/EUS/unifi-easy-encrypt.sh
     echo "0" &> "${eus_dir}/retries_aborts"
     curl "${curl_argument[@]}" --output "/root/EUS/script-retry.sh" https://get.glennr.nl/unifi/extra/easy-encrypt-addon-scripts/script-retry.sh
-    sed -i "s/__template_eus_dir/${eus_dir}/g" "/root/EUS/script-retry.sh"
+    sed -i "s|__template_eus_dir|${eus_dir}|g" "/root/EUS/script-retry.sh"
     {
       echo -e "SHELL=/bin/sh"
       echo -e "PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin"
@@ -776,7 +776,7 @@ while [ -n "$1" ]; do
          if [[ "${2}" == "${option}" ]]; then header_red; echo -e "${WHITE_R}#${RESET} Option ${1} requires a command argument... \\n\\n"; help_script; fi
        done
        for dns_provider_check in "${dns_provider_list[@]}"; do if [[ "${dns_provider_check}" == "$2" ]]; then supported_provider="true"; certbot_native_plugin="true"; break; fi; done
-       for dns_provider_check in "${dns_multi_provider_list[@]}"; do if [[ "${dns_provider_check}" == "$2" ]]; then supported_provider="true"; certbot_multi_plugin="true"; break; fi; done
+       for dns_provider_check in "${dns_multi_provider_list[@]}"; do if [[ "${dns_provider_check}" == "$2" ]] && ! dpkg -l unifi-core 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi"; then supported_provider="true"; certbot_multi_plugin="true"; break; fi; done
        if [[ "${supported_provider}" != 'true' ]]; then header_red; echo -e "${WHITE_R}#${RESET} DNS Provider ${2} is not supported... \\n\\n"; help_script; fi
        unset old_certificates
        unset dns_manual_flag
@@ -2157,7 +2157,7 @@ if [[ -n "${auto_dns_challenge_provider}" ]]; then
     fi
     # Install go
     if [[ "${architecture}" =~ (arm64|amd64) ]]; then
-      if ! curl -o "${eus_dir}/go.tar.gz" "https://go.dev/dl/go1.22.0.linux-${architecture}.tar.gz"; then
+      if ! curl "${curl_argument[@]}" --output "${eus_dir}/go.tar.gz" "https://go.dev/dl/go1.22.0.linux-${architecture}.tar.gz"; then
         abort_reason="Failed to download go."; abort
       else
         if ! rm -rf /usr/local/go && tar -C /usr/local -xzf "${eus_dir}/go.tar.gz"; then
@@ -2165,7 +2165,7 @@ if [[ -n "${auto_dns_challenge_provider}" ]]; then
         else
           export PATH="$PATH:/usr/local/go/bin"
           if [[ -z "$(command -v go)" ]]; then
-            abort_reason="Failed to located the go command."; abort
+            abort_reason="Failed to locate the go command."; abort
           fi
         fi
       fi
@@ -3507,6 +3507,7 @@ import_ssl_certificates() {
         txt_dig=$(head -n1 "${eus_dir}/txt_record")
         echo -e "${RED}#${RESET} TXT record for _acme-challenge.${server_fqdn} is '${txt_dig}'."
         abort_skip_support_file_upload="true"
+        abort_reason="TXT record _acme-challenge.${server_fqdn} is ${txt_dig}."
         abort
       elif [[ -f "${eus_dir}/logs/lets_encrypt_import.log" ]] && grep -iq 'No TXT record found' "${eus_dir}/logs/lets_encrypt_${time_date}.log"; then
         le_import_failed
@@ -3514,26 +3515,31 @@ import_ssl_certificates() {
         header_red
         echo -e "${RED}#${RESET} There is an error looking up DNS record _acme-challenge.${server_fqdn}..."
         abort_skip_support_file_upload="true"
+        abort_reason="error looking up DNS record _acme-challenge.${server_fqdn}"
         abort
       elif [[ -f "${eus_dir}/logs/lets_encrypt_${time_date}.log" ]] && grep -iq 'Invalid response from' "${eus_dir}/logs/lets_encrypt_${time_date}.log"; then
         header_red
         echo -e "${RED}#${RESET} Invalid response from \"http://${server_fqdn}/.well-known/acme-challenge/xxxxxxxxxxxxxxxxxxx\"..."
         abort_skip_support_file_upload="true"
+        abort_reason="Invalid response from http://${server_fqdn}/.well-known/acme-challenge/xxxxxxxxxxxxxxxxxxx"
         abort
       elif [[ -f "${eus_dir}/logs/lets_encrypt_${time_date}.log" ]] && grep -iq 'too many requests' "${eus_dir}/logs/lets_encrypt_${time_date}.log"; then
         header_red
         echo -e "${RED}#${RESET} There have been to many requests for ${server_fqdn}... \\n${RED}#${RESET} See https://letsencrypt.org/docs/rate-limits/ for more details..."
         abort_skip_support_file_upload="true"
+        abort_reason="to many requests for ${server_fqdn}"
         abort
       elif [[ -f "/var/log/letsencrypt/letsencrypt.log" ]] && tail -n80 "/var/log/letsencrypt/letsencrypt.log" | grep -iq 'too many requests' && [[ "${dns_certbot_success_check}" == 'true' ]]; then
         header_red
         echo -e "${RED}#${RESET} There have been to many requests for ${server_fqdn}... \\n${RED}#${RESET} See https://letsencrypt.org/docs/rate-limits/ for more details..."
         abort_skip_support_file_upload="true"
+        abort_reason="to many requests for ${server_fqdn}"
         abort
       elif [[ -f "${eus_dir}/logs/lets_encrypt_import.log" ]] && tail -n5 "${eus_dir}/logs/lets_encrypt_import.log" | grep -iq 'Error' && [[ "${auto_certbot_success_check}" == 'true' ]]; then
         header_red
         echo -e "${RED}#${RESET} An unknown error occured..."
         abort_skip_support_file_upload="true"
+        abort_reason="Unknown error"
         abort
       else
         if [[ "${auto_certbot_success_check}" == 'true' ]]; then if dpkg -l unifi-core 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi"; then echo -e "${GREEN}#${RESET} Successfully imported the SSL certificates into UniFi OS! \\n"; sleep 5; else echo -e "${GREEN}#${RESET} Successfully imported the SSL certificates into the UniFi Network Application! \\n"; sleep 2; fi; fi
@@ -5149,6 +5155,7 @@ else
       if [[ -n "${chain_crt}" ]]; then echo -e "${RED}#${RESET} Chain Certificate file: \"${chain_crt}\""; fi
       if [[ -n "${intermediate_crt}" ]]; then echo -e "${RED}#${RESET} Intermediate Certificate file: \"${intermediate_crt}\""; fi
       abort_skip_support_file_upload="true"
+      abort_reason="Missing one or more required certificate files"
       abort
     else
       paid_certificate
