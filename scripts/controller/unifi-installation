@@ -11,6 +11,20 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 7.6.5
+ 
+ - Added UniFi Network Native Application uninstallation process if users attempted to install it on the incorrect devices.
+ - Improved English language detection.
+ - Improved adding DEB822 repositories.
+ - Improved adding MongoDB 4.0 repositories.
+ - Improved arm64 setup recovery if users installed unsupported MongoDB 7.0.
+ - Improved the MongoDB unsupported version change process.
+ - Fixed an issue where errors could be printed when setting language to English.
+ - Fixed incorrect colors for Failed/Success messages.
+ - Fixed an issue where the script could install incorrect MongoDB versions while performing an installation recovery.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 7.6.4
  
  - Improved the installation process for Glenn R. compiled MongoDB dependencies.

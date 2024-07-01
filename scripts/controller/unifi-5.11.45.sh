@@ -50,7 +50,7 @@
 ###################################################################################################################################################################################################
 
 # Script                | UniFi Network Easy Installation Script
-# Version               | 7.6.4
+# Version               | 7.6.5
 # Application version   | 5.11.45-6cc8cc5c2a
 # Debian Repo version   | 5.11.45-12722-1
 # Author                | Glenn Rietveld
@@ -108,14 +108,14 @@ if [[ "$(ps -p 1 -o comm=)" != 'systemd' ]]; then
   sleep 10
 fi
 
-if ! env | grep "LC_ALL\\|LANG" | grep -iq "en_US\\|C.UTF-8"; then
+if ! env | grep "LC_ALL\\|LANG" | grep -iq "en_US\\|C.UTF-8\\|en_GB.UTF-8"; then
   header
   echo -e "${WHITE_R}#${RESET} Your language is not set to English ( en_US ), the script will temporarily set the language to English."
   echo -e "${WHITE_R}#${RESET} Information: This is done to prevent issues in the script.."
   original_lang="$LANG"
   original_lcall="$LC_ALL"
-  if ! locale -a | grep -iq "C.UTF-8\\|en_US.UTF-8"; then locale-gen en_US.UTF-8 &> /dev/null; fi
-  if locale -a | grep -iq "^C.UTF-8$"; then eus_lts="C.UTF-8"; elif locale -a | grep -iq "^en_US.UTF-8$"; then eus_lts="en_US.UTF-8"; else  eus_lts="en_US.UTF-8"; fi
+  if ! locale -a 2> /dev/null | grep -iq "C.UTF-8\\|en_US.UTF-8"; then locale-gen en_US.UTF-8 &> /dev/null; fi
+  if locale -a 2> /dev/null | grep -iq "^C.UTF-8$"; then eus_lts="C.UTF-8"; elif locale -a 2> /dev/null | grep -iq "^en_US.UTF-8$"; then eus_lts="en_US.UTF-8"; else  eus_lts="en_US.UTF-8"; fi
   export LANG="${eus_lts}" &> /dev/null
   export LC_ALL=C &> /dev/null
   set_lc_all="true"
@@ -1483,7 +1483,7 @@ add_mongodb_repo() {
       if [[ "${os_codename}" =~ (trusty|qiana|rebecca|rafaela|rosa) ]]; then
         mongodb_codename="ubuntu trusty"
         mongodb_repo_type="multiverse"
-      elif [[ "${os_codename}" =~ (xenial|sarah|serena|sonya|sylvia|bionic|tara|tessa|tina|tricia|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
+      elif [[ "${os_codename}" =~ (xenial|sarah|serena|sonya|sylvia) ]]; then
         mongodb_codename="ubuntu xenial"
         mongodb_repo_type="multiverse"
       elif [[ "${os_codename}" =~ (bionic|tara|tessa|tina|tricia|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|bullseye|bookworm|trixie|forky) ]]; then
@@ -1829,6 +1829,21 @@ if "$(which dpkg)" -l unifi-core 2> /dev/null | awk '{print $1}' | grep -iq "^ii
   if [[ -z "${unifi_core_device}" ]]; then unifi_core_device='Unknown device'; fi
 fi
 
+if [[ "${unifi_native_system}" != 'true' ]] && "$(which dpkg)" -l unifi-native 2> /dev/null; then
+  check_dpkg_lock
+  echo -e "${WHITE_R}#${RESET} Removing the UniFi Network Native Application..."
+  if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' purge unifi-native &>> "${eus_dir}/logs/unifi-native-uninstall.log"; then
+    echo -e "${GREEN}#${RESET} Successfully purged the UniFi Network Native Application! \\n"
+  else
+    if "$(which dpkg)" --remove --force-remove-reinstreq unifi-native &>> "${eus_dir}/logs/unifi-native-uninstall.log"; then
+      echo -e "${GREEN}#${RESET} Successfully force removed the UniFi Network Native Application! \\n"
+    else
+      abort_reason="Failed to purge the UniFi Network Native Application from a non-native device."
+      abort
+    fi
+  fi
+fi
+
 # Decide on Network Application file to download.
 if [[ "${unifi_core_system}" == 'true' ]]; then
   if [[ "${unifi_native_system}" == 'true' ]]; then
@@ -2083,7 +2098,7 @@ add_repositories() {
             section_components="$(grep -oPm1 'Components: \K.*' <<< "$section")"
             section_enabled="$(grep -oPm1 'Enabled: \K.*' <<< "$section")"
             if [[ -z "${section_enabled}" ]]; then section_enabled="yes"; fi
-            if [[ -n "${section_url}" && "${section_enabled}" == 'yes' && "${section_types}" == *"deb"* && "${section_suites}" == *"${repo_codename}${repo_codename_argument}"* && "${section_components}" == *"${repo_component_trimmed}"* ]]; then
+            if [[ -n "${section_url}" && "${section_enabled}" == 'yes' && "${section_types}" == *"deb"* && "${section_suites}" == "${repo_codename}${repo_codename_argument}" && "${section_components}" == *"${repo_component_trimmed}"* ]]; then
               echo -e "$(date +%F-%R) | URIs: $section_url Types: $section_types Suites: $section_suites Components: $section_components was found, not adding to repository lists..." &>> "${eus_dir}/logs/already-found-repository.log"
               unset_add_repositories_variables
               unset section
@@ -2569,10 +2584,22 @@ old_systemd_version_check() {
   if [[ "${first_digit_unifi}" == '6' && "${second_digit_unifi}" -ge '4' ]] || [[ "${first_digit_unifi}" -ge '7' ]]; then old_systemd_unifi_check_passed="true"; fi
   if [[ "$(dpkg-query --showformat='${Version}' --show systemd | awk -F '[.-]' '{print $1}')" -lt "231" && "${old_systemd_unifi_check_passed}" == 'true' ]]; then
     old_systemd_version="true"
-    /usr/sbin/unifi-network-service-helper create-dirs &>> "${eus_dir}/logs/old-systemd.log"
     if ! [[ -d "/etc/systemd/system/unifi.service.d/" ]]; then eus_directory_location="/etc/systemd/system"; eus_create_directories "unifi.service.d"; fi
     unifi_helpers="$(grep "unifi-network-service-helper" /lib/systemd/system/unifi.service | grep "=+" | while read -r helper; do echo "${helper//+/}"; done)"
     if echo -e "[Service]\nPermissionsStartOnly=true\nExecStartPre=/usr/sbin/unifi-network-service-helper create-dirs\n${unifi_helpers}" &> /etc/systemd/system/unifi.service.d/override.conf; then
+      daemon_reexec
+      systemctl daemon-reload &>> "${eus_dir}/logs/old-systemd.log"
+      systemctl reset-failed unifi.service &>> "${eus_dir}/logs/old-systemd.log"
+    fi
+    if [[ "${limited_functionality}" == 'true' ]]; then
+      if service unifi restart &>> "${eus_dir}/logs/old-systemd.log"; then old_systemd_version_check_unifi_restart="true"; fi
+    else
+      if systemctl restart unifi &>> "${eus_dir}/logs/old-systemd.log"; then old_systemd_version_check_unifi_restart="true"; fi
+    fi
+  elif [[ "$(dpkg-query --showformat='${Version}' --show systemd | awk -F '[.-]' '{print $1}')" -lt "238" && "$(dpkg-query --showformat='${Version}' --show systemd | awk -F '[.-]' '{print $1}')" -gt "231" && "${old_systemd_unifi_check_passed}" == 'true' ]]; then
+    old_systemd_version="true"
+    if ! [[ -d "/etc/systemd/system/unifi.service.d/" ]]; then eus_directory_location="/etc/systemd/system"; eus_create_directories "unifi.service.d"; fi
+    if echo -e "[Service]\nPermissionsStartOnly=true\nExecStartPre=/usr/sbin/unifi-network-service-helper create-dirs" &> /etc/systemd/system/unifi.service.d/override.conf; then
       daemon_reexec
       systemctl daemon-reload &>> "${eus_dir}/logs/old-systemd.log"
       systemctl reset-failed unifi.service &>> "${eus_dir}/logs/old-systemd.log"
@@ -3361,7 +3388,7 @@ fi
 if [[ "${mongo_version_max}" =~ (44|70) ]]; then
   if [[ "${architecture}" == "arm64" ]]; then
     cpu_model_name="$(lscpu | tr '[:upper:]' '[:lower:]' | grep -i 'model name' | cut -f 2 -d ":" | awk '{$1=$1}1')"
-    cpu_model_regex="^(cortex-a55|cortex-a65|cortex-a65ae|cortex-a75|cortex-a76|cortex-a77|cortex-a78|cortex-x1|cortex-x2|cortex-x3|cortex-x4|neoverse n1|neoverse n2|neoverse e1|neoverse e2|neoverse v1|neoverse v2|cortex-a510|cortex-a520|cortex-a715|cortex-a720)$"
+    cpu_model_regex="^(cortex-a55|cortex-a65|cortex-a65ae|cortex-a75|cortex-a76|cortex-a77|cortex-a78|cortex-x1|cortex-x2|cortex-x3|cortex-x4|neoverse n1|neoverse n2|neoverse n3|neoverse e1|neoverse e2|neoverse v1|neoverse v2|neoverse v3|cortex-a510|cortex-a520|cortex-a715|cortex-a720)$"
     if ! [[ "${cpu_model_name}" =~ ${cpu_model_regex} ]]; then
       if [[ "${mongo_version_max}" =~ (70) ]]; then
         if "$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep -iq "mongod-armv8" || [[ "${script_option_skip}" == 'true' ]]; then
@@ -3737,7 +3764,8 @@ if [[ "${mongodb_version_installed_no_dots::2}" -gt "${mongo_version_max}" ]]; t
         if apt-get -y autoremove &>> "${eus_dir}/logs/apt-cleanup.log"; then echo -e "${GREEN}#${RESET} Successfully ran apt-get autoremove! \\n"; else echo -e "${RED}#${RESET} Failed to run apt-get autoremove"; fi
         echo -e "${WHITE_R}#${RESET} Running apt-get autoclean..."
         if apt-get -y autoclean &>> "${eus_dir}/logs/apt-cleanup.log"; then echo -e "${GREEN}#${RESET} Successfully ran apt-get autoclean! \\n"; else echo -e "${RED}#${RESET} Failed to run apt-get autoclean"; fi
-        sleep 3;;
+        sleep 3
+        mongodb_unsupported_uninstall="true";;
       [Nn]*) cancel_script;;
   esac
 fi
@@ -4087,7 +4115,7 @@ unifi_deb_package_modification() {
       fi
       rm -rf "${eus_temp_dir}" &> /dev/null
     else
-      echo -e "${WHITE_R}#${RESET} Successfully downloaded UniFi Network Application version ${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi} built for ${unifi_deb_package_modification_message_1}! \\n"
+      echo -e "${GREEN}#${RESET} Successfully downloaded UniFi Network Application version ${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi} built for ${unifi_deb_package_modification_message_1}! \\n"
       unifi_temp="${gr_unifi_temp}"
     fi
   fi
@@ -4594,7 +4622,7 @@ sleep 2
 if [[ "${mongodb_installed}" != 'true' ]]; then
   remove_older_mongodb_repositories
   if [[ "${broken_unifi_install}" == 'true' ]]; then
-    if [[ -z "${previous_mongodb_version}" ]]; then previous_mongodb_version="$(grep -sEio "db version v[0-9].[0-9].[0-9]{1,2}|buildInfo\":{\"version\":\"[0-9].[0-9].[0-9]{1,2}\"" /usr/lib/unifi/logs/mongod.log  | tail -n1 | sed -e 's/db version v//g' -e 's/buildInfo":{"version":"//g' -e 's/"//g' | sed 's/\.//g')"; fi
+    if [[ -z "${previous_mongodb_version}" && "${mongodb_unsupported_uninstall}" != 'true' ]]; then previous_mongodb_version="$(grep -sEio "db version v[0-9].[0-9].[0-9]{1,2}|buildInfo\":{\"version\":\"[0-9].[0-9].[0-9]{1,2}\"" /usr/lib/unifi/logs/mongod.log  | tail -n1 | sed -e 's/db version v//g' -e 's/buildInfo":{"version":"//g' -e 's/"//g' | sed 's/\.//g')"; fi
     if [[ -n "${previous_mongodb_version}" ]]; then
       unset add_mongodb_30_repo
       unset add_mongodb_32_repo
@@ -4715,7 +4743,7 @@ else
     check_dpkg_lock
     echo -e "${WHITE_R}#${RESET} Purging mongodb-org-server..."
     echo -e "\\n------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/arm64-purge-mongodb.log"
-    if DEBIAN_FRONTEND='noninteractive' apt-get -y --allow-downgrades "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' purge mongodb-org-server mongodb-org-database &>> "${eus_dir}/logs/arm64-purge-mongodb.log"; then
+    if DEBIAN_FRONTEND='noninteractive' apt-get -y --allow-downgrades "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' purge mongodb-org mongodb-org-server mongodb-org-database &>> "${eus_dir}/logs/arm64-purge-mongodb.log"; then
       echo -e "${GREEN}#${RESET} Successfully purged mongodb-org-server! \\n"
     else
       abort_reason="Failed to purge mongodb-org-server."
@@ -4829,6 +4857,7 @@ if [[ "${mongo_version_locked}" == '4.4.18' ]] || [[ "${unsupported_database_ver
     while read -r package; do
       if "$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep -iq "unifi "; then reinstall_unifi="true"; fi
       check_dpkg_lock
+      if [[ "${package}" == "mongodb-org-"* ]] && "$(which dpkg)" -l | grep -i "^ii\\|^hi\\|^ri\\|^pi\\|^ui" | awk '{print $2}' | grep -ioq "mongodb-org$"; then package="${package} mongodb-org"; fi
       echo -e "${WHITE_R}#${RESET} Removing ${package}..."
       if DEBIAN_FRONTEND='noninteractive' apt-get -y --allow-downgrades "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' remove "${package}" &>> "${eus_dir}/logs/mongodb-unsupported-version-change.log"; then
         echo -e "${GREEN}#${RESET} Successfully removed ${package}! \\n"

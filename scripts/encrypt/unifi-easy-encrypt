@@ -11,6 +11,15 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Encrypt Script  |  Version 2.8.4
+ 
+ - Improved English language detection.
+ - Improved GO installation process.
+ - Improved adding DEB822 repositories.
+ - Fixed an issue where errors could be printed when setting language to English.
+ 
+ ###
+
  |  UniFi Easy Encrypt Script  |  Version 2.8.3
  
  - Fixed an issue where unsupported providers were available on UniFi OS Consoles.

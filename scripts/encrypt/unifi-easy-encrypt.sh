@@ -2,7 +2,7 @@
 
 # UniFi Easy Encrypt script.
 # Script   | UniFi Network Easy Encrypt Script
-# Version  | 2.8.3
+# Version  | 2.8.4
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -53,14 +53,14 @@ if [[ "$EUID" -ne 0 ]]; then
 fi
 
 if ! grep -iq "udm" /usr/lib/version &> /dev/null; then
-  if ! env | grep "LC_ALL\\|LANG" | grep -iq "en_US\\|C.UTF-8"; then
+  if ! env | grep "LC_ALL\\|LANG" | grep -iq "en_US\\|C.UTF-8\\|en_GB.UTF-8"; then
     header
     echo -e "${WHITE_R}#${RESET} Your language is not set to English ( en_US ), the script will temporarily set the language to English."
     echo -e "${WHITE_R}#${RESET} Information: This is done to prevent issues in the script.."
     original_lang="$LANG"
     original_lcall="$LC_ALL"
-    if ! locale -a | grep -iq "C.UTF-8\\|en_US.UTF-8"; then locale-gen en_US.UTF-8 &> /dev/null; fi
-    if locale -a | grep -iq "^C.UTF-8$"; then eus_lts="C.UTF-8"; elif locale -a | grep -iq "^en_US.UTF-8$"; then eus_lts="en_US.UTF-8"; else  eus_lts="en_US.UTF-8"; fi
+    if ! locale -a 2> /dev/null | grep -iq "C.UTF-8\\|en_US.UTF-8"; then locale-gen en_US.UTF-8 &> /dev/null; fi
+    if locale -a 2> /dev/null | grep -iq "^C.UTF-8$"; then eus_lts="C.UTF-8"; elif locale -a 2> /dev/null | grep -iq "^en_US.UTF-8$"; then eus_lts="en_US.UTF-8"; else  eus_lts="en_US.UTF-8"; fi
     export LANG="${eus_lts}" &> /dev/null
     export LC_ALL=C &> /dev/null
     set_lc_all="true"
@@ -1161,7 +1161,7 @@ add_repositories() {
             section_components="$(grep -oPm1 'Components: \K.*' <<< "$section")"
             section_enabled="$(grep -oPm1 'Enabled: \K.*' <<< "$section")"
             if [[ -z "${section_enabled}" ]]; then section_enabled="yes"; fi
-            if [[ -n "${section_url}" && "${section_enabled}" == 'yes' && "${section_types}" == *"deb"* && "${section_suites}" == *"${repo_codename}${repo_codename_argument}"* && "${section_components}" == *"${repo_component_trimmed}"* ]]; then
+            if [[ -n "${section_url}" && "${section_enabled}" == 'yes' && "${section_types}" == *"deb"* && "${section_suites}" == "${repo_codename}${repo_codename_argument}" && "${section_components}" == *"${repo_component_trimmed}"* ]]; then
               echo -e "$(date +%F-%R) | URIs: $section_url Types: $section_types Suites: $section_suites Components: $section_components was found, not adding to repository lists..." &>> "${eus_dir}/logs/already-found-repository.log"
               unset_add_repositories_variables
               unset section
@@ -2157,7 +2157,7 @@ if [[ -n "${auto_dns_challenge_provider}" ]]; then
     fi
     # Install go
     if [[ "${architecture}" =~ (arm64|amd64) ]]; then
-      if ! curl "${curl_argument[@]}" --output "${eus_dir}/go.tar.gz" "https://go.dev/dl/go1.22.0.linux-${architecture}.tar.gz"; then
+      if ! curl --location "${curl_argument[@]}" --output "${eus_dir}/go.tar.gz" "https://go.dev/dl/$(curl --silent "https://go.dev/dl/?mode=json" | jq -r '.[0].files[] | select(.os == "linux" and .arch == "'"${architecture}"'").filename')"; then
         abort_reason="Failed to download go."; abort
       else
         if ! rm -rf /usr/local/go && tar -C /usr/local -xzf "${eus_dir}/go.tar.gz"; then

@@ -11,6 +11,19 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 8.8.8
+  
+ - Added UniFi Network Native Application uninstallation process if users attempted to install it on the incorrect devices.
+ - Attempt to improve the MongoDB Upgrade process for systems using systemd versions below 238.
+ - Improved English language detection.
+ - Improved adding DEB822 repositories.
+ - Improved adding MongoDB 4.0 repositories.
+ - Improved the MongoDB unsupported version change process.
+ - Fixed an issue where errors could be printed when setting language to English.
+ - Fixed incorrect colors for Failed/Success messages.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 8.8.7
   
  - Improved the installation process for Glenn R. compiled MongoDB dependencies.
