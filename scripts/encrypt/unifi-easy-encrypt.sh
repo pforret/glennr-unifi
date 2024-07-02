@@ -2,7 +2,7 @@
 
 # UniFi Easy Encrypt script.
 # Script   | UniFi Network Easy Encrypt Script
-# Version  | 2.8.4
+# Version  | 2.8.5
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -423,7 +423,14 @@ support_file() {
   if [[ -n "${support_file}" ]]; then
     echo -e "${WHITE_R}#${RESET} Support file has been created here: ${support_file} \\n"
     if [[ -n "$(command -v jq)" && -f "${eus_dir}/db/db.json" ]]; then
-      if [[ "$(jq -r '.database."support-file-upload"' "${eus_dir}/db/db.json")" == 'true' && "${abort_skip_support_file_upload}" != 'true' ]]; then
+      if [[ "$(jq -r '.database."support-file-upload"' "${eus_dir}/db/db.json")" != 'true' ]]; then
+        read -rp $'\033[39m#\033[0m Do you want to upload the support file so that Glenn R. can review it and improve the script? (Y/n) ' yes_no
+        case "$yes_no" in
+             [Yy]*|"") eus_support_one_time_upload="true";;
+             [Nn]*) ;;
+        esac
+      fi
+      if [[ "$(jq -r '.database."support-file-upload"' "${eus_dir}/db/db.json")" == 'true' && "${abort_skip_support_file_upload}" != 'true' ]] || [[ "${eus_support_one_time_upload}" == 'true' && "${abort_skip_support_file_upload}" != 'true' ]]; then
         upload_result="$(curl "${curl_argument[@]}" -X POST -F "file=@${support_file}" "https://api.glennr.nl/api/eus-support" | jq -r '.[]')"
         jq '.scripts."'"${script_name}"'".support."'"${support_file_name}"'"."upload-results" = "'"${upload_result}"'"' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
         eus_database_move

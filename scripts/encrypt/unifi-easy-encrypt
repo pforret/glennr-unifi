@@ -11,6 +11,12 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Encrypt Script  |  Version 2.8.5
+ 
+ - Allow users to still choose to upload support files during aborts despite originally choosing no earlier.
+ 
+ ###
+
  |  UniFi Easy Encrypt Script  |  Version 2.8.4
  
  - Improved English language detection.

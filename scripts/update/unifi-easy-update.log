@@ -11,6 +11,19 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 8.8.9
+  
+ - Allow users to still choose to upload support files during aborts despite originally choosing no earlier.
+ - Improved getting packages list for preventing UniFi Updates.
+ - Improved the keystore alias check.
+ - Improved the script for UniFi OS Consoles.
+ - Fixed an issue where the scripts performs MongoDB Upgrades on UniFi OS Consoles.
+ - Fixed upgrade process monitoring for UniFi OS Consoles.
+ - Fixed an issue where the MongoDB unsupported version change process didn't always properly re-install UniFi.
+ - Fixed an issue with removing MongoDB packages during the MongoDB unsupported version change process.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 8.8.8
   
  - Added UniFi Network Native Application uninstallation process if users attempted to install it on the incorrect devices.

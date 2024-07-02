@@ -50,7 +50,7 @@
 ###################################################################################################################################################################################################
 
 # Script                | UniFi Network Easy Installation Script
-# Version               | 7.6.5
+# Version               | 7.6.6
 # Application version   | 8.0.26-206d947763
 # Debian Repo version   | 8.0.26-24388-1
 # Author                | Glenn Rietveld
@@ -556,7 +556,14 @@ support_file() {
   if [[ -n "${support_file}" ]]; then
     echo -e "${WHITE_R}#${RESET} Support file has been created here: ${support_file} \\n"
     if [[ -n "$(command -v jq)" && -f "${eus_dir}/db/db.json" ]]; then
-      if [[ "$(jq -r '.database."support-file-upload"' "${eus_dir}/db/db.json")" == 'true' ]]; then
+      if [[ "$(jq -r '.database."support-file-upload"' "${eus_dir}/db/db.json")" != 'true' ]]; then
+        read -rp $'\033[39m#\033[0m Do you want to upload the support file so that Glenn R. can review it and improve the script? (Y/n) ' yes_no
+        case "$yes_no" in
+             [Yy]*|"") eus_support_one_time_upload="true";;
+             [Nn]*) ;;
+        esac
+      fi
+      if [[ "$(jq -r '.database."support-file-upload"' "${eus_dir}/db/db.json")" == 'true' ]] || [[ "${eus_support_one_time_upload}" == 'true' ]]; then
         upload_result="$(curl "${curl_argument[@]}" -X POST -F "file=@${support_file}" "https://api.glennr.nl/api/eus-support" | jq -r '.[]')"
         jq '.scripts."'"${script_name}"'".support."'"${support_file_name}"'"."upload-results" = "'"${upload_result}"'"' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
         eus_database_move
@@ -2898,7 +2905,7 @@ apt_get_install_package() {
         if [[ "${PIPESTATUS[0]}" -eq "0" ]]; then
           echo -e "${GREEN}#${RESET} Successfully ${apt_get_install_package_variable_2} ${required_package}! \\n"; sleep 2
         else
-          if [[ -z "${java_install_attempts}" ]]; then abort_reason="Failed to ${apt_get_install_package_variable} ${required_package}."; abort; fi
+          if [[ -z "${java_install_attempts}" ]]; then abort_reason="Failed to ${apt_get_install_package_variable} ${required_package}."; abort; else echo -e "${RED}#${RESET} Failed to ${apt_get_install_package_variable} ${required_package}...\\n"; fi
         fi
       fi
       get_apt_options
@@ -3385,7 +3392,7 @@ else
 fi
 
 # Stick to 4.4 if cpu doesn't report avx support.
-if [[ "${mongo_version_max}" =~ (44|70) ]]; then
+if [[ "${mongo_version_max}" =~ (44|70) && "${unifi_core_system}" != 'true' ]]; then
   if [[ "${architecture}" == "arm64" ]]; then
     cpu_model_name="$(lscpu | tr '[:upper:]' '[:lower:]' | grep -i 'model name' | cut -f 2 -d ":" | awk '{$1=$1}1')"
     cpu_model_regex="^(cortex-a55|cortex-a65|cortex-a65ae|cortex-a75|cortex-a76|cortex-a77|cortex-a78|cortex-x1|cortex-x2|cortex-x3|cortex-x4|neoverse n1|neoverse n2|neoverse n3|neoverse e1|neoverse e2|neoverse v1|neoverse v2|neoverse v3|cortex-a510|cortex-a520|cortex-a715|cortex-a720)$"
@@ -3498,7 +3505,7 @@ libssl_installation() {
           libssl_install_success="true"
           break
         else
-          if [[ "${libssl_install_failed_message}" != 'true' ]]; then echo -e "${RED}#${RESET} Failed to install libssl... trying some different versions... \\n"; echo -e "${WHITE_R}#${RESET} Attempting to install different versions... \\n"; libssl_install_failed_message="true"; fi
+          if [[ "${libssl_install_failed_message}" != 'true' ]]; then echo -e "${RED}#${RESET} Failed to install libssl... trying some different versions... \\n"; echo -e "${WHITE_R}#${RESET} Attempting to install different versions..."; libssl_install_failed_message="true"; fi
           rm --force "$libssl_temp" &> /dev/null
         fi
         get_apt_options
@@ -4620,6 +4627,7 @@ header
 echo -e "${WHITE_R}#${RESET} Preparing for MongoDB installation..."
 sleep 2
 if [[ "${mongodb_installed}" != 'true' ]]; then
+  echo ""
   remove_older_mongodb_repositories
   if [[ "${broken_unifi_install}" == 'true' ]]; then
     if [[ -z "${previous_mongodb_version}" && "${mongodb_unsupported_uninstall}" != 'true' ]]; then previous_mongodb_version="$(grep -sEio "db version v[0-9].[0-9].[0-9]{1,2}|buildInfo\":{\"version\":\"[0-9].[0-9].[0-9]{1,2}\"" /usr/lib/unifi/logs/mongod.log  | tail -n1 | sed -e 's/db version v//g' -e 's/buildInfo":{"version":"//g' -e 's/"//g' | sed 's/\.//g')"; fi
@@ -4853,13 +4861,13 @@ if [[ "${mongo_version_locked}" == '4.4.18' ]] || [[ "${unsupported_database_ver
     rm --force "/tmp/EUS/mongodb/packages_list.tmp" &> /dev/null
     awk '{ if ($0 == "mongodb-server") { server_found = 1; } else if ($0 == "mongodb-server-core") { core_found = 1; } if (!found_both) { original[NR] = $0; } } END { if (server_found && core_found) { found_both = 1; printed_server = 0; printed_core = 0; for (i = 1; i <= NR; i++) { if (original[i] == "mongodb-server" && !printed_server) { printed_server = 1; continue; } else if (original[i] == "mongodb-server-core" && !printed_core) { printed_core = 1; print "mongodb-server"; } print original[i]; } } else { for (i = 1; i <= NR; i++) { print original[i]; } } }' /tmp/EUS/mongodb/packages_remove_list &> /tmp/EUS/mongodb/packages_remove_list.tmp && mv /tmp/EUS/mongodb/packages_remove_list.tmp /tmp/EUS/mongodb/packages_remove_list
     "$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | awk '{print$2}' | grep "^unifi" | awk '{print $1}' &>> /tmp/EUS/mongodb/packages_remove_list
-    if grep -iq "unifi " /tmp/EUS/mongodb/packages_remove_list; then reinstall_unifi="true"; fi
+    if grep -iq "unifi" /tmp/EUS/mongodb/packages_remove_list; then reinstall_unifi="true"; fi
     while read -r package; do
       if "$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep -iq "unifi "; then reinstall_unifi="true"; fi
       check_dpkg_lock
-      if [[ "${package}" == "mongodb-org-"* ]] && "$(which dpkg)" -l | grep -i "^ii\\|^hi\\|^ri\\|^pi\\|^ui" | awk '{print $2}' | grep -ioq "mongodb-org$"; then package="${package} mongodb-org"; fi
+      if [[ "${package}" == "mongodb-org-"* ]] && "$(which dpkg)" -l | grep -i "^ii\\|^hi\\|^ri\\|^pi\\|^ui" | awk '{print $2}' | grep -ioq "mongodb-org$"; then package2="mongodb-org"; fi
       echo -e "${WHITE_R}#${RESET} Removing ${package}..."
-      if DEBIAN_FRONTEND='noninteractive' apt-get -y --allow-downgrades "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' remove "${package}" &>> "${eus_dir}/logs/mongodb-unsupported-version-change.log"; then
+      if DEBIAN_FRONTEND='noninteractive' apt-get -y --allow-downgrades "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' remove "${package}" "${package2}" &>> "${eus_dir}/logs/mongodb-unsupported-version-change.log"; then
         echo -e "${GREEN}#${RESET} Successfully removed ${package}! \\n"
       else
         abort_reason="Failed to remove ${package} during the downgrade process."
@@ -5190,7 +5198,7 @@ if ! "$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep -iq "o
     openjdk_variable="Installing"; openjdk_variable_3="Install"
   fi
   openjdk_java
-  adoptium_java
+  if [[ "${unifi_core_system}" != 'true' ]]; then adoptium_java; fi
   run_apt_get_update
   available_java_packages_check
   java_install_attempts="$(apt-cache search --names-only ^"openjdk-${required_java_version_short}-jre-headless|temurin-${required_java_version_short}-jre|temurin-${required_java_version_short}-jdk" | awk '{print $1}' | wc -l)"
