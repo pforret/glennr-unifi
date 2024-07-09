@@ -2,7 +2,7 @@
 
 # UniFi Network Application Easy Update Script.
 # Script   | UniFi Network Easy Update Script
-# Version  | 8.8.9
+# Version  | 8.9.0
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -167,6 +167,16 @@ check_dns() {
     done
   fi
   return 1
+}
+
+check_apt_listbugs() {
+  if "$(which dpkg)" -l apt-listbugs 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui" && [[ -e "/etc/apt/apt.conf.d/10apt-listbugs" && "${apt_listbugs_deactivated}" != 'true' ]]; then
+    IFS=$'\n' read -r -d '' -a lines < <(grep -n -v '^//' /etc/apt/apt.conf.d/10apt-listbugs | awk -F':' '{print $1}' && printf '\0')
+    for line in "${lines[@]}"; do sed -i "${line}s/^/\/\/ EUS Disabled \/\/ /" /etc/apt/apt.conf.d/10apt-listbugs 2> /dev/null; done
+    apt_listbugs_deactivated="true"
+  elif [[ "${apt_listbugs_deactivated}" == 'true' ]]; then
+    sed -i 's/^\/\/ EUS Disabled \/\/ //' /etc/apt/apt.conf.d/10apt-listbugs 2> /dev/null
+  fi
 }
 
 set_curl_arguments() {
@@ -486,7 +496,7 @@ support_file() {
       jq '.scripts."'"${script_name}"'" |= . + {"support": (.support + {("'"${support_file_name}"'"): {"abort-reason": "'"${abort_reason}"'","upload-results": ""}})}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
       eus_database_move
     fi
-    tar cJvfh "${support_file}" --exclude="${eus_dir}/unifi_db" --exclude="/tmp/EUS/downloads" --exclude="/usr/lib/unifi/logs/remote" "/tmp/EUS" "${eus_dir}" "/usr/lib/unifi/logs" "/etc/apt/sources.list" "/etc/apt/sources.list.d/" "/etc/apt/preferences" "/etc/apt/keyrings" "/etc/apt/preferences.d/" "/etc/default/unifi" "/etc/environment" "/var/log/dpkg.log"* "/etc/systemd/system/unifi.service.d/" "/lib/systemd/system/unifi.service" &> /dev/null
+    tar cJvfh "${support_file}" --exclude="${eus_dir}/unifi_db" --exclude="/tmp/EUS/downloads" --exclude="/usr/lib/unifi/logs/remote" "/tmp/EUS" "${eus_dir}" "/usr/lib/unifi/logs" "/etc/apt/sources.list" "/etc/apt/sources.list.d/" "/etc/apt/preferences" "/etc/apt/keyrings" "/etc/apt/trusted.gpg.d/" "/etc/apt/preferences.d/" "/etc/default/unifi" "/etc/environment" "/var/log/dpkg.log"* "/etc/systemd/system/unifi.service.d/" "/lib/systemd/system/unifi.service" &> /dev/null
   elif "$(which dpkg)" -l zstd 2> /dev/null | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
     support_file="/tmp/eus-support-${support_file_uuid}${support_file_time}.tar.zst"
     support_file_name="$(basename "${support_file}")"
@@ -494,7 +504,7 @@ support_file() {
       jq '.scripts."'"${script_name}"'" |= . + {"support": (.support + {("'"${support_file_name}"'"): {"abort-reason": "'"${abort_reason}"'","upload-results": ""}})}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
       eus_database_move
     fi
-    tar --use-compress-program=zstd -cvf "${support_file}" --exclude="${eus_dir}/unifi_db" --exclude="/tmp/EUS/downloads" --exclude="/usr/lib/unifi/logs/remote" "/tmp/EUS" "${eus_dir}" "/usr/lib/unifi/logs" "/etc/apt/sources.list" "/etc/apt/sources.list.d/" "/etc/apt/preferences" "/etc/apt/keyrings" "/etc/apt/preferences.d/" "/etc/default/unifi" "/etc/environment" "/var/log/dpkg.log"* "/etc/systemd/system/unifi.service.d/" "/lib/systemd/system/unifi.service" &> /dev/null
+    tar --use-compress-program=zstd -cvf "${support_file}" --exclude="${eus_dir}/unifi_db" --exclude="/tmp/EUS/downloads" --exclude="/usr/lib/unifi/logs/remote" "/tmp/EUS" "${eus_dir}" "/usr/lib/unifi/logs" "/etc/apt/sources.list" "/etc/apt/sources.list.d/" "/etc/apt/preferences" "/etc/apt/keyrings" "/etc/apt/trusted.gpg.d/" "/etc/apt/preferences.d/" "/etc/default/unifi" "/etc/environment" "/var/log/dpkg.log"* "/etc/systemd/system/unifi.service.d/" "/lib/systemd/system/unifi.service" &> /dev/null
   elif "$(which dpkg)" -l tar 2> /dev/null | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
     support_file="/tmp/eus-support-${support_file_uuid}${support_file_time}.tar.gz"
     support_file_name="$(basename "${support_file}")"
@@ -502,7 +512,7 @@ support_file() {
       jq '.scripts."'"${script_name}"'" |= . + {"support": (.support + {("'"${support_file_name}"'"): {"abort-reason": "'"${abort_reason}"'","upload-results": ""}})}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
       eus_database_move
     fi
-    tar czvfh "${support_file}" --exclude="${eus_dir}/unifi_db" --exclude="/tmp/EUS/downloads" --exclude="/usr/lib/unifi/logs/remote" "/tmp/EUS" "${eus_dir}" "/usr/lib/unifi/logs" "/etc/apt/sources.list" "/etc/apt/sources.list.d/" "/etc/apt/preferences" "/etc/apt/keyrings" "/etc/apt/preferences.d/" "/etc/default/unifi" "/etc/environment" "/var/log/dpkg.log"* "/etc/systemd/system/unifi.service.d/" "/lib/systemd/system/unifi.service" &> /dev/null
+    tar czvfh "${support_file}" --exclude="${eus_dir}/unifi_db" --exclude="/tmp/EUS/downloads" --exclude="/usr/lib/unifi/logs/remote" "/tmp/EUS" "${eus_dir}" "/usr/lib/unifi/logs" "/etc/apt/sources.list" "/etc/apt/sources.list.d/" "/etc/apt/preferences" "/etc/apt/keyrings" "/etc/apt/trusted.gpg.d/" "/etc/apt/preferences.d/" "/etc/default/unifi" "/etc/environment" "/var/log/dpkg.log"* "/etc/systemd/system/unifi.service.d/" "/lib/systemd/system/unifi.service" &> /dev/null
   elif "$(which dpkg)" -l zip 2> /dev/null | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
     support_file="/tmp/eus-support-${support_file_uuid}${support_file_time}.zip"
     support_file_name="$(basename "${support_file}")"
@@ -510,7 +520,7 @@ support_file() {
       jq '.scripts."'"${script_name}"'" |= . + {"support": (.support + {("'"${support_file_name}"'"): {"abort-reason": "'"${abort_reason}"'","upload-results": ""}})}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
       eus_database_move
     fi
-    zip -r "${support_file}" "/tmp/EUS/" "${eus_dir}/" "/usr/lib/unifi/logs/" "/etc/apt/sources.list" "/etc/apt/sources.list.d/" "/etc/apt/preferences" "/etc/apt/keyrings" "/etc/apt/preferences.d/" "/etc/default/unifi" "/etc/environment" "/var/log/dpkg.log"* "/etc/systemd/system/unifi.service.d/" "/lib/systemd/system/unifi.service" -x "${eus_dir}/unifi_db/*" -x "/tmp/EUS/downloads" -x "/usr/lib/unifi/logs/remote" &> /dev/null
+    zip -r "${support_file}" "/tmp/EUS/" "${eus_dir}/" "/usr/lib/unifi/logs/" "/etc/apt/sources.list" "/etc/apt/sources.list.d/" "/etc/apt/preferences" "/etc/apt/keyrings" "/etc/apt/trusted.gpg.d/" "/etc/apt/preferences.d/" "/etc/default/unifi" "/etc/environment" "/var/log/dpkg.log"* "/etc/systemd/system/unifi.service.d/" "/lib/systemd/system/unifi.service" -x "${eus_dir}/unifi_db/*" -x "/tmp/EUS/downloads" -x "/usr/lib/unifi/logs/remote" &> /dev/null
   fi
   if [[ -n "${support_file}" ]]; then
     echo -e "${WHITE_R}#${RESET} Support file has been created here: ${support_file} \\n"
@@ -719,9 +729,12 @@ eus_directories() {
     eus_dir='/srv/EUS'
   elif grep -iq "UCKP\\|UCKG2\\|UCK" /usr/lib/version &> /dev/null; then
     eus_dir='/srv/EUS'
+  elif "$(which dpkg)" -l unifi-core 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+    eus_dir='/srv/EUS'
   else
     eus_dir='/usr/lib/EUS'
   fi
+  if [[ "${eus_dir}" == '/srv/EUS' ]]; then if findmnt -no OPTIONS "$(df --output=target /srv | tail -1)" | grep -ioq "ro"; then eus_dir='/usr/lib/EUS'; fi; fi
   eus_directory_location="${eus_dir}"
   eus_create_directories "logs"
   if ! rm -rf /tmp/EUS &> /dev/null; then abort_reason="Failed to remove /tmp/EUS."; header_red; abort; fi
@@ -765,6 +778,7 @@ start_script
 check_dns
 
 help_script() {
+  check_apt_listbugs
   if [[ "${script_option_help}" == 'true' ]]; then header; script_logo; else echo -e "${WHITE_R}----${RESET}\\n"; fi
   echo -e "    Easy UniFi Network Application Install Script assistance\\n"
   echo -e "
@@ -1324,8 +1338,8 @@ if ! "$(which dpkg)" -l unifi 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|
   echo -e "${WHITE_R}#${RESET} UniFi is not installed on your system or is in a broken state!"
   if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Do you want to run the Easy Installation Script? (Y/n) ' yes_no; fi
   case "$yes_no" in
-      [Yy]*|"") curl "${curl_argument[@]}" --remote-name https://get.glennr.nl/unifi/install/install_latest/unifi-latest.sh && bash unifi-latest.sh --skip; exit 0;;
-      [Nn]*) exit 0;;
+      [Yy]*|"") check_apt_listbugs; curl "${curl_argument[@]}" --remote-name https://get.glennr.nl/unifi/install/install_latest/unifi-latest.sh && bash unifi-latest.sh --skip; exit 0;;
+      [Nn]*) check_apt_listbugs; exit 0;;
   esac
 fi
 
@@ -1556,6 +1570,7 @@ script_version_check() {
   local_version_adjusted="$(IFS=; echo "${local_adjusted[*]}")"
   online_version_adjusted="$(IFS=; echo "${online_adjusted[*]}")"
   if [[ "${local_version_adjusted}" -lt "${online_version_adjusted}" ]]; then
+    check_apt_listbugs
     header_red
     echo -e "${WHITE_R}#${RESET} You're currently running script version ${local_version} while ${online_version} is the latest!"
     echo -e "${WHITE_R}#${RESET} Downloading and executing version ${online_version} of the script...\\n\\n"
@@ -1685,13 +1700,13 @@ cleanup_unavailable_repositories() {
   if ls /tmp/EUS/apt/*.log 1> /dev/null 2>&1; then
     if ! [[ -e "${eus_dir}/logs/upgrade.log" ]]; then return; fi
     while read -r domain; do
-      if ! grep -sq "^#.*${domain}" /etc/apt/sources.list /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; then
+      if ! grep -sq "^#.*${domain}" /etc/apt/sources.list /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources 2> /dev/null; then
         if [[ "${cleanup_unavailable_repositories_found_message}" != 'true' ]]; then
           echo -e "${WHITE_R}#${RESET} There are repositories that are causing issues..."
           cleanup_unavailable_repositories_found_message="true"
         fi
         for file in /etc/apt/sources.list.d/*.sources; do
-          if grep -q "${domain}" "${file}"; then
+          if grep -sq "${domain}" "${file}"; then
             entry_block_start_line="$(awk '!/^#/ && /Types:/ { types_line=NR } /'"${domain}"'/ && !/^#/ && !seen[types_line]++ { print types_line }' "${file}" | head -n1)"
             entry_block_end_line="$(awk -v start_line="$entry_block_start_line" 'NR > start_line && NF == 0 { print NR-1; exit } END { if (NR > start_line && NF > 0) print NR }' "${file}")"
             sed -i "${entry_block_start_line},${entry_block_end_line}s/^\([^#]\)/# \1/" "${file}" &>/dev/null
@@ -1905,11 +1920,13 @@ add_glennr_mongod_repo() {
       mongod_codename="repo xenial"
     fi
   fi
+  if [[ "${try_http_glennr_mongod_repo}" == 'true' ]]; then repo_http_https="http"; try_http_glennr_mongod_repo_text_1=" using the HTTP protocol"; try_http_glennr_mongod_repo_text_2=" with the HTTP protocol"; fi
   if [[ -n "${mongod_version_major_minor}" ]]; then
     if ! gpg --list-packets "/etc/apt/keyrings/apt-glennr.gpg" &> /dev/null; then
       echo -e "${WHITE_R}#${RESET} Adding key for the Glenn R. APT Repository..."
       aptkey_depreciated
       if [[ "${apt_key_deprecated}" == 'true' ]]; then
+        echo -e "$(date +%F-%R) | apt.glennr.nl repository key.\\n" &>> "${eus_dir}/logs/repository-keys.log"
         if curl "${curl_argument[@]}" -fSL "${repo_http_https}://get.glennr.nl/apt/keys/apt-glennr.asc" 2>&1 | tee -a "${eus_dir}/logs/repository-keys.log" | gpg -o "/etc/apt/keyrings/apt-glennr.gpg" --dearmor --yes &> /dev/null; then
           glennr_curl_exit_status="${PIPESTATUS[0]}"
           glennr_gpg_exit_status="${PIPESTATUS[2]}"
@@ -1922,6 +1939,7 @@ add_glennr_mongod_repo() {
           fi
         fi
       else
+        echo -e "$(date +%F-%R) | apt.glennr.nl repository key.\\n" &>> "${eus_dir}/logs/repository-keys.log"
         if curl "${curl_argument[@]}" -fSL "${repo_http_https}://get.glennr.nl/apt/keys/apt-glennr.asc" 2>&1 | tee -a "${eus_dir}/logs/repository-keys.log" | apt-key add - &> /dev/null; then
           glennr_curl_exit_status="${PIPESTATUS[0]}"
           glennr_apt_key_exit_status="${PIPESTATUS[2]}"
@@ -1936,7 +1954,7 @@ add_glennr_mongod_repo() {
     else
       if [[ "${apt_key_deprecated}" == 'true' ]]; then signed_by_value=" signed-by=/etc/apt/keyrings/apt-glennr.gpg"; deb822_signed_by_value="\nSigned-By: /etc/apt/keyrings/apt-glennr.gpg"; fi
     fi
-    echo -e "${WHITE_R}#${RESET} Adding the Glenn R. APT repository for mongod ${mongod_version_major_minor}..."
+    echo -e "${WHITE_R}#${RESET} Adding the Glenn R. APT repository for mongod ${mongod_version_major_minor}${try_http_glennr_mongod_repo_text_1}..."
     if [[ "${architecture}" == 'arm64' ]]; then arch="arch=arm64"; elif [[ "${architecture}" == 'amd64' ]]; then arch="arch=amd64"; else arch="arch=amd64,arm64"; fi
     if [[ "${use_deb822_format}" == 'true' ]]; then
       # DEB822 format
@@ -1946,11 +1964,12 @@ add_glennr_mongod_repo() {
       mongod_repo_entry="deb [ ${arch}${signed_by_value} ] ${repo_http_https}://apt.glennr.nl/${mongod_codename} ${mongod_repo_type}"
     fi
     if echo -e "${mongod_repo_entry}" &> "/etc/apt/sources.list.d/glennr-mongod-${mongod_version_major_minor}.${source_file_format}"; then
-      echo -e "${GREEN}#${RESET} Successfully added the Glenn R. APT repository for mongod ${mongod_version_major_minor}!\\n" && sleep 2
+      echo -e "${GREEN}#${RESET} Successfully added the Glenn R. APT repository for mongod ${mongod_version_major_minor}${try_http_glennr_mongod_repo_text_2}!\\n" && sleep 2
       if [[ "${mongodb_key_update}" != 'true' ]]; then
         run_apt_get_update
         mongod_upgrade_to_version_with_dot="$(apt-cache policy mongod-armv8 | grep -i "${mongo_version_max_with_dot}" | grep -i Candidate | sed -e 's/ //g' -e 's/*//g' | cut -d':' -f2)"
         if [[ -z "${mongod_upgrade_to_version_with_dot}" ]]; then mongod_upgrade_to_version_with_dot="$(apt-cache policy mongod-armv8 | grep -i "${mongo_version_max_with_dot}" | sed -e 's/500//g' -e 's/-1//g' -e 's/100//g' -e 's/ //g' -e '/http/d' -e 's/*//g' | cut -d':' -f2 | sed '/mongod/d' | sed 's/*//g' | sort -r -V | head -n 1)"; fi
+        if [[ -z "${mongod_upgrade_to_version_with_dot}" && "${try_http_glennr_mongod_repo}" != "true" ]]; then try_http_glennr_mongod_repo="true"; add_glennr_mongod_repo; return; fi
         mongod_upgrade_to_version="${mongod_upgrade_to_version_with_dot//./}"
         if [[ "${mongod_upgrade_to_version::2}" == "${mongo_version_max}" ]]; then
           install_mongod_version="${mongod_upgrade_to_version_with_dot}"
@@ -1958,13 +1977,15 @@ add_glennr_mongod_repo() {
         fi
       fi
     else
-      abort_reason="Failed to add the Glenn R. APT repository for mongod ${mongod_version_major_minor}."
+      abort_reason="Failed to add the Glenn R. APT repository for mongod ${mongod_version_major_minor}${try_http_glennr_mongod_repo_text_2}."
       abort
     fi
   fi
   unset mongod_armv8_v
   unset signed_by_value
   unset deb822_signed_by_value
+  unset try_http_glennr_mongod_repo_text_1
+  unset try_different_mongodb_repo_test_2
 }
 
 add_extra_repo_mongodb() {
@@ -2324,6 +2345,7 @@ add_mongodb_repo() {
       echo -e "${WHITE_R}#${RESET} Adding key for MongoDB ${mongodb_version_major_minor}..."
       aptkey_depreciated
       if [[ "${apt_key_deprecated}" == 'true' ]]; then
+        echo -e "$(date +%F-%R) | pgp.mongodb.com repository key.\\n" &>> "${eus_dir}/logs/repository-keys.log"
         if curl "${curl_argument[@]}" -fSL "${repo_http_https}://pgp.mongodb.com/server-${mongodb_version_major_minor}.asc" 2>&1 | tee -a "${eus_dir}/logs/repository-keys.log" | gpg -o "/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg" --dearmor --yes &> /dev/null; then
           mongodb_curl_exit_status="${PIPESTATUS[0]}"
           mongodb_gpg_exit_status="${PIPESTATUS[2]}"
@@ -2331,6 +2353,7 @@ add_mongodb_repo() {
             echo -e "${GREEN}#${RESET} Successfully added the key for MongoDB ${mongodb_version_major_minor}! \\n"
             signed_by_value=" signed-by=/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg"; deb822_signed_by_value="\nSigned-By: /etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg"
           else
+            echo -e "$(date +%F-%R) | www.mongodb.org repository key.\\n" &>> "${eus_dir}/logs/repository-keys.log"
             if curl "${curl_argument[@]}" -fSL "${repo_http_https}://www.mongodb.org/static/pgp/server-${mongodb_version_major_minor}.asc" 2>&1 | tee -a "${eus_dir}/logs/repository-keys.log" | gpg -o "/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg" --dearmor --yes &> /dev/null; then
               mongodb_curl_exit_status="${PIPESTATUS[0]}"
               mongodb_gpg_exit_status="${PIPESTATUS[2]}"
@@ -2338,6 +2361,7 @@ add_mongodb_repo() {
                 echo -e "${GREEN}#${RESET} Successfully added the key for MongoDB ${mongodb_version_major_minor}! \\n"
                 signed_by_value=" signed-by=/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg"; deb822_signed_by_value="\nSigned-By: /etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg"
               else
+                 echo -e "$(date +%F-%R) | pgp.mongodb.com repository key.\\n" &>> "${eus_dir}/logs/repository-keys.log"
                 if curl "${curl_argument[@]}" --insecure -fSL "${repo_http_https}://pgp.mongodb.com/server-${mongodb_version_major_minor}.asc" 2>&1 | tee -a "${eus_dir}/logs/repository-keys.log" | gpg -o "/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg" --dearmor --yes &> /dev/null; then
                   mongodb_curl_exit_status="${PIPESTATUS[0]}"
                   mongodb_gpg_exit_status="${PIPESTATUS[2]}"
@@ -2354,18 +2378,21 @@ add_mongodb_repo() {
           fi
         fi
       else
+        echo -e "$(date +%F-%R) | pgp.mongodb.com repository key.\\n" &>> "${eus_dir}/logs/repository-keys.log"
         if curl "${curl_argument[@]}" -fSL "${repo_http_https}://pgp.mongodb.com/server-${mongodb_version_major_minor}.asc" 2>&1 | tee -a "${eus_dir}/logs/repository-keys.log" | apt-key add - &> /dev/null; then
           mongodb_curl_exit_status="${PIPESTATUS[0]}"
           mongodb_apt_key_exit_status="${PIPESTATUS[2]}"
           if [[ "${mongodb_curl_exit_status}" -eq "0" && "${mongodb_apt_key_exit_status}" -eq "0" ]]; then
             echo -e "${GREEN}#${RESET} Successfully added the key for MongoDB ${mongodb_version_major_minor}! \\n"
           else
+            echo -e "$(date +%F-%R) | www.mongodb.org repository key.\\n" &>> "${eus_dir}/logs/repository-keys.log"
             if curl "${curl_argument[@]}" -fSL "${repo_http_https}://www.mongodb.org/static/pgp/server-${mongodb_version_major_minor}.asc" 2>&1 | tee -a "${eus_dir}/logs/repository-keys.log" | apt-key add - &> /dev/null; then
               mongodb_curl_exit_status="${PIPESTATUS[0]}"
               mongodb_apt_key_exit_status="${PIPESTATUS[2]}"
               if [[ "${mongodb_curl_exit_status}" -eq "0" && "${mongodb_apt_key_exit_status}" -eq "0" ]]; then
                 echo -e "${GREEN}#${RESET} Successfully added the key for MongoDB ${mongodb_version_major_minor}! \\n"
               else
+                echo -e "$(date +%F-%R) | pgp.mongodb.com repository key.\\n" &>> "${eus_dir}/logs/repository-keys.log"
                 if curl "${curl_argument[@]}" --insecure -fSL "${repo_http_https}://pgp.mongodb.com/server-${mongodb_version_major_minor}.asc" 2>&1 | tee -a "${eus_dir}/logs/repository-keys.log" | apt-key add - &> /dev/null; then
                   mongodb_curl_exit_status="${PIPESTATUS[0]}"
                   mongodb_apt_key_exit_status="${PIPESTATUS[2]}"
@@ -3114,6 +3141,7 @@ adoptium_java() {
     echo -e "${WHITE_R}#${RESET} Adding the key for adoptium packages..."
     aptkey_depreciated
     if [[ "${apt_key_deprecated}" == 'true' ]]; then
+      echo -e "$(date +%F-%R) | packages.adoptium.net repository key.\\n" &>> "${eus_dir}/logs/repository-keys.log"
       if curl "${curl_argument[@]}" -fSL "https://packages.adoptium.net/artifactory/api/gpg/key/public" 2>&1 | tee -a "${eus_dir}/logs/repository-keys.log" | gpg -o "/etc/apt/keyrings/packages-adoptium.gpg" --dearmor --yes &> /dev/null; then
         adoptium_curl_exit_status="${PIPESTATUS[0]}"
         adoptium_gpg_exit_status="${PIPESTATUS[2]}"
@@ -3127,6 +3155,7 @@ adoptium_java() {
         abort
       fi
     else
+      echo -e "$(date +%F-%R) | packages.adoptium.net repository key.\\n" &>> "${eus_dir}/logs/repository-keys.log"
       if curl "${curl_argument[@]}" -fSL "https://packages.adoptium.net/artifactory/api/gpg/key/public" 2>&1 | tee -a "${eus_dir}/logs/repository-keys.log" | apt-key add - &> /dev/null; then
         adoptium_curl_exit_status="${PIPESTATUS[0]}"
         adoptium_apt_key_exit_status="${PIPESTATUS[2]}"
@@ -4348,6 +4377,7 @@ christmass_new_year() {
 }
 
 author() {
+  check_apt_listbugs
   update_eus_db
   cleanup_codename_mismatch_repos
   if [[ "${perform_application_upgrade}" == 'true' ]]; then prevent_unifi_upgrade; fi
@@ -4555,6 +4585,7 @@ devices_update_finish() {
 }
 
 cancel_script() {
+  if [[ "${set_lc_all}" == 'true' ]]; then if [[ -n "${original_lang}" ]]; then export LANG="${original_lang}"; else unset LANG; fi; if [[ -n "${original_lcall}" ]]; then export LC_ALL="${original_lcall}"; else unset LC_ALL; fi; fi
   if [[ "${script_option_skip}" == 'true' ]]; then
     echo -e "\\n${WHITE_R}#########################################################################${RESET}\\n"
   else
@@ -6998,12 +7029,14 @@ mongodb_upgrade() {
       first_digit_unifi_video="$(echo "${unifi_video}" | cut -d'.' -f1)"
       second_digit_unifi_video="$(echo "${unifi_video}" | cut -d'.' -f2)"
       if ! [[ "${first_digit_unifi_video}" -ge '3' && "${second_digit_unifi_video}" -ge '10' ]]; then
+        check_apt_listbugs
         header_red
         echo -e "${RED}#${RESET} You need to upgrade UniFi-Video to 3.10.x or newer.."
         echo -e "${RED}#${RESET} Always backups prior to upgrading anything! \\n\\n"
         exit 0
       fi
     else
+      check_apt_listbugs
       header_red
       echo -e "${RED}#${RESET} You should run UniFi Video elsewhere.. or migrate to UniFi Protect..."
       echo -e "${RED}#${RESET} Exiting the script...\\n\\n"
@@ -7965,13 +7998,11 @@ support_file_requests_opt_in() {
 support_file_upload_opt_in() {
   if [[ "$(jq -r '.database."support-file-upload"' "${eus_dir}/db/db.json")" != 'true' && "$(jq -r '.database."opt-in-requests"' "${eus_dir}/db/db.json")" == '0' ]]; then
     if [[ "${installing_required_package}" != 'yes' ]]; then
-      echo -e "${GREEN}---${RESET}\\n"
+      if [[ "${script_option_skip}" != 'true' ]]; then echo -e "${GREEN}---${RESET}\\n"; fi
     else
-      header
+      if [[ "${script_option_skip}" != 'true' ]]; then header; fi
     fi
-    echo -e "${WHITE_R}#${RESET} The script generates support files when failures are detected, these can help Glenn R. to"
-    echo -e "${WHITE_R}#${RESET} improve the script quality for the Community and resolve your issues in future versions of the script.\\n"
-    read -rp $'\033[39m#\033[0m Do you want to automatically upload the support files? (Y/n) ' yes_no
+    if [[ "${script_option_skip}" != 'true' ]]; then echo -e "${WHITE_R}#${RESET} The script generates support files when failures are detected, these can help Glenn R. to"; echo -e "${WHITE_R}#${RESET} improve the script quality for the Community and resolve your issues in future versions of the script.\\n"; read -rp $'\033[39m#\033[0m Do you want to automatically upload the support files? (Y/n) ' yes_no; fi
     case "$yes_no" in
         [Yy]*|"") upload_support_files="true";;
         [Nn]*) upload_support_files="false";;

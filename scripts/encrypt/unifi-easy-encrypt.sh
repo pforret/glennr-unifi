@@ -2,7 +2,7 @@
 
 # UniFi Easy Encrypt script.
 # Script   | UniFi Network Easy Encrypt Script
-# Version  | 2.8.5
+# Version  | 2.8.6
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -394,7 +394,7 @@ support_file() {
       jq '.scripts."'"${script_name}"'" |= . + {"support": (.support + {("'"${support_file_name}"'"): {"abort-reason": "'"${abort_reason}"'","upload-results": ""}})}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
       eus_database_move
     fi
-    tar cJvfh "${support_file}" --exclude="${eus_dir}/unifi_db" --exclude="/tmp/EUS/downloads" --exclude="/usr/lib/unifi/logs/remote" "/tmp/EUS" "${eus_dir}" "/usr/lib/unifi/logs" "/etc/apt/sources.list" "/etc/apt/sources.list.d/" "/etc/apt/preferences" "/etc/apt/keyrings" "/etc/apt/preferences.d/" "/etc/default/unifi" "/etc/environment" "/var/log/dpkg.log"* "/etc/systemd/system/unifi.service.d/" "/lib/systemd/system/unifi.service" &> /dev/null
+    tar cJvfh "${support_file}" --exclude="${eus_dir}/unifi_db" --exclude="/tmp/EUS/downloads" --exclude="/usr/lib/unifi/logs/remote" "/tmp/EUS" "${eus_dir}" "/usr/lib/unifi/logs" "/etc/apt/sources.list" "/etc/apt/sources.list.d/" "/etc/apt/preferences" "/etc/apt/keyrings" "/etc/apt/trusted.gpg.d/" "/etc/apt/preferences.d/" "/etc/default/unifi" "/etc/environment" "/var/log/dpkg.log"* "/etc/systemd/system/unifi.service.d/" "/lib/systemd/system/unifi.service" &> /dev/null
   elif "$(which dpkg)" -l zstd 2> /dev/null | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
     support_file="/tmp/eus-support-${support_file_uuid}${support_file_time}.tar.zst"
     support_file_name="$(basename "${support_file}")"
@@ -402,7 +402,7 @@ support_file() {
       jq '.scripts."'"${script_name}"'" |= . + {"support": (.support + {("'"${support_file_name}"'"): {"abort-reason": "'"${abort_reason}"'","upload-results": ""}})}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
       eus_database_move
     fi
-    tar --use-compress-program=zstd -cvf "${support_file}" --exclude="${eus_dir}/unifi_db" --exclude="/tmp/EUS/downloads" --exclude="/usr/lib/unifi/logs/remote" "/tmp/EUS" "${eus_dir}" "/usr/lib/unifi/logs" "/etc/apt/sources.list" "/etc/apt/sources.list.d/" "/etc/apt/preferences" "/etc/apt/keyrings" "/etc/apt/preferences.d/" "/etc/default/unifi" "/etc/environment" "/var/log/dpkg.log"* "/etc/systemd/system/unifi.service.d/" "/lib/systemd/system/unifi.service" &> /dev/null
+    tar --use-compress-program=zstd -cvf "${support_file}" --exclude="${eus_dir}/unifi_db" --exclude="/tmp/EUS/downloads" --exclude="/usr/lib/unifi/logs/remote" "/tmp/EUS" "${eus_dir}" "/usr/lib/unifi/logs" "/etc/apt/sources.list" "/etc/apt/sources.list.d/" "/etc/apt/preferences" "/etc/apt/keyrings" "/etc/apt/trusted.gpg.d/" "/etc/apt/preferences.d/" "/etc/default/unifi" "/etc/environment" "/var/log/dpkg.log"* "/etc/systemd/system/unifi.service.d/" "/lib/systemd/system/unifi.service" &> /dev/null
   elif "$(which dpkg)" -l tar 2> /dev/null | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
     support_file="/tmp/eus-support-${support_file_uuid}${support_file_time}.tar.gz"
     support_file_name="$(basename "${support_file}")"
@@ -410,7 +410,7 @@ support_file() {
       jq '.scripts."'"${script_name}"'" |= . + {"support": (.support + {("'"${support_file_name}"'"): {"abort-reason": "'"${abort_reason}"'","upload-results": ""}})}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
       eus_database_move
     fi
-    tar czvfh "${support_file}" --exclude="${eus_dir}/unifi_db" --exclude="/tmp/EUS/downloads" --exclude="/usr/lib/unifi/logs/remote" "/tmp/EUS" "${eus_dir}" "/usr/lib/unifi/logs" "/etc/apt/sources.list" "/etc/apt/sources.list.d/" "/etc/apt/preferences" "/etc/apt/keyrings" "/etc/apt/preferences.d/" "/etc/default/unifi" "/etc/environment" "/var/log/dpkg.log"* "/etc/systemd/system/unifi.service.d/" "/lib/systemd/system/unifi.service" &> /dev/null
+    tar czvfh "${support_file}" --exclude="${eus_dir}/unifi_db" --exclude="/tmp/EUS/downloads" --exclude="/usr/lib/unifi/logs/remote" "/tmp/EUS" "${eus_dir}" "/usr/lib/unifi/logs" "/etc/apt/sources.list" "/etc/apt/sources.list.d/" "/etc/apt/preferences" "/etc/apt/keyrings" "/etc/apt/trusted.gpg.d/" "/etc/apt/preferences.d/" "/etc/default/unifi" "/etc/environment" "/var/log/dpkg.log"* "/etc/systemd/system/unifi.service.d/" "/lib/systemd/system/unifi.service" &> /dev/null
   elif "$(which dpkg)" -l zip 2> /dev/null | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
     support_file="/tmp/eus-support-${support_file_uuid}${support_file_time}.zip"
     support_file_name="$(basename "${support_file}")"
@@ -418,7 +418,7 @@ support_file() {
       jq '.scripts."'"${script_name}"'" |= . + {"support": (.support + {("'"${support_file_name}"'"): {"abort-reason": "'"${abort_reason}"'","upload-results": ""}})}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
       eus_database_move
     fi
-    zip -r "${support_file}" "/tmp/EUS/" "${eus_dir}/" "/usr/lib/unifi/logs/" "/etc/apt/sources.list" "/etc/apt/sources.list.d/" "/etc/apt/preferences" "/etc/apt/keyrings" "/etc/apt/preferences.d/" "/etc/default/unifi" "/etc/environment" "/var/log/dpkg.log"* "/etc/systemd/system/unifi.service.d/" "/lib/systemd/system/unifi.service" -x "${eus_dir}/unifi_db/*" -x "/tmp/EUS/downloads" -x "/usr/lib/unifi/logs/remote" &> /dev/null
+    zip -r "${support_file}" "/tmp/EUS/" "${eus_dir}/" "/usr/lib/unifi/logs/" "/etc/apt/sources.list" "/etc/apt/sources.list.d/" "/etc/apt/preferences" "/etc/apt/keyrings" "/etc/apt/trusted.gpg.d/" "/etc/apt/preferences.d/" "/etc/default/unifi" "/etc/environment" "/var/log/dpkg.log"* "/etc/systemd/system/unifi.service.d/" "/lib/systemd/system/unifi.service" -x "${eus_dir}/unifi_db/*" -x "/tmp/EUS/downloads" -x "/usr/lib/unifi/logs/remote" &> /dev/null
   fi
   if [[ -n "${support_file}" ]]; then
     echo -e "${WHITE_R}#${RESET} Support file has been created here: ${support_file} \\n"
@@ -448,7 +448,7 @@ abort() {
     jq --arg script_aborts "${script_aborts}" '."scripts"."'"${script_name}"'" += {"aborts": "'"${script_aborts}"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
     eus_database_move
   fi
-  if [[ "${set_lc_all}" == 'true' ]]; then unset LC_ALL; fi
+  if [[ "${set_lc_all}" == 'true' ]]; then if [[ -n "${original_lang}" ]]; then export LANG="${original_lang}"; else unset LANG; fi; if [[ -n "${original_lcall}" ]]; then export LC_ALL="${original_lcall}"; else unset LC_ALL; fi; fi
   echo -e "\\n\\n${RED}#########################################################################${RESET}\\n"
   echo -e "${WHITE_R}#${RESET} An error occurred. Aborting script..."
   echo -e "${WHITE_R}#${RESET} Please contact Glenn R. (AmazedMender16) on the Community Forums!\\n"
@@ -461,13 +461,17 @@ abort() {
 }
 
 cancel_script() {
-  if [[ "${set_lc_all}" == 'true' ]]; then unset LC_ALL &> /dev/null; fi
+  if [[ "${set_lc_all}" == 'true' ]]; then if [[ -n "${original_lang}" ]]; then export LANG="${original_lang}"; else unset LANG; fi; if [[ -n "${original_lcall}" ]]; then export LC_ALL="${original_lcall}"; else unset LC_ALL; fi; fi
   if [[ "${script_option_skip}" == 'true' ]]; then
     echo -e "\\n${WHITE_R}#########################################################################${RESET}\\n"
   else
     header
   fi
   echo -e "${WHITE_R}#${RESET} Cancelling the script!\\n\\n"
+  author
+  update_eus_db
+  cleanup_codename_mismatch_repos
+  remove_yourself
   exit 0
 }
 
@@ -479,11 +483,16 @@ elif grep -iq "UCKP\\|UCKG2\\|UCK" /usr/lib/version &> /dev/null; then
   eus_dir='/srv/EUS'
   is_cloudkey=true
   if grep -iq "UCKP" /usr/lib/version; then is_cloudkey_gen2_plus=true; fi
+elif "$(which dpkg)" -l unifi-core 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+  eus_dir='/srv/EUS'
+  is_cloudkey=false
+  is_cloudkey_gen2_plus=false
 else
   eus_dir='/usr/lib/EUS'
   is_cloudkey=false
   is_cloudkey_gen2_plus=false
 fi
+if [[ "${eus_dir}" == '/srv/EUS' ]]; then if findmnt -no OPTIONS "$(df --output=target /srv | tail -1)" | grep -ioq "ro"; then eus_dir='/usr/lib/EUS'; fi; fi
 
 check_dig_curl() {
   if [[ "${run_ipv6}" == 'true' ]]; then
@@ -520,6 +529,16 @@ check_dns() {
     done
   fi
   return 1
+}
+
+check_apt_listbugs() {
+  if "$(which dpkg)" -l apt-listbugs 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui" && [[ -e "/etc/apt/apt.conf.d/10apt-listbugs" && "${apt_listbugs_deactivated}" != 'true' ]]; then
+    IFS=$'\n' read -r -d '' -a lines < <(grep -n -v '^//' /etc/apt/apt.conf.d/10apt-listbugs | awk -F':' '{print $1}' && printf '\0')
+    for line in "${lines[@]}"; do sed -i "${line}s/^/\/\/ EUS Disabled \/\/ /" /etc/apt/apt.conf.d/10apt-listbugs 2> /dev/null; done
+    apt_listbugs_deactivated="true"
+  elif [[ "${apt_listbugs_deactivated}" == 'true' ]]; then
+    sed -i 's/^\/\/ EUS Disabled \/\/ //' /etc/apt/apt.conf.d/10apt-listbugs 2> /dev/null
+  fi
 }
 
 set_curl_arguments() {
@@ -596,6 +615,7 @@ start_script
 check_dns
 
 help_script() {
+  check_apt_listbugs
   if [[ "${script_option_help}" == 'true' ]]; then header; script_logo; else echo -e "${WHITE_R}----${RESET}\\n"; fi
   echo -e "    UniFi Easy Encrypt script assistance\\n"
   echo -e "
@@ -1009,6 +1029,9 @@ aptkey_depreciated() {
 aptkey_depreciated
 
 author() {
+  check_apt_listbugs
+  update_eus_db
+  cleanup_codename_mismatch_repos
   header
   echo -e "${WHITE_R}#${RESET} The script successfully ended, enjoy your secure setup!\\n"
   christmass_new_year
@@ -1451,6 +1474,7 @@ script_version_check() {
   local_version_adjusted="$(IFS=; echo "${local_adjusted[*]}")"
   online_version_adjusted="$(IFS=; echo "${online_adjusted[*]}")"
   if [[ "${local_version_adjusted}" -lt "${online_version_adjusted}" ]]; then
+    check_apt_listbugs
     header_red
     echo -e "${WHITE_R}#${RESET} You're currently running script version ${local_version} while ${online_version} is the latest!"
     echo -e "${WHITE_R}#${RESET} Downloading and executing version ${online_version} of the script...\\n\\n"
@@ -1580,13 +1604,13 @@ cleanup_unavailable_repositories() {
   if ls /tmp/EUS/apt/*.log 1> /dev/null 2>&1; then
     if ! [[ -e "${eus_dir}/logs/upgrade.log" ]]; then return; fi
     while read -r domain; do
-      if ! grep -sq "^#.*${domain}" /etc/apt/sources.list /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; then
+      if ! grep -sq "^#.*${domain}" /etc/apt/sources.list /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources 2> /dev/null; then
         if [[ "${cleanup_unavailable_repositories_found_message}" != 'true' ]]; then
           echo -e "${WHITE_R}#${RESET} There are repositories that are causing issues..."
           cleanup_unavailable_repositories_found_message="true"
         fi
         for file in /etc/apt/sources.list.d/*.sources; do
-          if grep -q "${domain}" "${file}"; then
+          if grep -sq "${domain}" "${file}"; then
             entry_block_start_line="$(awk '!/^#/ && /Types:/ { types_line=NR } /'"${domain}"'/ && !/^#/ && !seen[types_line]++ { print types_line }' "${file}" | head -n1)"
             entry_block_end_line="$(awk -v start_line="$entry_block_start_line" 'NR > start_line && NF == 0 { print NR-1; exit } END { if (NR > start_line && NF > 0) print NR }' "${file}")"
             sed -i "${entry_block_start_line},${entry_block_end_line}s/^\([^#]\)/# \1/" "${file}" &>/dev/null
@@ -1776,13 +1800,11 @@ support_file_requests_opt_in() {
 support_file_upload_opt_in() {
   if [[ "$(jq -r '.database."support-file-upload"' "${eus_dir}/db/db.json")" != 'true' && "$(jq -r '.database."opt-in-requests"' "${eus_dir}/db/db.json")" == '0' ]]; then
     if [[ "${installing_required_package}" != 'yes' ]]; then
-      echo -e "${GREEN}---${RESET}\\n"
+      if [[ "${script_option_skip}" != 'true' ]]; then echo -e "${GREEN}---${RESET}\\n"; fi
     else
-      header
+      if [[ "${script_option_skip}" != 'true' ]]; then header; fi
     fi
-    echo -e "${WHITE_R}#${RESET} The script generates support files when failures are detected, these can help Glenn R. to"
-    echo -e "${WHITE_R}#${RESET} improve the script quality for the Community and resolve your issues in future versions of the script.\\n"
-    read -rp $'\033[39m#\033[0m Do you want to automatically upload the support files? (Y/n) ' yes_no
+    if [[ "${script_option_skip}" != 'true' ]]; then echo -e "${WHITE_R}#${RESET} The script generates support files when failures are detected, these can help Glenn R. to"; echo -e "${WHITE_R}#${RESET} improve the script quality for the Community and resolve your issues in future versions of the script.\\n"; read -rp $'\033[39m#\033[0m Do you want to automatically upload the support files? (Y/n) ' yes_no; fi
     case "$yes_no" in
         [Yy]*|"") upload_support_files="true";;
         [Nn]*) upload_support_files="false";;
@@ -4333,6 +4355,45 @@ EOF
     chmod +x "${eus_dir}/cronjob/eus_certificate_migration_32.sh"
     migration_script="true"
   fi
+  if [[ "$(echo "${unifi_core_version}" | cut -d'.' -f1)" -le '4' ]]; then
+    if [[ -f /data/unifi-core/config.yaml ]]; then
+      if ! [[ -d "${eus_dir}/cronjob/" ]]; then mkdir -p "${eus_dir}/cronjob/"; fi
+      tee /etc/cron.d/eus_certificate_migration_40 &> /dev/null << EOF
+SHELL=/bin/sh
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+@reboot root /bin/bash "${eus_dir}/cronjob/eus_certificate_migration_40.sh"
+EOF
+      # shellcheck disable=SC1117
+      tee "${eus_dir}/cronjob/eus_certificate_migration_40.sh" &> /dev/null << EOF
+#!/bin/bash
+  unifi_core_version="\$(dpkg-query --showformat='\${Version}' --show unifi-core)"
+  if [[ "\$(echo "\${unifi_core_version}" | cut -d'.' -f1)" -ge '4' ]]; then
+    if ! [[ -d "/data/unifi-core/config/overrides/" ]]; then mkdir -p "/data/unifi-core/config/overrides/" &> /dev/null; fi
+    if [[ -e "/data/unifi-core/config.yaml" ]]; then
+      if mv /data/unifi-core/config.yaml /data/unifi-core/config/overrides/local.yml; then
+        echo -e "\$(date "+%Y/%m/%d %H:%M") | Successfully migrated the config file!" &>> "${eus_dir}/logs/certificate-migration.log"
+        if rm --force "${eus_dir}/cronjob/eus_certificate_migration_40.sh"; then echo -e "\$(date "+%Y/%m/%d %H:%M") | Successfully removed the migration script!" &>> "${eus_dir}/logs/certificate-migration.log"; fi
+        if rm --force /etc/cron.d/eus_certificate_migration_40; then echo -e "\$(date "+%Y/%m/%d %H:%M") | Successfully removed the migration script cronjob!" &>> "${eus_dir}/logs/certificate-migration.log"; fi
+      else
+        echo -e "\$(date "+%Y/%m/%d %H:%M") | Failed to migrate the config file..." &>> "${eus_dir}/logs/certificate-migration.log"
+      fi
+    fi
+    if [[ "\$(md5sum /data/unifi-core/config/unifi-core.key | awk '{print\$1}')" == "\$(md5sum /data/eus_certificates/unifi-os.key | awk '{print\$1}')" ]]; then
+      if rm --force /data/unifi-core/config/unifi-core.key; then echo -e "\$(date "+%Y/%m/%d %H:%M") | \"/data/unifi-core/config/unifi-core.key\" and \"/data/eus_certificates/unifi-os.key\" are identical, successfully removed \"/data/unifi-core/config/unifi-core.key\"!" &>> "${eus_dir}/logs/certificate-migration.log"; else certificate_removed_failed="true"; fi
+    fi
+    if [[ "\$(md5sum /data/unifi-core/config/unifi-core.crt | awk '{print\$1}')" == "\$(md5sum /data/eus_certificates/unifi-os.crt | awk '{print\$1}')" ]]; then
+      if ! rm --force /data/unifi-core/config/unifi-core.crt; then echo -e "\$(date "+%Y/%m/%d %H:%M") | \"/data/unifi-core/config/unifi-core.crt\" and \"/data/eus_certificates/unifi-os.crt\" are identical, successfully removed \"/data/unifi-core/config/unifi-core.crt\"!" &>> "${eus_dir}/logs/certificate-migration.log"; else certificate_removed_failed="true"; fi
+    fi
+    if [[ "\${certificate_removed_failed}" != 'true' ]]; then
+      if rm --force "${eus_dir}/cronjob/eus_certificate_migration_40.sh"; then echo -e "\$(date "+%Y/%m/%d %H:%M") | Successfully removed the migration script!" &>> "${eus_dir}/logs/certificate-migration.log"; fi
+      if rm --force /etc/cron.d/eus_certificate_migration_40; then echo -e "\$(date "+%Y/%m/%d %H:%M") | Successfully removed the migration script cronjob!" &>> "${eus_dir}/logs/certificate-migration.log"; fi
+    fi
+  fi
+EOF
+      chmod +x "${eus_dir}/cronjob/eus_certificate_migration_40.sh"
+    fi
+    migration_script="true"
+  fi
   if [[ "${migration_script}" != 'true' ]]; then
     if [[ -f /data/unifi-core/config.yaml ]] && ! [[ -f /data/unifi-core/config/overrides/local.yml ]]; then
       if ! [[ -d "/data/unifi-core/config/overrides/" ]]; then mkdir -p "/data/unifi-core/config/overrides/" &> /dev/null; fi
@@ -4905,6 +4966,7 @@ EOF
     read -rp $'\033[39m#\033[0m Would you like to use the DNS challenge? (Y/n) ' yes_no
     case "$yes_no" in
        [Yy]*|"") 
+         check_apt_listbugs
          echo "--dns" &>> /tmp/EUS/script_options
          get_script_options
          # shellcheck disable=SC2068

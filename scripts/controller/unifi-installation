@@ -11,6 +11,17 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 7.6.7
+ 
+ - Added support for the HTTP protocol for the Glenn R. Compiled MongoDB.
+ - Improved logging for downloading repository keys.
+ - Improved support files.
+ - Improved setting script directory on UniFi OS Consoles.
+ - Fixed an issue where the script would fail if apt-listbugs is installed.
+ - Fixed an issue where grep errors could be shown.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 7.6.6
  
  - Allow users to still choose to upload support files during aborts despite originally choosing no earlier.
