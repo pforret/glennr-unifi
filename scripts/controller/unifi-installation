@@ -11,6 +11,13 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 7.6.8
+ 
+ - Added secondary method to get CPU model.
+ - Prevent setting incorrect max supported MongoDB version if CPU model is empty.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 7.6.7
  
  - Added support for the HTTP protocol for the Glenn R. Compiled MongoDB.

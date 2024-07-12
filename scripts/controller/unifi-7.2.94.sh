@@ -50,7 +50,7 @@
 ###################################################################################################################################################################################################
 
 # Script                | UniFi Network Easy Installation Script
-# Version               | 7.6.7
+# Version               | 7.6.8
 # Application version   | 7.2.94-4d656fb797
 # Debian Repo version   | 7.2.94-18697-1
 # Author                | Glenn Rietveld
@@ -3422,36 +3422,47 @@ else
 fi
 
 # Stick to 4.4 if cpu doesn't report avx support.
-if [[ "${mongo_version_max}" =~ (44|70) && "${unifi_core_system}" != 'true' ]]; then
-  if [[ "${architecture}" == "arm64" ]]; then
+mongodb_avx_support_check() {
+  if [[ "${mongo_version_max}" =~ (44|70) && "${unifi_core_system}" != 'true' ]]; then
     cpu_model_name="$(lscpu | tr '[:upper:]' '[:lower:]' | grep -i 'model name' | cut -f 2 -d ":" | awk '{$1=$1}1')"
-    cpu_model_regex="^(cortex-a55|cortex-a65|cortex-a65ae|cortex-a75|cortex-a76|cortex-a77|cortex-a78|cortex-x1|cortex-x2|cortex-x3|cortex-x4|neoverse n1|neoverse n2|neoverse n3|neoverse e1|neoverse e2|neoverse v1|neoverse v2|neoverse v3|cortex-a510|cortex-a520|cortex-a715|cortex-a720)$"
-    if ! [[ "${cpu_model_name}" =~ ${cpu_model_regex} ]]; then
-      if [[ "${mongo_version_max}" =~ (70) ]]; then
-        if "$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep -iq "mongod-armv8" || [[ "${script_option_skip}" == 'true' ]]; then
-          mongod_armv8_installed="true"
-          yes_no="y"
+    if [[ -z "${cpu_model_name}" ]]; then cpu_model_name="$(lscpu | tr '[:upper:]' '[:lower:]' | sed -n 's/^model name:[[:space:]]*//p')"; fi
+    if [[ "${architecture}" == "arm64" && -n "${cpu_model_name}" ]]; then
+      cpu_model_regex="^(cortex-a55|cortex-a65|cortex-a65ae|cortex-a75|cortex-a76|cortex-a77|cortex-a78|cortex-x1|cortex-x2|cortex-x3|cortex-x4|neoverse n1|neoverse n2|neoverse n3|neoverse e1|neoverse e2|neoverse v1|neoverse v2|neoverse v3|cortex-a510|cortex-a520|cortex-a715|cortex-a720)$"
+      if ! [[ "${cpu_model_name}" =~ ${cpu_model_regex} ]]; then
+        if [[ "${mongo_version_max}" =~ (70) ]]; then
+          if "$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep -iq "mongod-armv8" || [[ "${script_option_skip}" == 'true' ]] || [[ "${glennr_compiled_mongod}" == 'true' ]]; then
+            mongod_armv8_installed="true"
+            yes_no="y"
+          else
+            echo -e "${WHITE_R}----${RESET}\\n"
+            echo -e "${YELLOW}#${RESET} Your CPU is no longer officially supported by MongoDB themselves..."
+            read -rp $'\033[39m#\033[0m Would you like to try mongod compiled from MongoDB source code specifically for your CPU by Glenn R.? (Y/n) ' yes_no
+          fi
+          case "$yes_no" in
+              [Yy]*|"")
+                 add_mongod_70_repo="true"
+                 glennr_compiled_mongod="true"
+                 if [[ "${broken_unifi_install}" == 'true' ]]; then broken_glennr_compiled_mongod="true"; fi
+                 cleanup_unifi_repos
+                 if [[ "${mongod_armv8_installed}" != 'true' ]]; then echo ""; fi;;
+              [Nn]*)
+                 unset add_mongodb_70_repo
+                 add_mongodb_44_repo="true"
+                 mongo_version_max="44"
+                 mongo_version_max_with_dot="4.4"
+                 mongo_version_locked="4.4.18";;
+          esac
+          unset yes_no
         else
-          echo -e "${WHITE_R}----${RESET}\\n"
-          echo -e "${YELLOW}#${RESET} Your CPU is no longer officially supported by MongoDB themselves..."
-          read -rp $'\033[39m#\033[0m Would you like to try mongod compiled from MongoDB source code specifically for your CPU by Glenn R.? (Y/n) ' yes_no
+          unset add_mongodb_70_repo
+          add_mongodb_44_repo="true"
+          mongo_version_max="44"
+          mongo_version_max_with_dot="4.4"
+          mongo_version_locked="4.4.18"
         fi
-        case "$yes_no" in
-            [Yy]*|"")
-               add_mongod_70_repo="true"
-               glennr_compiled_mongod="true"
-               if [[ "${broken_unifi_install}" == 'true' ]]; then broken_glennr_compiled_mongod="true"; fi
-               cleanup_unifi_repos
-               if [[ "${mongod_armv8_installed}" != 'true' ]]; then echo ""; fi;;
-            [Nn]*)
-               unset add_mongodb_70_repo
-               add_mongodb_44_repo="true"
-               mongo_version_max="44"
-               mongo_version_max_with_dot="4.4"
-               mongo_version_locked="4.4.18";;
-        esac
-        unset yes_no
-      else
+      fi
+    else
+      if ! (lscpu 2>/dev/null | grep -iq "avx") || ! grep -iq "avx" /proc/cpuinfo; then
         unset add_mongodb_70_repo
         add_mongodb_44_repo="true"
         mongo_version_max="44"
@@ -3459,16 +3470,9 @@ if [[ "${mongo_version_max}" =~ (44|70) && "${unifi_core_system}" != 'true' ]]; 
         mongo_version_locked="4.4.18"
       fi
     fi
-  else
-    if ! (lscpu 2>/dev/null | grep -iq "avx") || ! grep -iq "avx" /proc/cpuinfo; then
-      unset add_mongodb_70_repo
-      add_mongodb_44_repo="true"
-      mongo_version_max="44"
-      mongo_version_max_with_dot="4.4"
-      mongo_version_locked="4.4.18"
-    fi
   fi
-fi
+}
+mongodb_avx_support_check
 
 mongo_command() {
   if "$(which dpkg)" -l mongodb-mongosh-shared-openssl3 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then

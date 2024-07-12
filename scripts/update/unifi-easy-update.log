@@ -11,6 +11,27 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 8.9.3
+  
+ - Fixed an issue where the script thinks upgrading from 8.2.93 to 8.3.32 was a downgrade.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 8.9.2
+  
+ - Fixed an issue where setups running UniFi Network Application 8.2 would get a "not yet supported" message.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 8.9.1
+  
+ - Added secondary method to get CPU model.
+ - Added support for updating to Release Candidate 8.3.32.
+ - Fixed an issue where it would print tail errors during the MongoDB Upgrade process if a log file didn't exist.
+ - Prevent setting incorrect max supported MongoDB version if CPU model is empty.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 8.9.0
   
  - Added support for the HTTP protocol for the Glenn R. Compiled MongoDB.

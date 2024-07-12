@@ -2,7 +2,7 @@
 
 # UniFi Network Application Easy Update Script.
 # Script   | UniFi Network Easy Update Script
-# Version  | 8.9.0
+# Version  | 8.9.3
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -1344,7 +1344,7 @@ if ! "$(which dpkg)" -l unifi 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|
 fi
 
 # If there a RC?
-is_there_a_release_candidate='no'
+is_there_a_release_candidate='yes'
 
 # UniFi Core Setups if no RC channel is available
 if [[ "${unifi_core_system}" == 'true' && "${is_there_a_release_candidate}" == 'yes' ]]; then
@@ -1384,7 +1384,7 @@ release_wanted () {
         1*|"")
           release_stage="S"
           release_stage_friendly="Stable"
-          if [[ "${unifi}" == '8.0.28' ]]; then
+          if [[ "${unifi}" == '8.2.93' ]]; then
             header_red
             echo -e "${WHITE_R}#${RESET} There are currently no newer Stable Releases."
             echo -e "${WHITE_R}#${RESET} Release Stage set to | Release Candidate.\\n\\n"
@@ -1395,7 +1395,7 @@ release_wanted () {
         2*) release_stage="RC"; release_stage_friendly="Release Candidate";;
     esac
   fi
-  if [[ "${release_stage}" == 'RC' ]]; then rc_version_available="8.2.93"; rc_version_available_secret="8.2.93-1c329ecd26"; fi
+  if [[ "${release_stage}" == 'RC' ]]; then rc_version_available="8.3.32"; rc_version_available_secret="8.3.32-896f48ed11"; fi
 }
 
 broken_packages_check() {
@@ -4171,35 +4171,46 @@ if [[ "${first_digit_unifi}" -gt '8' ]] || [[ "${first_digit_unifi}" == '8' && "
 fi
 
 # Stick to 4.4 if cpu doesn't report avx support.
-if [[ "${mongo_version_max}" =~ (44|70) && "${unifi_core_system}" != 'true' ]]; then
-  if [[ "${architecture}" == "arm64" ]]; then
+mongodb_avx_support_check() {
+  if [[ "${mongo_version_max}" =~ (44|70) && "${unifi_core_system}" != 'true' ]]; then
     cpu_model_name="$(lscpu | tr '[:upper:]' '[:lower:]' | grep -i 'model name' | cut -f 2 -d ":" | awk '{$1=$1}1')"
-    cpu_model_regex="^(cortex-a55|cortex-a65|cortex-a65ae|cortex-a75|cortex-a76|cortex-a77|cortex-a78|cortex-x1|cortex-x2|cortex-x3|cortex-x4|neoverse n1|neoverse n2|neoverse n3|neoverse e1|neoverse e2|neoverse v1|neoverse v2|neoverse v3|cortex-a510|cortex-a520|cortex-a715|cortex-a720)$"
-    if ! [[ "${cpu_model_name}" =~ ${cpu_model_regex} ]]; then
-      if [[ "${mongo_version_max}" =~ (70) ]]; then
-        if "$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep -iq "mongod-armv8" || [[ "${script_option_skip}" == 'true' ]]; then
-          mongod_armv8_installed="true"
-          yes_no="y"
+    if [[ -z "${cpu_model_name}" ]]; then cpu_model_name="$(lscpu | tr '[:upper:]' '[:lower:]' | sed -n 's/^model name:[[:space:]]*//p')"; fi
+    if [[ "${architecture}" == "arm64" && -n "${cpu_model_name}" ]]; then
+      cpu_model_regex="^(cortex-a55|cortex-a65|cortex-a65ae|cortex-a75|cortex-a76|cortex-a77|cortex-a78|cortex-x1|cortex-x2|cortex-x3|cortex-x4|neoverse n1|neoverse n2|neoverse n3|neoverse e1|neoverse e2|neoverse v1|neoverse v2|neoverse v3|cortex-a510|cortex-a520|cortex-a715|cortex-a720)$"
+      if ! [[ "${cpu_model_name}" =~ ${cpu_model_regex} ]]; then
+        if [[ "${mongo_version_max}" =~ (70) ]]; then
+          if "$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep -iq "mongod-armv8" || [[ "${script_option_skip}" == 'true' ]] || [[ "${glennr_compiled_mongod}" == 'true' ]]; then
+            mongod_armv8_installed="true"
+            yes_no="y"
+          else
+            echo -e "${WHITE_R}----${RESET}\\n"
+            echo -e "${YELLOW}#${RESET} Your CPU is no longer officially supported by MongoDB themselves..."
+            read -rp $'\033[39m#\033[0m Would you like to try mongod compiled from MongoDB source code specifically for your CPU by Glenn R.? (Y/n) ' yes_no
+          fi
+          case "$yes_no" in
+              [Yy]*|"")
+                 add_mongod_70_repo="true"
+                 glennr_compiled_mongod="true"
+                 cleanup_unifi_repos
+                 if [[ "${mongod_armv8_installed}" != 'true' ]]; then echo ""; fi;;
+              [Nn]*)
+                 unset add_mongodb_70_repo
+                 add_mongodb_44_repo="true"
+                 mongo_version_max="44"
+                 mongo_version_max_with_dot="4.4"
+                 mongo_version_locked="4.4.18";;
+          esac
+          unset yes_no
         else
-          echo -e "${WHITE_R}----${RESET}\\n"
-          echo -e "${YELLOW}#${RESET} Your CPU is no longer officially supported by MongoDB themselves..."
-          read -rp $'\033[39m#\033[0m Would you like to try mongod compiled from MongoDB source code specifically for your CPU by Glenn R.? (Y/n) ' yes_no
+          unset add_mongodb_70_repo
+          add_mongodb_44_repo="true"
+          mongo_version_max="44"
+          mongo_version_max_with_dot="4.4"
+          mongo_version_locked="4.4.18"
         fi
-        case "$yes_no" in
-            [Yy]*|"")
-               add_mongod_70_repo="true"
-               glennr_compiled_mongod="true"
-               cleanup_unifi_repos
-               if [[ "${mongod_armv8_installed}" != 'true' ]]; then echo ""; fi;;
-            [Nn]*)
-               unset add_mongodb_70_repo
-               add_mongodb_44_repo="true"
-               mongo_version_max="44"
-               mongo_version_max_with_dot="4.4"
-               mongo_version_locked="4.4.18";;
-        esac
-        unset yes_no
-      else
+      fi
+    else
+      if ! (lscpu 2>/dev/null | grep -iq "avx") || ! grep -iq "avx" /proc/cpuinfo; then
         unset add_mongodb_70_repo
         add_mongodb_44_repo="true"
         mongo_version_max="44"
@@ -4207,16 +4218,9 @@ if [[ "${mongo_version_max}" =~ (44|70) && "${unifi_core_system}" != 'true' ]]; 
         mongo_version_locked="4.4.18"
       fi
     fi
-  else
-    if ! (lscpu 2>/dev/null | grep -iq "avx") || ! grep -iq "avx" /proc/cpuinfo; then
-      unset add_mongodb_70_repo
-      add_mongodb_44_repo="true"
-      mongo_version_max="44"
-      mongo_version_max_with_dot="4.4"
-      mongo_version_locked="4.4.18"
-    fi
   fi
-fi
+}
+mongodb_avx_support_check
 
 mongo_command() {
   if "$(which dpkg)" -l mongodb-mongosh-shared-openssl3 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
@@ -6891,7 +6895,7 @@ start_unifi_database() {
     sleep 6
     mongo_wait_initilize="0"
     until "${mongocommand}" --port 27117 --eval "print(\"waited for connection\")" &>> "${eus_dir}/logs/mongodb-initialize-waiting.log"; do
-      if tail -n10 "${unifi_logs_location}/eus-run-mongod-${start_unifi_database_task}.log" | grep -ioq "address already in use"; then break; fi
+      if [[ -e "${unifi_logs_location}/eus-run-mongod-${start_unifi_database_task}.log" ]]; then if tail -n10 "${unifi_logs_location}/eus-run-mongod-${start_unifi_database_task}.log" | grep -ioq "address already in use"; then break; fi; fi
       ((mongo_wait_initilize=mongo_wait_initilize+1))
       echo -ne "\\r${YELLOW}#${RESET} Waiting for MongoDB to initialize... ${mongo_wait_initilize}/20"
       sleep 10
@@ -10391,10 +10395,8 @@ elif [[ "${first_digit_unifi}" == '8' && "${second_digit_unifi}" == '1' ]]; then
 ##########################################################################################################################################################################
 
 elif [[ "${first_digit_unifi}" == '8' && "${second_digit_unifi}" == '2' ]]; then
-  if [[ "${third_digit_unifi}" -gt '93' ]]; then not_supported_version; fi
   release_wanted
   if [[ "${release_stage}" == 'S' ]]; then if [[ "${unifi}" == "8.2.93" ]]; then debug_check_no_upgrade; unifi_update_latest; fi; fi
-  if [[ "${release_stage}" == 'RC' ]]; then if [[ "${unifi}" == "${rc_version_available}" ]]; then debug_check_no_upgrade; unifi_update_latest; fi; fi
   header
   echo "  To what UniFi Network Application version would you like to update?"
   echo -e "  Currently your UniFi Network Application is on version ${WHITE_R}$unifi${RESET}"
@@ -10421,6 +10423,12 @@ elif [[ "${first_digit_unifi}" == '8' && "${second_digit_unifi}" == '2' ]]; then
   if [[ "${unifi_version}" == "8.2.93" ]]; then
     read -rp $'Your choice | \033[39m' UPGRADE_VERSION
     case "$UPGRADE_VERSION" in
+        #1)
+        #  unifi_update_start
+        #  unifi_firmware_requirement
+        #  application_version="8.2.93-1c329ecd26"
+        #  application_upgrade_releases
+        #  unifi_update_finish;;
         1)
           if [[ "${release_stage}" == 'RC' ]]; then
             unifi_update_start
@@ -10453,6 +10461,77 @@ elif [[ "${first_digit_unifi}" == '8' && "${second_digit_unifi}" == '2' ]]; then
             cancel_script
           fi;;
         3|*) cancel_script;;
+    esac
+  fi
+
+##########################################################################################################################################################################
+#                                                                                                                                                                        #
+#                                                                                  8.3.x                                                                                 #
+#                                                                                                                                                                        #
+##########################################################################################################################################################################
+
+elif [[ "${first_digit_unifi}" == '8' && "${second_digit_unifi}" == '3' ]]; then
+  if [[ "${third_digit_unifi}" -gt '32' ]]; then not_supported_version; fi
+  release_wanted
+  if [[ "${release_stage}" == 'RC' ]]; then if [[ "${unifi}" == "${rc_version_available}" ]]; then debug_check_no_upgrade; unifi_update_latest; fi; fi
+  header
+  echo "  To what UniFi Network Application version would you like to update?"
+  echo -e "  Currently your UniFi Network Application is on version ${WHITE_R}$unifi${RESET}"
+  echo -e "\\n  Release stage is set to | ${WHITE_R}${release_stage_friendly}${RESET}\\n\\n"
+  if [[ "${unifi}" == "8.3.32" ]]; then
+    unifi_version='8.3.32'
+    #echo -e " [   ${WHITE_R}1${RESET}   ]  |  8.3.32"
+    if [[ "${release_stage}" == 'RC' ]]; then
+      echo -e " [   ${WHITE_R}1${RESET}   ]  |  ${rc_version_available}"
+      echo -e " [   ${WHITE_R}2${RESET}   ]  |  Cancel\\n\\n"
+    else
+      echo -e " [   ${WHITE_R}1${RESET}   ]  |  Cancel\\n\\n"
+    fi
+  else
+    #echo -e " [   ${WHITE_R}1${RESET}   ]  |  8.3.32"
+    if [[ "${release_stage}" == 'RC' ]]; then
+      echo -e " [   ${WHITE_R}1${RESET}   ]  |  ${rc_version_available}"
+      echo -e " [   ${WHITE_R}2${RESET}   ]  |  Cancel\\n\\n"
+    else
+      echo -e " [   ${WHITE_R}1${RESET}   ]  |  Cancel\\n\\n"
+    fi
+  fi
+
+  if [[ "${unifi_version}" == "8.3.32" ]]; then
+    read -rp $'Your choice | \033[39m' UPGRADE_VERSION
+    case "$UPGRADE_VERSION" in
+        1)
+          if [[ "${release_stage}" == 'RC' ]]; then
+            unifi_update_start
+            unifi_firmware_requirement
+            application_version="${rc_version_available_secret}"
+            application_upgrade_releases
+            unifi_update_finish
+          else
+            cancel_script
+          fi;;
+        2|*) cancel_script;;
+    esac
+  else
+    read -rp $'Your choice | \033[39m' UPGRADE_VERSION
+    case "$UPGRADE_VERSION" in
+        #1)
+        #  unifi_update_start
+        #  unifi_firmware_requirement
+        #  application_version="8.3.32-896f48ed11"
+        #  application_upgrade_releases
+        #  unifi_update_finish;;
+        1)
+          if [[ "${release_stage}" == 'RC' ]]; then
+            unifi_update_start
+            unifi_firmware_requirement
+            application_version="${rc_version_available_secret}"
+            application_upgrade_releases
+            unifi_update_finish
+          else
+            cancel_script
+          fi;;
+        2|*) cancel_script;;
     esac
   fi
 else
