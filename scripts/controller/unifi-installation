@@ -11,6 +11,13 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 7.6.9
+ 
+ - Added support for detecting UniFi-Native setups and redirect them to the Easy Update Script.
+ - Fixed inability to install Glenn R. Compiled MongoDB dependencies setups without the default repositories.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 7.6.8
  
  - Added secondary method to get CPU model.

@@ -50,7 +50,7 @@
 ###################################################################################################################################################################################################
 
 # Script                | UniFi Network Easy Installation Script
-# Version               | 7.6.8
+# Version               | 7.6.9
 # Application version   | 5.12.66-2a7dc90946
 # Debian Repo version   | 5.12.66-13102-1
 # Author                | Glenn Rietveld
@@ -2581,7 +2581,7 @@ get_apt_options() {
 get_apt_options
 
 # Check if UniFi is already installed.
-if "$(which dpkg)" -l | grep "unifi " | grep -q "^ii\\|^hi"; then
+if "$(which dpkg)" -l | grep "unifi \\|unifi-native" | grep -q "^ii\\|^hi"; then
   header
   echo -e "${WHITE_R}#${RESET} UniFi is already installed on your system!${RESET}"
   echo -e "${WHITE_R}#${RESET} You can use my Easy Update Script to update your UniFi Network Application.${RESET}\\n\\n"
@@ -4418,6 +4418,15 @@ mongodb_installation() {
             get_repo_url
           fi
           repo_component="main"
+          add_repositories
+          if [[ "${os_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish) ]]; then
+            repo_codename="jammy"
+            get_repo_url
+          elif [[ "${os_codename}" =~ (jessie|stretch|buster|bullseye) ]]; then
+            repo_codename="bookworm"
+            get_repo_url
+          fi
+          repo_component="universe"
           add_repositories
           run_apt_get_update
         fi

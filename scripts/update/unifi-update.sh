@@ -2,7 +2,7 @@
 
 # UniFi Network Application Easy Update Script.
 # Script   | UniFi Network Easy Update Script
-# Version  | 8.9.3
+# Version  | 8.9.4
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -7599,6 +7599,15 @@ mongodb_upgrade() {
             get_repo_url
           fi
           repo_component="main"
+          add_repositories
+          if [[ "${os_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish) ]]; then
+            repo_codename="jammy"
+            get_repo_url
+          elif [[ "${os_codename}" =~ (jessie|stretch|buster|bullseye) ]]; then
+            repo_codename="bookworm"
+            get_repo_url
+          fi
+          repo_component="universe"
           add_repositories
           run_apt_get_update
         fi
