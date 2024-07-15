@@ -2,7 +2,7 @@
 
 # UniFi Easy Encrypt script.
 # Script   | UniFi Network Easy Encrypt Script
-# Version  | 2.8.6
+# Version  | 2.8.7
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -948,6 +948,7 @@ if [[ -n "${auto_dns_challenge_arguments}" ]]; then
     elif [[ "${certbot_multi_plugin}" == 'true' ]]; then
       auto_dns_challenge_arguments="-a dns-multi --dns-multi-credentials ${auto_dns_challenge_credentials_file}"
     fi
+    if [[ "${prefer_dns_challenge}" != 'true' ]]; then auto_dns_challenge_arguments+=" --dns-challenge"; fi
   else
     header_red; echo -e "${WHITE_R}#${RESET} Option \"--dns-provider-credentials\" doesn't appear to be set... \\n\\n"; help_script
   fi

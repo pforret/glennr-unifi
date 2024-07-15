@@ -11,6 +11,12 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Encrypt Script  |  Version 2.8.7
+ 
+ - Automatically run DNS Challenge if DNS provider/credentials are provided.
+ 
+ ###
+
  |  UniFi Easy Encrypt Script  |  Version 2.8.6
  
  - Improved support files.
