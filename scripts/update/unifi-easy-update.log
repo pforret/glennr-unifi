@@ -11,6 +11,12 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 8.9.5
+  
+ - Added support for upgrading to 8.3.32 stable/official.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 8.9.4
   
  - Fixed inability to install Glenn R. Compiled MongoDB dependencies setups without the default repositories.
