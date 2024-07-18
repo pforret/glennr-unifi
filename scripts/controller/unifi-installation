@@ -11,6 +11,21 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 7.7.1
+ 
+ - Fixed an issue where the incorrect MongoDB shell is used for older MongoDB versions if mongosh is installed.
+ - Decreases minimum space check for /var/log to 25MB.
+ 
+ ####
+
+ |  UniFi Network Application Installation Script  |  Version 7.7.0
+ 
+ - Added sha256sum check when downloading the UniFi Network Application.
+ - Improved setting MongoDB commands.
+ - Improved support files.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 7.6.9
  
  - Added support for detecting UniFi-Native setups and redirect them to the Easy Update Script.

@@ -2,7 +2,7 @@
 
 # UniFi Network Application Easy Update Script.
 # Script   | UniFi Network Easy Update Script
-# Version  | 8.9.5
+# Version  | 8.9.7
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -496,7 +496,7 @@ support_file() {
       jq '.scripts."'"${script_name}"'" |= . + {"support": (.support + {("'"${support_file_name}"'"): {"abort-reason": "'"${abort_reason}"'","upload-results": ""}})}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
       eus_database_move
     fi
-    tar cJvfh "${support_file}" --exclude="${eus_dir}/unifi_db" --exclude="/tmp/EUS/downloads" --exclude="/usr/lib/unifi/logs/remote" "/tmp/EUS" "${eus_dir}" "/usr/lib/unifi/logs" "/etc/apt/sources.list" "/etc/apt/sources.list.d/" "/etc/apt/preferences" "/etc/apt/keyrings" "/etc/apt/trusted.gpg.d/" "/etc/apt/preferences.d/" "/etc/default/unifi" "/etc/environment" "/var/log/dpkg.log"* "/etc/systemd/system/unifi.service.d/" "/lib/systemd/system/unifi.service" &> /dev/null
+    tar cJvfh "${support_file}" --exclude="${eus_dir}/go.tar.gz" --exclude="${eus_dir}/unifi_db" --exclude="/tmp/EUS/downloads" --exclude="/usr/lib/unifi/logs/remote" "/tmp/EUS" "${eus_dir}" "/usr/lib/unifi/logs" "/etc/apt/sources.list" "/etc/apt/sources.list.d/" "/etc/apt/preferences" "/etc/apt/keyrings" "/etc/apt/trusted.gpg.d/" "/etc/apt/preferences.d/" "/etc/default/unifi" "/etc/environment" "/var/log/dpkg.log"* "/etc/systemd/system/unifi.service.d/" "/lib/systemd/system/unifi.service" &> /dev/null
   elif "$(which dpkg)" -l zstd 2> /dev/null | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
     support_file="/tmp/eus-support-${support_file_uuid}${support_file_time}.tar.zst"
     support_file_name="$(basename "${support_file}")"
@@ -504,7 +504,7 @@ support_file() {
       jq '.scripts."'"${script_name}"'" |= . + {"support": (.support + {("'"${support_file_name}"'"): {"abort-reason": "'"${abort_reason}"'","upload-results": ""}})}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
       eus_database_move
     fi
-    tar --use-compress-program=zstd -cvf "${support_file}" --exclude="${eus_dir}/unifi_db" --exclude="/tmp/EUS/downloads" --exclude="/usr/lib/unifi/logs/remote" "/tmp/EUS" "${eus_dir}" "/usr/lib/unifi/logs" "/etc/apt/sources.list" "/etc/apt/sources.list.d/" "/etc/apt/preferences" "/etc/apt/keyrings" "/etc/apt/trusted.gpg.d/" "/etc/apt/preferences.d/" "/etc/default/unifi" "/etc/environment" "/var/log/dpkg.log"* "/etc/systemd/system/unifi.service.d/" "/lib/systemd/system/unifi.service" &> /dev/null
+    tar --use-compress-program=zstd -cvf "${support_file}" --exclude="${eus_dir}/go.tar.gz" --exclude="${eus_dir}/unifi_db" --exclude="/tmp/EUS/downloads" --exclude="/usr/lib/unifi/logs/remote" "/tmp/EUS" "${eus_dir}" "/usr/lib/unifi/logs" "/etc/apt/sources.list" "/etc/apt/sources.list.d/" "/etc/apt/preferences" "/etc/apt/keyrings" "/etc/apt/trusted.gpg.d/" "/etc/apt/preferences.d/" "/etc/default/unifi" "/etc/environment" "/var/log/dpkg.log"* "/etc/systemd/system/unifi.service.d/" "/lib/systemd/system/unifi.service" &> /dev/null
   elif "$(which dpkg)" -l tar 2> /dev/null | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
     support_file="/tmp/eus-support-${support_file_uuid}${support_file_time}.tar.gz"
     support_file_name="$(basename "${support_file}")"
@@ -512,7 +512,7 @@ support_file() {
       jq '.scripts."'"${script_name}"'" |= . + {"support": (.support + {("'"${support_file_name}"'"): {"abort-reason": "'"${abort_reason}"'","upload-results": ""}})}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
       eus_database_move
     fi
-    tar czvfh "${support_file}" --exclude="${eus_dir}/unifi_db" --exclude="/tmp/EUS/downloads" --exclude="/usr/lib/unifi/logs/remote" "/tmp/EUS" "${eus_dir}" "/usr/lib/unifi/logs" "/etc/apt/sources.list" "/etc/apt/sources.list.d/" "/etc/apt/preferences" "/etc/apt/keyrings" "/etc/apt/trusted.gpg.d/" "/etc/apt/preferences.d/" "/etc/default/unifi" "/etc/environment" "/var/log/dpkg.log"* "/etc/systemd/system/unifi.service.d/" "/lib/systemd/system/unifi.service" &> /dev/null
+    tar czvfh "${support_file}" --exclude="${eus_dir}/go.tar.gz" --exclude="${eus_dir}/unifi_db" --exclude="/tmp/EUS/downloads" --exclude="/usr/lib/unifi/logs/remote" "/tmp/EUS" "${eus_dir}" "/usr/lib/unifi/logs" "/etc/apt/sources.list" "/etc/apt/sources.list.d/" "/etc/apt/preferences" "/etc/apt/keyrings" "/etc/apt/trusted.gpg.d/" "/etc/apt/preferences.d/" "/etc/default/unifi" "/etc/environment" "/var/log/dpkg.log"* "/etc/systemd/system/unifi.service.d/" "/lib/systemd/system/unifi.service" &> /dev/null
   elif "$(which dpkg)" -l zip 2> /dev/null | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
     support_file="/tmp/eus-support-${support_file_uuid}${support_file_time}.zip"
     support_file_name="$(basename "${support_file}")"
@@ -520,7 +520,7 @@ support_file() {
       jq '.scripts."'"${script_name}"'" |= . + {"support": (.support + {("'"${support_file_name}"'"): {"abort-reason": "'"${abort_reason}"'","upload-results": ""}})}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
       eus_database_move
     fi
-    zip -r "${support_file}" "/tmp/EUS/" "${eus_dir}/" "/usr/lib/unifi/logs/" "/etc/apt/sources.list" "/etc/apt/sources.list.d/" "/etc/apt/preferences" "/etc/apt/keyrings" "/etc/apt/trusted.gpg.d/" "/etc/apt/preferences.d/" "/etc/default/unifi" "/etc/environment" "/var/log/dpkg.log"* "/etc/systemd/system/unifi.service.d/" "/lib/systemd/system/unifi.service" -x "${eus_dir}/unifi_db/*" -x "/tmp/EUS/downloads" -x "/usr/lib/unifi/logs/remote" &> /dev/null
+    zip -r "${support_file}" "/tmp/EUS/" "${eus_dir}/" "/usr/lib/unifi/logs/" "/etc/apt/sources.list" "/etc/apt/sources.list.d/" "/etc/apt/preferences" "/etc/apt/keyrings" "/etc/apt/trusted.gpg.d/" "/etc/apt/preferences.d/" "/etc/default/unifi" "/etc/environment" "/var/log/dpkg.log"* "/etc/systemd/system/unifi.service.d/" "/lib/systemd/system/unifi.service" -x "${eus_dir}/go.tar.gz" -x "${eus_dir}/unifi_db/*" -x "/tmp/EUS/downloads" -x "/usr/lib/unifi/logs/remote" &> /dev/null
   fi
   if [[ -n "${support_file}" ]]; then
     echo -e "${WHITE_R}#${RESET} Support file has been created here: ${support_file} \\n"
@@ -3797,7 +3797,7 @@ if "$(which dpkg)" -l "${mongodb_org_server_package}" 2> /dev/null | awk '{print
     else
       mongodb_mongosh_install_package_name="mongodb-mongosh-shared-openssl11"
     fi
-    if ! "$(which dpkg)" -l mongodb-mongosh-shared-openssl11 mongodb-mongosh-shared-openssl3 mongodb-mongosh 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+    if ! "$(which dpkg)" -l mongodb-mongosh-shared-openssl11 mongodb-mongosh-shared-openssl3 mongodb-mongosh mongosh 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
       echo -e "${WHITE_R}----${RESET}\\n"
       mongodb_package_libssl="${mongodb_mongosh_install_package_name}"
       libssl_installation_check
@@ -4223,15 +4223,20 @@ mongodb_avx_support_check() {
 mongodb_avx_support_check
 
 mongo_command() {
-  if "$(which dpkg)" -l mongodb-mongosh-shared-openssl3 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+  mongo_command_server_version="$("$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep "mongodb-server\\|mongodb-org-server\\|mongod-armv8" | awk '{print $3}' | sed 's/\.//g' | sed 's/.*://' | sed 's/-.*//g')"
+  if "$(which dpkg)" -l mongodb-mongosh-shared-openssl3 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui" && [[ "${mongo_command_server_version::2}" -ge "40" ]]; then
     mongocommand="mongosh"
     mongoprefix="EJSON.stringify( "
     mongosuffix=".toArray() )"
-  elif "$(which dpkg)" -l mongodb-mongosh-shared-openssl11 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+  elif "$(which dpkg)" -l mongodb-mongosh-shared-openssl11 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui" && [[ "${mongo_command_server_version::2}" -ge "40" ]]; then
     mongocommand="mongosh"
     mongoprefix="EJSON.stringify( "
     mongosuffix=".toArray() )"
-  elif "$(which dpkg)" -l mongodb-mongosh 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+  elif "$(which dpkg)" -l mongodb-mongosh 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui" && [[ "${mongo_command_server_version::2}" -ge "40" ]]; then
+    mongocommand="mongosh"
+    mongoprefix="EJSON.stringify( "
+    mongosuffix=".toArray() )"
+  elif "$(which dpkg)" -l mongosh 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui" && [[ "${mongo_command_server_version::2}" -ge "40" ]]; then
     mongocommand="mongosh"
     mongoprefix="EJSON.stringify( "
     mongosuffix=".toArray() )"
@@ -7413,7 +7418,7 @@ mongodb_upgrade() {
   fi
   # Selecting MongoDB Packages to install/upgrade/purge
   if [[ -s "/tmp/EUS/mongodb/purge_packages_list" ]]; then rm --force /tmp/EUS/mongodb/purge_packages_list &> /dev/null; fi
-  "$(which dpkg)" -l | grep "mongodb-org\\|mongodb-server\\|mongodb-clients\\|mongo-tools\\|mongodb-mongosh\\|mongodb-10gen" | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | awk '{print $2}' &> /tmp/EUS/mongodb/packages_list
+  "$(which dpkg)" -l | grep "mongodb-org\\|mongodb-server\\|mongodb-clients\\|mongo-tools\\|mongodb-mongosh\\|mongosh\\|mongodb-10gen" | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | awk '{print $2}' &> /tmp/EUS/mongodb/packages_list
   cp /tmp/EUS/mongodb/packages_list /tmp/EUS/mongodb/original_packages_list &> /dev/null
   if grep -siq "mongodb-org$" /tmp/EUS/mongodb/packages_list; then sed -i '/mongodb-org$/d' /tmp/EUS/mongodb/packages_list; echo "mongodb-org" &>> /tmp/EUS/mongodb/purge_packages_list; fi
   if grep -siq "mongodb-server-core" /tmp/EUS/mongodb/packages_list; then sed -i 's/mongodb-server-core$/mongodb-org-server/g' /tmp/EUS/mongodb/packages_list; echo "mongodb-server-core" &>> /tmp/EUS/mongodb/purge_packages_list; fi
@@ -7422,6 +7427,7 @@ mongodb_upgrade() {
   if grep -siq "mongo-tools" /tmp/EUS/mongodb/packages_list; then sed -i 's/mongo-tools$/mongodb-org-tools/g' /tmp/EUS/mongodb/packages_list; echo "mongo-tools" &>> /tmp/EUS/mongodb/purge_packages_list; fi
   if grep -siq "mongodb-10gen" /tmp/EUS/mongodb/packages_list; then sed -i 's/mongodb-10gen$/mongodb-org-server/g' /tmp/EUS/mongodb/packages_list; echo "mongodb-10gen" &>> /tmp/EUS/mongodb/purge_packages_list; fi
   if grep -siq "mongodb-mongosh$" /tmp/EUS/mongodb/packages_list; then echo "mongodb-mongosh" &>> /tmp/EUS/mongodb/purge_packages_list; fi
+  if grep -siq "^mongosh$" /tmp/EUS/mongodb/packages_list; then echo "mongosh" &>> /tmp/EUS/mongodb/purge_packages_list; fi
   if ! grep -siq "mongodb-org-tools" /tmp/EUS/mongodb/packages_list; then echo "mongodb-org-tools" &>> /tmp/EUS/mongodb/packages_list; fi
   if ! grep -siq "mongodb-org-shell" /tmp/EUS/mongodb/packages_list; then echo "mongodb-org-shell" &>> /tmp/EUS/mongodb/packages_list; fi
   cp /tmp/EUS/mongodb/packages_list /tmp/EUS/mongodb/packages_list.tmp &> /dev/null
@@ -7971,8 +7977,9 @@ application_statistics() {
   unifi_site_stats
   jq -s '.' "/tmp/EUS/stats/total_adopted.json" /tmp/EUS/stats/site_*_stats.json > "/tmp/EUS/stats/complete_stats.json"
   json_time="$(date "+%Y%m%d_%H%M")"
-  cp "/tmp/EUS/stats/complete_stats.json" "${eus_dir}/stats/complete_stats_${json_time}.json"
-  cp "/tmp/EUS/stats/total_adopted.json" "${eus_dir}/stats/total_adopted_${json_time}.json"
+  eus_create_directories "stats"
+  mv "/tmp/EUS/stats/complete_stats.json" "${eus_dir}/stats/complete_stats_${json_time}.json"
+  mv "/tmp/EUS/stats/total_adopted.json" "${eus_dir}/stats/total_adopted_${json_time}.json"
   # shellcheck disable=SC2012
   ls -t "${eus_dir}/stats/complete_stats_*" 2> /dev/null | awk 'NR>10' | xargs rm -f 2> /dev/null
   # shellcheck disable=SC2012
@@ -8058,8 +8065,8 @@ free_space_check() {
 free_space_check
 
 free_var_log_space_check() {
-  if [[ "$(df --output=source / | tail -1)" != "$(df --output=source /var/log | tail -1)" ]]; then
-    if [[ "$(df -B1 /var/log | awk 'NR==2{print $4}')" -le '104857600' ]]; then
+  if [[ "$(df --output=source / | tail -1)" != "$(df --output=source /var/log | tail -1)" && "${script_option_skip}" != 'true' ]]; then
+    if [[ "$(df -B1 /var/log | awk 'NR==2{print $4}')" -le '26214400' ]]; then
       header_red
       echo -e "${YELLOW}#${RESET} You only have $(df -B1 /var/log | awk 'NR==2{print $4}' | awk '{ split( "B KB MB GB TB PB EB ZB YB" , v ); s=1; while( $1>1024 && s<9 ){ $1/=1024; s++ } printf "%.1f %s", $1, v[s] }') of disk space available on \"/var/log\"..."
       echo -e "${WHITE_R}#${RESET} How would you like to proceed?"
@@ -8085,7 +8092,7 @@ free_var_log_space_check
 
 free_boot_space_check() {
   free_boot_space="$(df -B1 /boot | awk 'NR==2{print $4}')"
-  if "$(which dpkg)" --list | grep -Ei 'linux-image|linux-headers|linux-firmware' | awk '{print $1}' | grep -iq "^iF" && [[ "${free_boot_space}" -le '322122547' ]]; then
+  if "$(which dpkg)" --list | grep -Ei 'linux-image|linux-headers|linux-firmware' | awk '{print $1}' | grep -iq "^iF" && [[ "${free_boot_space}" -le '322122547' && "${script_option_skip}" != 'true' ]]; then
     apt-get -y autoremove &>> "${eus_dir}/logs/boot-apt-cleanup.log"
     apt-get -y autoclean &>> "${eus_dir}/logs/boot-apt-cleanup.log"
     if [[ "$(df -B1 /boot | awk 'NR==2{print $4}')" == "${free_boot_space}" ]]; then
@@ -8532,6 +8539,7 @@ application_upgrade_releases() {
   eus_directory_location="/tmp/EUS"
   eus_create_directories "downloads"
   fw_update_dl_link="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-release?version=${application_version_release}" | jq -r '.download_link' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
+  if [[ "${unifi_deb_file_name}" == "unifi_sysvinit_all" ]]; then unifi_sha256sum="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-release?version=${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi}" | jq -r '."sha256sum"' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"; fi
   if [[ -z "${unifi_temp}" ]]; then unifi_temp="$(mktemp --tmpdir=/tmp/EUS/downloads "${unifi_deb_file_name}"_"${application_version_release}"_XXXXX.deb)"; fi
   unifi_download_urls=(
     "https://dl.ui.com/unifi/${application_version}/${unifi_deb_file_name}.deb"
@@ -8541,12 +8549,20 @@ application_upgrade_releases() {
   for unifi_download_url in "${unifi_download_urls[@]}"; do
     echo -e "$(date +%F-%R) | Downloading ${unifi_download_url} to ${unifi_temp}" &>> "${eus_dir}/logs/unifi-download.log"
     if curl --retry 3 "${nos_curl_argument[@]}" --output "${unifi_temp}" "${unifi_download_url}" &>> "${eus_dir}/logs/unifi-download.log"; then
-      if command -v dpkg-deb &> /dev/null; then if ! dpkg-deb --info "${unifi_temp}" &> /dev/null; then echo -e "$(date +%F-%R) | The file downloaded via ${unifi_download_url} was not a debian file format..." &>> "${eus_dir}/logs/unifi-download.log"; continue; fi; fi
+      if command -v sha256sum &> /dev/null && [[ -n "${unifi_sha256sum}" ]]; then
+        if [[ "$(sha256sum "$unifi_temp" | awk '{print $1}')" != "${unifi_sha256sum}" ]]; then echo -e "$(date +%F-%R) | The file downloaded via ${unifi_download_url} did not have sha256sum \"${unifi_sha256sum}\"..." &>> "${eus_dir}/logs/unifi-download.log"; continue; fi
+      else
+        if command -v dpkg-deb &> /dev/null; then if ! dpkg-deb --info "${unifi_temp}" &> /dev/null; then echo -e "$(date +%F-%R) | The file downloaded via ${unifi_download_url} was not a debian file format..." &>> "${eus_dir}/logs/unifi-download.log"; continue; fi; fi
+      fi
       echo -e "${GREEN}#${RESET} Successfully downloaded UniFi Network version ${application_version_release}! \\n"; unifi_downloaded="true"; break
     elif [[ "${unifi_download_url}" =~ ^https:// ]]; then
       echo -e "$(date +%F-%R) | Downloading ${unifi_download_url/https:/http} to ${unifi_temp}" &>> "${eus_dir}/logs/unifi-download.log"
       if curl --retry 3 "${nos_curl_argument[@]}" --output "${unifi_temp}" "${unifi_download_url/https:/http:}" &>> "${eus_dir}/logs/unifi-download.log"; then
-        if command -v dpkg-deb &> /dev/null; then if ! dpkg-deb --info "${unifi_temp}" &> /dev/null; then echo -e "$(date +%F-%R) | The file downloaded via ${unifi_download_url/https:/http:} was not a debian file format..." &>> "${eus_dir}/logs/unifi-download.log"; continue; fi; fi
+        if command -v sha256sum &> /dev/null && [[ -n "${unifi_sha256sum}" ]]; then
+          if [[ "$(sha256sum "$unifi_temp" | awk '{print $1}')" != "${unifi_sha256sum}" ]]; then echo -e "$(date +%F-%R) | The file downloaded via ${unifi_download_url} did not have sha256sum \"${unifi_sha256sum}\"..." &>> "${eus_dir}/logs/unifi-download.log"; continue; fi
+        else
+          if command -v dpkg-deb &> /dev/null; then if ! dpkg-deb --info "${unifi_temp}" &> /dev/null; then echo -e "$(date +%F-%R) | The file downloaded via ${unifi_download_url/https:/http:} was not a debian file format..." &>> "${eus_dir}/logs/unifi-download.log"; continue; fi; fi
+        fi
         echo -e "${GREEN}#${RESET} Successfully downloaded UniFi Network version ${application_version_release} (using HTTP)! \\n"; unifi_downloaded="true"; break
       fi
     fi

@@ -11,6 +11,23 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 8.9.7
+  
+ - Fixed an issue where getting statistics could fail.
+ - Fixed an issue where the incorrect MongoDB shell is used for older MongoDB versions if mongosh is installed.
+ - Decreases minimum space check for /var/log to 25MB.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 8.9.6
+  
+ - Added sha256sum check when downloading the UniFi Network Application.
+ - Improved setting MongoDB commands.
+ - Improved support files.
+ - Fixed MongoDB Upgrade issues if the package "mongosh" is installed.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 8.9.5
   
  - Added support for upgrading to 8.3.32 stable/official.
