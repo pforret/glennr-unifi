@@ -11,6 +11,12 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Encrypt Script  |  Version 2.9.0
+ 
+ - Fixed an issue where the script incorrect ran the DNS challenge if the provider information was provided without --dns-challenge.
+ 
+ ###
+
  |  UniFi Easy Encrypt Script  |  Version 2.8.9
  
  - Fixed an issue where the incorrect MongoDB shell is used for older MongoDB versions if mongosh is installed.

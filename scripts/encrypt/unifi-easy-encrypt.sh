@@ -2,7 +2,7 @@
 
 # UniFi Easy Encrypt script.
 # Script   | UniFi Network Easy Encrypt Script
-# Version  | 2.8.9
+# Version  | 2.9.0
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -948,7 +948,7 @@ if [[ -n "${auto_dns_challenge_arguments}" ]]; then
     elif [[ "${certbot_multi_plugin}" == 'true' ]]; then
       auto_dns_challenge_arguments="-a dns-multi --dns-multi-credentials ${auto_dns_challenge_credentials_file}"
     fi
-    if [[ "${prefer_dns_challenge}" != 'true' ]]; then auto_dns_challenge_arguments+=" --dns-challenge"; fi
+    if [[ "${prefer_dns_challenge}" != 'true' ]]; then prefer_dns_challenge="true"; echo "--dns" &>> /tmp/EUS/script_options; fi
   else
     header_red; echo -e "${WHITE_R}#${RESET} Option \"--dns-provider-credentials\" doesn't appear to be set... \\n\\n"; help_script
   fi
@@ -3496,7 +3496,6 @@ import_ssl_certificates() {
           # shellcheck disable=SC2090,SC2086
           ${certbot} certonly ${auto_dns_challenge_arguments} ${dns_manual_flag} --agree-tos --preferred-challenges dns --post-hook "/etc/letsencrypt/renewal-hooks/post/EUS_${server_fqdn}.sh" ${server_fqdn_le} ${email} ${renewal_option} ${acme_server} ${key_type_option} &> "${eus_dir}/logs/lets_encrypt_${time_date}.log" && dns_certbot_success=true
         fi
-        
       fi
     fi
   else
