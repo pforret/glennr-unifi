@@ -50,7 +50,7 @@
 ###################################################################################################################################################################################################
 
 # Script                | UniFi Network Easy Installation Script
-# Version               | 7.7.1
+# Version               | 7.7.2
 # Application version   | 5.13.29-1fc0cd615f
 # Debian Repo version   | 5.13.29-13635-1
 # Author                | Glenn Rietveld
@@ -89,6 +89,15 @@ header_red() {
   echo -e "${RED}#########################################################################${RESET}\\n"
 }
 
+# Exit script if not using bash.
+if [ -z "$BASH_VERSION" ]; then
+  script_name="$(basename "$0")"
+  clear; clear; printf "\033[1;31m#########################################################################\033[0m\n"
+  printf "\n\033[39m#\033[0m The script requires to be ran with bash, run the command printed below...\n"
+  printf "\033[39m#\033[0m bash %s %s\n\n" "${script_name}" "$*"
+  exit 1
+fi
+
 # Check for root (SUDO).
 if [[ "$EUID" -ne 0 ]]; then
   header_red
@@ -108,18 +117,24 @@ if [[ "$(ps -p 1 -o comm=)" != 'systemd' ]]; then
   sleep 10
 fi
 
-if ! env | grep "LC_ALL\\|LANG" | grep -iq "en_US\\|C.UTF-8\\|en_GB.UTF-8"; then
-  header
-  echo -e "${WHITE_R}#${RESET} Your language is not set to English ( en_US ), the script will temporarily set the language to English."
-  echo -e "${WHITE_R}#${RESET} Information: This is done to prevent issues in the script.."
-  original_lang="$LANG"
-  original_lcall="$LC_ALL"
-  if ! locale -a 2> /dev/null | grep -iq "C.UTF-8\\|en_US.UTF-8"; then locale-gen en_US.UTF-8 &> /dev/null; fi
-  if locale -a 2> /dev/null | grep -iq "^C.UTF-8$"; then eus_lts="C.UTF-8"; elif locale -a 2> /dev/null | grep -iq "^en_US.UTF-8$"; then eus_lts="en_US.UTF-8"; else  eus_lts="en_US.UTF-8"; fi
-  export LANG="${eus_lts}" &> /dev/null
-  export LC_ALL=C &> /dev/null
-  set_lc_all="true"
-  sleep 3
+if ! grep -siq "udm" /usr/lib/version &> /dev/null; then
+  if ! env | grep "LC_ALL\\|LANG" | grep -iq "en_US\\|C.UTF-8\\|en_GB.UTF-8"; then
+    header
+    echo -e "${WHITE_R}#${RESET} Your language is not set to English ( en_US ), the script will temporarily set the language to English."
+    echo -e "${WHITE_R}#${RESET} Information: This is done to prevent issues in the script.."
+    original_lang="$LANG"
+    original_lcall="$LC_ALL"
+    if [[ -e "/etc/locale.gen" ]]; then
+      sed -i '/^#.*en_US.UTF-8 UTF-8/ s/^#.*\(en_US.UTF-8 UTF-8\)/\1/' /etc/locale.gen 2> /dev/null
+      if ! grep -q '^en_US.UTF-8 UTF-8' /etc/locale.gen; then echo 'en_US.UTF-8 UTF-8' &>> /etc/locale.gen; fi
+    fi
+    if ! locale -a 2> /dev/null | grep -iq "C.UTF-8\\|en_US.UTF-8"; then locale-gen en_US.UTF-8 &> /dev/null; fi
+    if locale -a 2> /dev/null | grep -iq "^C.UTF-8$"; then eus_lts="C.UTF-8"; elif locale -a 2> /dev/null | grep -iq "^en_US.UTF-8$"; then eus_lts="en_US.UTF-8"; else  eus_lts="en_US.UTF-8"; fi
+    export LANG="${eus_lts}" &> /dev/null
+    export LC_ALL=C &> /dev/null
+    set_lc_all="true"
+    sleep 3
+  fi
 fi
 
 cleanup_codename_mismatch_repos() {
@@ -516,7 +531,7 @@ support_file() {
   # shellcheck disable=SC2129
   sed -n '3p' "${script_location}" &>> "/tmp/EUS/support/script"
   grep "# Version" "${script_location}" | head -n1 &>> "/tmp/EUS/support/script"
-  find "${eus_dir}" -type d,f &> "/tmp/EUS/support/dirs_and_files"
+  find "${eus_dir}" -type d -print -o -type f -print &> "/tmp/EUS/support/dirs_and_files"
   if [[ -n "$(command -v jq)" && -f "${eus_dir}/db/db.json" ]]; then jq '."database" += {"name-servers": "'"${system_dns_servers}"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"; eus_database_move; fi
   # Create a copy of the system.properties file and remove any mongodb PII
   if [[ -e "/usr/lib/unifi/data/system.properties" ]]; then
@@ -2510,15 +2525,19 @@ if [[ -n "${unifi_package}" ]] || [[ "${recovery_required}" == 'true' ]]; then
     header_red
     echo -e "${RED}#${RESET} You have a broken UniFi Network Application installation...\\n"
     if [[ -e "/usr/lib/unifi/data/db/version" ]]; then broken_unifi_install_version="$(head -n1 /usr/lib/unifi/data/db/version)"; fi
-    if [[ -z "${broken_unifi_install_version}" ]]; then broken_unifi_install_version="$(grep -sEio "UniFi [0-9].[0-9].[0-9]{1,3}" /usr/lib/unifi/logs/server.log | sed 's/UniFi //g' | tail -n1)"; fi
+    if [[ -z "${broken_unifi_install_version}" ]]; then broken_unifi_install_version="$(grep -sEio "UniFi [0-9].[0-9].[0-9]{1,3}" /usr/lib/unifi/logs/server.log | sed 's/UniFi //g' | sort -V | tail -n1)"; fi
     if [[ -z "${broken_unifi_install_version}" ]]; then broken_unifi_install_version="$("$(which dpkg)" -l unifi | tail -n1 | awk '{print $3}' | cut -d"-" -f1)"; fi
     if [[ -n "${broken_unifi_install_version}" ]]; then
       broken_unifi_install_version_first_digit="$(echo "${broken_unifi_install_version}" | cut -d"." -f1)"
       broken_unifi_install_version_second_digit="$(echo "${broken_unifi_install_version}" | cut -d"." -f2)"
       broken_unifi_install_version_third_digit="$(echo "${broken_unifi_install_version}" | cut -d"." -f3)"
-      unifi_download_link="$(curl "${curl_argument[@]}" "https://fw-update.ui.com/api/firmware-latest?filter=eq~~version_major~~${broken_unifi_install_version_first_digit}&filter=eq~~version_minor~~${broken_unifi_install_version_second_digit}&filter=eq~~version_patch~~${broken_unifi_install_version_third_digit}&filter=eq~~platform~~debian" | jq -r "._embedded.firmware[]._links.data.href" | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
+      if [[ -n "$(command -v jq)" ]]; then unifi_download_link="$(curl "${curl_argument[@]}" "https://fw-update.ui.com/api/firmware-latest?filter=eq~~version_major~~${broken_unifi_install_version_first_digit}&filter=eq~~version_minor~~${broken_unifi_install_version_second_digit}&filter=eq~~version_patch~~${broken_unifi_install_version_third_digit}&filter=eq~~platform~~debian" | jq -r "._embedded.firmware[]._links.data.href" | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"; fi
       if [[ -z "${unifi_download_link}" ]]; then
-        unifi_download_link="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-release?version=${broken_unifi_install_version}" | jq -r '.download_link' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
+        if [[ -n "$(command -v jq)" ]]; then
+          unifi_download_link="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-release?version=${broken_unifi_install_version}" | jq -r '.download_link' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
+        else
+          unifi_download_link="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-release?version=${broken_unifi_install_version}" | grep -oP '(?<="download_link":")[^"]*' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
+        fi
       fi
       if [[ -n "${unifi_download_link}" ]]; then
         echo -e "${WHITE_R}#${RESET} Checking if we need to change the version that the script will install..."
@@ -2694,6 +2713,12 @@ check_service_overrides() {
   fi
 }
 
+unifi_autobackup_dir_check() {
+  unifi_autobackup_dir="$(grep "^autobackup.dir" /usr/lib/unifi/data/system.properties 2> /dev/null | sed 's/autobackup.dir=//g')"
+  if [[ -z "${unifi_autobackup_dir}" ]]; then unifi_autobackup_dir="/usr/lib/unifi/data/backup/autobackup"; fi
+  if ! [[ -d "${unifi_autobackup_dir}" ]]; then install -d -m 0755 -o unifi -g unifi "${unifi_autobackup_dir}" &>> "${eus_dir}/logs/unifi-autbackup-dir-check.log"; fi
+}
+
 system_properties_check() {
   if [[ -e "/usr/lib/unifi/data/system.properties" ]]; then
     # Remove any duplicates.
@@ -2747,7 +2772,7 @@ unifi_folder_permission_check() {
           unifi_folder_permission_check_detected_files+=("${unifi_file_or_directory}")
         fi
       fi
-    done < <(find "${unifi_directory}" -type d,f)
+    done < <(find "${unifi_directory}" -type d -print -o -type f -print)
   done < <(find /usr/lib/unifi/ -maxdepth 1 -type l -printf '%l\n')
   if [[ "${#unifi_folder_permission_check_detected_files[@]}" -gt 0 ]]; then
     for unifi_folder_permission_check_detected_file in "${unifi_folder_permission_check_detected_files[@]}"; do
@@ -4788,12 +4813,12 @@ else
     mongodb_org_version="$(dpkg-query --showformat='${Version}' --show mongodb-org-server | sed 's/.*://' | sed 's/-.*//g')"
     mongodb_org_version_no_dots="${mongodb_org_version//./}"
     if [[ "${mongodb_org_version_no_dots::2}" -ge '44' && "$(dpkg-query --showformat='${Version}' --show mongodb-org-server | sed -e 's/.*://' -e 's/-.*//g' | awk -F. '{print $3}')" -ge "19" ]]; then if ! (lscpu 2>/dev/null | grep -iq "avx") || ! grep -iq "avx" /proc/cpuinfo; then unsupported_database_version_change="true"; fi; fi
-    if [[ -n "${previous_mongodb_version}" ]]; then if [[ "${mongodb_org_version_no_dots::2}" != "${previous_mongodb_version::2}" ]] && [[ "${previous_mongodb_version::2}" != $(("${mongodb_org_version_no_dots::2}" - 2)) ]]; then unsupported_database_version_change="true"; fi; fi
+    if [[ -n "${previous_mongodb_version}" ]]; then if [[ "${mongodb_org_version_no_dots::2}" != "${previous_mongodb_version::2}" ]] && [[ "${previous_mongodb_version::2}" != "$((${mongodb_org_version_no_dots::2} - 2))" ]]; then unsupported_database_version_change="true"; fi; fi
   elif "$(which dpkg)" -l mongodb-server 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
     mongodb_version="$(dpkg-query --showformat='${Version}' --show mongodb-server | sed 's/.*://' | sed 's/-.*//g')"
     mongodb_version_no_dots="${mongodb_version//./}"
     if [[ "${mongodb_version_no_dots::2}" -ge '44' && "$(dpkg-query --showformat='${Version}' --show mongodb-server | sed -e 's/.*://' -e 's/-.*//g' | awk -F. '{print $3}')" -ge "19" ]]; then if ! (lscpu 2>/dev/null | grep -iq "avx") || ! grep -iq "avx" /proc/cpuinfo; then unsupported_database_version_change="true"; fi; fi
-    if [[ -n "${previous_mongodb_version}" ]]; then if [[ "${mongodb_version_no_dots::2}" != "${previous_mongodb_version::2}" ]] && [[ "${previous_mongodb_version::2}" != $(("${mongodb_version_no_dots::2}" - 2)) ]]; then unsupported_database_version_change="true"; fi; fi
+    if [[ -n "${previous_mongodb_version}" ]]; then if [[ "${mongodb_version_no_dots::2}" != "${previous_mongodb_version::2}" ]] && [[ "${previous_mongodb_version::2}" != "$((${mongodb_version_no_dots::2} - 2))" ]]; then unsupported_database_version_change="true"; fi; fi
   fi
   if "$(which dpkg)" -l mongodb-org-server 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui" && [[ "${glennr_compiled_mongod}" == 'true' && "${mongodb_version_installed_no_dots::2}" == "70" && "${unsupported_database_version_change}" != 'true' ]]; then
     check_dpkg_lock
@@ -5469,6 +5494,7 @@ else
   abort
 fi
 system_properties_free_memory_check
+unifi_autobackup_dir_check
 unifi_folder_permission_check
 if ! [[ -d "/var/run/unifi" ]]; then install -o unifi -g unifi -m 750 -d /var/run/unifi &>> "${eus_dir}/logs/unifi-var-run-missing.log"; fi
 jq '."scripts"."'"${script_name}"'" += {"install-date": "'"$(date +%s)"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"

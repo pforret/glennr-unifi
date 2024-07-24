@@ -2,7 +2,7 @@
 
 # UniFi Network Application Easy Update Script.
 # Script   | UniFi Network Easy Update Script
-# Version  | 8.9.7
+# Version  | 8.9.8
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -39,6 +39,15 @@ header_red() {
   echo -e "${RED}#########################################################################${RESET}\\n"
 }
 
+# Exit script if not using bash.
+if [ -z "$BASH_VERSION" ]; then
+  script_name="$(basename "$0")"
+  clear; clear; printf "\033[1;31m#########################################################################\033[0m\n"
+  printf "\n\033[39m#\033[0m The script requires to be ran with bash, run the command printed below...\n"
+  printf "\033[39m#\033[0m bash %s %s\n\n" "${script_name}" "$*"
+  exit 1
+fi
+
 # Check for root (SUDO).
 if [[ "$EUID" -ne 0 ]]; then
   header_red
@@ -58,13 +67,17 @@ if [[ "$(ps -p 1 -o comm=)" != 'systemd' ]]; then
   sleep 10
 fi
 
-if ! grep -iq "udm" /usr/lib/version &> /dev/null; then
+if ! grep -siq "udm" /usr/lib/version &> /dev/null; then
   if ! env | grep "LC_ALL\\|LANG" | grep -iq "en_US\\|C.UTF-8\\|en_GB.UTF-8"; then
     header
     echo -e "${WHITE_R}#${RESET} Your language is not set to English ( en_US ), the script will temporarily set the language to English."
     echo -e "${WHITE_R}#${RESET} Information: This is done to prevent issues in the script.."
     original_lang="$LANG"
     original_lcall="$LC_ALL"
+    if [[ -e "/etc/locale.gen" ]]; then
+      sed -i '/^#.*en_US.UTF-8 UTF-8/ s/^#.*\(en_US.UTF-8 UTF-8\)/\1/' /etc/locale.gen 2> /dev/null
+      if ! grep -q '^en_US.UTF-8 UTF-8' /etc/locale.gen; then echo 'en_US.UTF-8 UTF-8' &>> /etc/locale.gen; fi
+    fi
     if ! locale -a 2> /dev/null | grep -iq "C.UTF-8\\|en_US.UTF-8"; then locale-gen en_US.UTF-8 &> /dev/null; fi
     if locale -a 2> /dev/null | grep -iq "^C.UTF-8$"; then eus_lts="C.UTF-8"; elif locale -a 2> /dev/null | grep -iq "^en_US.UTF-8$"; then eus_lts="en_US.UTF-8"; else  eus_lts="en_US.UTF-8"; fi
     export LANG="${eus_lts}" &> /dev/null
@@ -476,7 +489,7 @@ support_file() {
   # shellcheck disable=SC2129
   sed -n '3p' "${script_location}" &>> "/tmp/EUS/support/script"
   grep "# Version" "${script_location}" | head -n1 &>> "/tmp/EUS/support/script"
-  find "${eus_dir}" "${unifi_db_eus_dir}" -type d,f &> "/tmp/EUS/support/dirs_and_files"
+  find "${eus_dir}" "${unifi_db_eus_dir}" -type d -print -o -type f -print &> "/tmp/EUS/support/dirs_and_files"
   if [[ -n "$(command -v jq)" && -f "${eus_dir}/db/db.json" ]]; then jq '."database" += {"name-servers": "'"${system_dns_servers}"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"; eus_database_move; fi
   # Create a copy of the system.properties file and remove any mongodb PII
   while read -r system_properties_files; do
@@ -3897,11 +3910,11 @@ fi
 if "$(which dpkg)" -l mongodb-org-server 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
   installed_mongodb_org_version_check="$(dpkg-query --showformat='${Version}' --show mongodb-org-server | sed -e 's/.*://' -e 's/-.*//g' -e 's/\.//g')"
   if [[ "${installed_mongodb_org_version_check::2}" -ge '44' && "$(dpkg-query --showformat='${Version}' --show mongodb-org-server | sed -e 's/.*://' -e 's/-.*//g' | awk -F. '{print $3}')" -ge "19" ]]; then if ! (lscpu 2>/dev/null | grep -iq "avx") || ! grep -iq "avx" /proc/cpuinfo; then unsupported_database_version_change="true"; fi; fi
-  if [[ -n "${previous_mongodb_version}" ]]; then if [[ "${installed_mongodb_org_version_check::2}" != "${previous_mongodb_version::2}" ]] && [[ "${previous_mongodb_version::2}" != $(("${installed_mongodb_org_version_check::2}" - 2)) ]]; then unsupported_database_version_change="true"; fi; fi
+  if [[ -n "${previous_mongodb_version}" ]]; then if [[ "${installed_mongodb_org_version_check::2}" != "${previous_mongodb_version::2}" ]] && [[ "${previous_mongodb_version::2}" != "$((${installed_mongodb_org_version_check::2} - 2))" ]]; then unsupported_database_version_change="true"; fi; fi
 elif "$(which dpkg)" -l mongodb-server 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
   installed_mongodb_version_check="$(dpkg-query --showformat='${Version}' --show mongodb-server | sed -e 's/.*://' -e 's/-.*//g' -e 's/\.//g')"
   if [[ "${installed_mongodb_version_check::2}" -ge '44' && "$(dpkg-query --showformat='${Version}' --show mongodb-server | sed -e 's/.*://' -e 's/-.*//g' | awk -F. '{print $3}')" -ge "19" ]]; then if ! (lscpu 2>/dev/null | grep -iq "avx") || ! grep -iq "avx" /proc/cpuinfo; then unsupported_database_version_change="true"; fi; fi
-  if [[ -n "${previous_mongodb_version}" ]]; then if [[ "${installed_mongodb_version_check::2}" != "${previous_mongodb_version::2}" ]] && [[ "${previous_mongodb_version::2}" != $(("${installed_mongodb_version_check::2}" - 2)) ]]; then unsupported_database_version_change="true"; fi; fi
+  if [[ -n "${previous_mongodb_version}" ]]; then if [[ "${installed_mongodb_version_check::2}" != "${previous_mongodb_version::2}" ]] && [[ "${previous_mongodb_version::2}" != "$((${installed_mongodb_version_check::2} - 2))" ]]; then unsupported_database_version_change="true"; fi; fi
 fi
 
 # Override MongoDB version change attempts when the application is up and running.
@@ -4730,6 +4743,12 @@ keystore_alias_check() {
       keystore_alias_checked="true"
     fi
   fi
+}
+
+unifi_autobackup_dir_check() {
+  unifi_autobackup_dir="$(grep "^autobackup.dir" /usr/lib/unifi/data/system.properties 2> /dev/null | sed 's/autobackup.dir=//g')"
+  if [[ -z "${unifi_autobackup_dir}" ]]; then unifi_autobackup_dir="/usr/lib/unifi/data/backup/autobackup"; fi
+  if ! [[ -d "${unifi_autobackup_dir}" ]]; then install -d -m 0755 -o unifi -g unifi "${unifi_autobackup_dir}" &>> "${eus_dir}/logs/unifi-autbackup-dir-check.log"; fi
 }
 
 system_properties_check() {
@@ -6763,6 +6782,7 @@ custom_url_download_check() {
 custom_url_install() {
   db_version_check
   system_properties_check
+  unifi_autobackup_dir_check
   keystore_alias_check
   if [[ -s "/tmp/EUS/repository/unifi-repo-file" && "${release_stage}" == "S" ]]; then
     while read -r unifi_repo_file; do
@@ -8419,6 +8439,7 @@ if [[ "${script_option_custom_url}" == 'true' && "${perform_application_upgrade}
 application_upgrade_releases() {
   db_version_check
   system_properties_check
+  unifi_autobackup_dir_check
   keystore_alias_check
   unifi_current=$("$(which dpkg)" -l unifi | tail -n1 |  awk '{print $3}' | cut -d'-' -f1)
   application_version_release=$(echo "${application_version}" | cut -d'-' -f1)

@@ -2,7 +2,7 @@
 
 # UniFi Easy Encrypt script.
 # Script   | UniFi Network Easy Encrypt Script
-# Version  | 2.9.0
+# Version  | 2.9.1
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -41,6 +41,15 @@ header_red() {
   echo -e "${RED}#########################################################################${RESET}\\n"
 }
 
+# Exit script if not using bash.
+if [ -z "$BASH_VERSION" ]; then
+  script_name="$(basename "$0")"
+  clear; clear; printf "\033[1;31m#########################################################################\033[0m\n"
+  printf "\n\033[39m#\033[0m The script requires to be ran with bash, run the command printed below...\n"
+  printf "\033[39m#\033[0m bash %s %s\n\n" "${script_name}" "$*"
+  exit 1
+fi
+
 # Check for root (SUDO).
 if [[ "$EUID" -ne 0 ]]; then
   header_red
@@ -52,13 +61,17 @@ if [[ "$EUID" -ne 0 ]]; then
   exit 1
 fi
 
-if ! grep -iq "udm" /usr/lib/version &> /dev/null; then
+if ! grep -siq "udm" /usr/lib/version &> /dev/null; then
   if ! env | grep "LC_ALL\\|LANG" | grep -iq "en_US\\|C.UTF-8\\|en_GB.UTF-8"; then
     header
     echo -e "${WHITE_R}#${RESET} Your language is not set to English ( en_US ), the script will temporarily set the language to English."
     echo -e "${WHITE_R}#${RESET} Information: This is done to prevent issues in the script.."
     original_lang="$LANG"
     original_lcall="$LC_ALL"
+    if [[ -e "/etc/locale.gen" ]]; then
+      sed -i '/^#.*en_US.UTF-8 UTF-8/ s/^#.*\(en_US.UTF-8 UTF-8\)/\1/' /etc/locale.gen 2> /dev/null
+      if ! grep -q '^en_US.UTF-8 UTF-8' /etc/locale.gen; then echo 'en_US.UTF-8 UTF-8' &>> /etc/locale.gen; fi
+    fi
     if ! locale -a 2> /dev/null | grep -iq "C.UTF-8\\|en_US.UTF-8"; then locale-gen en_US.UTF-8 &> /dev/null; fi
     if locale -a 2> /dev/null | grep -iq "^C.UTF-8$"; then eus_lts="C.UTF-8"; elif locale -a 2> /dev/null | grep -iq "^en_US.UTF-8$"; then eus_lts="en_US.UTF-8"; else  eus_lts="en_US.UTF-8"; fi
     export LANG="${eus_lts}" &> /dev/null
@@ -471,7 +484,6 @@ cancel_script() {
   author
   update_eus_db
   cleanup_codename_mismatch_repos
-  remove_yourself
   exit 0
 }
 
@@ -609,7 +621,6 @@ start_script() {
   echo -e "    UniFi Easy Encrypt Script!"
   echo -e "\\n${WHITE_R}#${RESET} Starting the UniFi Easy Encrypt Script..."
   echo -e "${WHITE_R}#${RESET} Thank you for using my UniFi Easy Encrypt Script :-)\\n\\n"
-  sleep 4
 }
 start_script
 check_dns
@@ -654,10 +665,10 @@ help_script() {
                                             --dns-provider ovh
                                             Supported providers: cloudflare, digitalocean, dnsimple, dnsmadeeasy, gehirn, google, linode, luadns, nsone, ovh, rfc2136, route53, sakuracloud
                                             Other providers (not supported on UniFi Consoles): akamaiedgedns, alibabaclouddns, allinkl, amazonlightsail, arvancloud, auroradns, autodns, azuredns, bindman, 
-											bluecat, brandit, bunny, checkdomain, civo, cloudru, clouddns, cloudns, cloudxns, conoha, constellix, derakcloud, desecio, designatednsaasforopenstack, dnshomede, 
-											domainoffensive, domeneshop, dreamhost, duckdns, dyn, dynu, easydns, efficientip, epik, exoscale, externalprogram, freemyip, gcore, gandi, gandilivedns, glesys, 
-											godaddy, hetzner, hostingde, hosttech, httprequest, httpnet, hurricaneelectricdns, hyperone, ibmcloud, iijdnsplatformservice, infoblox, infomaniak, internetinitiativejapan, 
-											internetbs, inwx, ionos, ipv64, iwantmyname joker joohoisacmedns liara liquidweb loopia metaname mydnsjp mythicbeasts namecom namecheap namesilo nearlyfreespeechnet netcup,
+                                            bluecat, brandit, bunny, checkdomain, civo, cloudru, clouddns, cloudns, cloudxns, conoha, constellix, derakcloud, desecio, designatednsaasforopenstack, dnshomede, 
+                                            domainoffensive, domeneshop, dreamhost, duckdns, dyn, dynu, easydns, efficientip, epik, exoscale, externalprogram, freemyip, gcore, gandi, gandilivedns, glesys, 
+                                            godaddy, hetzner, hostingde, hosttech, httprequest, httpnet, hurricaneelectricdns, hyperone, ibmcloud, iijdnsplatformservice, infoblox, infomaniak, internetinitiativejapan, 
+                                            internetbs, inwx, ionos, ipv64, iwantmyname joker joohoisacmedns liara liquidweb loopia metaname mydnsjp mythicbeasts namecom namecheap namesilo nearlyfreespeechnet netcup,
                                             netlify, nicmanager, nifcloud, njalla, nodion, opentelekomcloud, oraclecloud, pleskcom, porkbun, powerdns, rackspace, rcodezero, regru, rimuhosting, scaleway,
                                             selectel, servercow, simplycom, sonic, stackpath, tencentclouddns, transip, ukfastsafedns, ultradns, variomedia, vegadns, vercel, versionl, versioeu, versiouk,
                                             vinyldns, vkcloud, vscale, vultr, webnames, websupport, wedos, yandex360, yandexcloud, yandexpdd, zoneee, zonomi,
@@ -4493,6 +4504,7 @@ remove_old_post_pre_hook() {
           fi;;
         3*) return;;
     esac
+    sleep 3
   fi
 }
 

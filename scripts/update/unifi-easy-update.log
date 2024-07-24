@@ -11,6 +11,16 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 8.9.8
+  
+ - Added a check to ensure everyone runs the script with bash.
+ - added a check to ensure the UniFi autobackup directory exists.
+ - Improved setting language to English.
+ - Fixed inability to list folder and files on older distributions.
+ - Fixed an issue where the unsupported MongoDB version change check could fail.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 8.9.7
   
  - Fixed an issue where getting statistics could fail.

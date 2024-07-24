@@ -11,6 +11,18 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 7.7.2
+ 
+ - Added a check to ensure everyone runs the script with bash.
+ - added a check to ensure the UniFi autobackup directory exists.
+ - Improved setting language to English.
+ - Improved broken UniFi Installation recovery.
+ - Fixed inability to locate a download link for broken UniFi Installation if JQ is not installed.
+ - Fixed inability to list folder and files on older distributions.
+ - Fixed an issue where the unsupported MongoDB version change check could fail.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 7.7.1
  
  - Fixed an issue where the incorrect MongoDB shell is used for older MongoDB versions if mongosh is installed.
