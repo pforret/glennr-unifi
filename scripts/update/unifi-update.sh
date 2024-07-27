@@ -2,7 +2,7 @@
 
 # UniFi Network Application Easy Update Script.
 # Script   | UniFi Network Easy Update Script
-# Version  | 8.9.8
+# Version  | 8.9.9
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -228,8 +228,19 @@ check_docker_setup() {
 }
 
 check_lxc_setup() {
-  if grep -sqa "lxc" /proc/1/environ /proc/self/mountinfo /proc/1/environ; then lxc_setup="true"; container_system="true"; else lxc_setup="false"; fi
+  if grep -sqa "lxc" /proc/1/environ /proc/self/mountinfo /proc/1/environ; then lxc_setup="true"; else lxc_setup="false"; fi
   if [[ -n "$(command -v jq)" && -e "${eus_dir}/db/db.json" ]]; then jq --arg lxc_setup "${lxc_setup}" '."database" += {"lxc-container": "'"${lxc_setup}"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"; eus_database_move; fi
+}
+
+locate_http_proxy() {
+  env_proxies="$(grep -E "^[^#]*http_proxy|^[^#]*https_proxy" "/etc/environment" | awk -F '=' '{print $2}' | tr -d '"')"
+  profile_proxies="$(find /etc/profile.d/ -type f -exec sh -c 'grep -E "^[^#]*http_proxy|^[^#]*https_proxy" "$1" | awk -F "=" "{print \$2}" | tr -d "\"" ' _ {} \;)"
+  # Combine, normalize (remove trailing slashes), and sort unique proxies
+  all_proxies="$(echo -e "$env_proxies\n$profile_proxies" | sed 's:/*$::' | sort -u | grep -v '^$')"
+  http_proxy="$(echo "$all_proxies" | tail -n1)"
+  json_proxies="$(echo "$all_proxies" | jq -R -s 'split("\n") | map(select(length > 0))')"
+  if [[ -n "$(command -v jq)" && -e "${eus_dir}/db/db.json" ]]; then jq --argjson proxies "$json_proxies" '.database."http-proxy" = $proxies' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"; eus_database_move; fi
+  if [[ -n "${http_proxy}" ]]; then noproxy_curl_argument=('--noproxy' '127.0.0.1,localhost'); fi
 }
 
 update_eus_db() {
@@ -250,11 +261,13 @@ update_eus_db() {
     ((script_total_runs=script_total_runs+1))
     jq --arg script_total_runs "${script_total_runs}" '."scripts"."'"${script_name}"'" += {"total-runs": "'"${script_total_runs}"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
     eus_database_move
-    jq --arg system_dns_servers "${system_dns_servers}" '."database" += {"name-servers": "'"${system_dns_servers}"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+    json_system_dns_servers="$(echo "$system_dns_servers" | sed 's/[()]//g' | tr ' ' '\n' | jq -R . | jq -s .)"
+    jq --argjson dns "$json_system_dns_servers" '.database["name-servers"] = $dns' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
     eus_database_move
   fi
   check_docker_setup
   check_lxc_setup
+  locate_http_proxy
 }
 
 eus_database_move() {
@@ -789,6 +802,10 @@ start_script() {
 }
 start_script
 check_dns
+check_docker_setup
+check_lxc_setup
+locate_http_proxy
+check_apt_listbugs
 
 help_script() {
   check_apt_listbugs
@@ -1013,20 +1030,23 @@ get_distro() {
       return
     fi
   fi
-  if [[ "${os_codename}" =~ ^(precise|maya|luna)$ ]]; then repo_codename="precise"; os_codename="precise"; os_id="ubuntu"
-  elif [[ "${os_codename}" =~ ^(trusty|qiana|rebecca|rafaela|rosa|freya)$ ]]; then repo_codename="trusty"; os_codename="trusty"; os_id="ubuntu"
-  elif [[ "${os_codename}" =~ ^(xenial|sarah|serena|sonya|sylvia|loki)$ ]]; then repo_codename="xenial"; os_codename="xenial"; os_id="ubuntu"
-  elif [[ "${os_codename}" =~ ^(bionic|tara|tessa|tina|tricia|hera|juno)$ ]]; then repo_codename="bionic"; os_codename="bionic"; os_id="ubuntu"
-  elif [[ "${os_codename}" =~ ^(focal|ulyana|ulyssa|uma|una|odin|jolnir)$ ]]; then repo_codename="focal"; os_codename="focal"; os_id="ubuntu"
-  elif [[ "${os_codename}" =~ ^(jammy|vanessa|vera|victoria|virginia|horus)$ ]]; then repo_codename="jammy"; os_codename="jammy"; os_id="ubuntu"
-  elif [[ "${os_codename}" =~ ^(stretch|continuum)$ ]]; then repo_codename="stretch"; os_codename="stretch"; os_id="debian"
-  elif [[ "${os_codename}" =~ ^(buster|debbie|parrot|engywuck-backports|engywuck|deepin)$ ]]; then repo_codename="buster"; os_codename="buster"; os_id="debian"
-  elif [[ "${os_codename}" =~ ^(bullseye|kali-rolling|elsie|ara)$ ]]; then repo_codename="bullseye"; os_codename="bullseye"; os_id="debian"
-  elif [[ "${os_codename}" =~ ^(bookworm|lory|faye)$ ]]; then repo_codename="bookworm"; os_codename="bookworm"; os_id="debian"
-  else
-    repo_codename="${os_codename}"
+  if [[ "${unsupported_no_modify}" != 'true' ]]; then
+    if [[ ! "${os_id}" =~ (ubuntu|debian) ]] && [[ -e "/etc/os-release" ]]; then os_id="$(grep -io "debian\\|ubuntu" /etc/os-release | tr '[:upper:]' '[:lower:]' | head -n1)"; fi
+    if [[ "${os_codename}" =~ ^(precise|maya|luna)$ ]]; then repo_codename="precise"; os_codename="precise"; os_id="ubuntu"
+    elif [[ "${os_codename}" =~ ^(trusty|qiana|rebecca|rafaela|rosa|freya)$ ]]; then repo_codename="trusty"; os_codename="trusty"; os_id="ubuntu"
+    elif [[ "${os_codename}" =~ ^(xenial|sarah|serena|sonya|sylvia|loki)$ ]]; then repo_codename="xenial"; os_codename="xenial"; os_id="ubuntu"
+    elif [[ "${os_codename}" =~ ^(bionic|tara|tessa|tina|tricia|hera|juno)$ ]]; then repo_codename="bionic"; os_codename="bionic"; os_id="ubuntu"
+    elif [[ "${os_codename}" =~ ^(focal|ulyana|ulyssa|uma|una|odin|jolnir)$ ]]; then repo_codename="focal"; os_codename="focal"; os_id="ubuntu"
+    elif [[ "${os_codename}" =~ ^(jammy|vanessa|vera|victoria|virginia|horus)$ ]]; then repo_codename="jammy"; os_codename="jammy"; os_id="ubuntu"
+    elif [[ "${os_codename}" =~ ^(stretch|continuum|helium)$ ]]; then repo_codename="stretch"; os_codename="stretch"; os_id="debian"
+    elif [[ "${os_codename}" =~ ^(buster|debbie|parrot|engywuck-backports|engywuck|deepin|lithium)$ ]]; then repo_codename="buster"; os_codename="buster"; os_id="debian"
+    elif [[ "${os_codename}" =~ ^(bullseye|kali-rolling|elsie|ara|beryllium)$ ]]; then repo_codename="bullseye"; os_codename="bullseye"; os_id="debian"
+    elif [[ "${os_codename}" =~ ^(bookworm|lory|faye|boron)$ ]]; then repo_codename="bookworm"; os_codename="bookworm"; os_id="debian"
+    else
+      repo_codename="${os_codename}"
+    fi
+    if [[ -n "$(command -v jq)" && "$(jq -r '.database.distribution' "${eus_dir}/db/db.json")" != "${os_codename}" ]]; then jq '."database" += {"distribution": "'"${os_codename}"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"; eus_database_move; fi
   fi
-  if [[ -n "$(command -v jq)" && "$(jq -r '.database.distribution' "${eus_dir}/db/db.json")" != "${os_codename}" ]]; then jq '."database" += {"distribution": "'"${os_codename}"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"; eus_database_move; fi
 }
 get_distro
 
@@ -1197,7 +1217,7 @@ add_repositories() {
     fi
   fi
   # Handle Debian versions
-  if [[ "${os_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) && "$(command -v jq)" ]]; then
+  if [[ "$(lsb_release --codename --short | tr '[:upper:]' '[:lower:]')" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) && "$(command -v jq)" ]]; then
     os_version_number="$(lsb_release -rs | tr '[:upper:]' '[:lower:]' | cut -d'.' -f1)"
     check_debian_version="${os_version_number}"
     if echo "${repo_url}" | grep -ioq "archive.debian"; then 
@@ -1596,6 +1616,19 @@ script_version_check() {
 }
 if [[ "$(command -v curl)" ]]; then script_version_check; fi
 
+if ! [[ "${os_codename}" =~ (precise|maya|trusty|qiana|rebecca|rafaela|rosa|xenial|sarah|serena|sonya|sylvia|bionic|tara|tessa|tina|tricia|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
+  if [[ -e "/etc/os-release" ]]; then full_os_details="$(sed ':a;N;$!ba;s/\n/\\n/g' /etc/os-release | sed 's/"/\\"/g')"; fi
+  unsupported_no_modify="true"
+  get_distro
+  distro_support_missing_report="$(curl "${curl_argument[@]}" -X POST -H "Content-Type: application/json" -d "{\"distribution\": \"${os_id}\", \"codename\": \"${os_codename}\", \"script-name\": \"${script_name}\", \"full-os-details\": \"${full_os_details}\"}" https://api.glennr.nl/api/missing-distro-support | jq -r '.[]')"
+  if [[ "${script_option_debug}" != 'true' ]]; then clear; fi
+  header_red
+  if [[ "${distro_support_missing_report}" == "OK" ]]; then echo -e "${WHITE_R}#${RESET} The script does not (yet) support ${os_id} ${os_codename}, and Glenn R. has been informed about it..."; else echo -e "${WHITE_R}#${RESET} The script does not (yet) support ${os_id} ${os_codename}..."; fi
+  echo -e "${WHITE_R}#${RESET} Feel free to contact Glenn R. (AmazedMender16) on the UI Community if you need help with installing your UniFi Network Application.\\n\\n"
+  author
+  exit 1
+fi
+
 check_package_cache_file_corruption() {
   if ls /tmp/EUS/apt/*.log 1> /dev/null 2>&1; then
     if grep -ioqE '^E: The package cache file is corrupted' /tmp/EUS/apt/*.log; then
@@ -1847,7 +1880,7 @@ run_apt_get_update() {
     if "$(which dpkg)" -l dirmngr 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
       while read -r key; do
         echo -e "${WHITE_R}#${RESET} Key ${key} is missing.. adding!"
-        http_proxy="$(env | grep -i "http.*Proxy" | cut -d'=' -f2 | sed 's/[";]//g')"
+        locate_http_proxy
         if [[ -n "$http_proxy" ]]; then
           if apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --keyserver-options http-proxy="${http_proxy}" --recv-keys "$key" &>> "${eus_dir}/logs/key-recovery.log"; then echo "${key}" &>> /tmp/EUS/apt/missing_keys_done; echo -e "${GREEN}#${RESET} Successfully added key ${key}!\\n"; else fail_key="true"; fi
         elif [[ -f /etc/apt/apt.conf ]]; then
@@ -3248,7 +3281,7 @@ openjdk_java() {
       echo -e "${RED}#${RESET} Failed to ${openjdk_variable_3} ${required_java_version}-jre-headless in the first run...\\n"
       if [[ "$(find /etc/apt/ -name "*.list" -type f -print0 | xargs -0 cat | grep -P -c "^deb http[s]*://archive.debian.org/debian jessie-backports main")" -eq "0" ]]; then
         echo "deb http://archive.debian.org/debian jessie-backports main" >>/etc/apt/sources.list.d/glennr-install-script.list || abort
-        http_proxy="$(env | grep -i "http.*Proxy" | cut -d'=' -f2 | sed 's/[";]//g')"
+        locate_http_proxy
         if [[ -n "$http_proxy" ]]; then
           apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --keyserver-options http-proxy="${http_proxy}" --recv-keys 8B48AD6246925553 7638D0442B90D010 || abort
         elif [[ -f /etc/apt/apt.conf ]]; then
@@ -3469,8 +3502,14 @@ libssl_installation() {
           libssl_install_success="true"
           break
         else
-          if [[ "${libssl_install_failed_message}" != 'true' ]]; then echo -e "${RED}#${RESET} Failed to install libssl... trying some different versions... \\n"; echo -e "${WHITE_R}#${RESET} Attempting to install different versions..."; libssl_install_failed_message="true"; fi
-          rm --force "$libssl_temp" &> /dev/null
+          if DEBIAN_FRONTEND='noninteractive' "$(which dpkg)" -i "$libssl_temp" &>> "${eus_dir}/logs/libssl.log"; then
+            echo -e "${GREEN}#${RESET} Successfully installed libssl! \\n"
+            libssl_install_success="true"
+            break
+          else
+            if [[ "${libssl_install_failed_message}" != 'true' ]]; then echo -e "${RED}#${RESET} Failed to install libssl... trying some different versions... \\n"; echo -e "${WHITE_R}#${RESET} Attempting to install different versions..."; libssl_install_failed_message="true"; fi
+            rm --force "$libssl_temp" &> /dev/null
+          fi
         fi
         get_apt_options
       fi
@@ -3703,7 +3742,7 @@ mongo_last_attempt() {
         if [[ "${mongo_last_attempt_download_success_message}" != 'true' ]]; then echo -e "${GREEN}#${RESET} Successfully downloaded ${mongo_last_attempt_name}! \\n"; mongo_last_attempt_download_success_message="true"; fi
         echo -e "${WHITE_R}#${RESET} Installing ${mongo_last_attempt_name}..."
         check_dpkg_lock
-        if "$(which dpkg)" -i "$mongo_last_attempt_temp" &>> "${eus_dir}/logs/unifi-database-required.log"; then
+        if DEBIAN_FRONTEND='noninteractive' "$(which dpkg)" -i "$mongo_last_attempt_temp" &>> "${eus_dir}/logs/unifi-database-required.log"; then
           echo -e "${GREEN}#${RESET} Successfully installed ${mongo_last_attempt_name}! \\n"
           mongo_last_attempt_install_success="true"
           break
@@ -3920,7 +3959,13 @@ fi
 # Override MongoDB version change attempts when the application is up and running.
 if [[ "${unsupported_database_version_change}" == 'true' ]]; then
   if grep -sioq "^unifi.https.port" "/usr/lib/unifi/data/system.properties"; then dmport="$(awk '/^unifi.https.port/' /usr/lib/unifi/data/system.properties | cut -d'=' -f2)"; else dmport="8443"; fi
-  if command -v jq &> /dev/null; then application_up="$(curl -sk "https://localhost:${dmport}/status" | jq -r '.meta.up' 2> /dev/null)"; else application_up="$(curl -sk "https://localhost:${dmport}/status" | grep -o '"up":[^,]*' | awk -F ':' '{print $2}')"; fi
+  if command -v jq &> /dev/null; then
+    application_up="$(curl --silent --insecure "https://localhost:${dmport}/status" | jq -r '.meta.up' 2> /dev/null)"
+    if [[ -z "${application_up}" ]]; then application_up="$(curl "${noproxy_curl_argument[@]}" --silent --insecure --connect-timeout 1 "https://localhost:${dmport}/status" | jq -r '.meta.up' 2> /dev/null)"; fi
+  else
+    application_up="$(curl --silent --insecure --connect-timeout 1 "https://localhost:${dmport}/status" | grep -o '"up":[^,]*' | awk -F ':' '{print $2}')"
+    if [[ -z "${application_up}" ]]; then application_up="$(curl "${noproxy_curl_argument[@]}" --silent --insecure --connect-timeout 1 "https://localhost:${dmport}/status" | grep -o '"up":[^,]*' | awk -F ':' '{print $2}')"; fi
+  fi
   if [[ "${application_up}" == 'true' ]]; then
     echo -e "$(date +%F-%R) | The Network Application appears to be functioning, cancelling any unsupported MongoDB version change fix attempts..." &>> "${eus_dir}/logs/mongodb-unsupported-version-change-override.log"
     echo -e "$(date +%F-%R) | previous_mongodb_version: ${previous_mongodb_version}, previous_mongodb_version_with_dot: ${previous_mongodb_version_with_dot}, unsupported_database_version_change: ${unsupported_database_version_change}" &>> "${eus_dir}/logs/mongodb-unsupported-version-change-override.log"
@@ -4098,7 +4143,13 @@ if [[ "${mongo_version_locked}" == '4.4.18' ]] || [[ "${unsupported_database_ver
       fi
     fi
     if grep -sioq "^unifi.https.port" "/usr/lib/unifi/data/system.properties"; then dmport="$(awk '/^unifi.https.port/' /usr/lib/unifi/data/system.properties | cut -d'=' -f2)"; else dmport="8443"; fi
-    if command -v jq &> /dev/null; then application_up="$(curl -sk "https://localhost:${dmport}/status" | jq -r '.meta.up' 2> /dev/null)"; else application_up="$(curl -sk "https://localhost:${dmport}/status" | grep -o '"up":[^,]*' | awk -F ':' '{print $2}')"; fi
+    if command -v jq &> /dev/null; then
+      application_up="$(curl --silent --insecure "https://localhost:${dmport}/status" | jq -r '.meta.up' 2> /dev/null)"
+      if [[ -z "${application_up}" ]]; then application_up="$(curl "${noproxy_curl_argument[@]}" --silent --insecure --connect-timeout 1 "https://localhost:${dmport}/status" | jq -r '.meta.up' 2> /dev/null)"; fi
+    else
+      application_up="$(curl --silent --insecure --connect-timeout 1 "https://localhost:${dmport}/status" | grep -o '"up":[^,]*' | awk -F ':' '{print $2}')"
+      if [[ -z "${application_up}" ]]; then application_up="$(curl "${noproxy_curl_argument[@]}" --silent --insecure --connect-timeout 1 "https://localhost:${dmport}/status" | grep -o '"up":[^,]*' | awk -F ':' '{print $2}')"; fi
+    fi
     if [[ "${application_up}" == 'true' ]]; then compress_and_relocate_database_recovery_logs; fi
     if [[ "${unset_mongo_version_locked}" == 'true' ]]; then unset mongo_version_locked; fi
     if [[ -n "${original_previous_mongodb_version}" ]]; then previous_mongodb_version="${original_previous_mongodb_version}"; fi
@@ -4811,8 +4862,11 @@ monitor_update_progress_pid() {
     monitor_update_progress_protocol="https"
   fi
   while kill -0 "${1}" 2>/dev/null; do
-    if [[ "$(curl -sk --connect-timeout 1 "${monitor_update_progress_protocol}://localhost:${dmport}/status" | jq -r '.meta."db_migrating"' 2> /dev/null | sed '/null/d')" == 'true' ]]; then
-      unifi_update_process="$(curl -sk --connect-timeout 1 "${monitor_update_progress_protocol}://localhost:${dmport}/status" | jq -r '.meta."app_context_message"' 2> /dev/null | sed '/null/d')"
+    monitor_update_progress_pid_database_status="$(curl --silent --insecure --connect-timeout 1 "${monitor_update_progress_protocol}://localhost:${dmport}/status" | jq -r '.meta."db_migrating"' 2> /dev/null | sed '/null/d')"
+    if [[ -z "${monitor_update_progress_pid_database_status}" ]]; then monitor_update_progress_pid_database_status="$(curl "${noproxy_curl_argument[@]}" --silent --insecure --connect-timeout 1 "${monitor_update_progress_protocol}://localhost:${dmport}/status" | jq -r '.meta."db_migrating"' 2> /dev/null | sed '/null/d')"; fi
+    if [[ "${monitor_update_progress_pid_database_status}" == 'true' ]]; then
+      unifi_update_process="$(curl --silent --insecure --connect-timeout 1 "${monitor_update_progress_protocol}://localhost:${dmport}/status" | jq -r '.meta."app_context_message"' 2> /dev/null | sed '/null/d')"
+      if [[ -z "${unifi_update_process}" ]]; then unifi_update_process="$(curl "${noproxy_curl_argument[@]}" --silent --insecure --connect-timeout 1 "${monitor_update_progress_protocol}://localhost:${dmport}/status" | jq -r '.meta."app_context_message"' 2> /dev/null | sed '/null/d')"; fi
       if [[ -n "${unifi_update_process}" ]]; then
         if [[ "${database_migration_message}" != 'true' ]]; then echo -e "\\n${WHITE_R}#${RESET} Database Migration in progress..."; database_migration_message="true"; fi
         echo -ne "\033[K${WHITE_R}#${RESET} ${unifi_update_process}...\\r"
@@ -6346,14 +6400,11 @@ os_upgrade () {
   header
   echo -e "${WHITE_R}#${RESET} Starting the OS update/upgrade.\\n"
   sleep 2
-  "$(which dpkg)" -l | awk '/unifi/ {print $2}' | awk -F '[:]' '{print $1}' &> /tmp/EUS/dpkg/unifi_list
-  if [[ -f /tmp/EUS/dpkg/unifi_list && -s /tmp/EUS/dpkg/unifi_list ]]; then
-    while read -r service; do
-      check_dpkg_lock
-      echo -e "${WHITE_R}#${RESET} Preventing ${service} from upgrading..."
-      if echo "${service} hold" | "$(which dpkg)" --set-selections &>> "${eus_dir}/logs/package-hold.log"; then echo -e "${GREEN}#${RESET} Successfully prevented ${service} from upgrading! \\n"; else abort_reason="Failed to prevent ${service} from upgrading."; abort; fi
-    done < /tmp/EUS/dpkg/unifi_list
-  fi
+  while read -r service; do
+    check_dpkg_lock
+    echo -e "${WHITE_R}#${RESET} Preventing ${service} from upgrading..."
+    if echo "${service} hold" | "$(which dpkg)" --set-selections &>> "${eus_dir}/logs/package-hold.log"; then echo -e "${GREEN}#${RESET} Successfully prevented ${service} from upgrading! \\n"; else abort_reason="Failed to prevent ${service} from upgrading."; abort; fi
+  done < <("$(which dpkg)" -l | awk '/unifi/ {print $2}' | awk -F '[:]' '{print $1}')
   run_apt_get_update
   mongodb_upgrade_check
   sleep 5 && header
@@ -6445,81 +6496,160 @@ are_you_sure() {
 }
 
 alert_event_option() {
+  event_collection_available="$("${mongocommand}" --quiet --port 27117 --eval "use('ace'); db.getCollectionNames().indexOf('event') !== -1")"
+  alarm_collection_available="$("${mongocommand}" --quiet --port 27117 --eval "use('ace'); db.getCollectionNames().indexOf('alarm') !== -1")"
+  alert_collection_available="$("${mongocommand}" --quiet --port 27117 --eval "use('ace'); db.getCollectionNames().indexOf('alert') !== -1")"
   header
   echo -e "${WHITE_R}#${RESET} Please take an option below."
-  echo -e "${WHITE_R}#${RESET} Note: Archiving/Deleting alerts/events can take a long time on big setups.\\n"
-  echo -e " [   ${WHITE_R}1${RESET}   ]  |  Archive all Alerts.  ( default )"
-  echo -e " [   ${WHITE_R}2${RESET}   ]  |  Delete all Alerts."
-  echo -e " [   ${WHITE_R}3${RESET}   ]  |  Delete all Events."
-  echo -e " [   ${WHITE_R}4${RESET}   ]  |  Delete all Events and Alerts."
-  echo -e " [   ${WHITE_R}5${RESET}   ]  |  Cancel Script.\\n\\n"
+  echo -e "${WHITE_R}#${RESET} Note: Archiving/Deleting events, alarms and alerts can take a long time on big setups.\\n"
+  echo -e " [   ${WHITE_R}1${RESET}   ]  |  Archive all Alerts."
+  echo -e " [   ${WHITE_R}2${RESET}   ]  |  Delete all Events."
+  echo -e " [   ${WHITE_R}3${RESET}   ]  |  Delete all Alarms."
+  echo -e " [   ${WHITE_R}4${RESET}   ]  |  Delete all Alerts."
+  echo -e " [   ${WHITE_R}5${RESET}   ]  |  Delete all Events, Alarms and Alerts."
+  echo -e " [   ${WHITE_R}6${RESET}   ]  |  Cancel Script.\\n\\n"
   read -rp $'Your choice | \033[39m' alert_event_option_var
   case "$alert_event_option_var" in
-      1*|"")
+      1*)
         are_you_sure_var="archiving all alerts"
         are_you_sure
         if [[ "${are_you_sure_proceed}" == 'yes' ]]; then
           header
-          echo -e "${WHITE_R}#${RESET} Archiving the Alerts..."
+          echo -e "${WHITE_R}#${RESET} Archiving the alerts..."
           if [[ "${mongodb_server_version::2}" -gt "30" ]]; then
-            # shellcheck disable=SC2016
-            modified_count="$("${mongocommand}" --quiet --port 27117 ace --eval ''"${mongoprefix}"'db.alarm.updateMany({},{"$set": {"archived": true}}) )' | jq '."modifiedCount"')"
-            echo -e "${GREEN}#${RESET} Successfully archived ${modified_count} Alerts..."
+            if "${event_collection_available}" == 'true' ]]; then
+              modified_count="$("${mongocommand}" --quiet --port 27117 ace --eval ''"${mongoprefix}"'db.alarm.updateMany({},{"$set": {"archived": true}}) )' | jq '."modifiedCount"')"
+              echo -e "${GREEN}#${RESET} Successfully archived ${modified_count} alerts..."
+            else
+              echo -e "${YELLOW}#${RESET} The alert collection couldn't be found in the database, skipping..."
+            fi
           else
-            # shellcheck disable=SC2016
-            "${mongocommand}" --quiet --port 27117 ace --eval 'db.alarm.update({},{$set: {"archived": true}},{multi: true})' | awk '{ nModified=$10 ; print "\033[1;32m#\033[0m Successfully archived " nModified " Alerts" }' # nModified
+            if "${event_collection_available}" == 'true' ]]; then
+              # shellcheck disable=SC2016
+              "${mongocommand}" --quiet --port 27117 ace --eval 'db.alarm.update({},{$set: {"archived": true}},{multi: true})' | awk '{ nModified=$10 ; print "\033[1;32m#\033[0m Successfully archived " nModified " alerts" }' # nModified
+            else
+              echo -e "${YELLOW}#${RESET} The alert collection couldn't be found in the database, skipping..."
+            fi
           fi
           echo -e "\\n"
           sleep 5
         fi;;
       2*)
-        are_you_sure_var="deleting all alerts"
+        are_you_sure_var="deleting all events"
         are_you_sure
         if [[ "${are_you_sure_proceed}" == 'yes' ]]; then
           header
-          echo -e "${WHITE_R}#${RESET} Deleting all Alerts...\\n"
+          echo -e "${WHITE_R}#${RESET} Deleting all events...\\n"
           if [[ "${mongodb_server_version::2}" -gt "30" ]]; then
-            deleted_count="$("${mongocommand}" --quiet --port 27117 ace --eval "${mongoprefix}db.alarm.deleteMany({}) )" | jq '."deletedCount"')"
-            echo -e "${GREEN}#${RESET} Successfully deleted ${deleted_count} Alerts..."
+            if "${event_collection_available}" == 'true' ]]; then
+              deleted_count="$("${mongocommand}" --quiet --port 27117 ace --eval "${mongoprefix}db.event.deleteMany({}) )" | jq '."deletedCount"')"
+              echo -e "${GREEN}#${RESET} Successfully deleted ${deleted_count} events..."
+            else
+              echo -e "${YELLOW}#${RESET} The event collection couldn't be found in the database, skipping..."
+            fi
           else
-            # shellcheck disable=SC2016
-            "${mongocommand}" --quiet --port 27117 ace --eval 'db.alarm.remove({},{multi: true})' | awk '{ nRemoved=$4 ; print "\033[1;32m#\033[0m Successfully deleted " nRemoved " Alerts" }' # nRemoved
+            if "${alarm_collection_available}" == 'true' ]]; then
+              # shellcheck disable=SC2016
+              "${mongocommand}" --quiet --port 27117 ace --eval 'db.event.remove({},{multi: true})' | awk '{ nRemoved=$4 ; print "\033[1;32m#\033[0m Successfully deleted " nRemoved " events" }' # nRemoved
+            else
+              echo -e "${YELLOW}#${RESET} The event collection couldn't be found in the database, skipping..."
+            fi
+          fi
+          echo -e "\\n"
+          sleep 5
+        fi;;
+      2*)
+        are_you_sure_var="deleting all alarms"
+        are_you_sure
+        if [[ "${are_you_sure_proceed}" == 'yes' ]]; then
+          header
+          echo -e "${WHITE_R}#${RESET} Deleting all alarms...\\n"
+          if [[ "${mongodb_server_version::2}" -gt "30" ]]; then
+            if "${alarm_collection_available}" == 'true' ]]; then
+              deleted_count="$("${mongocommand}" --quiet --port 27117 ace --eval "${mongoprefix}db.alarm.deleteMany({}) )" | jq '."deletedCount"')"
+              echo -e "${GREEN}#${RESET} Successfully deleted ${deleted_count} alarms..."
+            else
+              echo -e "${YELLOW}#${RESET} The alarm collection couldn't be found in the database, skipping..."
+            fi
+          else
+            if "${alarm_collection_available}" == 'true' ]]; then
+              # shellcheck disable=SC2016
+              "${mongocommand}" --quiet --port 27117 ace --eval 'db.alarm.remove({},{multi: true})' | awk '{ nRemoved=$4 ; print "\033[1;32m#\033[0m Successfully deleted " nRemoved " alarms" }' # nRemoved
+            else
+              echo -e "${YELLOW}#${RESET} The alarm collection couldn't be found in the database, skipping..."
+            fi
           fi
           echo -e "\\n"
           sleep 5
         fi;;
       3*)
-        are_you_sure_var="deleting all events"
+        are_you_sure_var="deleting all alerts"
         are_you_sure
         if [[ "${are_you_sure_proceed}" == 'yes' ]]; then
           header
-          echo -e "${WHITE_R}#${RESET} Deleting all Events..."
+          echo -e "${WHITE_R}#${RESET} Deleting all alerts..."
           if [[ "${mongodb_server_version::2}" -gt "30" ]]; then
-            deleted_count="$("${mongocommand}" --quiet --port 27117 ace --eval "${mongoprefix}db.event.deleteMany({}) )" | jq '."deletedCount"')"
-            echo -e "${GREEN}#${RESET} Successfully deleted ${deleted_count} Events..."
+            if "${alert_collection_available}" == 'true' ]]; then
+              deleted_count="$("${mongocommand}" --quiet --port 27117 ace --eval "${mongoprefix}db.alert.deleteMany({}) )" | jq '."deletedCount"')"
+              echo -e "${GREEN}#${RESET} Successfully deleted ${deleted_count} alerts..."
+            else
+              echo -e "${YELLOW}#${RESET} The alert collection couldn't be found in the database, skipping..."
+            fi
           else
-            # shellcheck disable=SC2016
-            "${mongocommand}" --quiet --port 27117 ace --eval 'db.event.remove({},{multi: true})' | awk '{ nRemoved=$4 ; print "\033[1;32m#\033[0m Successfully deleted " nRemoved " Events" }' # nRemoved
+            if "${alert_collection_available}" == 'true' ]]; then
+              # shellcheck disable=SC2016
+              "${mongocommand}" --quiet --port 27117 ace --eval 'db.alert.remove({},{multi: true})' | awk '{ nRemoved=$4 ; print "\033[1;32m#\033[0m Successfully deleted " nRemoved " alerts" }' # nRemoved
+            else
+              echo -e "${YELLOW}#${RESET} The alert collection couldn't be found in the database, skipping..."
+            fi
           fi
           echo -e "\\n"
           sleep 5
         fi;;
       4*)
-        are_you_sure_var="deleting all alerts and events"
+        are_you_sure_var="deleting all events, alarms and alerts"
         are_you_sure
         if [[ "${are_you_sure_proceed}" == 'yes' ]]; then
           header
-          echo -e "${WHITE_R}#${RESET} Deleting all Alerts and Events..."
+          echo -e "${WHITE_R}#${RESET} Deleting all events, alarms and alerts..."
           if [[ "${mongodb_server_version::2}" -gt "30" ]]; then
-            deleted_count="$("${mongocommand}" --quiet --port 27117 ace --eval "${mongoprefix}db.alarm.deleteMany({}) )" | jq '."deletedCount"')"
-            echo -e "${GREEN}#${RESET} Successfully deleted ${deleted_count} Alerts..."
-            deleted_count="$("${mongocommand}" --quiet --port 27117 ace --eval "${mongoprefix}db.event.deleteMany({}) )" | jq '."deletedCount"')"
-            echo -e "${GREEN}#${RESET} Successfully deleted ${deleted_count} Events..."
+            if "${event_collection_available}" == 'true' ]]; then
+              deleted_count="$("${mongocommand}" --quiet --port 27117 ace --eval "${mongoprefix}db.event.deleteMany({}) )" | jq '."deletedCount"')"
+              echo -e "${GREEN}#${RESET} Successfully deleted ${deleted_count} events..."
+            else
+              echo -e "${YELLOW}#${RESET} The event collection couldn't be found in the database, skipping..."
+            fi
+            if "${alarm_collection_available}" == 'true' ]]; then
+              deleted_count="$("${mongocommand}" --quiet --port 27117 ace --eval "${mongoprefix}db.alarm.deleteMany({}) )" | jq '."deletedCount"')"
+              echo -e "${GREEN}#${RESET} Successfully deleted ${deleted_count} alarms..."
+            else
+              echo -e "${YELLOW}#${RESET} The alarm collection couldn't be found in the database, skipping..."
+            fi
+            if "${alert_collection_available}" == 'true' ]]; then
+              deleted_count="$("${mongocommand}" --quiet --port 27117 ace --eval "${mongoprefix}db.alert.deleteMany({}) )" | jq '."deletedCount"')"
+              echo -e "${GREEN}#${RESET} Successfully deleted ${deleted_count} alerts..."
+            else
+              echo -e "${YELLOW}#${RESET} The alert collection couldn't be found in the database, skipping..."
+            fi
           else
-            # shellcheck disable=SC2016
-            "${mongocommand}" --quiet --port 27117 ace --eval 'db.alarm.remove({},{multi: true})' | awk '{ nRemoved=$4 ; print "\033[1;32m#\033[0m Successfully deleted " nRemoved " Alerts" }' # nRemoved
-            # shellcheck disable=SC2016
-            "${mongocommand}" --quiet --port 27117 ace --eval 'db.event.remove({},{multi: true})' | awk '{ nRemoved=$4 ; print "\033[1;32m#\033[0m Successfully deleted " nRemoved " Events" }' # nRemoved
+            if "${event_collection_available}" == 'true' ]]; then
+              # shellcheck disable=SC2016
+              "${mongocommand}" --quiet --port 27117 ace --eval 'db.event.remove({},{multi: true})' | awk '{ nRemoved=$4 ; print "\033[1;32m#\033[0m Successfully deleted " nRemoved " events" }' # nRemoved
+            else
+              echo -e "${YELLOW}#${RESET} The event collection couldn't be found in the database, skipping..."
+            fi
+            if "${alarm_collection_available}" == 'true' ]]; then
+              # shellcheck disable=SC2016
+              "${mongocommand}" --quiet --port 27117 ace --eval 'db.alarm.remove({},{multi: true})' | awk '{ nRemoved=$4 ; print "\033[1;32m#\033[0m Successfully deleted " nRemoved " alarms" }' # nRemoved
+            else
+              echo -e "${YELLOW}#${RESET} The alarm collection couldn't be found in the database, skipping..."
+            fi
+            if "${alert_collection_available}" == 'true' ]]; then
+              # shellcheck disable=SC2016
+              "${mongocommand}" --quiet --port 27117 ace --eval 'db.alert.remove({},{multi: true})' | awk '{ nRemoved=$4 ; print "\033[1;32m#\033[0m Successfully deleted " nRemoved " alerts" }' # nRemoved
+            else
+              echo -e "${YELLOW}#${RESET} The alert collection couldn't be found in the database, skipping..."
+            fi
           fi
           echo -e "\\n"
           sleep 5
@@ -7016,15 +7146,25 @@ mongodb_upgrade() {
   mongodb_upgrade_started_success_value="true"
   old_systemd_version_check_mongodb_upgrade_override="true"
   if grep -sioq "^unifi.https.port" "/usr/lib/unifi/data/system.properties"; then dmport="$(awk '/^unifi.https.port/' /usr/lib/unifi/data/system.properties | cut -d'=' -f2)"; else dmport="8443"; fi
-  if [[ "$(curl -sk --connect-timeout 1 "https://localhost:${dmport}/status" | jq '.meta.up' 2> /dev/null)" != "true" ]]; then
+  application_up="$(curl --silent --insecure "https://localhost:${dmport}/status" | jq -r '.meta.up' 2> /dev/null)"
+  if [[ -z "${application_up}" ]]; then application_up="$(curl "${noproxy_curl_argument[@]}" --silent --insecure --connect-timeout 1 "https://localhost:${dmport}/status" | jq -r '.meta.up' 2> /dev/null)"; noproxy_curl_argument_used="true"; fi
+  if [[ "${application_up}" != "true" ]]; then
     header_red
     echo -e "${YELLOW}#${RESET} The UniFi Network Application is not up and running yet...\\n"
     echo -e "${WHITE_R}#${RESET} $(curl -sk --connect-timeout 1 "https://localhost:${dmport}/status" | jq -r '.meta."app_context_status"' 2> /dev/null | sed '/null/d')"
-    until [[ "$(curl -sk --connect-timeout 1 "https://localhost:${dmport}/status" | jq '.meta.up' 2> /dev/null)" == "true" ]]; do
-      if [[ "${net_not_started_message}" != 'true' ]]; then echo -e "\\n${WHITE_R}#${RESET} It's performing the following actions..."; net_not_started_message="true"; fi
-      echo -ne "\033[K${WHITE_R}#${RESET} $(curl -sk --connect-timeout 1 "https://localhost:${dmport}/status" | jq -r '.meta."app_context_message"' 2> /dev/null | sed '/null/d')...\\r"
-      sleep 5
-    done
+    if [[ "${noproxy_curl_argument_used}" == 'true' ]]; then
+      until [[ "$(curl "${noproxy_curl_argument[@]}" --silent --insecure --connect-timeout 1 "https://localhost:${dmport}/status" | jq '.meta.up' 2> /dev/null)" == "true" ]]; do
+        if [[ "${net_not_started_message}" != 'true' ]]; then echo -e "\\n${WHITE_R}#${RESET} It's performing the following actions..."; net_not_started_message="true"; fi
+        echo -ne "\033[K${WHITE_R}#${RESET} $(curl "${noproxy_curl_argument[@]}" --silent --insecure --connect-timeout 1 "https://localhost:${dmport}/status" | jq -r '.meta."app_context_message"' 2> /dev/null | sed '/null/d')...\\r"
+        sleep 5
+      done
+    else
+      until [[ "$(curl --silent --insecure --connect-timeout 1 "https://localhost:${dmport}/status" | jq '.meta.up' 2> /dev/null)" == "true" ]]; do
+        if [[ "${net_not_started_message}" != 'true' ]]; then echo -e "\\n${WHITE_R}#${RESET} It's performing the following actions..."; net_not_started_message="true"; fi
+        echo -ne "\033[K${WHITE_R}#${RESET} $(curl --silent --insecure --connect-timeout 1 "https://localhost:${dmport}/status" | jq -r '.meta."app_context_message"' 2> /dev/null | sed '/null/d')...\\r"
+        sleep 5
+      done
+    fi
   fi
   unifi_database_location="$(readlink -f /usr/lib/unifi/data/db)"
   unifi_database_location_user="$(stat -c "%U" "${unifi_database_location}")"
@@ -7666,9 +7806,12 @@ mongodb_upgrade() {
   fi
   # Install/Upgrade MongoDB
   while read -r mongodb_package; do
-    check_dpkg_lock
     echo -e "${WHITE_R}#${RESET} ${mongodb_upgrade_mongodb_org_message} ${mongodb_package}..."
     if [[ "${mongodb_package}" == 'mongod-armv8' ]]; then install_mongodb_version_with_equality_sign_tmp="${install_mongodb_version_with_equality_sign}"; install_mongodb_version_with_equality_sign="${install_mongod_version_with_equality_sign}"; elif [[ -n "${install_mongodb_version_with_equality_sign_tmp}" ]]; then install_mongodb_version_with_equality_sign="${install_mongodb_version_with_equality_sign_tmp}"; fi
+    mongodb_package_libssl="${mongodb_package}"
+    mongodb_package_version_libssl="${install_mongodb_version}"
+    libssl_installation_check
+    check_dpkg_lock
     if DEBIAN_FRONTEND='noninteractive' apt-get -y --allow-downgrades "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${mongodb_package}${install_mongodb_version_with_equality_sign}" &>> "${eus_dir}/logs/mongodb_upgrade_${mongodb_upgrade_from_version::2}_to_${mongo_version_max}.log"; then
       echo -e "${GREEN}#${RESET} Successfully ${mongodb_upgrade_mongodb_org_message_2} ${mongodb_package}! \\n"
     else

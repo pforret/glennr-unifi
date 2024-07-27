@@ -11,6 +11,17 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Encrypt Script  |  Version 2.9.2
+ 
+ - Added support for BunsenLabs Linux.
+ - Improved getting HTTP proxy from environment settings.
+ - Improved messaging when script doesn't (yet) support the users' OS/Distribution.
+ - Improved the script for distributions that use the same codenames as Ubuntu/Debian, but different ID's. Such as PopOS.
+ - Improved api.glennr.nl to work with "unknown" distribution versions. Such as rasbian armhf unstable.
+ - Fixed inability to import certificates into the UniFi Network Application on UniFi Native systems.
+ 
+ ###
+
  |  UniFi Easy Encrypt Script  |  Version 2.9.1
  
  - Added check to ensure everyone runs the script with bash.

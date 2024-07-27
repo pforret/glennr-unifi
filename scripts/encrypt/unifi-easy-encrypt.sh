@@ -2,7 +2,7 @@
 
 # UniFi Easy Encrypt script.
 # Script   | UniFi Network Easy Encrypt Script
-# Version  | 2.9.1
+# Version  | 2.9.2
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -30,14 +30,12 @@ GREEN='\033[1;32m' # Light Green.
 ###################################################################################################################################################################################################
 
 header() {
-  clear
-  clear
+  if [[ "${script_option_debug}" != 'true' ]]; then clear; clear; fi
   echo -e "${GREEN}#########################################################################${RESET}\\n"
 }
 
 header_red() {
-  clear
-  clear
+  if [[ "${script_option_debug}" != 'true' ]]; then clear; clear; fi
   echo -e "${RED}#########################################################################${RESET}\\n"
 }
 
@@ -104,7 +102,22 @@ retry_script_option() {
 
 check_docker_setup() {
   if [[ -f /.dockerenv ]] || grep -q '/docker/' /proc/1/cgroup || { command -v pgrep &>/dev/null && (pgrep -f "^dockerd" &>/dev/null || pgrep -f "^containerd" &>/dev/null); }; then docker_setup="true"; else docker_setup="false"; fi
-  if [[ -n "$(command -v jq)" ]]; then jq '."database" += {"docker-container": "'"${docker_setup}"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"; eus_database_move; fi
+  if [[ -n "$(command -v jq)" && -e "${eus_dir}/db/db.json" ]]; then jq --arg docker_setup "${docker_setup}" '."database" += {"docker-container": "'"${docker_setup}"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"; eus_database_move; fi
+}
+
+check_lxc_setup() {
+  if grep -sqa "lxc" /proc/1/environ /proc/self/mountinfo /proc/1/environ; then lxc_setup="true"; else lxc_setup="false"; fi
+  if [[ -n "$(command -v jq)" && -e "${eus_dir}/db/db.json" ]]; then jq --arg lxc_setup "${lxc_setup}" '."database" += {"lxc-container": "'"${lxc_setup}"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"; eus_database_move; fi
+}
+
+locate_http_proxy() {
+  env_proxies="$(grep -E "^[^#]*http_proxy|^[^#]*https_proxy" "/etc/environment" | awk -F '=' '{print $2}' | tr -d '"')"
+  profile_proxies="$(find /etc/profile.d/ -type f -exec sh -c 'grep -E "^[^#]*http_proxy|^[^#]*https_proxy" "$1" | awk -F "=" "{print \$2}" | tr -d "\"" ' _ {} \;)"
+  # Combine, normalize (remove trailing slashes), and sort unique proxies
+  all_proxies="$(echo -e "$env_proxies\n$profile_proxies" | sed 's:/*$::' | sort -u | grep -v '^$')"
+  http_proxy="$(echo "$all_proxies" | tail -n1)"
+  json_proxies="$(echo "$all_proxies" | jq -R -s 'split("\n") | map(select(length > 0))')"
+  if [[ -n "$(command -v jq)" && -e "${eus_dir}/db/db.json" ]]; then jq --argjson proxies "$json_proxies" '.database."http-proxy" = $proxies' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"; eus_database_move; fi
 }
 
 update_eus_db() {
@@ -125,10 +138,13 @@ update_eus_db() {
     ((script_total_runs=script_total_runs+1))
     jq --arg script_total_runs "${script_total_runs}" '."scripts"."'"${script_name}"'" += {"total-runs": "'"${script_total_runs}"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
     eus_database_move
-    jq '."database" += {"name-servers": "'"${system_dns_servers}"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+    json_system_dns_servers="$(echo "$system_dns_servers" | sed 's/[()]//g' | tr ' ' '\n' | jq -R . | jq -s .)"
+    jq --argjson dns "$json_system_dns_servers" '.database["name-servers"] = $dns' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
     eus_database_move
   fi
   check_docker_setup
+  check_lxc_setup
+  locate_http_proxy
 }
 
 eus_database_move() {
@@ -198,6 +214,7 @@ get_timezone() {
 support_file() {
   get_timezone
   check_docker_setup
+  check_lxc_setup
   if [[ "${set_lc_all}" == 'true' ]]; then if [[ -n "${original_lang}" ]]; then export LANG="${original_lang}"; else unset LANG; fi; if [[ -n "${original_lcall}" ]]; then export LC_ALL="${original_lcall}"; else unset LC_ALL; fi; fi
   if [[ "${script_option_support_file}" == 'true' ]]; then header; fi
   echo -e "${WHITE_R}#${RESET} Creating support file..."
@@ -624,6 +641,10 @@ start_script() {
 }
 start_script
 check_dns
+check_docker_setup
+check_lxc_setup
+locate_http_proxy
+check_apt_listbugs
 
 help_script() {
   check_apt_listbugs
@@ -843,6 +864,8 @@ while [ -n "$1" ]; do
   --help)
        script_option_help=true
        help_script;;
+  --debug)
+       script_option_debug="true";;
   --support-file)
        script_option_support_file="true"
        support_file;;
@@ -1040,10 +1063,26 @@ aptkey_depreciated() {
 }
 aptkey_depreciated
 
+cleanup_unifi_native_system() {
+  if [[ "${openjdk_native_installed}" == 'true' ]]; then
+    header
+    check_dpkg_lock
+    echo -e "${WHITE_R}#${RESET} The script installed ${openjdk_native_installed_package}, we do not need this anymore.\\n"
+    echo -e "${WHITE_R}#${RESET} Purging package ${openjdk_native_installed_package}..."
+    if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' purge "${openjdk_native_installed_package}" &>> "${eus_dir}/logs/uninstall-${openjdk_native_installed_package}.log"; then
+      echo -e "${GREEN}#${RESET} Successfully purged ${openjdk_native_installed_package}! \\n"
+    else
+      echo -e "${RED}#${RESET} Failed to purge ${openjdk_native_installed_package}... \\n"
+    fi
+    sleep 2
+  fi
+}
+
 author() {
   check_apt_listbugs
   update_eus_db
   cleanup_codename_mismatch_repos
+  cleanup_unifi_native_system
   header
   echo -e "${WHITE_R}#${RESET} The script successfully ended, enjoy your secure setup!\\n"
   christmass_new_year
@@ -1077,26 +1116,29 @@ get_distro() {
   else
     os_codename="$(lsb_release --codename --short | tr '[:upper:]' '[:lower:]')"
     os_id="$(lsb_release --id --short | tr '[:upper:]' '[:lower:]')"
-    if [[ "${os_codename}" == 'n/a' ]]; then
+    if [[ "${os_codename}" == 'n/a' ]] || [[ -z "${os_codename}" ]]; then
       skip_use_lsb_release="true"
       get_distro
       return
     fi
   fi
-  if [[ "${os_codename}" =~ ^(precise|maya|luna)$ ]]; then repo_codename="precise"; os_codename="precise"; os_id="ubuntu"
-  elif [[ "${os_codename}" =~ ^(trusty|qiana|rebecca|rafaela|rosa|freya)$ ]]; then repo_codename="trusty"; os_codename="trusty"; os_id="ubuntu"
-  elif [[ "${os_codename}" =~ ^(xenial|sarah|serena|sonya|sylvia|loki)$ ]]; then repo_codename="xenial"; os_codename="xenial"; os_id="ubuntu"
-  elif [[ "${os_codename}" =~ ^(bionic|tara|tessa|tina|tricia|hera|juno)$ ]]; then repo_codename="bionic"; os_codename="bionic"; os_id="ubuntu"
-  elif [[ "${os_codename}" =~ ^(focal|ulyana|ulyssa|uma|una|odin|jolnir)$ ]]; then repo_codename="focal"; os_codename="focal"; os_id="ubuntu"
-  elif [[ "${os_codename}" =~ ^(jammy|vanessa|vera|victoria|virginia|horus)$ ]]; then repo_codename="jammy"; os_codename="jammy"; os_id="ubuntu"
-  elif [[ "${os_codename}" =~ ^(stretch|continuum)$ ]]; then repo_codename="stretch"; os_codename="stretch"; os_id="debian"
-  elif [[ "${os_codename}" =~ ^(buster|debbie|parrot|engywuck-backports|engywuck|deepin)$ ]]; then repo_codename="buster"; os_codename="buster"; os_id="debian"
-  elif [[ "${os_codename}" =~ ^(bullseye|kali-rolling|elsie|ara)$ ]]; then repo_codename="bullseye"; os_codename="bullseye"; os_id="debian"
-  elif [[ "${os_codename}" =~ ^(bookworm|lory|faye)$ ]]; then repo_codename="bookworm"; os_codename="bookworm"; os_id="debian"
-  else
-    repo_codename="${os_codename}"
+  if [[ "${unsupported_no_modify}" != 'true' ]]; then
+    if [[ ! "${os_id}" =~ (ubuntu|debian) ]] && [[ -e "/etc/os-release" ]]; then os_id="$(grep -io "debian\\|ubuntu" /etc/os-release | tr '[:upper:]' '[:lower:]' | head -n1)"; fi
+    if [[ "${os_codename}" =~ ^(precise|maya|luna)$ ]]; then repo_codename="precise"; os_codename="precise"; os_id="ubuntu"
+    elif [[ "${os_codename}" =~ ^(trusty|qiana|rebecca|rafaela|rosa|freya)$ ]]; then repo_codename="trusty"; os_codename="trusty"; os_id="ubuntu"
+    elif [[ "${os_codename}" =~ ^(xenial|sarah|serena|sonya|sylvia|loki)$ ]]; then repo_codename="xenial"; os_codename="xenial"; os_id="ubuntu"
+    elif [[ "${os_codename}" =~ ^(bionic|tara|tessa|tina|tricia|hera|juno)$ ]]; then repo_codename="bionic"; os_codename="bionic"; os_id="ubuntu"
+    elif [[ "${os_codename}" =~ ^(focal|ulyana|ulyssa|uma|una|odin|jolnir)$ ]]; then repo_codename="focal"; os_codename="focal"; os_id="ubuntu"
+    elif [[ "${os_codename}" =~ ^(jammy|vanessa|vera|victoria|virginia|horus)$ ]]; then repo_codename="jammy"; os_codename="jammy"; os_id="ubuntu"
+    elif [[ "${os_codename}" =~ ^(stretch|continuum|helium)$ ]]; then repo_codename="stretch"; os_codename="stretch"; os_id="debian"
+    elif [[ "${os_codename}" =~ ^(buster|debbie|parrot|engywuck-backports|engywuck|deepin|lithium)$ ]]; then repo_codename="buster"; os_codename="buster"; os_id="debian"
+    elif [[ "${os_codename}" =~ ^(bullseye|kali-rolling|elsie|ara|beryllium)$ ]]; then repo_codename="bullseye"; os_codename="bullseye"; os_id="debian"
+    elif [[ "${os_codename}" =~ ^(bookworm|lory|faye|boron)$ ]]; then repo_codename="bookworm"; os_codename="bookworm"; os_id="debian"
+    else
+      repo_codename="${os_codename}"
+    fi
+    if [[ -n "$(command -v jq)" && "$(jq -r '.database.distribution' "${eus_dir}/db/db.json")" != "${os_codename}" ]]; then jq '."database" += {"distribution": "'"${os_codename}"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"; eus_database_move; fi
   fi
-  if [[ -n "$(command -v jq)" && "$(jq -r '.database.distribution' "${eus_dir}/db/db.json")" != "${os_codename}" ]]; then jq '."database" += {"distribution": "'"${os_codename}"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"; eus_database_move; fi
 }
 get_distro
 
@@ -1338,14 +1380,6 @@ get_apt_options() {
 remove_apt_options="false"
 get_apt_options
 
-if ! [[ "${os_codename}" =~ (xenial|sarah|serena|sonya|sylvia|bionic|tara|tessa|tina|tricia|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|jessie|stretch|continuum|buster|bullseye|bookworm|trixie|forky) ]]; then
-  header_red
-  echo -e "${WHITE_R}#${RESET} This script is not made for your OS..."
-  echo -e "${WHITE_R}#${RESET} Please contact Glenn R. (AmazedMender16) on the Community Forums if you believe this is an error."
-  echo -e "\\nOS_CODENAME = ${os_codename}\\n\\n"
-  exit 1
-fi
-
 check_unmet_dependencies() {
   if ls /tmp/EUS/apt/*.log 1> /dev/null 2>&1; then
     while IFS= read -r log_file; do
@@ -1498,6 +1532,19 @@ script_version_check() {
   fi
 }
 if [[ "$(command -v curl)" ]]; then script_version_check; fi
+
+if ! [[ "${os_codename}" =~ (precise|maya|trusty|qiana|rebecca|rafaela|rosa|xenial|sarah|serena|sonya|sylvia|bionic|tara|tessa|tina|tricia|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
+  if [[ -e "/etc/os-release" ]]; then full_os_details="$(sed ':a;N;$!ba;s/\n/\\n/g' /etc/os-release | sed 's/"/\\"/g')"; fi
+  unsupported_no_modify="true"
+  get_distro
+  distro_support_missing_report="$(curl "${curl_argument[@]}" -X POST -H "Content-Type: application/json" -d "{\"distribution\": \"${os_id}\", \"codename\": \"${os_codename}\", \"script-name\": \"${script_name}\", \"full-os-details\": \"${full_os_details}\"}" https://api.glennr.nl/api/missing-distro-support | jq -r '.[]')"
+  if [[ "${script_option_debug}" != 'true' ]]; then clear; fi
+  header_red
+  if [[ "${distro_support_missing_report}" == "OK" ]]; then echo -e "${WHITE_R}#${RESET} The script does not (yet) support ${os_id} ${os_codename}, and Glenn R. has been informed about it..."; else echo -e "${WHITE_R}#${RESET} The script does not (yet) support ${os_id} ${os_codename}..."; fi
+  echo -e "${WHITE_R}#${RESET} Feel free to contact Glenn R. (AmazedMender16) on the UI Community if you need help with installing your UniFi Network Application.\\n\\n"
+  author
+  exit 1
+fi
 
 check_package_cache_file_corruption() {
   if ls /tmp/EUS/apt/*.log 1> /dev/null 2>&1; then
@@ -1750,7 +1797,7 @@ run_apt_get_update() {
     if "$(which dpkg)" -l dirmngr 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
       while read -r key; do
         echo -e "${WHITE_R}#${RESET} Key ${key} is missing.. adding!"
-        http_proxy="$(env | grep -i "http.*Proxy" | cut -d'=' -f2 | sed 's/[";]//g')"
+        locate_http_proxy
         if [[ -n "$http_proxy" ]]; then
           if apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --keyserver-options http-proxy="${http_proxy}" --recv-keys "$key" &>> "${eus_dir}/logs/key-recovery.log"; then echo "${key}" &>> /tmp/EUS/apt/missing_keys_done; echo -e "${GREEN}#${RESET} Successfully added key ${key}!\\n"; else fail_key="true"; fi
         elif [[ -f /etc/apt/apt.conf ]]; then
@@ -2887,6 +2934,7 @@ if [[ -f "/etc/letsencrypt/live/${server_fqdn}\${le_var}/privkey.pem" && -f "/et
     sha256sum "/etc/letsencrypt/live/${server_fqdn}\${le_var}/fullchain.pem" 2> /dev/null | awk '{print \$1}' &> "${eus_dir}/checksum/fullchain.sha256sum" && echo "Successfully updated sha256sum" &>> "${eus_dir}/logs/lets_encrypt_import.log"
     md5sum "/etc/letsencrypt/live/${server_fqdn}\${le_var}/fullchain.pem" 2> /dev/null | awk '{print \$1}' &> "${eus_dir}/checksum/fullchain.md5sum" && echo "Successfully updated md5sum" &>> "${eus_dir}/logs/lets_encrypt_import.log"
     if dpkg -l unifi-core 2> /dev/null | awk '{print \$1}' | grep -iq "^ii\\|^hi"; then
+      if grep -sq unifi-native /mnt/.rofs/var/lib/dpkg/status; then unifi_native_system="true"; fi
       if grep -ioq "udm" /usr/lib/version; then udm_device=true; fi
       unifi_core_version="\$(dpkg-query --showformat='\${Version}' --show unifi-core)"
       if [[ -f /usr/lib/version ]]; then unifi_core_device_version=\$(grep -ioE "v[0-9]{1,9}.[0-9]{1,9}.[0-9]{1,9}" /usr/lib/version | sed 's/v//g'); fi
@@ -2978,6 +3026,11 @@ SSL
       fi
     fi
     if dpkg -l unifi 2> /dev/null | awk '{print \$1}' | grep -iq "^ii\\|^hi" && [[ "\${skip_network_application}" != 'true' ]]; then
+      if [[ "\${unifi_native_system}" == 'true' ]]; then
+        openjdk_native_installed_package="\$(apt-cache search "jre-headless" | grep -Eio "openjdk-[0-9]{1,2}-jre-headless" | sort -V | tail -n1)"
+        openjdk_native_installed="true"
+        DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${openjdk_native_installed_package}" 2>&1 | tee -a "${eus_dir}/logs/apt.log"
+      fi
       # shellcheck disable=SC2012
       if [[ "\${old_certificates}" == 'last_three' ]]; then ls -t "${eus_dir}/network/keystore_backups/keystore_*" 2> /dev/null | awk 'NR>3' | xargs rm -f 2> /dev/null; fi
       mkdir -p "${eus_dir}/network/keystore_backups" && cp /usr/lib/unifi/data/keystore "${eus_dir}/network/keystore_backups/keystore_\$(date +%Y%m%d_%H%M)"
@@ -2992,6 +3045,9 @@ SSL
         echo "unifi.https.sslEnabledProtocols=TLSv1.3,TLSv1.2" &>> /usr/lib/unifi/data/system.properties
       fi
       systemctl restart unifi
+      if [[ "\${openjdk_native_installed}" == 'true' ]]; then
+        DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' purge "${openjdk_native_installed_package}" &>> "${eus_dir}/logs/uninstall-${openjdk_native_installed_package}.log"
+      fi
     fi
     if [[ -f "${eus_dir}/cloudkey/cloudkey_management_ui" ]]; then
       mkdir -p "${eus_dir}/cloudkey/certs_backups"
@@ -3429,6 +3485,12 @@ unifi_video() {
 }
 
 unifi_network_application() {
+  if [[ "${unifi_native_system}" == 'true' ]]; then
+    openjdk_native_installed_package="$(apt-cache search "jre-headless" | grep -Eio "openjdk-[0-9]{1,2}-jre-headless" | sort -V | tail -n1)"
+    required_package="${openjdk_native_installed_package}"
+    apt_get_install_package
+    openjdk_native_installed="true"
+  fi
   if [[ "${unifi_core_system}" == 'true' ]]; then echo -e "\\n${WHITE_R}#${RESET} Importing the SSL certificates into the UniFi Network Application running on your ${unifi_core_device}..."; else echo -e "\\n${WHITE_R}#${RESET} Importing the SSL certificates into the UniFi Network Application..."; fi
   echo -e "\\n------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/lets_encrypt_import.log"
   if sha256sum "/etc/letsencrypt/live/${server_fqdn}${le_var}/fullchain.pem" 2> /dev/null | awk '{print $1}' &> "${eus_dir}/checksum/fullchain.sha256sum"; then echo "Successfully updated sha256sum" &>> "${eus_dir}/logs/lets_encrypt_import.log"; fi
@@ -4425,6 +4487,7 @@ EOF
 }
 
 if dpkg -l unifi-core 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi"; then
+  if grep -sq unifi-native /mnt/.rofs/var/lib/dpkg/status; then unifi_native_system="true"; fi
   unifi_core_system=true
   if grep -ioq "udm" /usr/lib/version; then udm_device=true; fi
   if dpkg -l uid-agent 2> /dev/null | grep -iq "^ii\\|^hi"; then uid_agent=$(curl -s http://localhost:11081/api/controllers | jq '.[] | select(.name == "uid-agent").isConfigured'); fi

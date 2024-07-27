@@ -11,6 +11,21 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 8.9.9
+  
+ - Added support for BunsenLabs Linux.
+ - Added libssl check before attempting to Install/Upgrade MongoDB during the MongoDB Upgrade process.
+ - Improved getting HTTP proxy from environment settings.
+ - Improved the libssl installation process.
+ - Improved the Events, Alarms and Alerts archiving/removal process.
+ - Improved messaging when script doesn't (yet) support the users' OS/Distribution.
+ - Improved the script for distributions that use the same codenames as Ubuntu/Debian, but different ID's.
+ - Improved api.glennr.nl to work with "unknown" distribution versions. Such as rasbian armhf unstable.
+ - Fixed inability to properly display UniFi Network Application upgrade process on setups with a HTTP Proxy.
+ - Fixed inability to properly detect if the UniFi Network Application was running on setups with a HTTP Proxy.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 8.9.8
   
  - Added a check to ensure everyone runs the script with bash.
