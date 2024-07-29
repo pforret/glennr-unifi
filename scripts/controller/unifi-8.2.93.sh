@@ -37,6 +37,9 @@
 #                       | Linux Mint 19 ( Tara | Tessa | Tina | Tricia )
 #                       | Linux Mint 20 ( Ulyana | Ulyssa | Uma | Una )
 #                       | Linux Mint 21 ( Vanessa | Vera | Victoria | Virginia )
+#                       | Linux Mint 22 ( Wilma )
+#                       | Linux Mint 2 ( Betsy )
+#                       | Linux Mint 3 ( Cindy )
 #                       | Linux Mint 4 ( Debbie )
 #                       | Linux Mint 5 ( Elsie )
 #                       | Linux Mint 6 ( Faye )
@@ -45,13 +48,13 @@
 #                       | Progress-Linux ( Engywuck )
 #                       | Parrot OS ( Lory )
 #                       | Elementary OS
-#                       | Deepin Linux
+#                       | Deepin Linux ( Beige )
 #                       | Kali Linux ( rolling )
 
 ###################################################################################################################################################################################################
 
 # Script                | UniFi Network Easy Installation Script
-# Version               | 7.7.3
+# Version               | 7.7.4
 # Application version   | 8.2.93-1c329ecd26
 # Debian Repo version   | 8.2.93-25939-1
 # Author                | Glenn Rietveld
@@ -109,6 +112,10 @@ if [[ "$EUID" -ne 0 ]]; then
   echo -e "${GREEN}#${RESET} su\\n\\n"
   exit 1
 fi
+
+# Unset environment variables.
+if [[ -n "${PAGER}" ]]; then unset PAGER; fi
+if [[ -n "${LESS}" ]]; then unset LESS; fi
 
 if [[ "$(ps -p 1 -o comm=)" != 'systemd' ]]; then
   header_red
@@ -2027,10 +2034,12 @@ get_distro() {
     elif [[ "${os_codename}" =~ ^(bionic|tara|tessa|tina|tricia|hera|juno)$ ]]; then repo_codename="bionic"; os_codename="bionic"; os_id="ubuntu"
     elif [[ "${os_codename}" =~ ^(focal|ulyana|ulyssa|uma|una|odin|jolnir)$ ]]; then repo_codename="focal"; os_codename="focal"; os_id="ubuntu"
     elif [[ "${os_codename}" =~ ^(jammy|vanessa|vera|victoria|virginia|horus)$ ]]; then repo_codename="jammy"; os_codename="jammy"; os_id="ubuntu"
-    elif [[ "${os_codename}" =~ ^(stretch|continuum|helium)$ ]]; then repo_codename="stretch"; os_codename="stretch"; os_id="debian"
+    elif [[ "${os_codename}" =~ ^(noble|wilma)$ ]]; then repo_codename="noble"; os_codename="noble"; os_id="ubuntu"
+    elif [[ "${os_codename}" =~ ^(jessie|betsy)$ ]]; then repo_codename="jessie"; os_codename="jessie"; os_id="debian"
+    elif [[ "${os_codename}" =~ ^(stretch|continuum|helium|cindy)$ ]]; then repo_codename="stretch"; os_codename="stretch"; os_id="debian"
     elif [[ "${os_codename}" =~ ^(buster|debbie|parrot|engywuck-backports|engywuck|deepin|lithium)$ ]]; then repo_codename="buster"; os_codename="buster"; os_id="debian"
     elif [[ "${os_codename}" =~ ^(bullseye|kali-rolling|elsie|ara|beryllium)$ ]]; then repo_codename="bullseye"; os_codename="bullseye"; os_id="debian"
-    elif [[ "${os_codename}" =~ ^(bookworm|lory|faye|boron)$ ]]; then repo_codename="bookworm"; os_codename="bookworm"; os_id="debian"
+    elif [[ "${os_codename}" =~ ^(bookworm|lory|faye|boron|beige)$ ]]; then repo_codename="bookworm"; os_codename="bookworm"; os_id="debian"
     else
       repo_codename="${os_codename}"
     fi

@@ -2,7 +2,7 @@
 
 # UniFi Network Application Easy Update Script.
 # Script   | UniFi Network Easy Update Script
-# Version  | 8.9.9
+# Version  | 9.0.0
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -58,6 +58,10 @@ if [[ "$EUID" -ne 0 ]]; then
   echo -e "${GREEN}#${RESET} su\\n\\n"
   exit 1
 fi
+
+# Unset environment variables.
+if [[ -n "${PAGER}" ]]; then unset PAGER; fi
+if [[ -n "${LESS}" ]]; then unset LESS; fi
 
 if [[ "$(ps -p 1 -o comm=)" != 'systemd' ]]; then
   header_red
@@ -1038,10 +1042,12 @@ get_distro() {
     elif [[ "${os_codename}" =~ ^(bionic|tara|tessa|tina|tricia|hera|juno)$ ]]; then repo_codename="bionic"; os_codename="bionic"; os_id="ubuntu"
     elif [[ "${os_codename}" =~ ^(focal|ulyana|ulyssa|uma|una|odin|jolnir)$ ]]; then repo_codename="focal"; os_codename="focal"; os_id="ubuntu"
     elif [[ "${os_codename}" =~ ^(jammy|vanessa|vera|victoria|virginia|horus)$ ]]; then repo_codename="jammy"; os_codename="jammy"; os_id="ubuntu"
-    elif [[ "${os_codename}" =~ ^(stretch|continuum|helium)$ ]]; then repo_codename="stretch"; os_codename="stretch"; os_id="debian"
+    elif [[ "${os_codename}" =~ ^(noble|wilma)$ ]]; then repo_codename="noble"; os_codename="noble"; os_id="ubuntu"
+    elif [[ "${os_codename}" =~ ^(jessie|betsy)$ ]]; then repo_codename="jessie"; os_codename="jessie"; os_id="debian"
+    elif [[ "${os_codename}" =~ ^(stretch|continuum|helium|cindy)$ ]]; then repo_codename="stretch"; os_codename="stretch"; os_id="debian"
     elif [[ "${os_codename}" =~ ^(buster|debbie|parrot|engywuck-backports|engywuck|deepin|lithium)$ ]]; then repo_codename="buster"; os_codename="buster"; os_id="debian"
     elif [[ "${os_codename}" =~ ^(bullseye|kali-rolling|elsie|ara|beryllium)$ ]]; then repo_codename="bullseye"; os_codename="bullseye"; os_id="debian"
-    elif [[ "${os_codename}" =~ ^(bookworm|lory|faye|boron)$ ]]; then repo_codename="bookworm"; os_codename="bookworm"; os_id="debian"
+    elif [[ "${os_codename}" =~ ^(bookworm|lory|faye|boron|beige)$ ]]; then repo_codename="bookworm"; os_codename="bookworm"; os_id="debian"
     else
       repo_codename="${os_codename}"
     fi
@@ -6496,37 +6502,35 @@ are_you_sure() {
 }
 
 alert_event_option() {
-  event_collection_available="$("${mongocommand}" --quiet --port 27117 --eval "use('ace'); db.getCollectionNames().indexOf('event') !== -1")"
-  alarm_collection_available="$("${mongocommand}" --quiet --port 27117 --eval "use('ace'); db.getCollectionNames().indexOf('alarm') !== -1")"
-  alert_collection_available="$("${mongocommand}" --quiet --port 27117 --eval "use('ace'); db.getCollectionNames().indexOf('alert') !== -1")"
   header
   echo -e "${WHITE_R}#${RESET} Please take an option below."
   echo -e "${WHITE_R}#${RESET} Note: Archiving/Deleting events, alarms and alerts can take a long time on big setups.\\n"
-  echo -e " [   ${WHITE_R}1${RESET}   ]  |  Archive all Alerts."
-  echo -e " [   ${WHITE_R}2${RESET}   ]  |  Delete all Events."
-  echo -e " [   ${WHITE_R}3${RESET}   ]  |  Delete all Alarms."
-  echo -e " [   ${WHITE_R}4${RESET}   ]  |  Delete all Alerts."
-  echo -e " [   ${WHITE_R}5${RESET}   ]  |  Delete all Events, Alarms and Alerts."
-  echo -e " [   ${WHITE_R}6${RESET}   ]  |  Cancel Script.\\n\\n"
+  echo -e " [   ${WHITE_R}1${RESET}   ]  |  Archive all Alarms"
+  echo -e " [   ${WHITE_R}2${RESET}   ]  |  Delete all Events"
+  echo -e " [   ${WHITE_R}3${RESET}   ]  |  Delete all Alarms"
+  echo -e " [   ${WHITE_R}4${RESET}   ]  |  Delete all Alerts"
+  echo -e " [   ${WHITE_R}5${RESET}   ]  |  Delete all Events, Alarms and Alerts"
+  echo -e " [   ${WHITE_R}6${RESET}   ]  |  Cancel Script\\n\\n"
   read -rp $'Your choice | \033[39m' alert_event_option_var
   case "$alert_event_option_var" in
       1*)
-        are_you_sure_var="archiving all alerts"
+        are_you_sure_var="archiving all alarms"
         are_you_sure
         if [[ "${are_you_sure_proceed}" == 'yes' ]]; then
           header
-          echo -e "${WHITE_R}#${RESET} Archiving the alerts..."
+          echo -e "${WHITE_R}#${RESET} Archiving the alarms..."
+          alarm_collection_available="$("${mongocommand}" --quiet --port 27117 --eval "use('ace'); db.getCollectionNames().indexOf('alarm') !== -1" 2> /dev/null)"
           if [[ "${mongodb_server_version::2}" -gt "30" ]]; then
-            if "${event_collection_available}" == 'true' ]]; then
+            if "${alarm_collection_available}" == 'true' ]]; then
               modified_count="$("${mongocommand}" --quiet --port 27117 ace --eval ''"${mongoprefix}"'db.alarm.updateMany({},{"$set": {"archived": true}}) )' | jq '."modifiedCount"')"
-              echo -e "${GREEN}#${RESET} Successfully archived ${modified_count} alerts..."
+              echo -e "${GREEN}#${RESET} Successfully archived ${modified_count} alarms..."
             else
               echo -e "${YELLOW}#${RESET} The alert collection couldn't be found in the database, skipping..."
             fi
           else
-            if "${event_collection_available}" == 'true' ]]; then
+            if "${alarm_collection_available}" == 'true' ]]; then
               # shellcheck disable=SC2016
-              "${mongocommand}" --quiet --port 27117 ace --eval 'db.alarm.update({},{$set: {"archived": true}},{multi: true})' | awk '{ nModified=$10 ; print "\033[1;32m#\033[0m Successfully archived " nModified " alerts" }' # nModified
+              "${mongocommand}" --quiet --port 27117 ace --eval 'db.alarm.update({},{$set: {"archived": true}},{multi: true})' | awk '{ nModified=$10 ; print "\033[1;32m#\033[0m Successfully archived " nModified " alarms" }' # nModified
             else
               echo -e "${YELLOW}#${RESET} The alert collection couldn't be found in the database, skipping..."
             fi
@@ -6540,6 +6544,7 @@ alert_event_option() {
         if [[ "${are_you_sure_proceed}" == 'yes' ]]; then
           header
           echo -e "${WHITE_R}#${RESET} Deleting all events...\\n"
+          event_collection_available="$("${mongocommand}" --quiet --port 27117 --eval "use('ace'); db.getCollectionNames().indexOf('event') !== -1" 2> /dev/null)"
           if [[ "${mongodb_server_version::2}" -gt "30" ]]; then
             if "${event_collection_available}" == 'true' ]]; then
               deleted_count="$("${mongocommand}" --quiet --port 27117 ace --eval "${mongoprefix}db.event.deleteMany({}) )" | jq '."deletedCount"')"
@@ -6548,46 +6553,48 @@ alert_event_option() {
               echo -e "${YELLOW}#${RESET} The event collection couldn't be found in the database, skipping..."
             fi
           else
-            if "${alarm_collection_available}" == 'true' ]]; then
+            if "${event_collection_available}" == 'true' ]]; then
               # shellcheck disable=SC2016
               "${mongocommand}" --quiet --port 27117 ace --eval 'db.event.remove({},{multi: true})' | awk '{ nRemoved=$4 ; print "\033[1;32m#\033[0m Successfully deleted " nRemoved " events" }' # nRemoved
             else
               echo -e "${YELLOW}#${RESET} The event collection couldn't be found in the database, skipping..."
-            fi
-          fi
-          echo -e "\\n"
-          sleep 5
-        fi;;
-      2*)
-        are_you_sure_var="deleting all alarms"
-        are_you_sure
-        if [[ "${are_you_sure_proceed}" == 'yes' ]]; then
-          header
-          echo -e "${WHITE_R}#${RESET} Deleting all alarms...\\n"
-          if [[ "${mongodb_server_version::2}" -gt "30" ]]; then
-            if "${alarm_collection_available}" == 'true' ]]; then
-              deleted_count="$("${mongocommand}" --quiet --port 27117 ace --eval "${mongoprefix}db.alarm.deleteMany({}) )" | jq '."deletedCount"')"
-              echo -e "${GREEN}#${RESET} Successfully deleted ${deleted_count} alarms..."
-            else
-              echo -e "${YELLOW}#${RESET} The alarm collection couldn't be found in the database, skipping..."
-            fi
-          else
-            if "${alarm_collection_available}" == 'true' ]]; then
-              # shellcheck disable=SC2016
-              "${mongocommand}" --quiet --port 27117 ace --eval 'db.alarm.remove({},{multi: true})' | awk '{ nRemoved=$4 ; print "\033[1;32m#\033[0m Successfully deleted " nRemoved " alarms" }' # nRemoved
-            else
-              echo -e "${YELLOW}#${RESET} The alarm collection couldn't be found in the database, skipping..."
             fi
           fi
           echo -e "\\n"
           sleep 5
         fi;;
       3*)
+        are_you_sure_var="deleting all alarms"
+        are_you_sure
+        if [[ "${are_you_sure_proceed}" == 'yes' ]]; then
+          header
+          echo -e "${WHITE_R}#${RESET} Deleting all alarms...\\n"
+          alarm_collection_available="$("${mongocommand}" --quiet --port 27117 --eval "use('ace'); db.getCollectionNames().indexOf('alarm') !== -1" 2> /dev/null)"
+          if [[ "${mongodb_server_version::2}" -gt "30" ]]; then
+            if "${alarm_collection_available}" == 'true' ]]; then
+              deleted_count="$("${mongocommand}" --quiet --port 27117 ace --eval "${mongoprefix}db.alarm.deleteMany({}) )" | jq '."deletedCount"')"
+              echo -e "${GREEN}#${RESET} Successfully deleted ${deleted_count} alarms..."
+            else
+              echo -e "${YELLOW}#${RESET} The alarm collection couldn't be found in the database, skipping..."
+            fi
+          else
+            if "${alarm_collection_available}" == 'true' ]]; then
+              # shellcheck disable=SC2016
+              "${mongocommand}" --quiet --port 27117 ace --eval 'db.alarm.remove({},{multi: true})' | awk '{ nRemoved=$4 ; print "\033[1;32m#\033[0m Successfully deleted " nRemoved " alarms" }' # nRemoved
+            else
+              echo -e "${YELLOW}#${RESET} The alarm collection couldn't be found in the database, skipping..."
+            fi
+          fi
+          echo -e "\\n"
+          sleep 5
+        fi;;
+      4*)
         are_you_sure_var="deleting all alerts"
         are_you_sure
         if [[ "${are_you_sure_proceed}" == 'yes' ]]; then
           header
           echo -e "${WHITE_R}#${RESET} Deleting all alerts..."
+          alert_collection_available="$("${mongocommand}" --quiet --port 27117 --eval "use('ace'); db.getCollectionNames().indexOf('alert') !== -1" 2> /dev/null)"
           if [[ "${mongodb_server_version::2}" -gt "30" ]]; then
             if "${alert_collection_available}" == 'true' ]]; then
               deleted_count="$("${mongocommand}" --quiet --port 27117 ace --eval "${mongoprefix}db.alert.deleteMany({}) )" | jq '."deletedCount"')"
@@ -6606,12 +6613,15 @@ alert_event_option() {
           echo -e "\\n"
           sleep 5
         fi;;
-      4*)
+      5*)
         are_you_sure_var="deleting all events, alarms and alerts"
         are_you_sure
         if [[ "${are_you_sure_proceed}" == 'yes' ]]; then
           header
           echo -e "${WHITE_R}#${RESET} Deleting all events, alarms and alerts..."
+          event_collection_available="$("${mongocommand}" --quiet --port 27117 --eval "use('ace'); db.getCollectionNames().indexOf('event') !== -1" 2> /dev/null)"
+          alarm_collection_available="$("${mongocommand}" --quiet --port 27117 --eval "use('ace'); db.getCollectionNames().indexOf('alarm') !== -1" 2> /dev/null)"
+          alert_collection_available="$("${mongocommand}" --quiet --port 27117 --eval "use('ace'); db.getCollectionNames().indexOf('alert') !== -1" 2> /dev/null)"
           if [[ "${mongodb_server_version::2}" -gt "30" ]]; then
             if "${event_collection_available}" == 'true' ]]; then
               deleted_count="$("${mongocommand}" --quiet --port 27117 ace --eval "${mongoprefix}db.event.deleteMany({}) )" | jq '."deletedCount"')"
@@ -6654,7 +6664,7 @@ alert_event_option() {
           echo -e "\\n"
           sleep 5
         fi;;
-      5*) cancel_script;;
+      6*) cancel_script;;
 	  *)
         header_red
         echo -e "${WHITE_R}#${RESET} '${alert_event_option_var}' is not a valid option..." && sleep 2
@@ -8412,29 +8422,29 @@ daemon_reexec
 ###################################################################################################################################################################################################
 
 header
-echo -e "  What do you want to update/do?\\n\\n"
+echo -e "  What would you like to perform?\\n\\n"
 if [[ "${unifi_core_system}" == 'true' ]]; then
-  echo -e " [   ${WHITE_R}1${RESET}   ]  |  UniFi Network Application"
-  echo -e " [   ${WHITE_R}2${RESET}   ]  |  UniFi Devices ( on all sites )"
-  echo -e " [   ${WHITE_R}3${RESET}   ]  |  UniFi Network Application and UniFi Devices"
-  echo -e " [   ${WHITE_R}4${RESET}   ]  |  Archive/Delete UniFi Network Application Alerts/Events"
+  echo -e " [   ${WHITE_R}1${RESET}   ]  |  Update the UniFi Network Application"
+  echo -e " [   ${WHITE_R}2${RESET}   ]  |  Update UniFi Devices"
+  echo -e " [   ${WHITE_R}3${RESET}   ]  |  Update the UniFi Network Application and UniFi Devices"
+  echo -e " [   ${WHITE_R}4${RESET}   ]  |  Archive/Delete UniFi Network Application events, alarms and alerts"
   echo -e " [   ${WHITE_R}5${RESET}   ]  |  Get UniFi Network Application Statistics"
-  echo -e " [   ${WHITE_R}6${RESET}   ]  |  Cancel\\n\\n"
+  echo -e " [   ${WHITE_R}6${RESET}   ]  |  Cancel Script\\n\\n"
 else
-  echo -e " [   ${WHITE_R}1${RESET}   ]  |  UniFi Network Application"
-  echo -e " [   ${WHITE_R}2${RESET}   ]  |  UniFi Devices ( on all sites )"
-  echo -e " [   ${WHITE_R}3${RESET}   ]  |  OS ( Operating System )"
-  echo -e " [   ${WHITE_R}4${RESET}   ]  |  UniFi Network Application and UniFi Devices"
-  echo -e " [   ${WHITE_R}5${RESET}   ]  |  Archive/Delete UniFi Network Application Alerts/Events"
+  echo -e " [   ${WHITE_R}1${RESET}   ]  |  Update the UniFi Network Application"
+  echo -e " [   ${WHITE_R}2${RESET}   ]  |  Update UniFi Devices"
+  echo -e " [   ${WHITE_R}3${RESET}   ]  |  Update the Operating System"
+  echo -e " [   ${WHITE_R}4${RESET}   ]  |  Update the UniFi Network Application and UniFi Devices"
+  echo -e " [   ${WHITE_R}5${RESET}   ]  |  Archive/Delete UniFi Network Application events, alarms and alerts"
   echo -e " [   ${WHITE_R}6${RESET}   ]  |  Get UniFi Network Application Statistics"
   if [[ "${mongo_version_max}" == '34' ]]; then
-    echo -e " [   ${WHITE_R}7${RESET}   ]  |  Cancel\\n\\n"
+    echo -e " [   ${WHITE_R}7${RESET}   ]  |  Cancel Script\\n\\n"
   else
     if [[ "${mongodb_org_v::2}" =~ (24|26|30|32|34) && "${mongo_version_max}" == "36" && "${mongodb_upgrade_supported}" == 'true' ]] || [[ "${mongodb_org_v::2}" =~ (24|26|30|32|34|36|40|42) && "${mongo_version_max}" == "44" && "${mongodb_upgrade_supported}" == 'true' ]] || [[ "${mongodb_org_v::2}" =~ (24|26|30|32|34|36|40|42|44|50|60) && "${mongo_version_max}" == "70" && "${mongodb_upgrade_supported}" == 'true' ]]; then
       echo -e " [   ${WHITE_R}7${RESET}   ]  |  MongoDB upgrade to ${mongo_version_max_with_dot}"
-      echo -e " [   ${WHITE_R}8${RESET}   ]  |  Cancel\\n\\n"
+      echo -e " [   ${WHITE_R}8${RESET}   ]  |  Cancel Script\\n\\n"
     else
-      echo -e " [   ${WHITE_R}7${RESET}   ]  |  Cancel\\n\\n"
+      echo -e " [   ${WHITE_R}7${RESET}   ]  |  Cancel Script\\n\\n"
     fi
   fi
 fi

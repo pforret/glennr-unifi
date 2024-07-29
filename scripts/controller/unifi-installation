@@ -11,6 +11,14 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 7.7.4
+ 
+ - Added support for Deepin Linux Beige.
+ - Added support for Linux Mint 22 Wilma.
+ - Fixed an issue where the script would get stuck if PAGER or LESS environment variables were configured.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 7.7.3
  
  - Added support for BunsenLabs Linux.

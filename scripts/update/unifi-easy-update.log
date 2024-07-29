@@ -11,6 +11,16 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 9.0.0
+  
+ - Added support for Deepin Linux Beige.
+ - Added support for Linux Mint 22 Wilma.
+ - Improved wording in the script menu.
+ - Fixed some issues in the events, alarms and alerts archiving/removal process.
+ - Fixed an issue where the script would get stuck if PAGER or LESS environment variables were configured.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 8.9.9
   
  - Added support for BunsenLabs Linux.
