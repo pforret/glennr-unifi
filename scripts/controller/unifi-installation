@@ -11,6 +11,23 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 7.7.5
+ 
+ - Added support for Kaisen Linux, based on Debian Rolling (unstable).
+ - Added support for Ubuntu Oracular 24.10.
+ - Added and attempt to recover apt when the setup has broken packages.
+ - Added retries to all curl commands.
+ - Improved the JQ installation process.
+ - Improved script quality.
+ - Improved support files.
+ - Improved messaging regarding unsupported distributions.
+ - Improved unmet dependecy handling.
+ - Fixed JQ error when catching HTTP proxy servers on the system.
+ - Fixed script failures on systems running apt versions older than 1.2.0.
+ - Fixed database failures on systems running JQ versions older than 1.6.0.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 7.7.4
  
  - Added support for Deepin Linux Beige.

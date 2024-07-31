@@ -11,6 +11,24 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Encrypt Script  |  Version 2.9.4
+ 
+ - Added support for Kaisen Linux, based on Debian Rolling (unstable).
+ - Added support for Ubuntu Oracular 24.10.
+ - Added check to ensure that the certificate files exist on the location that user specifies.
+ - Added and attempt to recover apt when the setup has broken packages.
+ - Added retries to all curl commands.
+ - Improved the JQ installation process.
+ - Improved script quality.
+ - Improved support files.
+ - Improved messaging regarding unsupported distributions.
+ - Improved paid certificates check for UniFi OS consoles.
+ - Improved unmet dependecy handling.
+ - Fixed database failures on systems running JQ versions older than 1.6.0.
+ - Fixed JQ error when catching HTTP proxy servers on the system.
+ 
+ ###
+
  |  UniFi Easy Encrypt Script  |  Version 2.9.3
  
  - Added support for Deepin Linux Beige.
