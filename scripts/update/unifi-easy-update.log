@@ -11,6 +11,22 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 9.0.3
+  
+ - Improved getting the custom UniFi Application version.
+ - Improved the device update required check.
+   - Improves performance.
+   - Fixes issues where newer products are interfering with the check.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 9.0.2
+  
+ - Improved apt recovery when setup has broken packages.
+ - Fixed support file issues introduced in 9.0.1.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 9.0.1
   
  - Added support for Kaisen Linux, based on Debian Rolling (unstable).

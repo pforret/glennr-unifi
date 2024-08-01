@@ -11,6 +11,19 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 7.7.7
+ 
+ - Improved getting the custom UniFi Application version.
+ 
+ ####
+
+ |  UniFi Network Application Installation Script  |  Version 7.7.6
+ 
+ - Improved apt recovery when setup has broken packages.
+ - Fixed support file issues introduced in 7.7.5.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 7.7.5
  
  - Added support for Kaisen Linux, based on Debian Rolling (unstable).

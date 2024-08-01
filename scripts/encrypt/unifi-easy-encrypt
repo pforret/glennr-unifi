@@ -11,6 +11,14 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Encrypt Script  |  Version 2.9.5
+ 
+ - Improved apt recovery when setup has broken packages.
+ - Fixed support file issues introduced in 2.9.4.
+ - Fixed command not found messages if JQ is not yet installed.
+ 
+ ###
+
  |  UniFi Easy Encrypt Script  |  Version 2.9.4
  
  - Added support for Kaisen Linux, based on Debian Rolling (unstable).
