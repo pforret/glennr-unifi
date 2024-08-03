@@ -11,6 +11,12 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 9.0.4
+  
+ - Improved apt recovery when setup has broken packages.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 9.0.3
   
  - Improved getting the custom UniFi Application version.

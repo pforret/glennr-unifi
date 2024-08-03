@@ -56,7 +56,7 @@
 ###################################################################################################################################################################################################
 
 # Script                | UniFi Network Easy Installation Script
-# Version               | 7.7.7
+# Version               | 7.7.8
 # Application version   | 7.1.61-c7eb1400e2
 # Debian Repo version   | 7.1.61-17860-1
 # Author                | Glenn Rietveld
@@ -2520,29 +2520,27 @@ check_default_repositories() {
 }
 
 attempt_recover_broken_packages() {
-  if ls /tmp/EUS/apt/*.log 1> /dev/null 2>&1; then
-    while IFS= read -r log_file; do
-      while IFS= read -r broken_package; do
-        check_dpkg_lock
-        if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_downgrade_option[@]}" "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install -f &>> "${eus_dir}/logs/attempt-recover-broken-packages.log"; then
-          echo -e "${GREEN}#${RESET} Successfully attempted to recover broken packages! \\n"
-        else
-          echo -e "${RED}#${RESET} Failed to attempt to recover broken packages...\\n"
-        fi
-        force_dpkg_configure="true"
-        check_dpkg_interrupted
-        check_dpkg_lock
-        echo -e "${WHITE_R}#${RESET} Attempting to prevent ${broken_package} from screwing over apt..."
-        if echo "${broken_package} hold" | "$(which dpkg)" --set-selections &>> "${eus_dir}/logs/attempt-recover-broken-packages.log"; then
-          echo -e "${GREEN}#${RESET} Successfully prevented ${broken_package} from screwing over apt! \\n"
-          sed -i "s/Errors were encountered while processing:/Errors were encountered while processing (completed):/g" "${log_file}" 2>> "${eus_dir}/logs/attempt-recover-broken-packages-sed.log"
-        else
-          echo -e "${RED}#${RESET} Failed to prevent ${broken_package} from screwing over apt...\\n"
-        fi
-      done < <(awk 'tolower($0) ~ /errors were encountered while processing/ {flag=1; next} flag {if (NF > 0) {gsub(/^[ ]+/, "", $0); lower=$0; tolower(lower); if (lower ~ /^[a-z0-9.-]+$/ && !seen[lower]++) {print $0}} else {flag=0}}' "${log_file}" | awk -F: '{print $1}' | sort -u)
-    done < <(grep -slE '^Errors were encountered while processing:' /tmp/EUS/apt/*.log "${eus_dir}"/*.log | sort -u 2>> /dev/null)
-    check_dpkg_interrupted
-  fi
+  while IFS= read -r log_file; do
+    while IFS= read -r broken_package; do
+      check_dpkg_lock
+      if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_downgrade_option[@]}" "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install -f &>> "${eus_dir}/logs/attempt-recover-broken-packages.log"; then
+        echo -e "${GREEN}#${RESET} Successfully attempted to recover broken packages! \\n"
+      else
+        echo -e "${RED}#${RESET} Failed to attempt to recover broken packages...\\n"
+      fi
+      force_dpkg_configure="true"
+      check_dpkg_interrupted
+      check_dpkg_lock
+      echo -e "${WHITE_R}#${RESET} Attempting to prevent ${broken_package} from screwing over apt..."
+      if echo "${broken_package} hold" | "$(which dpkg)" --set-selections &>> "${eus_dir}/logs/attempt-recover-broken-packages.log"; then
+        echo -e "${GREEN}#${RESET} Successfully prevented ${broken_package} from screwing over apt! \\n"
+        sed -i "s/Errors were encountered while processing:/Errors were encountered while processing (completed):/g" "${log_file}" 2>> "${eus_dir}/logs/attempt-recover-broken-packages-sed.log"
+      else
+        echo -e "${RED}#${RESET} Failed to prevent ${broken_package} from screwing over apt...\\n"
+      fi
+    done < <(awk 'tolower($0) ~ /errors were encountered while processing/ {flag=1; next} flag {if (NF > 0) {gsub(/^[ ]+/, "", $0); lower=$0; tolower(lower); if (lower ~ /^[a-z0-9.-]+$/ && !seen[lower]++) {print $0}} else {flag=0}}' "${log_file}" | awk -F: '{print $1}' | sort -u)
+  done < <(grep -slE '^Errors were encountered while processing:' /tmp/EUS/apt/*.log "${eus_dir}"/*.log | sort -u 2>> /dev/null)
+  check_dpkg_interrupted
 }
 
 check_unmet_dependencies() {

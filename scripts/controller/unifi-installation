@@ -11,6 +11,12 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 7.7.8
+ 
+ - Improved apt recovery when setup has broken packages.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 7.7.7
  
  - Improved getting the custom UniFi Application version.

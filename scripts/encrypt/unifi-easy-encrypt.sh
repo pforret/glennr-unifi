@@ -2,7 +2,7 @@
 
 # UniFi Easy Encrypt script.
 # Script   | UniFi Network Easy Encrypt Script
-# Version  | 2.9.5
+# Version  | 2.9.6
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -518,15 +518,15 @@ support_file() {
   fi
   if [[ -n "${support_file}" ]]; then
     echo -e "${WHITE_R}#${RESET} Support file has been created here: ${support_file} \\n"
-    if [[ -n "$(command -v jq)" && -f "${eus_dir}/db/db.json" ]]; then
-      if [[ "$(jq -r '.database["support-file-upload"]' "${eus_dir}/db/db.json")" != 'true' ]] || [[ "${abort_skip_support_file_upload}" != 'true' ]]; then
+    if [[ -n "$(command -v jq)" && -f "${eus_dir}/db/db.json" && "${abort_skip_support_file_upload}" != 'true' ]]; then
+      if [[ "$(jq -r '.database["support-file-upload"]' "${eus_dir}/db/db.json")" != 'true' ]]; then
         read -rp $'\033[39m#\033[0m Do you want to upload the support file so that Glenn R. can review it and improve the script? (Y/n) ' yes_no
         case "$yes_no" in
              [Yy]*|"") eus_support_one_time_upload="true";;
              [Nn]*) ;;
         esac
       fi
-      if [[ "$(jq -r '.database["support-file-upload"]' "${eus_dir}/db/db.json")" == 'true' ]] || [[ "${eus_support_one_time_upload}" == 'true' ]] || [[ "${abort_skip_support_file_upload}" != 'true' ]]; then
+      if [[ "$(jq -r '.database["support-file-upload"]' "${eus_dir}/db/db.json")" == 'true' ]] || [[ "${eus_support_one_time_upload}" == 'true' ]]; then
         upload_result="$(curl "${curl_argument[@]}" -X POST -F "file=@${support_file}" "https://api.glennr.nl/api/eus-support" | jq -r '.[]')"
         if [[ "$(dpkg-query --showformat='${Version}' --show jq | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
           jq '.scripts."'"${script_name}"'".support."'"${support_file_name}"'"."upload-results" = "'"${upload_result}"'"' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
@@ -1475,29 +1475,27 @@ remove_apt_options="false"
 get_apt_options
 
 attempt_recover_broken_packages() {
-  if ls /tmp/EUS/apt/*.log 1> /dev/null 2>&1; then
-    while IFS= read -r log_file; do
-      while IFS= read -r broken_package; do
-        check_dpkg_lock
-        if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_downgrade_option[@]}" "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install -f &>> "${eus_dir}/logs/attempt-recover-broken-packages.log"; then
-          echo -e "${GREEN}#${RESET} Successfully attempted to recover broken packages! \\n"
-        else
-          echo -e "${RED}#${RESET} Failed to attempt to recover broken packages...\\n"
-        fi
-        force_dpkg_configure="true"
-        check_dpkg_interrupted
-        check_dpkg_lock
-        echo -e "${WHITE_R}#${RESET} Attempting to prevent ${broken_package} from screwing over apt..."
-        if echo "${broken_package} hold" | "$(which dpkg)" --set-selections &>> "${eus_dir}/logs/attempt-recover-broken-packages.log"; then
-          echo -e "${GREEN}#${RESET} Successfully prevented ${broken_package} from screwing over apt! \\n"
-          sed -i "s/Errors were encountered while processing:/Errors were encountered while processing (completed):/g" "${log_file}" 2>> "${eus_dir}/logs/attempt-recover-broken-packages-sed.log"
-        else
-          echo -e "${RED}#${RESET} Failed to prevent ${broken_package} from screwing over apt...\\n"
-        fi
-      done < <(awk 'tolower($0) ~ /errors were encountered while processing/ {flag=1; next} flag {if (NF > 0) {gsub(/^[ ]+/, "", $0); lower=$0; tolower(lower); if (lower ~ /^[a-z0-9.-]+$/ && !seen[lower]++) {print $0}} else {flag=0}}' "${log_file}" | awk -F: '{print $1}' | sort -u)
-    done < <(grep -slE '^Errors were encountered while processing:' /tmp/EUS/apt/*.log "${eus_dir}"/*.log | sort -u 2>> /dev/null)
-    check_dpkg_interrupted
-  fi
+  while IFS= read -r log_file; do
+    while IFS= read -r broken_package; do
+      check_dpkg_lock
+      if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_downgrade_option[@]}" "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install -f &>> "${eus_dir}/logs/attempt-recover-broken-packages.log"; then
+        echo -e "${GREEN}#${RESET} Successfully attempted to recover broken packages! \\n"
+      else
+        echo -e "${RED}#${RESET} Failed to attempt to recover broken packages...\\n"
+      fi
+      force_dpkg_configure="true"
+      check_dpkg_interrupted
+      check_dpkg_lock
+      echo -e "${WHITE_R}#${RESET} Attempting to prevent ${broken_package} from screwing over apt..."
+      if echo "${broken_package} hold" | "$(which dpkg)" --set-selections &>> "${eus_dir}/logs/attempt-recover-broken-packages.log"; then
+        echo -e "${GREEN}#${RESET} Successfully prevented ${broken_package} from screwing over apt! \\n"
+        sed -i "s/Errors were encountered while processing:/Errors were encountered while processing (completed):/g" "${log_file}" 2>> "${eus_dir}/logs/attempt-recover-broken-packages-sed.log"
+      else
+        echo -e "${RED}#${RESET} Failed to prevent ${broken_package} from screwing over apt...\\n"
+      fi
+    done < <(awk 'tolower($0) ~ /errors were encountered while processing/ {flag=1; next} flag {if (NF > 0) {gsub(/^[ ]+/, "", $0); lower=$0; tolower(lower); if (lower ~ /^[a-z0-9.-]+$/ && !seen[lower]++) {print $0}} else {flag=0}}' "${log_file}" | awk -F: '{print $1}' | sort -u)
+  done < <(grep -slE '^Errors were encountered while processing:' /tmp/EUS/apt/*.log "${eus_dir}"/*.log | sort -u 2>> /dev/null)
+  check_dpkg_interrupted
 }
 
 check_unmet_dependencies() {
@@ -3683,6 +3681,7 @@ unifi_network_application() {
   chown -R unifi:unifi /usr/lib/unifi/data/keystore &> /dev/null
   if systemctl restart unifi; then
     if [[ "${unifi_core_system}" == 'true' ]]; then echo -e "${GREEN}#${RESET} Successfully imported the SSL certificates into the UniFi Network Application running on your ${unifi_core_device}!"; else echo -e "${GREEN}#${RESET} Successfully imported the SSL certificates into the UniFi Network Application!"; fi
+    sleep 2
   else
     if [[ "${unifi_core_system}" == 'true' ]]; then echo -e "${RED}#${RESET} Failed to import the SSL certificates into the UniFi Network Application running on your ${unifi_core_device}..."; else echo -e "${RED}#${RESET} Failed to import the SSL certificates into the UniFi Network Application..."; fi
     sleep 2
@@ -3776,7 +3775,7 @@ import_ssl_certificates() {
         txt_dig=$(head -n1 "${eus_dir}/txt_record")
         echo -e "${RED}#${RESET} TXT record for _acme-challenge.${server_fqdn} is '${txt_dig}'."
         abort_skip_support_file_upload="true"
-        abort_reason="TXT record _acme-challenge.${server_fqdn} is ${txt_dig}."
+        abort_reason="TXT record _acme-challenge.${server_fqdn} is ${txt_dig//\"/}."
         abort
       elif [[ -f "${eus_dir}/logs/lets_encrypt_import.log" ]] && grep -iq 'No TXT record found' "${eus_dir}/logs/lets_encrypt_${time_date}.log"; then
         le_import_failed
@@ -5360,51 +5359,51 @@ paid_certificate() {
     if [[ "${create_ufv_crts}" == 'true' ]]; then
       echo -e "\\n------- Creating \"${eus_dir}/paid-certificates/ufv-server.cert.der\" ------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/paid_certificate.log"
       echo -e "${WHITE_R}#${RESET} Creating \"${eus_dir}/paid-certificates/ufv-server.cert.der\"..."
-      if openssl x509 -outform der -in "${signed_crt}" -in "${chain_crt}" -out "${eus_dir}/paid-certificates/ufv-server.cert.der" &>> "${eus_dir}/logs/paid_certificate.log"; then echo -e "${GREEN}#${RESET} Successfully created \"${eus_dir}/paid-certificates/ufv-server.cert.der\"! \\n"; else abort_reason="Failed to create ${eus_dir}/paid-certificates/ufv-server.cert.der."; abort; fi
+      if openssl x509 -outform der -in "${signed_crt}" -in "${chain_crt}" -out "${eus_dir}/paid-certificates/ufv-server.cert.der" &>> "${eus_dir}/logs/paid_certificate.log"; then echo -e "${GREEN}#${RESET} Successfully created \"${eus_dir}/paid-certificates/ufv-server.cert.der\"!"; else abort_reason="Failed to create ${eus_dir}/paid-certificates/ufv-server.cert.der."; abort; fi
     fi
   elif [[ -f "${intermediate_crt}" ]]; then
     echo -e "\\n------- Creating \"${eus_dir}/paid-certificates/eus_unifi.p12\" ------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/paid_certificate.log"
     echo -e "${WHITE_R}#${RESET} Creating \"${eus_dir}/paid-certificates/eus_unifi.p12\"..."
     # shellcheck disable=SC2086
-    if openssl pkcs12 -export -inkey "${priv_key}" -in "${signed_crt}" -certfile "${intermediate_crt}" -out "${eus_dir}/paid-certificates/eus_unifi.p12" -name unifi -password pass:aircontrolenterprise ${openssl_legacy_flag} &>> "${eus_dir}/logs/paid_certificate.log"; then echo -e "${GREEN}#${RESET} Successfully created \"${eus_dir}/paid-certificates/eus_unifi.p12\"! \\n"; else abort_reason="Failed to create ${eus_dir}/paid-certificates/eus_unifi.p12."; abort; fi
+    if openssl pkcs12 -export -inkey "${priv_key}" -in "${signed_crt}" -certfile "${intermediate_crt}" -out "${eus_dir}/paid-certificates/eus_unifi.p12" -name unifi -password pass:aircontrolenterprise ${openssl_legacy_flag} &>> "${eus_dir}/logs/paid_certificate.log"; then echo -e "${GREEN}#${RESET} Successfully created \"${eus_dir}/paid-certificates/eus_unifi.p12\"!"; else abort_reason="Failed to create ${eus_dir}/paid-certificates/eus_unifi.p12."; abort; fi
     if [[ "${create_ufv_crts}" == 'true' ]]; then
       echo -e "\\n------- Creating \"${eus_dir}/paid-certificates/ufv-server.cert.der\" ------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/paid_certificate.log"
       echo -e "${WHITE_R}#${RESET} Creating \"${eus_dir}/paid-certificates/ufv-server.cert.der\"..."
-      if openssl x509 -outform der -in "${signed_crt}" -out "${eus_dir}/paid-certificates/ufv-server.cert.der" &>> "${eus_dir}/logs/paid_certificate.log"; then echo -e "${GREEN}#${RESET} Successfully created \"${eus_dir}/paid-certificates/ufv-server.cert.der\"! \\n"; else abort_reason="Failed to create ${eus_dir}/paid-certificates/ufv-server.cert.der."; abort; fi
+      if openssl x509 -outform der -in "${signed_crt}" -out "${eus_dir}/paid-certificates/ufv-server.cert.der" &>> "${eus_dir}/logs/paid_certificate.log"; then echo -e "${GREEN}#${RESET} Successfully created \"${eus_dir}/paid-certificates/ufv-server.cert.der\"!"; else abort_reason="Failed to create ${eus_dir}/paid-certificates/ufv-server.cert.der."; abort; fi
     fi
   else
     echo -e "\\n------- Creating \"${eus_dir}/paid-certificates/eus_unifi.p12\" ------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/paid_certificate.log"
     echo -e "${WHITE_R}#${RESET} Creating \"${eus_dir}/paid-certificates/eus_unifi.p12\"..."
     # shellcheck disable=SC2086
-    if openssl pkcs12 -export -inkey "${priv_key}" -in "${signed_crt}" -out "${eus_dir}/paid-certificates/eus_unifi.p12" -name unifi -password pass:aircontrolenterprise ${openssl_legacy_flag} &>> "${eus_dir}/logs/paid_certificate.log"; then echo -e "${GREEN}#${RESET} Successfully created \"${eus_dir}/paid-certificates/eus_unifi.p12\"! \\n"; else abort_reason="Failed to create ${eus_dir}/paid-certificates/eus_unifi.p12."; abort; fi
+    if openssl pkcs12 -export -inkey "${priv_key}" -in "${signed_crt}" -out "${eus_dir}/paid-certificates/eus_unifi.p12" -name unifi -password pass:aircontrolenterprise ${openssl_legacy_flag} &>> "${eus_dir}/logs/paid_certificate.log"; then echo -e "${GREEN}#${RESET} Successfully created \"${eus_dir}/paid-certificates/eus_unifi.p12\"!"; else abort_reason="Failed to create ${eus_dir}/paid-certificates/eus_unifi.p12."; abort; fi
     if [[ "${create_ufv_crts}" == 'true' ]]; then
       echo -e "\\n------- Creating \"${eus_dir}/paid-certificates/ufv-server.cert.der\" ------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/paid_certificate.log"
       echo -e "${WHITE_R}#${RESET} Creating \"${eus_dir}/paid-certificates/ufv-server.cert.der\"..."
-      if openssl x509 -outform der -in "${signed_crt}" -out "${eus_dir}/paid-certificates/ufv-server.cert.der" &>> "${eus_dir}/logs/paid_certificate.log"; then echo -e "${GREEN}#${RESET} Successfully created \"${eus_dir}/paid-certificates/ufv-server.cert.der\"! \\n"; else abort_reason="Failed to create ${eus_dir}/paid-certificates/ufv-server.cert.der."; abort; fi
+      if openssl x509 -outform der -in "${signed_crt}" -out "${eus_dir}/paid-certificates/ufv-server.cert.der" &>> "${eus_dir}/logs/paid_certificate.log"; then echo -e "${GREEN}#${RESET} Successfully created \"${eus_dir}/paid-certificates/ufv-server.cert.der\"!"; else abort_reason="Failed to create ${eus_dir}/paid-certificates/ufv-server.cert.der."; abort; fi
     fi
   fi
   if [[ "${create_ufv_crts}" == 'true' ]]; then
     echo -e "\\n------- Creating \"${eus_dir}/paid-certificates/ufv-server.key.der\" ------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/paid_certificate.log"
     echo -e "${WHITE_R}#${RESET} Creating \"${eus_dir}/paid-certificates/ufv-server.key.der\"..."
-    if openssl pkcs8 -topk8 -nocrypt -in "${priv_key}" -outform DER -out "${eus_dir}/paid-certificates/ufv-server.key.der" &>> "${eus_dir}/logs/paid_certificate.log"; then echo -e "${GREEN}#${RESET} Successfully created \"${eus_dir}/paid-certificates/ufv-server.key.der\"! \\n"; else abort_reason="Failed to create ${eus_dir}/paid-certificates/ufv-server.key.der."; abort; fi
+    if openssl pkcs8 -topk8 -nocrypt -in "${priv_key}" -outform DER -out "${eus_dir}/paid-certificates/ufv-server.key.der" &>> "${eus_dir}/logs/paid_certificate.log"; then echo -e "${GREEN}#${RESET} Successfully created \"${eus_dir}/paid-certificates/ufv-server.key.der\"!"; else abort_reason="Failed to create ${eus_dir}/paid-certificates/ufv-server.key.der."; abort; fi
   fi
   if [[ "${create_eus_key_file}" == 'true' ]]; then
     echo -e "\\n------- Creating \"${eus_dir}/paid-certificates/eus_key_file.key\" from \"${eus_dir}/paid-certificates/eus_unifi.p12\" ------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/paid_certificate.log"
     echo -e "${WHITE_R}#${RESET} Creating \"${eus_dir}/paid-certificates/eus_key_file.key\" from \"${eus_dir}/paid-certificates/eus_unifi.p12\"..."
     # shellcheck disable=SC2086
-    if openssl pkcs12 -in "${eus_dir}/paid-certificates/eus_unifi.p12" -nodes -nocerts -out "${eus_dir}/paid-certificates/eus_key_file.key" -password pass:aircontrolenterprise ${openssl_legacy_flag} &>> "${eus_dir}/logs/paid_certificate.log"; then echo -e "${GREEN}#${RESET} Successfully created \"${eus_dir}/paid-certificates/eus_key_file.key\" from \"${eus_dir}/paid-certificates/eus_unifi.p12\"! \\n"; else abort_reason="Failed to create ${eus_dir}/paid-certificates/eus_key_file.key from ${eus_dir}/paid-certificates/eus_unifi.p12."; abort; fi
+    if openssl pkcs12 -in "${eus_dir}/paid-certificates/eus_unifi.p12" -nodes -nocerts -out "${eus_dir}/paid-certificates/eus_key_file.key" -password pass:aircontrolenterprise ${openssl_legacy_flag} &>> "${eus_dir}/logs/paid_certificate.log"; then echo -e "${GREEN}#${RESET} Successfully created \"${eus_dir}/paid-certificates/eus_key_file.key\" from \"${eus_dir}/paid-certificates/eus_unifi.p12\"!"; else abort_reason="Failed to create ${eus_dir}/paid-certificates/eus_key_file.key from ${eus_dir}/paid-certificates/eus_unifi.p12."; abort; fi
   fi
   if [[ "${create_eus_crt_file}" == 'true' ]]; then
     echo -e "\\n------- Creating \"${eus_dir}/paid-certificates/eus_crt_file.crt\" from \"${eus_dir}/paid-certificates/eus_unifi.p12\" ------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/paid_certificate.log"
     echo -e "${WHITE_R}#${RESET} Creating \"${eus_dir}/paid-certificates/eus_crt_file.crt\" from \"${eus_dir}/paid-certificates/eus_unifi.p12\"..."
     # shellcheck disable=SC2086
-    if openssl pkcs12 -in "${eus_dir}/paid-certificates/eus_unifi.p12" -clcerts -nokeys -out "${eus_dir}/paid-certificates/eus_crt_file.crt" -password pass:aircontrolenterprise ${openssl_legacy_flag} &>> "${eus_dir}/logs/paid_certificate.log"; then echo -e "${GREEN}#${RESET} Successfully created \"${eus_dir}/paid-certificates/eus_crt_file.crt\" from \"${eus_dir}/paid-certificates/eus_unifi.p12\"! \\n"; else abort_reason="Failed to create ${eus_dir}/paid-certificates/eus_crt_file.crt from ${eus_dir}/paid-certificates/eus_unifi.p12."; abort; fi
+    if openssl pkcs12 -in "${eus_dir}/paid-certificates/eus_unifi.p12" -clcerts -nokeys -out "${eus_dir}/paid-certificates/eus_crt_file.crt" -password pass:aircontrolenterprise ${openssl_legacy_flag} &>> "${eus_dir}/logs/paid_certificate.log"; then echo -e "${GREEN}#${RESET} Successfully created \"${eus_dir}/paid-certificates/eus_crt_file.crt\" from \"${eus_dir}/paid-certificates/eus_unifi.p12\"!"; else abort_reason="Failed to create ${eus_dir}/paid-certificates/eus_crt_file.crt from ${eus_dir}/paid-certificates/eus_unifi.p12."; abort; fi
   fi
   if [[ "${create_eus_certificates_file}" == 'true' ]]; then
     echo -e "\\n------- Creating \"${eus_dir}/paid-certificates/eus_certificates_file.pem\" from \"${eus_dir}/paid-certificates/eus_unifi.p12\" ------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/paid_certificate.log"
     echo -e "${WHITE_R}#${RESET} Creating \"${eus_dir}/paid-certificates/eus_certificates_file.pem\" from \"${eus_dir}/paid-certificates/eus_unifi.p12\"..."
     # shellcheck disable=SC2086
-    if openssl pkcs12 -in "${eus_dir}/paid-certificates/eus_unifi.p12" -nodes -out "${eus_dir}/paid-certificates/eus_certificates_file.pem" -password pass:aircontrolenterprise ${openssl_legacy_flag} &>> "${eus_dir}/logs/paid_certificate.log"; then echo -e "${GREEN}#${RESET} Successfully created \"${eus_dir}/paid-certificates/eus_certificates_file.pem\" from \"${eus_dir}/paid-certificates/eus_unifi.p12\"! \\n"; else abort_reason="Failed to create ${eus_dir}/paid-certificates/eus_certificates_file.pem from ${eus_dir}/paid-certificates/eus_unifi.p12."; abort; fi
+    if openssl pkcs12 -in "${eus_dir}/paid-certificates/eus_unifi.p12" -nodes -out "${eus_dir}/paid-certificates/eus_certificates_file.pem" -password pass:aircontrolenterprise ${openssl_legacy_flag} &>> "${eus_dir}/logs/paid_certificate.log"; then echo -e "${GREEN}#${RESET} Successfully created \"${eus_dir}/paid-certificates/eus_certificates_file.pem\" from \"${eus_dir}/paid-certificates/eus_unifi.p12\"!"; else abort_reason="Failed to create ${eus_dir}/paid-certificates/eus_certificates_file.pem from ${eus_dir}/paid-certificates/eus_unifi.p12."; abort; fi
   fi
   if [[ "${unifi_core_system}" == 'true' ]]; then
     # shellcheck disable=SC2086
