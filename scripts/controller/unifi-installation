@@ -11,6 +11,18 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 7.7.9
+ 
+ - Added gnupg segfault recovery attempt.
+ - Improved apt-key deprecated check.
+ - Improved support files.
+ - Improved the UniFi Network Application recovery process.
+   - The script will now install the script version if the "recovery" version is older than the script version.
+ - Improved the unsupported MongoDB version change check.
+ - Improved UniFi Network Application download process.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 7.7.8
  
  - Improved apt recovery when setup has broken packages.

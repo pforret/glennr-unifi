@@ -11,6 +11,16 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Encrypt Script  |  Version 2.9.7
+ 
+ - Added gnupg as required package.
+ - Added gnupg segfault recovery attempt.
+ - Improved apt-key deprecated check.
+ - Improved support files.
+ - Improved ECDSA certificate check for UniFi OS.
+ 
+ ###
+
  |  UniFi Easy Encrypt Script  |  Version 2.9.6
  
  - Improved apt recovery when setup has broken packages.

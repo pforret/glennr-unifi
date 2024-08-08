@@ -2,7 +2,7 @@
 
 # UniFi Easy Encrypt script.
 # Script   | UniFi Network Easy Encrypt Script
-# Version  | 2.9.6
+# Version  | 2.9.7
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -285,8 +285,13 @@ support_file() {
   else
     df -h &> "/tmp/EUS/support/df"
   fi
+  if [[ "${unifi_core_system}" != 'true' && -n "$(apt-cache search debsums | awk '/debsums/{print$1}')" ]]; then
+    if ! [[ "$(command -v debsums)" ]]; then DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install debsums 2>&1 | tee -a "${eus_dir}/logs/apt.log"; fi
+    if [[ "$(command -v debsums)" ]]; then debsums -c &> "/tmp/EUS/support/debsums-check-results"; fi
+  fi
   uname -a &> "/tmp/EUS/support/uname-results"
   lscpu &> "/tmp/EUS/support/lscpu-results"
+  dmesg &> "/tmp/EUS/support/dmesg-results"
   ps -p $$ -o command= &> "/tmp/EUS/support/script-usage"
   echo "$PATH" &> "/tmp/EUS/support/PATH"
   cp "${script_location}" "/tmp/EUS/support/${script_file_name}" &> /dev/null
@@ -474,7 +479,7 @@ support_file() {
   echo "${server_ip}" &>> "/tmp/EUS/support/ip"
   #
   support_file_time="$(date +%Y%m%d-%H%M-%S%N)"
-  if [[ -n "$(command -v jq)" && -f "${eus_dir}/db/db.json" ]]; then support_file_uuid="$(jq -r '.database.uuid' ${eus_dir}/db/db.json)-"; fi
+  if [[ -n "$(command -v jq)" && -f "${eus_dir}/db/db.json" ]]; then support_file_uuid="$(jq -r '.database.uuid' "${eus_dir}/db/db.json")-"; fi
   if "$(which dpkg)" -l xz-utils 2> /dev/null | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
     support_file="/tmp/eus-support-${support_file_uuid}${support_file_time}.tar.xz"
     support_file_name="$(basename "${support_file}")"
@@ -1138,9 +1143,12 @@ christmass_new_year() {
 
 # Check if apt-key is deprecated
 aptkey_depreciated() {
-  apt-key list >/tmp/EUS/aptkeylist 2>&1
-  if grep -ioq "apt-key is deprecated" /tmp/EUS/aptkeylist; then apt_key_deprecated="true"; fi
-  rm --force /tmp/EUS/aptkeylist
+  if [[ "$("$(which dpkg)" -l apt | grep ^"ii" | awk '{print $2,$3}' | awk '{print $2}' | cut -d'.' -f1)" -gt "2" ]] || [[ "$("$(which dpkg)" -l apt | grep ^"ii" | awk '{print $2,$3}' | awk '{print $2}' | cut -d'.' -f1)" == "2" && "$("$(which dpkg)" -l apt | grep ^"ii" | awk '{print $2,$3}' | awk '{print $2}' | cut -d'.' -f2)" -ge "2" ]]; then apt_key_deprecated="true"; fi
+  if [[ "${apt_key_deprecated}" != 'true' ]]; then
+    apt-key list >/tmp/EUS/aptkeylist 2>&1
+    if grep -ioq "apt-key is deprecated" /tmp/EUS/aptkeylist; then apt_key_deprecated="true"; fi
+    rm --force /tmp/EUS/aptkeylist
+  fi
 }
 aptkey_depreciated
 
@@ -2189,6 +2197,33 @@ if ! dpkg -l dnsutils 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi"; th
   fi
   get_repo_url
 fi
+if ! "$(which dpkg)" -l gnupg 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+  if [[ "${installing_required_package}" != 'yes' ]]; then install_required_packages; fi
+  check_dpkg_lock
+  echo -e "${WHITE_R}#${RESET} Installing gnupg..."
+  if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install gnupg &>> "${eus_dir}/logs/required.log"; then
+    echo -e "${RED}#${RESET} Failed to install gnupg in the first run...\\n"
+    if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then
+      if [[ "${repo_codename}" =~ (precise|trusty|xenial) ]]; then repo_codename_argument="-security"; repo_component="main"; fi
+      if [[ "${repo_codename}" =~ (bionic|cosmic) ]]; then repo_codename_argument="-security"; repo_component="main universe"; fi
+      if [[ "${repo_codename}" =~ (disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then repo_component="main universe"; fi
+    elif [[ "${repo_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
+      repo_component="main"
+    fi
+    add_repositories
+    required_package="gnupg"
+    apt_get_install_package
+  else
+    echo -e "${GREEN}#${RESET} Successfully installed gnupg! \\n" && sleep 2
+  fi
+else
+  if dmesg | grep -i gpg | grep -iq segfault; then
+    gnupg_segfault_packages=("gnupg" "gnupg2" "libc6" "libreadline8" "libreadline-dev" "libslang2" "zlib1g" "libbz2-1.0" "libgcrypt20" "libsqlite3-0" "libassuan0" "libgpg-error0" "libm6" "libpthread-stubs0-dev" "libtinfo6")
+    reinstall_gnupg_segfault_packages=()
+    for gnupg_segfault_package in "${gnupg_segfault_packages[@]}"; do if "$(which dpkg)" -l "${gnupg_segfault_package}" &> /dev/null; then reinstall_gnupg_segfault_packages+=("${gnupg_segfault_package}"); fi; done
+    if [[ "${#reinstall_gnupg_segfault_packages[@]}" -gt '0' ]]; then echo -e "\\n------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/gnupg-segfault-reinstall.log"; DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install --reinstall "${reinstall_gnupg_segfault_packages[@]}" &>> "${eus_dir}/logs/gnupg-segfault-reinstall.log"; fi
+  fi
+fi
 if ! "$(which dpkg)" -l jq 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
   if [[ "${installing_required_package}" != 'yes' ]]; then
     install_required_packages
@@ -2355,10 +2390,10 @@ if [[ -n "${auto_dns_challenge_provider}" ]]; then
     fi
     # Install go
     if [[ "${architecture}" =~ (arm64|amd64) ]]; then
-      if ! curl --location "${curl_argument[@]}" --output "${eus_dir}/go.tar.gz" "https://go.dev/dl/$(curl --silent "https://go.dev/dl/?mode=json" | jq -r '.[0].files[] | select(.os == "linux" and .arch == "'"${architecture}"'").filename')"; then
+      if ! curl --location "${curl_argument[@]}" --output "${eus_dir}/go.tar.gz" "https://go.dev/dl/$(curl --silent "https://go.dev/dl/?mode=json" | jq -r '.[0].files[] | select(.os == "linux" and .arch == "'"${architecture}"'").filename')" &>> "${eus_dir}/logs/go-application.log"; then
         abort_reason="Failed to download go."; abort
       else
-        if ! rm -rf /usr/local/go && tar -C /usr/local -xzf "${eus_dir}/go.tar.gz"; then
+        if ! rm -rf /usr/local/go && tar -C /usr/local -xzf "${eus_dir}/go.tar.gz" &>> "${eus_dir}/logs/go-application.log"; then
           abort_reason="Failed to extract go."; abort
         else
           export PATH="$PATH:/usr/local/go/bin"
@@ -2536,7 +2571,7 @@ certbot_auto_install_run() {
     fi
   fi
   certbot_auto_permission_check
-  if ${eus_dir}/certbot-auto --non-interactive --install-only --verbose "${certbot_auto_flags}" 2>&1 | tee "${eus_dir}/logs/certbot_auto_install.log"; then
+  if "${eus_dir}/certbot-auto" --non-interactive --install-only --verbose "${certbot_auto_flags}" 2>&1 | tee "${eus_dir}/logs/certbot_auto_install.log"; then
     if grep -ioq "Your system is not supported by certbot-auto anymore" "${eus_dir}/logs/certbot_auto_install.log"; then
       header_red
       echo -e "${YELLOW}#${RESET} certbot-auto no longer supports your system..."
@@ -2680,7 +2715,7 @@ domain_name() {
       server_fqdn="$("${mongocommand}" --quiet --port 27117 ace --eval "${mongoprefix}db.getCollection('setting').find({key:'super_identity'})${mongosuffix}" | sed 's/\(ObjectId(\|)\|NumberLong(\)//g' | jq -r '.[]."hostname"')"
     else
       if [[ -f "${eus_dir}/server_fqdn" ]]; then
-        server_fqdn="$(head -n1 ${eus_dir}/server_fqdn)"
+        server_fqdn="$(head -n1 "${eus_dir}/server_fqdn")"
       else
         server_fqdn='unifi.yourdomain.com'
       fi
@@ -5407,7 +5442,7 @@ paid_certificate() {
   fi
   if [[ "${unifi_core_system}" == 'true' ]]; then
     # shellcheck disable=SC2086
-    if openssl pkcs12 -in "${eus_dir}/paid-certificates/eus_unifi.p12" -password pass:aircontrolenterprise -nokeys ${openssl_legacy_flag} | openssl x509 -text -noout | grep -i signature | grep -iq ecdsa &> /dev/null; then
+    if openssl pkcs12 -in "${eus_dir}/paid-certificates/eus_unifi.p12" -password pass:aircontrolenterprise -nokeys ${openssl_legacy_flag} | openssl x509 -text -noout | grep -i "signature algorithm" | grep -iq ecdsa &> /dev/null; then
       echo -e "${WHITE_R}#${RESET} UniFi OS doesn't support ECDSA certificates, cancelling script..."
       sleep 6
       cancel_script

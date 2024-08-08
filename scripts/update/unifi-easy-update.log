@@ -11,6 +11,17 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 9.0.5
+  
+ - Added gnupg as required package.
+ - Added gnupg segfault recovery attempt.
+ - Improved apt-key deprecated check.
+ - Improved support files.
+ - Improved the unsupported MongoDB version change check.
+ - Improved UniFi Network Application download process.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 9.0.4
   
  - Improved apt recovery when setup has broken packages.
