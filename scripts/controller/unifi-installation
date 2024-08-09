@@ -11,6 +11,14 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 7.8.0
+ 
+ - Improved getting repository information while API is online, but JQ is not installed yet.
+ - Improved unsupported MongoDB Upgrade/Downgrade recovery process.
+ - Improved support files.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 7.7.9
  
  - Added gnupg segfault recovery attempt.

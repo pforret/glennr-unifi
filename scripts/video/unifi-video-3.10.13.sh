@@ -26,7 +26,7 @@
 #          | Elementary OS
 #          | Kali Linux ( rolling )
 #
-# Version    | 3.4.1
+# Version    | 3.4.2
 # NVR        | 3.10.13
 # Author     | Glenn Rietveld
 # Email      | glennrietveld8@hotmail.nl
@@ -1134,7 +1134,11 @@ system_free_disk_space=$(df -k / | awk '{print $4}' | tail -n1)
 #SERVER_IP=$(/sbin/ifconfig | grep 'inet ' | grep -v '127.0.0.1' | head -n1 | awk '{print $2}' | head -1 | sed 's/.*://')
 SERVER_IP=$(ip addr | grep -A8 -m1 MULTICAST | grep -m1 inet | cut -d' ' -f6 | cut -d'/' -f1)
 if [[ -z "${SERVER_IP}" ]]; then SERVER_IP=$(hostname -I | head -n 1 | awk '{ print $NF; }'); fi
-PUBLIC_SERVER_IP=$(curl https://ip.glennr.nl/ -s)
+if command -v jq &> /dev/null; then
+  PUBLIC_SERVER_IP="$(curl --silent https://api.glennr.nl/api/geo | jq -r '."address"')"
+else
+  PUBLIC_SERVER_IP="$(curl --silent https://api.glennr.nl/api/geo | grep -oP '(?<="address":")[^"]+')"
+fi
 architecture=$(dpkg --print-architecture)
 get_distro
 #
@@ -1363,16 +1367,31 @@ rm --force /tmp/EUS/upgrade/upgrade_list &> /dev/null
 mongodb_34_key() {
   echo -e "${WHITE_R}#${RESET} Adding key for MongoDB 3.4..."
   if wget -qO - https://www.mongodb.org/static/pgp/server-3.4.asc | apt-key add - &> /dev/null; then echo -e "${GREEN}#${RESET} Successfully added key for MongoDB 3.4! \\n"; else abort; fi
+  if command -v jq &> /dev/null; then
+    if [[ "$(curl --silent "https://api.glennr.nl/api/mongodb-release?version=3.4" | jq -r '.expired')" == 'true' ]]; then trusted_mongodb_repo=" trusted=yes"; fi
+  else
+    if [[ "$(curl --silent "https://api.glennr.nl/api/mongodb-release?version=3.4" | grep -oP '(?<="expired":")[^"]+')" == 'true' ]]; then trusted_mongodb_repo=" trusted=yes"; fi
+  fi
 }
 
 mongodb_36_key() {
   echo -e "${WHITE_R}#${RESET} Adding key for MongoDB 3.6..."
   if wget -qO - https://www.mongodb.org/static/pgp/server-3.6.asc | apt-key add - &> /dev/null; then echo -e "${GREEN}#${RESET} Successfully added key for MongoDB 3.6! \\n"; else abort; fi
+  if command -v jq &> /dev/null; then
+    if [[ "$(curl --silent "https://api.glennr.nl/api/mongodb-release?version=3.6" | jq -r '.expired')" == 'true' ]]; then trusted_mongodb_repo=" trusted=yes"; fi
+  else
+    if [[ "$(curl --silent "https://api.glennr.nl/api/mongodb-release?version=3.6" | grep -oP '(?<="expired":")[^"]+')" == 'true' ]]; then trusted_mongodb_repo=" trusted=yes"; fi
+  fi
 }
 
 mongodb_42_key() {
   echo -e "${WHITE_R}#${RESET} Adding key for MongoDB 4.2..."
   if wget -qO - https://www.mongodb.org/static/pgp/server-4.2.asc | apt-key add - &> /dev/null; then echo -e "${GREEN}#${RESET} Successfully added key for MongoDB 4.2! \\n"; else abort; fi
+  if command -v jq &> /dev/null; then
+    if [[ "$(curl --silent "https://api.glennr.nl/api/mongodb-release?version=4.2" | jq -r '.expired')" == 'true' ]]; then trusted_mongodb_repo=" trusted=yes"; fi
+  else
+    if [[ "$(curl --silent "https://api.glennr.nl/api/mongodb-release?version=4.2" | grep -oP '(?<="expired":")[^"]+')" == 'true' ]]; then trusted_mongodb_repo=" trusted=yes"; fi
+  fi
 }
 
 if [[ "${os_codename}" =~ (disco|eoan|focal|groovy) ]]; then
@@ -1406,7 +1425,7 @@ if ! dpkg -l | grep "^ii\\|^hi" | grep -iq "mongodb-server\\|mongodb-org-server"
   fi
   if [[ "${os_codename}" =~ (precise|maya) ]]; then
     mongodb_34_key
-    echo "deb [ arch=amd64 ] https://repo.mongodb.org/apt/ubuntu precise/mongodb-org/3.4 multiverse" &> /etc/apt/sources.list.d/mongodb-org-3.4.list || abort
+    echo "deb [ arch=amd64${trusted_mongodb_repo} ] https://repo.mongodb.org/apt/ubuntu precise/mongodb-org/3.4 multiverse" &> /etc/apt/sources.list.d/mongodb-org-3.4.list || abort
     hide_apt_update=true
     run_apt_get_update
     echo -e "${WHITE_R}#${RESET} Installing mongodb-org version ${mongo_version_supported::3}..."
@@ -1419,7 +1438,7 @@ if ! dpkg -l | grep "^ii\\|^hi" | grep -iq "mongodb-server\\|mongodb-org-server"
     else
       mongodb_34_key
     fi
-    echo "deb [ arch=amd64 ] https://repo.mongodb.org/apt/ubuntu trusty/mongodb-org/${mongo_version_supported::3} multiverse" &> "/etc/apt/sources.list.d/mongodb-org-${mongo_version_supported::3}.list" || abort
+    echo "deb [ arch=amd64${trusted_mongodb_repo} ] https://repo.mongodb.org/apt/ubuntu trusty/mongodb-org/${mongo_version_supported::3} multiverse" &> "/etc/apt/sources.list.d/mongodb-org-${mongo_version_supported::3}.list" || abort
     hide_apt_update=true
     run_apt_get_update
     echo -e "${WHITE_R}#${RESET} Installing mongodb-org version ${mongo_version_supported::3}..."
@@ -1432,17 +1451,17 @@ if ! dpkg -l | grep "^ii\\|^hi" | grep -iq "mongodb-server\\|mongodb-org-server"
     else
       mongodb_34_key
     fi
-    echo "deb [ arch=amd64,arm64 ] https://repo.mongodb.org/apt/ubuntu xenial/mongodb-org/${mongo_version_supported::3} multiverse" &> "/etc/apt/sources.list.d/mongodb-org-${mongo_version_supported::3}.list" || abort
+    echo "deb [ arch=amd64,arm64${trusted_mongodb_repo} ] https://repo.mongodb.org/apt/ubuntu xenial/mongodb-org/${mongo_version_supported::3} multiverse" &> "/etc/apt/sources.list.d/mongodb-org-${mongo_version_supported::3}.list" || abort
     hide_apt_update=true
     run_apt_get_update
     echo -e "${WHITE_R}#${RESET} Installing mongodb-org version ${mongo_version_supported::3}..."
     if DEBIAN_FRONTEND='noninteractive' apt-get -y -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install mongodb-org &>> "${eus_dir}/logs/mongodb_install.log"; then echo -e "${GREEN}#${RESET} Successfully installed mongodb-org version ${mongo_version_supported::3}! \\n"; else echo -e "${RED}#${RESET} Failed to install mongodb-org version ${mongo_version_supported::3}...\\n"; abort; fi
   elif [[ "${os_codename}" =~ (jessie|stretch|continuum|buster|bullseye) ]]; then
     if [[ "${os_codename}" == "jessie" ]]; then
-      echo "deb https://repo.mongodb.org/apt/debian jessie/mongodb-org/${mongo_version_supported::3} main" &> "/etc/apt/sources.list.d/mongodb-org-${mongo_version_supported::3}.list" || abort
+      echo "deb [${trusted_mongodb_repo} ] https://repo.mongodb.org/apt/debian jessie/mongodb-org/${mongo_version_supported::3} main" &> "/etc/apt/sources.list.d/mongodb-org-${mongo_version_supported::3}.list" || abort
       debian_64_mongo=install
     elif [[ "${os_codename}" =~ (stretch|continuum|buster|bullseye) ]]; then
-      echo "deb [ arch=amd64,arm64 ] https://repo.mongodb.org/apt/ubuntu xenial/mongodb-org/${mongo_version_supported::3} multiverse" &> "/etc/apt/sources.list.d/mongodb-org-${mongo_version_supported::3}.list" || abort
+      echo "deb [ arch=amd64,arm64${trusted_mongodb_repo} ] https://repo.mongodb.org/apt/ubuntu xenial/mongodb-org/${mongo_version_supported::3} multiverse" &> "/etc/apt/sources.list.d/mongodb-org-${mongo_version_supported::3}.list" || abort
       libssl_temp="$(mktemp --tmpdir=/tmp libssl1.0.2_XXXXX.deb)" || abort
       libssl_url=$(curl -s http://security.ubuntu.com/ubuntu/pool/main/o/openssl1.0/ | grep -io "libssl1.0.0.*amd64.deb" | sed '/u5_/d' | cut -d'"' -f1 | tail -n1)
       echo -e "${WHITE_R}#${RESET} Downloading libssl..."

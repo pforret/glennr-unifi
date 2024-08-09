@@ -11,6 +11,15 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 9.0.6
+  
+ - Improved getting repository information while API is online, but JQ is not installed yet.
+ - Improved the UniFi Network Application upgrade check.
+ - Improved unsupported MongoDB Upgrade/Downgrade recovery process.
+ - Improved support files.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 9.0.5
   
  - Added gnupg as required package.

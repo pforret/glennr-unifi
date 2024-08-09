@@ -11,6 +11,13 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Encrypt Script  |  Version 2.9.8
+ 
+ - Improved getting repository information while API is online, but JQ is not installed yet.
+ - Improved support files.
+ 
+ ###
+
  |  UniFi Easy Encrypt Script  |  Version 2.9.7
  
  - Added gnupg as required package.

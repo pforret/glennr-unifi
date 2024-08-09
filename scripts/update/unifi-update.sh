@@ -2,7 +2,7 @@
 
 # UniFi Network Application Easy Update Script.
 # Script   | UniFi Network Easy Update Script
-# Version  | 9.0.5
+# Version  | 9.0.6
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -374,6 +374,8 @@ support_file() {
   uname -a &> "/tmp/EUS/support/uname-results"
   lscpu &> "/tmp/EUS/support/lscpu-results"
   dmesg &> "/tmp/EUS/support/dmesg-results"
+  grep -is '^unifi:' /etc/passwd /etc/group &> "/tmp/EUS/support/unifi-user-group-results"
+  find /usr/sbin -name "unifi*" -type f -print0 | xargs -0 -I {} sh -c 'echo -e "\n------[ {} ]------\n"; cat "{}"; echo;' &> "/tmp/EUS/support/unifi-helper-results"
   ps -p $$ -o command= &> "/tmp/EUS/support/script-usage"
   echo "$PATH" &> "/tmp/EUS/support/PATH"
   cp "${script_location}" "/tmp/EUS/support/${script_file_name}" &> /dev/null
@@ -1192,13 +1194,14 @@ get_repo_url() {
     add_repositories_http_or_https="http"
   fi
   if "$(which dpkg)" -l curl 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
-    if [[ "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/distro?status" 2> /dev/null | jq -r '.[]' 2> /dev/null)" == "OK" ]]; then
+    if [[ "$(command -v jq)" ]]; then distro_api_status="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/distro?status" 2> /dev/null | jq -r '.availability' 2> /dev/null)"; else distro_api_status="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/distro?status" 2> /dev/null | grep -oP '(?<="availability":")[^"]+')"; fi
+    if [[ "${distro_api_status}" == "OK" ]]; then
       if [[ "${http_or_https}" == "http" ]]; then api_repo_url_procotol="&protocol=insecure"; fi
       if [[ "${use_raspberrypi_repo}" == 'true' ]]; then os_id="raspbian"; if [[ "${architecture}" == 'arm64' ]]; then repo_arch_value="arch=arm64"; fi; unset use_raspberrypi_repo; fi
       distro_api_output="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/distro?distribution=${os_id}&version=${os_codename}&architecture=${architecture}${api_repo_url_procotol}" 2> /dev/null)"
-      archived_repo="$(echo "${distro_api_output}" | jq -r '.codename_eol')"
+      if [[ "$(command -v jq)" ]]; then archived_repo="$(echo "${distro_api_output}" | jq -r '.codename_eol')"; else archived_repo="$(echo "${distro_api_output}" | grep -oP '"codename_eol":\s*\K[^,}]+')"; fi
       if [[ "${get_repo_url_security_url}" == "true" ]]; then get_repo_url_url_argument="security_repository"; unset get_repo_url_security_url; else get_repo_url_url_argument="repository"; fi
-      repo_url="$(echo "${distro_api_output}" | jq -r ".${get_repo_url_url_argument}")"
+      if [[ "$(command -v jq)" ]]; then repo_url="$(echo "${distro_api_output}" | jq -r ".${get_repo_url_url_argument}")"; else repo_url="$(echo "${distro_api_output}" | grep -oP "\"${get_repo_url_url_argument}\":\s*\"\K[^\"]+")"; fi
       distro_api="true"
     else
       if [[ "${os_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|oracular) ]]; then
@@ -4243,7 +4246,7 @@ if [[ "${mongo_version_locked}" == '4.4.18' ]] || [[ "${unsupported_database_ver
         if [[ "${installed_mongodb_package}" == "mongodb-server" ]] && [[ "${previous_mongodb_version::2}" != "24" ]]; then if sed -i "s/mongodb-server$/mongodb-org-server/g" /tmp/EUS/mongodb/packages_list; then echo "mongodb-server" &>> /tmp/EUS/mongodb/packages_remove_list; fi; fi
         if [[ "${installed_mongodb_package}" == "mongodb-clients" ]] && [[ "${previous_mongodb_version::2}" != "24" ]]; then if sed -i "s/mongodb-clients$/mongodb-org-shell/g" /tmp/EUS/mongodb/packages_list; then echo "mongodb-clients" &>> /tmp/EUS/mongodb/packages_remove_list; fi; fi
         if [[ "${installed_mongodb_package}" == "mongo-tools" ]] && [[ "${previous_mongodb_version::2}" != "24" ]]; then if sed -i "s/mongo-tools$/mongodb-org-tools/g" /tmp/EUS/mongodb/packages_list; then echo "mongo-tools" &>> /tmp/EUS/mongodb/packages_remove_list; fi; fi
-        if [[ "${installed_mongodb_package}" == "mongodb-org-database-tools-extra" && "${recovery_install_mongodb_version::2}" -lt "44" ]]; then echo -e "mongodb-org-tools\nmongodb-org-database-tools-extra" &>> /tmp/EUS/mongodb/packages_remove_list; fi
+        if [[ "${installed_mongodb_package}" == "mongodb-org-database-tools-extra" && "${recovery_install_mongodb_version::2}" -lt "44" ]]; then echo -e "mongodb-org-tools\nmongodb-org-database-tools-extra\nmongodb-org-database" &>> /tmp/EUS/mongodb/packages_remove_list; fi
         sed -i "/${installed_mongodb_package}/d" /tmp/EUS/mongodb/packages_list
       fi
     done < "/tmp/EUS/mongodb/packages_list.tmp"
@@ -7001,8 +7004,8 @@ custom_url_upgrade_check() {
   current_application_digit_2="$(echo "${current_application_version}" | cut -d'.' -f2)"
   current_application_digit_3="$(echo "${current_application_version}" | cut -d'.' -f3)"
   if [[ "${custom_application_digit_1}" -gt "${current_application_digit_1}" ]]; then application_upgrade="yes"; fi
-  if [[ "${custom_application_digit_2}" -gt "${current_application_digit_2}" ]]; then application_upgrade="yes"; fi
-  if [[ "${custom_application_digit_3}" -gt "${current_application_digit_3}" ]]; then application_upgrade="yes"; fi
+  if [[ "${custom_application_digit_1}" == "${current_application_digit_1}" && "${custom_application_digit_2}" -gt "${current_application_digit_2}" ]]; then application_upgrade="yes"; fi
+  if [[ "${custom_application_digit_1}" == "${current_application_digit_1}" && "${custom_application_digit_2}" == "${current_application_digit_2}" && "${custom_application_digit_3}" -gt "${current_application_digit_3}" ]]; then application_upgrade="yes"; fi
   if [[ "${custom_application_digit_1}.${custom_application_digit_2}.${custom_application_digit_3}" == "${current_application_digit_1}.${current_application_digit_2}.${current_application_digit_3}" ]]; then application_upgrade="match"; fi
   if [[ "${application_upgrade}" == 'yes' ]]; then
     first_digit_unifi="${custom_application_digit_1}"
@@ -8903,8 +8906,8 @@ application_upgrade_releases() {
   application_current_digit_2="$(echo "${unifi_current}" | cut -d'.' -f2)"
   application_current_digit_3="$(echo "${unifi_current}" | cut -d'.' -f3)"
   if [[ "${application_version_release_digit_1}" -gt "${application_current_digit_1}" ]]; then application_upgrade="yes"; fi
-  if [[ "${application_version_release_digit_2}" -gt "${application_current_digit_2}" ]]; then application_upgrade="yes"; fi
-  if [[ "${application_version_release_digit_3}" -gt "${application_current_digit_3}" ]]; then application_upgrade="yes"; fi
+  if [[ "${application_version_release_digit_1}" == "${application_current_digit_1}" && "${application_version_release_digit_2}" -gt "${application_current_digit_2}" ]]; then application_upgrade="yes"; fi
+  if [[ "${application_version_release_digit_1}" == "${application_current_digit_1}" && "${application_version_release_digit_2}" == "${application_current_digit_2}" && "${application_version_release_digit_3}" -gt "${application_current_digit_3}" ]]; then application_upgrade="yes"; fi
   if [[ "${application_upgrade}" != 'yes' ]]; then
     header_red
 	echo -e "${WHITE_R}#${RESET} You were about to downgrade your UniFi Network Application from \"${unifi_current}\" to \"${application_version_release}\".. Cancelling this upgrade..\\n\\n"

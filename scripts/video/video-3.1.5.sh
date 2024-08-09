@@ -2,7 +2,7 @@
 
 # UniFi-Video 3.1.5 auto installation script.
 # OS       | Xenial
-# Version  | 3.0.4
+# Version  | 3.0.5
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -183,7 +183,11 @@ SYSTEM_FREE_DISK=$(df -k / | awk '{print $4}' | tail -n1)
 #SERVER_IP=$(ifconfig | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*' | grep -v '127.0.0.1' | head -1)
 #SERVER_IP=$(/sbin/ifconfig | grep 'inet ' | grep -v '127.0.0.1' | head -n1 | awk '{print $2}' | head -1 | sed 's/.*://')
 SERVER_IP=$(ip addr | grep -A8 -m1 MULTICAST | grep -m1 inet | cut -d' ' -f6 | cut -d'/' -f1)
-PUBLIC_SERVER_IP=$(curl https://ip.glennr.nl/ -s)
+if command -v jq &> /dev/null; then
+  PUBLIC_SERVER_IP="$(curl --silent https://api.glennr.nl/api/geo | jq -r '."address"')"
+else
+  PUBLIC_SERVER_IP="$(curl --silent https://api.glennr.nl/api/geo | grep -oP '(?<="address":")[^"]+')"
+fi
 ARCHITECTURE=$(uname -m)
 OS_NAME=$(lsb_release -cs)
 OS_RELEASE=$(lsb_release -rs)
@@ -511,8 +515,13 @@ else
     curl -LO https://www.mongodb.org/static/pgp/server-3.4.asc || abort
 	gpg --import server-3.4.asc || abort
 	rm server-3.4.asc
+    if command -v jq &> /dev/null; then
+      if [[ "$(curl --silent "https://api.glennr.nl/api/mongodb-release?version=3.4" | jq -r '.expired')" == 'true' ]]; then trusted_mongodb_repo=" trusted=yes"; fi
+    else
+      if [[ "$(curl --silent "https://api.glennr.nl/api/mongodb-release?version=3.4" | grep -oP '(?<="expired":")[^"]+')" == 'true' ]]; then trusted_mongodb_repo=" trusted=yes"; fi
+    fi
   fi
-  echo "deb [ arch=amd64,arm64 ] http://repo.mongodb.org/apt/ubuntu xenial/mongodb-org/3.4 multiverse" | tee /etc/apt/sources.list.d/mongodb-org-3.4.list || abort
+  echo "deb [ arch=amd64,arm64${trusted_mongodb_repo} ] http://repo.mongodb.org/apt/ubuntu xenial/mongodb-org/3.4 multiverse" | tee /etc/apt/sources.list.d/mongodb-org-3.4.list || abort
   apt-get update
   apt-get install mongodb-org -y || abort
 fi
