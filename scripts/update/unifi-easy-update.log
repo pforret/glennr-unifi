@@ -11,6 +11,14 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 9.0.7
+  
+ - Improved broken package debugging.
+ - Improved the JAVA installed check.
+ - Fixed inability to install mongodb-org-tools 4.0 or older when mongodb-org-database-tools-extra is installed.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 9.0.6
   
  - Improved getting repository information while API is online, but JQ is not installed yet.

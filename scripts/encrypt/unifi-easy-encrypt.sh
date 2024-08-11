@@ -2,7 +2,7 @@
 
 # UniFi Easy Encrypt script.
 # Script   | UniFi Network Easy Encrypt Script
-# Version  | 2.9.8
+# Version  | 2.9.9
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -2157,8 +2157,14 @@ certbot_repositories() {
   get_distro
   get_repo_url
   run_apt_get_update
-  required_package="certbot"
-  apt_get_install_package
+  if [[ -n "$(apt-cache policy certbot | grep -i Candidate | sed -e 's/ //g' -e 's/*//g' | cut -d':' -f2)" ]]; then
+    required_package="certbot"
+    apt_get_install_package
+  else
+    required_package="snapd"
+    apt_get_install_package
+    certbot_install_function
+  fi
 }
 
 check_certbot_version() {
