@@ -11,6 +11,14 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 9.0.8
+  
+ - Improved the unsupported MongoDB version change check.
+ - Improved support files.
+ - Fixed inability to install mongodb-org-tools 4.0 or older when mongodb-org-database is not installed while mongodb-org-database-tools-extra is installed.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 9.0.7
   
  - Improved broken package debugging.

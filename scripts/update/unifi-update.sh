@@ -2,7 +2,7 @@
 
 # UniFi Network Application Easy Update Script.
 # Script   | UniFi Network Easy Update Script
-# Version  | 9.0.7
+# Version  | 9.0.8
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -4248,8 +4248,8 @@ if [[ "${mongo_version_locked}" == '4.4.18' ]] || [[ "${unsupported_database_ver
         if [[ "${installed_mongodb_package}" == "mongodb-clients" ]] && [[ "${previous_mongodb_version::2}" != "24" ]]; then if sed -i "s/mongodb-clients$/mongodb-org-shell/g" /tmp/EUS/mongodb/packages_list; then echo "mongodb-clients" &>> /tmp/EUS/mongodb/packages_remove_list; fi; fi
         if [[ "${installed_mongodb_package}" == "mongo-tools" ]] && [[ "${previous_mongodb_version::2}" != "24" ]]; then if sed -i "s/mongo-tools$/mongodb-org-tools/g" /tmp/EUS/mongodb/packages_list; then echo "mongo-tools" &>> /tmp/EUS/mongodb/packages_remove_list; fi; fi
         if [[ "${installed_mongodb_package}" == "mongodb-org-database-tools-extra" && "${recovery_install_mongodb_version::2}" -lt "44" ]]; then
-          if "$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep -iq "mongodb-org-database"; then echo -e "mongodb-org-database" &>> /tmp/EUS/mongodb/packages_remove_list; fi
-          if "$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep -iq "mongodb-org-tools"; then echo -e "mongodb-org-tools" &>> /tmp/EUS/mongodb/packages_remove_list; fi
+          if "$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | awk '{print$2}' | grep -iq "mongodb-org-database$"; then echo -e "mongodb-org-database" &>> /tmp/EUS/mongodb/packages_remove_list; fi
+          if "$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | awk '{print$2}' | grep -iq "mongodb-org-tools$"; then echo -e "mongodb-org-tools" &>> /tmp/EUS/mongodb/packages_remove_list; fi
           echo -e "mongodb-org-database-tools-extra" &>> /tmp/EUS/mongodb/packages_remove_list
         fi
         sed -i "/${installed_mongodb_package}/d" /tmp/EUS/mongodb/packages_list
@@ -4258,7 +4258,7 @@ if [[ "${mongo_version_locked}" == '4.4.18' ]] || [[ "${unsupported_database_ver
     if "$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep -iq "mongod-armv8" && [[ "${recovery_install_mongodb_version::2}" != "70" ]]; then if sed -i "s/mongod-armv8/mongodb-org-server/g" /tmp/EUS/mongodb/packages_list; then echo "mongod-armv8" &>> /tmp/EUS/mongodb/packages_remove_list; fi; fi
     rm --force "/tmp/EUS/mongodb/packages_list.tmp" &> /dev/null
     awk '{ if ($0 == "mongodb-server") { server_found = 1; } else if ($0 == "mongodb-server-core") { core_found = 1; } if (!found_both) { original[NR] = $0; } } END { if (server_found && core_found) { found_both = 1; printed_server = 0; printed_core = 0; for (i = 1; i <= NR; i++) { if (original[i] == "mongodb-server" && !printed_server) { printed_server = 1; continue; } else if (original[i] == "mongodb-server-core" && !printed_core) { printed_core = 1; print "mongodb-server"; } print original[i]; } } else { for (i = 1; i <= NR; i++) { print original[i]; } } }' /tmp/EUS/mongodb/packages_remove_list &> /tmp/EUS/mongodb/packages_remove_list.tmp && mv /tmp/EUS/mongodb/packages_remove_list.tmp /tmp/EUS/mongodb/packages_remove_list
-    "$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | awk '{print$2}' | grep "^unifi" | awk '{print $1}' &>> /tmp/EUS/mongodb/packages_remove_list
+    "$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | awk '{print$2}' | grep "^unifi$" | awk '{print $1}' &>> /tmp/EUS/mongodb/packages_remove_list
     if grep -iq "unifi" /tmp/EUS/mongodb/packages_remove_list; then reinstall_unifi="true"; fi
     while read -r package; do
       check_dpkg_lock
@@ -8532,40 +8532,23 @@ free_space_check() {
     read -rp $'\033[39m#\033[0m Do you want to proceed with running the script? (y/N) ' yes_no
     case "$yes_no" in
        [Nn]*|"")
+          free_space_check_response="Cancel script"
+          free_space_check_date="$(date +%s)"
           echo -e "${YELLOW}#${RESET} OK... Please free up disk space before running the script again..."
           cancel_script;;
        [Yy]*)
+          free_space_check_response="Proceed at own risk"
+          free_space_check_date="$(date +%s)"
           echo -e "${YELLOW}#${RESET} OK... Proceeding with the script.. please note that failures may occur due to not enough disk space... \\n"; sleep 10;;
     esac
-  fi
-}
-free_space_check
-
-free_var_log_space_check() {
-  if [[ "$(df --output=source / | tail -1)" != "$(df --output=source /var/log | tail -1)" && "${script_option_skip}" != 'true' ]]; then
-    if [[ "$(df -B1 /var/log | awk 'NR==2{print $4}')" -le '26214400' ]]; then
-      header_red
-      echo -e "${YELLOW}#${RESET} You only have $(df -B1 /var/log | awk 'NR==2{print $4}' | awk '{ split( "B KB MB GB TB PB EB ZB YB" , v ); s=1; while( $1>1024 && s<9 ){ $1/=1024; s++ } printf "%.1f %s", $1, v[s] }') of disk space available on \"/var/log\"..."
-      echo -e "${WHITE_R}#${RESET} How would you like to proceed?"
-      echo -e "\\n${WHITE_R}---${RESET}\\n"
-      echo -e " [   ${WHITE_R}1 ${RESET}   ]  |  Let the script attempt to clean up log files."
-      echo -e " [   ${WHITE_R}2 ${RESET}   ]  |  Proceed with a higher failure risk."
-      echo -e " [   ${WHITE_R}3 ${RESET}   ]  |  I want to free up disk space before attempting again."
-      echo -e "\\n"
-      read -rp $'Your choice | \033[39m' choice
-      case "$choice" in
-         1) echo -e "${WHITE_R}#${RESET} Attempting to clean up log files..."
-            if find "/var/log" -name "*.log" -exec truncate -s 1M {} \;;then echo -e "${GREEN}#${RESET} Successfully cleaned up some log files! \\n"; else echo -e "${RED}#${RESET} Failed to clean up log files... \\n"; fi
-            sleep 3
-            free_var_log_space_check;;
-         2) echo -e "${YELLOW}#${RESET} OK... Proceeding with the script.. please note that failures may occur due to not enough disk space... \\n"; sleep 10;;
-         3) echo -e "${YELLOW}#${RESET} OK... Please free up disk space before running the script again..."; cancel_script;;
-	     *) header_red; echo -e "${WHITE_R}#${RESET} Option ${choice} is not a valid..."; sleep 3; free_var_log_space_check;;
-      esac
+    if [[ "$(dpkg-query --showformat='${Version}' --show jq | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" && -e "${eus_dir}/db/db.json" ]]; then
+      jq '.scripts."'"${script_name}"'" += {"warnings": {"low-free-disk-space": {"response": "'"${free_space_check_response}"'", "detected-date": "'"${free_space_check_date}"'"}}}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+    else
+      jq '.scripts."'"${script_name}"'" = (.scripts."'"${script_name}"'" | . + {"warnings": {"low-free-disk-space": {"response": "'"${free_space_check_response}"'", "detected-date": "'"${free_space_check_date}"'"}}})' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
     fi
   fi
 }
-free_var_log_space_check
+free_space_check
 
 free_boot_space_check() {
   free_boot_space="$(df -B1 /boot | awk 'NR==2{print $4}')"
@@ -8579,11 +8562,20 @@ free_boot_space_check() {
         read -rp $'\033[39m#\033[0m Do you want to proceed with running the script? (y/N) ' yes_no
         case "$yes_no" in
            [Nn]*|"")
+              free_boot_space_check_response="Cancel script"
+              free_boot_space_check_date="$(date +%s)"
               echo -e "${YELLOW}#${RESET} OK... Please free up disk space before running the script again..."
               cancel_script;;
            [Yy]*)
+              free_boot_space_check_response="Proceed at own risk"
+              free_boot_space_check_date="$(date +%s)"
               echo -e "${YELLOW}#${RESET} OK... Proceeding with the script.. please note that failures may occur due to not enough disk space... \\n"; sleep 10; skip_linux_images_recovery="true";;
         esac
+        if [[ "$(dpkg-query --showformat='${Version}' --show jq | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" && -e "${eus_dir}/db/db.json" ]]; then
+          jq '.scripts."'"${script_name}"'" += {"warnings": {"low-free-boot-partition-space": {"response": "'"${free_boot_space_check_response}"'", "detected-date": "'"${free_boot_space_check_date}"'"}}}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+        else
+          jq '.scripts."'"${script_name}"'" = (.scripts."'"${script_name}"'" | . + {"warnings": {"low-free-boot-partition-space": {"response": "'"${free_boot_space_check_response}"'", "detected-date": "'"${free_boot_space_check_date}"'"}}})' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+        fi
       fi
     fi
     if [[ "${skip_linux_images_recovery}" != 'true' ]]; then
@@ -8610,6 +8602,32 @@ free_boot_space_check() {
   fi
 }
 free_boot_space_check
+
+free_var_log_space_check() {
+  if [[ "$(df --output=source / | tail -1)" != "$(df --output=source /var/log | tail -1)" && "${script_option_skip}" != 'true' ]]; then
+    if [[ "$(df -B1 /var/log | awk 'NR==2{print $4}')" -le '26214400' ]]; then
+      header_red
+      echo -e "${YELLOW}#${RESET} You only have $(df -B1 /var/log | awk 'NR==2{print $4}' | awk '{ split( "B KB MB GB TB PB EB ZB YB" , v ); s=1; while( $1>1024 && s<9 ){ $1/=1024; s++ } printf "%.1f %s", $1, v[s] }') of disk space available on \"/var/log\"..."
+      echo -e "${WHITE_R}#${RESET} How would you like to proceed?"
+      echo -e "\\n${WHITE_R}---${RESET}\\n"
+      echo -e " [   ${WHITE_R}1 ${RESET}   ]  |  Let the script attempt to clean up log files."
+      echo -e " [   ${WHITE_R}2 ${RESET}   ]  |  Proceed with a higher failure risk."
+      echo -e " [   ${WHITE_R}3 ${RESET}   ]  |  I want to free up disk space before attempting again."
+      echo -e "\\n"
+      read -rp $'Your choice | \033[39m' choice
+      case "$choice" in
+         1) echo -e "${WHITE_R}#${RESET} Attempting to clean up log files..."
+            if find "/var/log" -name "*.log" -exec truncate -s 1M {} \;;then echo -e "${GREEN}#${RESET} Successfully cleaned up some log files! \\n"; else echo -e "${RED}#${RESET} Failed to clean up log files... \\n"; fi
+            sleep 3
+            free_var_log_space_check;;
+         2) echo -e "${YELLOW}#${RESET} OK... Proceeding with the script.. please note that failures may occur due to not enough disk space... \\n"; sleep 10;;
+         3) echo -e "${YELLOW}#${RESET} OK... Please free up disk space before running the script again..."; cancel_script;;
+	     *) header_red; echo -e "${WHITE_R}#${RESET} Option ${choice} is not a valid..."; sleep 3; free_var_log_space_check;;
+      esac
+    fi
+  fi
+}
+free_var_log_space_check
 
 not_running_proceed() {
   echo -e "${RED}#${RESET} The UniFi Network Application is still not running.. you may experience login issues..."

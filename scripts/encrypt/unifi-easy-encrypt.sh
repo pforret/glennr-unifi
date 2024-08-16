@@ -2,7 +2,7 @@
 
 # UniFi Easy Encrypt script.
 # Script   | UniFi Network Easy Encrypt Script
-# Version  | 2.9.9
+# Version  | 3.0.0
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -668,6 +668,9 @@ set_curl_arguments() {
   if [[ "${curl_args}" != *"--show-error"* ]]; then curl_args+=" --show-error"; fi
   if [[ "${curl_args}" != *"--retry"* ]]; then curl_args+=" --retry 3"; fi
   IFS=' ' read -r -a curl_argument <<< "${curl_args}"
+  trimmed_args="${curl_args//--silent/}"
+  trimmed_args="$(echo "$trimmed_args" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+  IFS=' ' read -r -a nos_curl_argument <<< "${trimmed_args}"
 }
 if [[ "$(command -v curl)" ]]; then set_curl_arguments; fi
 
@@ -2400,7 +2403,7 @@ if [[ -n "${auto_dns_challenge_provider}" ]]; then
     fi
     # Install go
     if [[ "${architecture}" =~ (arm64|amd64) ]]; then
-      if ! curl --location "${curl_argument[@]}" --output "${eus_dir}/go.tar.gz" "https://go.dev/dl/$(curl --silent "https://go.dev/dl/?mode=json" | jq -r '.[0].files[] | select(.os == "linux" and .arch == "'"${architecture}"'").filename')" &>> "${eus_dir}/logs/go-application.log"; then
+      if ! curl --location "${nos_curl_argument[@]}" --output "${eus_dir}/go.tar.gz" "https://go.dev/dl/$(curl --silent "https://go.dev/dl/?mode=json" | jq -r '.[0].files[] | select(.os == "linux" and .arch == "'"${architecture}"'").filename')" &>> "${eus_dir}/logs/go-application.log"; then
         abort_reason="Failed to download go."; abort
       else
         if ! rm -rf /usr/local/go && tar -C /usr/local -xzf "${eus_dir}/go.tar.gz" &>> "${eus_dir}/logs/go-application.log"; then
