@@ -2,7 +2,7 @@
 
 # UniFi Network Application Easy Update Script.
 # Script   | UniFi Network Easy Update Script
-# Version  | 9.0.8
+# Version  | 9.0.9
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -1502,7 +1502,7 @@ if ! "$(which dpkg)" -l unifi 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|
 fi
 
 # If there a RC?
-is_there_a_release_candidate='no'
+is_there_a_release_candidate='yes'
 
 # UniFi Core Setups if no RC channel is available
 if [[ "${unifi_core_system}" == 'true' && "${is_there_a_release_candidate}" == 'yes' ]]; then
@@ -1553,7 +1553,7 @@ release_wanted () {
         2*) release_stage="RC"; release_stage_friendly="Release Candidate";;
     esac
   fi
-  if [[ "${release_stage}" == 'RC' ]]; then rc_version_available="8.3.32"; rc_version_available_secret="8.3.32-896f48ed11"; fi
+  if [[ "${release_stage}" == 'RC' ]]; then rc_version_available="8.4.59"; rc_version_available_secret="8.4.59-y2b2oj1o96"; fi
 }
 
 broken_packages_check() {
@@ -11183,10 +11183,8 @@ elif [[ "${first_digit_unifi}" == '8' && "${second_digit_unifi}" == '2' ]]; then
 ##########################################################################################################################################################################
 
 elif [[ "${first_digit_unifi}" == '8' && "${second_digit_unifi}" == '3' ]]; then
-  if [[ "${third_digit_unifi}" -gt '32' ]]; then not_supported_version; fi
   release_wanted
   if [[ "${release_stage}" == 'S' ]]; then if [[ "${unifi}" == "8.3.32" ]]; then debug_check_no_upgrade; unifi_update_latest; fi; fi
-  if [[ "${release_stage}" == 'RC' ]]; then if [[ "${unifi}" == "${rc_version_available}" ]]; then debug_check_no_upgrade; unifi_update_latest; fi; fi
   header
   echo "  To what UniFi Network Application version would you like to update?"
   echo -e "  Currently your UniFi Network Application is on version ${WHITE_R}$unifi${RESET}"
@@ -11245,6 +11243,77 @@ elif [[ "${first_digit_unifi}" == '8' && "${second_digit_unifi}" == '3' ]]; then
             cancel_script
           fi;;
         3|*) cancel_script;;
+    esac
+  fi
+
+##########################################################################################################################################################################
+#                                                                                                                                                                        #
+#                                                                                  8.4.x                                                                                 #
+#                                                                                                                                                                        #
+##########################################################################################################################################################################
+
+elif [[ "${first_digit_unifi}" == '8' && "${second_digit_unifi}" == '4' ]]; then
+  if [[ "${third_digit_unifi}" -gt '59' ]]; then not_supported_version; fi
+  release_wanted
+  if [[ "${release_stage}" == 'RC' ]]; then if [[ "${unifi}" == "${rc_version_available}" ]]; then debug_check_no_upgrade; unifi_update_latest; fi; fi
+  header
+  echo "  To what UniFi Network Application version would you like to update?"
+  echo -e "  Currently your UniFi Network Application is on version ${WHITE_R}$unifi${RESET}"
+  echo -e "\\n  Release stage is set to | ${WHITE_R}${release_stage_friendly}${RESET}\\n\\n"
+  if [[ "${unifi}" == "8.4.59" ]]; then
+    unifi_version='8.4.59'
+    #echo -e " [   ${WHITE_R}1${RESET}   ]  |  8.4.59"
+    if [[ "${release_stage}" == 'RC' ]]; then
+      echo -e " [   ${WHITE_R}1${RESET}   ]  |  ${rc_version_available}"
+      echo -e " [   ${WHITE_R}2${RESET}   ]  |  Cancel\\n\\n"
+    else
+      echo -e " [   ${WHITE_R}1${RESET}   ]  |  Cancel\\n\\n"
+    fi
+  else
+    #echo -e " [   ${WHITE_R}1${RESET}   ]  |  8.4.59"
+    if [[ "${release_stage}" == 'RC' ]]; then
+      echo -e " [   ${WHITE_R}1${RESET}   ]  |  ${rc_version_available}"
+      echo -e " [   ${WHITE_R}2${RESET}   ]  |  Cancel\\n\\n"
+    else
+      echo -e " [   ${WHITE_R}1${RESET}   ]  |  Cancel\\n\\n"
+    fi
+  fi
+
+  if [[ "${unifi_version}" == "8.4.59" ]]; then
+    read -rp $'Your choice | \033[39m' UPGRADE_VERSION
+    case "$UPGRADE_VERSION" in
+        1)
+          if [[ "${release_stage}" == 'RC' ]]; then
+            unifi_update_start
+            unifi_firmware_requirement
+            application_version="${rc_version_available_secret}"
+            application_upgrade_releases
+            unifi_update_finish
+          else
+            cancel_script
+          fi;;
+        2|*) cancel_script;;
+    esac
+  else
+    read -rp $'Your choice | \033[39m' UPGRADE_VERSION
+    case "$UPGRADE_VERSION" in
+        #1)
+        #  unifi_update_start
+        #  unifi_firmware_requirement
+        #  application_version="8.4.59-y2b2oj1o96"
+        #  application_upgrade_releases
+        #  unifi_update_finish;;
+        1)
+          if [[ "${release_stage}" == 'RC' ]]; then
+            unifi_update_start
+            unifi_firmware_requirement
+            application_version="${rc_version_available_secret}"
+            application_upgrade_releases
+            unifi_update_finish
+          else
+            cancel_script
+          fi;;
+        2|*) cancel_script;;
     esac
   fi
 else

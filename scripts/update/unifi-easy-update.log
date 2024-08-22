@@ -11,6 +11,12 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 9.0.9
+  
+ - Added support for upgrading to 8.4.59 RC.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 9.0.8
   
  - Improved the unsupported MongoDB version change check.
