@@ -11,6 +11,19 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 7.8.3
+ 
+ - Added a check that temporarily stops unattended-upgrades when running to prevent it from interfering with the script.
+ - Improved the broken UniFi Network Application installation process.
+   - Checks if the previous version is supported by current MongoDB installation against api.glennr.nl.
+ - Improved the unsupported MongoDB version change process.
+ - Improved the previous installed MongoDB version check.
+ - Improved support files.
+ - Fixed an issue where the APT recovery process didn't read all the script log files.
+ - Fixed an issue where the script could fail due to missing MongoDB packages while recovering arm64 servers running unsupported MongoDB versions.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 7.8.2
  
  - Improved the unsupported MongoDB version change check.

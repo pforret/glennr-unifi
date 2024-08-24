@@ -11,6 +11,15 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Encrypt Script  |  Version 3.0.2
+ 
+ - Added a check that temporarily stops unattended-upgrades when running to prevent it from interfering with the script.
+ - Improved support files.
+ - Fixed an issue where the APT recovery process didn't read all the script log files.
+ - Fixed an issue where the script attempted to start snapd while it's in rc state.
+ 
+ ###
+
  |  UniFi Easy Encrypt Script  |  Version 3.0.1
  
  - Moved dnsmadeeasy provider to Other Prodiders.

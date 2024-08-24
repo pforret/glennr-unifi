@@ -11,6 +11,15 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 9.1.0
+  
+ - Added a check that temporarily stops unattended-upgrades when running to prevent it from interfering with the script.
+ - Improved the previous installed MongoDB version check.
+ - Improved support files.
+ - Fixed an issue where the APT recovery process didn't read all the script log files.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 9.0.9
   
  - Added support for upgrading to 8.4.59 RC.
