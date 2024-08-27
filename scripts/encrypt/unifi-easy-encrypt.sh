@@ -2,7 +2,7 @@
 
 # UniFi Easy Encrypt script.
 # Script   | UniFi Network Easy Encrypt Script
-# Version  | 3.0.2
+# Version  | 3.0.3
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -568,7 +568,6 @@ abort() {
   echo -e "\\n\\n${RED}#########################################################################${RESET}\\n"
   echo -e "${WHITE_R}#${RESET} An error occurred. Aborting script..."
   echo -e "${WHITE_R}#${RESET} Please contact Glenn R. (AmazedMender16) on the Community Forums!\\n"
-  echo -e "${WHITE_R}#${RESET} Creating support file..."
   retry_script_option
   support_file
   update_eus_db
@@ -1716,6 +1715,36 @@ check_package_cache_file_corruption() {
   fi
 }
 
+https_died_unexpectedly_check() {
+  while IFS= read -r log_file; do
+    if [[ -n "${GNUTLS_CPUID_OVERRIDE}" ]] && grep -sq "GNUTLS_CPUID_OVERRIDE=" "/etc/environment" &> /dev/null; then
+      previous_value="$(grep "GNUTLS_CPUID_OVERRIDE=" "/etc/environment" | cut -d '=' -f2)"
+      if [[ "${https_died_unexpectedly_check_logged_1}" != 'true' ]] && [[ "${previous_value}" == "0x1" ]]; then echo -e "$(date +%F-%R) | Previous GNUTLS_CPUID_OVERRIDE value is: ${previous_value}" &>> "${eus_dir}/logs/https-died-unexpectedly.log"; https_died_unexpectedly_check_logged_1="true"; fi
+      if [[ "${previous_value}" != "0x1" ]]; then
+        if sed -i 's/^GNUTLS_CPUID_OVERRIDE=.*/GNUTLS_CPUID_OVERRIDE=0x1/' "/etc/environment" &>> "${eus_dir}/logs/https-died-unexpectedly.log"; then
+          echo -e "$(date +%F-%R) | Successfully updated GNUTLS_CPUID_OVERRIDE to 0x1!" &>> "${eus_dir}/logs/https-died-unexpectedly.log"
+          # shellcheck disable=SC1091
+          source /etc/environment
+          repository_changes_applied="true"
+        else
+          echo -e "$(date +%F-%R) | Failed to update GNUTLS_CPUID_OVERRIDE to 0x1..." &>> "${eus_dir}/logs/https-died-unexpectedly.log"
+        fi
+      fi
+    else
+      echo -e "$(date +%F-%R) | Adding \"export GNUTLS_CPUID_OVERRIDE=0x1\" to /etc/environment..." &>> "${eus_dir}/logs/https-died-unexpectedly.log"
+      if echo "export GNUTLS_CPUID_OVERRIDE=0x1" &>> /etc/environment; then
+        echo -e "$(date +%F-%R) | Successfully added \"export GNUTLS_CPUID_OVERRIDE=0x1\" to /etc/environment..." &>> "${eus_dir}/logs/https-died-unexpectedly.log"
+        # shellcheck disable=SC1091
+        source /etc/environment
+        repository_changes_applied="true"
+      else
+        echo -e "$(date +%F-%R) | Failed to add \"export GNUTLS_CPUID_OVERRIDE=0x1\" to /etc/environment..." &>> "${eus_dir}/logs/https-died-unexpectedly.log"
+      fi
+    fi
+    sed -i "s/Method https has died unexpectedly!/Method https has died unexpectedly (completed)!/g" "${log_file}" 2>> "${eus_dir}/logs/https-died-unexpectedly.log"
+  done < <(grep -slE '^E: Method https has died unexpectedly!' /tmp/EUS/apt/*.log "${eus_dir}"/logs/*.log | sort -u 2>> /dev/null)
+}
+
 check_time_date_for_repositories() {
   if ls /tmp/EUS/apt/*.log 1> /dev/null 2>&1; then
     if grep -ioqE '^E: Release file for .* is not valid yet \(invalid for another' /tmp/EUS/apt/*.log; then
@@ -1989,6 +2018,7 @@ run_apt_get_update() {
     if "$(which dpkg)" -l dirmngr 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then if grep -qo 'NO_PUBKEY.*' /tmp/EUS/apt/apt-update.log; then run_apt_get_update; fi; fi
   fi
   check_package_cache_file_corruption
+  https_died_unexpectedly_check
   check_time_date_for_repositories
   cleanup_malformed_repositories
   cleanup_duplicated_repositories

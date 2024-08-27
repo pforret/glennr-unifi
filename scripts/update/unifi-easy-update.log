@@ -11,6 +11,20 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 9.1.2
+  
+ - Added a potentional recovery for when the HTTPS method dies unexpectedly.
+ - Implemented api.glennr.nl to return the latest available UniFi Network Application release.
+ - Fixed an issue where it could try to re-install UniFi without having Java installed during recovery.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 9.1.1
+  
+ - Added support for upgrading to 8.4.59 Stable/Official.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 9.1.0
   
  - Added a check that temporarily stops unattended-upgrades when running to prevent it from interfering with the script.

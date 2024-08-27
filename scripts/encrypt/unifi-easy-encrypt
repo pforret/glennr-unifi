@@ -11,6 +11,12 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Encrypt Script  |  Version 3.0.3
+ 
+ - Added a potentional recovery for when the HTTPS method dies unexpectedly.
+ 
+ ###
+
  |  UniFi Easy Encrypt Script  |  Version 3.0.2
  
  - Added a check that temporarily stops unattended-upgrades when running to prevent it from interfering with the script.
