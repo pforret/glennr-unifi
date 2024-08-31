@@ -11,6 +11,20 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Encrypt Script  |  Version 3.0.5
+ 
+ - Improved certbot installation process.
+ - Fixed an issue where the script couldn't locate signed-by file for ports.ubuntu.com repositories.
+ - Fixed an issue where it spit out debug messaging during support files.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 3.0.4
+ 
+ - Added a potentional recovery for apt extended_states corruption.
+ 
+ ###
+
  |  UniFi Easy Encrypt Script  |  Version 3.0.3
  
  - Added a potentional recovery for when the HTTPS method dies unexpectedly.

@@ -2,7 +2,7 @@
 
 # UniFi Easy Encrypt script.
 # Script   | UniFi Network Easy Encrypt Script
-# Version  | 3.0.3
+# Version  | 3.0.4
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -286,7 +286,7 @@ support_file() {
     df -h &> "/tmp/EUS/support/df"
   fi
   if [[ "${unifi_core_system}" != 'true' && -n "$(apt-cache search debsums | awk '/debsums/{print$1}')" ]]; then
-    if ! [[ "$(command -v debsums)" ]]; then DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install debsums 2>&1 | tee -a "${eus_dir}/logs/apt.log"; fi
+    if ! [[ "$(command -v debsums)" ]]; then DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install debsums &>> "${eus_dir}/logs/apt.log"; fi
     if [[ "$(command -v debsums)" ]]; then debsums -c &> "/tmp/EUS/support/debsums-check-results"; fi
   fi
   uname -a &> "/tmp/EUS/support/uname-results"
@@ -491,7 +491,7 @@ support_file() {
       jq --arg script_name "$script_name" --arg support_file_name "$support_file_name" --arg abort_reason "$abort_reason" '.scripts[$script_name] |= (. + {support: ((.support // {}) + {($support_file_name): {"abort-reason": $abort_reason,"upload-results": ""}})})' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
     fi
     eus_database_move
-    tar cJvfh "${support_file}" --exclude="${eus_dir}/go.tar.gz" --exclude="${eus_dir}/unifi_db" --exclude="/tmp/EUS/downloads" --exclude="/usr/lib/unifi/logs/remote" "/tmp/EUS" "${eus_dir}" "/usr/lib/unifi/logs" "/etc/apt/sources.list" "/etc/apt/sources.list.d/" "/etc/apt/preferences" "/etc/apt/keyrings" "/etc/apt/trusted.gpg.d/" "/etc/apt/preferences.d/" "/etc/default/unifi" "/etc/environment" "/var/log/dpkg.log"* "/etc/systemd/system/unifi.service.d/" "/lib/systemd/system/unifi.service" "/usr/lib/unifi/data/db/version" &> /dev/null
+    tar cJvfh "${support_file}" --exclude="${eus_dir}/go.tar.gz" --exclude="${eus_dir}/unifi_db" --exclude="/tmp/EUS/downloads" --exclude="/usr/lib/unifi/logs/remote" "/tmp/EUS" "${eus_dir}" "/usr/lib/unifi/logs" "/etc/apt/sources.list" "/etc/apt/sources.list.d/" "/etc/apt/preferences" "/etc/apt/keyrings" "/etc/apt/trusted.gpg.d/" "/etc/apt/preferences.d/" "/etc/default/unifi" "/etc/environment" "/var/log/dpkg.log"* "/etc/systemd/system/unifi.service.d/" "/lib/systemd/system/unifi.service" "/usr/lib/unifi/data/db/version" "/var/lib/apt/" &> /dev/null
   elif "$(which dpkg)" -l zstd 2> /dev/null | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
     support_file="/tmp/eus-support-${support_file_uuid}${support_file_time}.tar.zst"
     support_file_name="$(basename "${support_file}")"
@@ -501,7 +501,7 @@ support_file() {
       jq --arg script_name "$script_name" --arg support_file_name "$support_file_name" --arg abort_reason "$abort_reason" '.scripts[$script_name] |= (. + {support: ((.support // {}) + {($support_file_name): {"abort-reason": $abort_reason,"upload-results": ""}})})' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
     fi
     eus_database_move
-    tar --use-compress-program=zstd -cvf "${support_file}" --exclude="${eus_dir}/go.tar.gz" --exclude="${eus_dir}/unifi_db" --exclude="/tmp/EUS/downloads" --exclude="/usr/lib/unifi/logs/remote" "/tmp/EUS" "${eus_dir}" "/usr/lib/unifi/logs" "/etc/apt/sources.list" "/etc/apt/sources.list.d/" "/etc/apt/preferences" "/etc/apt/keyrings" "/etc/apt/trusted.gpg.d/" "/etc/apt/preferences.d/" "/etc/default/unifi" "/etc/environment" "/var/log/dpkg.log"* "/etc/systemd/system/unifi.service.d/" "/lib/systemd/system/unifi.service" "/usr/lib/unifi/data/db/version" &> /dev/null
+    tar --use-compress-program=zstd -cvf "${support_file}" --exclude="${eus_dir}/go.tar.gz" --exclude="${eus_dir}/unifi_db" --exclude="/tmp/EUS/downloads" --exclude="/usr/lib/unifi/logs/remote" "/tmp/EUS" "${eus_dir}" "/usr/lib/unifi/logs" "/etc/apt/sources.list" "/etc/apt/sources.list.d/" "/etc/apt/preferences" "/etc/apt/keyrings" "/etc/apt/trusted.gpg.d/" "/etc/apt/preferences.d/" "/etc/default/unifi" "/etc/environment" "/var/log/dpkg.log"* "/etc/systemd/system/unifi.service.d/" "/lib/systemd/system/unifi.service" "/usr/lib/unifi/data/db/version" "/var/lib/apt/" &> /dev/null
   elif "$(which dpkg)" -l tar 2> /dev/null | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
     support_file="/tmp/eus-support-${support_file_uuid}${support_file_time}.tar.gz"
     support_file_name="$(basename "${support_file}")"
@@ -511,7 +511,7 @@ support_file() {
       jq --arg script_name "$script_name" --arg support_file_name "$support_file_name" --arg abort_reason "$abort_reason" '.scripts[$script_name] |= (. + {support: ((.support // {}) + {($support_file_name): {"abort-reason": $abort_reason,"upload-results": ""}})})' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
     fi
     eus_database_move
-    tar czvfh "${support_file}" --exclude="${eus_dir}/go.tar.gz" --exclude="${eus_dir}/unifi_db" --exclude="/tmp/EUS/downloads" --exclude="/usr/lib/unifi/logs/remote" "/tmp/EUS" "${eus_dir}" "/usr/lib/unifi/logs" "/etc/apt/sources.list" "/etc/apt/sources.list.d/" "/etc/apt/preferences" "/etc/apt/keyrings" "/etc/apt/trusted.gpg.d/" "/etc/apt/preferences.d/" "/etc/default/unifi" "/etc/environment" "/var/log/dpkg.log"* "/etc/systemd/system/unifi.service.d/" "/lib/systemd/system/unifi.service" "/usr/lib/unifi/data/db/version" &> /dev/null
+    tar czvfh "${support_file}" --exclude="${eus_dir}/go.tar.gz" --exclude="${eus_dir}/unifi_db" --exclude="/tmp/EUS/downloads" --exclude="/usr/lib/unifi/logs/remote" "/tmp/EUS" "${eus_dir}" "/usr/lib/unifi/logs" "/etc/apt/sources.list" "/etc/apt/sources.list.d/" "/etc/apt/preferences" "/etc/apt/keyrings" "/etc/apt/trusted.gpg.d/" "/etc/apt/preferences.d/" "/etc/default/unifi" "/etc/environment" "/var/log/dpkg.log"* "/etc/systemd/system/unifi.service.d/" "/lib/systemd/system/unifi.service" "/usr/lib/unifi/data/db/version" "/var/lib/apt/" &> /dev/null
   elif "$(which dpkg)" -l zip 2> /dev/null | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
     support_file="/tmp/eus-support-${support_file_uuid}${support_file_time}.zip"
     support_file_name="$(basename "${support_file}")"
@@ -521,7 +521,7 @@ support_file() {
       jq --arg script_name "$script_name" --arg support_file_name "$support_file_name" --arg abort_reason "$abort_reason" '.scripts[$script_name] |= (. + {support: ((.support // {}) + {($support_file_name): {"abort-reason": $abort_reason,"upload-results": ""}})})' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
     fi
     eus_database_move
-    zip -r "${support_file}" "/tmp/EUS/" "${eus_dir}/" "/usr/lib/unifi/logs/" "/etc/apt/sources.list" "/etc/apt/sources.list.d/" "/etc/apt/preferences" "/etc/apt/keyrings" "/etc/apt/trusted.gpg.d/" "/etc/apt/preferences.d/" "/etc/default/unifi" "/etc/environment" "/var/log/dpkg.log"* "/etc/systemd/system/unifi.service.d/" "/lib/systemd/system/unifi.service" "/usr/lib/unifi/data/db/version" -x "${eus_dir}/go.tar.gz" -x "${eus_dir}/unifi_db/*" -x "/tmp/EUS/downloads" -x "/usr/lib/unifi/logs/remote" &> /dev/null
+    zip -r "${support_file}" "/tmp/EUS/" "${eus_dir}/" "/usr/lib/unifi/logs/" "/etc/apt/sources.list" "/etc/apt/sources.list.d/" "/etc/apt/preferences" "/etc/apt/keyrings" "/etc/apt/trusted.gpg.d/" "/etc/apt/preferences.d/" "/etc/default/unifi" "/etc/environment" "/var/log/dpkg.log"* "/etc/systemd/system/unifi.service.d/" "/lib/systemd/system/unifi.service" "/usr/lib/unifi/data/db/version" "/var/lib/apt/" -x "${eus_dir}/go.tar.gz" -x "${eus_dir}/unifi_db/*" -x "/tmp/EUS/downloads" -x "/usr/lib/unifi/logs/remote" &> /dev/null
   fi
   if [[ -n "${support_file}" ]]; then
     echo -e "${WHITE_R}#${RESET} Support file has been created here: ${support_file} \\n"
@@ -1418,8 +1418,8 @@ add_repositories() {
     local brackets=""
   fi
   # Attempt to find the repository signing key for Debian/Ubuntu.
-  if [[ -z "${signed_by_value_repo_key}" && "${use_deb822_format}" == 'true' ]] && echo "${repo_url}" | grep -ioq "archive.ubuntu\\|security.ubuntu\\|deb.debian"; then
-    signed_by_value_repo_key_find="$(echo "${repo_url}" | sed -e 's/https\:\/\///g' -e 's/http\:\/\///g' -e 's/\/.*//g' -e 's/\.com//g' -e 's/\./-/g' -e 's/\./-/g' -e 's/deb-debian/archive-debian/g' -e 's/security-ubuntu/archive-ubuntu/g' | awk -F'-' '{print $2 "-" $1}')"
+  if [[ -z "${signed_by_value_repo_key}" && "${use_deb822_format}" == 'true' ]] && echo "${repo_url}" | grep -ioq "ports.ubuntu\\|archive.ubuntu\\|security.ubuntu\\|deb.debian"; then
+    signed_by_value_repo_key_find="$(echo "${repo_url}" | sed -e 's/https\:\/\///g' -e 's/http\:\/\///g' -e 's/\/.*//g' -e 's/\.com//g' -e 's/\./-/g' -e 's/\./-/g' -e 's/deb-debian/archive-debian/g' -e 's/security-ubuntu/archive-ubuntu/g' -e 's/ports-ubuntu/archive-ubuntu/g' | awk -F'-' '{print $2 "-" $1}')"
     if [[ -n "${signed_by_value_repo_key_find}" ]]; then signed_by_value_repo_key="signed-by=$(find /usr/share/keyrings/ /etc/apt/keyrings/ -name "${signed_by_value_repo_key_find}*" | sed '/removed/d' | head -n1)"; fi
   fi
   # Determine format
@@ -1715,6 +1715,16 @@ check_package_cache_file_corruption() {
   fi
 }
 
+check_extended_states_corruption() {
+  while IFS= read -r log_file; do
+    if [[ -e "/var/lib/apt/extended_states" ]]; then
+      mv "/var/lib/apt/extended_states" "/var/lib/apt/extended_states.EUS-corruption-detect-$(date +%s).bak" &>> "${eus_dir}/logs/apt-extended-states-corruption.log"
+      repository_changes_applied="true"
+    fi
+    sed -i "s|Unable to parse package file /var/lib/apt/extended_states|Unable to parse package file (completed) /var/lib/apt/extended_states|g" "${log_file}" 2>> "${eus_dir}/logs/apt-extended-states-corruption.log"
+  done < <(grep -slE '^E: Unable to parse package file /var/lib/apt/extended_states' /tmp/EUS/apt/*.log "${eus_dir}"/logs/*.log | sort -u 2>> /dev/null)
+}
+
 https_died_unexpectedly_check() {
   while IFS= read -r log_file; do
     if [[ -n "${GNUTLS_CPUID_OVERRIDE}" ]] && grep -sq "GNUTLS_CPUID_OVERRIDE=" "/etc/environment" &> /dev/null; then
@@ -1741,7 +1751,7 @@ https_died_unexpectedly_check() {
         echo -e "$(date +%F-%R) | Failed to add \"export GNUTLS_CPUID_OVERRIDE=0x1\" to /etc/environment..." &>> "${eus_dir}/logs/https-died-unexpectedly.log"
       fi
     fi
-    sed -i "s/Method https has died unexpectedly!/Method https has died unexpectedly (completed)!/g" "${log_file}" 2>> "${eus_dir}/logs/https-died-unexpectedly.log"
+    sed -i "s/Method https has died unexpectedly\!/Method https has died unexpectedly (completed)\!/g" "${log_file}" 2>> "${eus_dir}/logs/https-died-unexpectedly.log"
   done < <(grep -slE '^E: Method https has died unexpectedly!' /tmp/EUS/apt/*.log "${eus_dir}"/logs/*.log | sort -u 2>> /dev/null)
 }
 
@@ -2018,6 +2028,7 @@ run_apt_get_update() {
     if "$(which dpkg)" -l dirmngr 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then if grep -qo 'NO_PUBKEY.*' /tmp/EUS/apt/apt-update.log; then run_apt_get_update; fi; fi
   fi
   check_package_cache_file_corruption
+  check_extended_states_corruption
   https_died_unexpectedly_check
   check_time_date_for_repositories
   cleanup_malformed_repositories
@@ -2181,6 +2192,68 @@ apt_get_install_package() {
   unset required_package
 }
 
+certbot_install_function() {
+  if [[ "${dns_manual_flag}" == '--non-interactive' ]]; then return; fi
+  if [[ "${own_certificate}" != "true" ]]; then
+    if [[ "${os_codename}" == "jessie" ]]; then
+      if [[ "${os_codename}" == "jessie" ]]; then
+        if [[ ! -f "${eus_dir}/certbot-auto" || ! -s "${eus_dir}/certbot-auto" ]]; then download_certbot_auto; fi
+      fi
+    else
+      if ! dpkg -l certbot 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi"; then
+        if dpkg -l | awk '{print$2}' | grep -iq "^snapd$" && [[ "${try_snapd}" != 'false' ]]; then
+          if [[ "${installing_required_package}" != 'yes' ]]; then install_required_packages; fi
+          if ! "$(which dpkg)" -l snapd 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+            required_package="snapd"
+            apt_get_install_package
+          fi
+          check_snapd_running
+          echo -e "\\n------- update ------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/snapd.log"
+          echo -e "${WHITE_R}#${RESET} Updating snapd..."
+          if snap install core &>> "${eus_dir}/logs/snapd.log"; snap refresh core &>> "${eus_dir}/logs/snapd.log"; then
+            echo -e "${GREEN}#${RESET} Successfully updated snapd! \\n" && sleep 2
+            echo -e "\\n------- certbot installation ------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/snapd.log"
+            echo -e "${WHITE_R}#${RESET} Installing certbot via snapd..."
+            if snap install --classic certbot &>> "${eus_dir}/logs/snapd.log"; then
+              echo -e "${GREEN}#${RESET} Successfully installed certbot via snapd! \\n" && sleep 2
+              if ! [[ -L "/usr/bin/certbot" ]]; then
+                echo -e "${WHITE_R}#${RESET} Creating symlink for certbot..."
+                if ln -s /snap/bin/certbot /usr/bin/certbot &>> "${eus_dir}/logs/certbot-symlink.log"; then echo -e "${GREEN}#${RESET} Successfully created symlink for certbot! \\n"; else abort_reason="Failed to create symlink for certbot."; abort; fi
+              fi
+	        else
+              echo -e "${RED}#${RESET} Failed to install certbot via snapd... \\n"
+              echo -e "${WHITE_R}#${RESET} Trying to remove cerbot snapd..."
+              echo -e "\\n------- certbot removal ------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/snapd.log"
+              if snap remove certbot &>> "${eus_dir}/logs/snapd.log"; then
+                echo -e "${GREEN}#${RESET} Successfully removed certbot! \\n"
+                echo -e "${WHITE_R}#${RESET} Trying the classic way of using certbot..."
+                try_snapd=false
+                certbot_install_function
+              fi
+            fi
+	      else
+            abort_reason="Failed to update snapd."
+            abort
+          fi
+        else
+          if [[ "${installing_required_package}" != 'yes' ]]; then install_required_packages; fi
+          echo -e "\\n------- certbot installation ------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/required.log"
+          echo -e "${WHITE_R}#${RESET} Installing certbot..."
+          if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install certbot &>> "${eus_dir}/logs/required.log"; then
+            echo -e "${GREEN}#${RESET} Successfully installed certbot! \\n" && sleep 2
+	      else
+            echo -e "${RED}#${RESET} Failed to install certbot in the first run... \\n"
+            certbot_repositories
+          fi
+          check_certbot_version
+        fi
+      else
+        check_certbot_version
+      fi
+    fi
+  fi
+}
+
 certbot_repositories() {
   if [[ "${repo_codename}" =~ (disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar) ]]; then
     repo_codename="disco"
@@ -2340,11 +2413,6 @@ if ! dpkg -l curl 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi"; then
   get_repo_url
 fi
 if [[ -n "${auto_dns_challenge_provider}" ]]; then
-  if dpkg -l certbot 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi"; then
-    if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' remove certbot &>> "${eus_dir}/logs/remove-certbot.log"; then
-      abort_reason="Failed to remove the previous certbot installation."; abort
-    fi
-  fi
   if [[ "${certbot_native_plugin}" == 'true' ]]; then
     if ! dpkg -l "python3-certbot-dns-${auto_dns_challenge_provider}" 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi"; then
       if [[ "${installing_required_package}" != 'yes' ]]; then
@@ -2369,6 +2437,7 @@ if [[ -n "${auto_dns_challenge_provider}" ]]; then
         echo -e "${GREEN}#${RESET} Successfully installed python3-certbot-dns-${auto_dns_challenge_provider}! \\n" && sleep 2
       fi
     fi
+    if [[ -n "$(apt-cache show "python3-certbot-dns-${auto_dns_challenge_provider}" | awk '/Depends/ && /certbot/ {print "certbot"}')" ]]; then certbot_install_function; fi
     if ! dpkg -l python3-certbot 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi"; then
       if [[ "${installing_required_package}" != 'yes' ]]; then
         install_required_packages
@@ -2481,70 +2550,6 @@ check_snapd_running() {
     fi
   fi
 }
-
-certbot_install_function() {
-  if [[ "${dns_manual_flag}" == '--non-interactive' ]]; then return; fi
-  if [[ "${own_certificate}" != "true" ]]; then
-    if [[ "${os_codename}" == "jessie" ]]; then
-      if [[ "${os_codename}" == "jessie" ]]; then
-        if [[ ! -f "${eus_dir}/certbot-auto" || ! -s "${eus_dir}/certbot-auto" ]]; then download_certbot_auto; fi
-      fi
-    else
-      if ! dpkg -l certbot 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi"; then
-        if dpkg -l | awk '{print$2}' | grep -iq "^snapd$" && [[ "${try_snapd}" != 'false' ]]; then
-          if [[ "${installing_required_package}" != 'yes' ]]; then install_required_packages; fi
-          if ! "$(which dpkg)" -l snapd 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
-            required_package="snapd"
-            apt_get_install_package
-          fi
-          check_snapd_running
-          echo -e "\\n------- update ------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/snapd.log"
-          echo -e "${WHITE_R}#${RESET} Updating snapd..."
-          if snap install core &>> "${eus_dir}/logs/snapd.log"; snap refresh core &>> "${eus_dir}/logs/snapd.log"; then
-            echo -e "${GREEN}#${RESET} Successfully updated snapd! \\n" && sleep 2
-            echo -e "\\n------- certbot installation ------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/snapd.log"
-            echo -e "${WHITE_R}#${RESET} Installing certbot via snapd..."
-            if snap install --classic certbot &>> "${eus_dir}/logs/snapd.log"; then
-              echo -e "${GREEN}#${RESET} Successfully installed certbot via snapd! \\n" && sleep 2
-              if ! [[ -L "/usr/bin/certbot" ]]; then
-                echo -e "${WHITE_R}#${RESET} Creating symlink for certbot..."
-                if ln -s /snap/bin/certbot /usr/bin/certbot &>> "${eus_dir}/logs/certbot-symlink.log"; then echo -e "${GREEN}#${RESET} Successfully created symlink for certbot! \\n"; else abort_reason="Failed to create symlink for certbot."; abort; fi
-              fi
-	        else
-              echo -e "${RED}#${RESET} Failed to install certbot via snapd... \\n"
-              echo -e "${WHITE_R}#${RESET} Trying to remove cerbot snapd..."
-              echo -e "\\n------- certbot removal ------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/snapd.log"
-              if snap remove certbot &>> "${eus_dir}/logs/snapd.log"; then
-                echo -e "${GREEN}#${RESET} Successfully removed certbot! \\n"
-                echo -e "${WHITE_R}#${RESET} Trying the classic way of using certbot..."
-                try_snapd=false
-                certbot_install_function
-              fi
-            fi
-	      else
-            abort_reason="Failed to update snapd."
-            abort
-          fi
-        else
-          if [[ "${installing_required_package}" != 'yes' ]]; then install_required_packages; fi
-          echo -e "\\n------- certbot installation ------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/required.log"
-          echo -e "${WHITE_R}#${RESET} Installing certbot..."
-          if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install certbot &>> "${eus_dir}/logs/required.log"; then
-            echo -e "${GREEN}#${RESET} Successfully installed certbot! \\n" && sleep 2
-	      else
-            echo -e "${RED}#${RESET} Failed to install certbot in the first run... \\n"
-            certbot_repositories
-          fi
-          check_certbot_version
-        fi
-      else
-        check_certbot_version
-      fi
-    fi
-  fi
-}
-
-
 
 support_file_requests_opt_in() {
   if [[ "$(jq -r '.database["support-file-upload"]' "${eus_dir}/db/db.json")" != 'true' ]]; then

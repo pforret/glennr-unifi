@@ -11,6 +11,22 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 9.1.4
+  
+ - Improved MongoDB Last Attempt installation process.
+ - Fixed an issue where the script couldn't locate signed-by file for ports.ubuntu.com repositories.
+ - Fixed an issue where it spit out debug messaging during support files.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 9.1.3
+  
+ - Added a potentional recovery for apt extended_states corruption.
+ - Improved the unsupported MongoDB version change check.
+ - Fixed an issue where the free space warning data wasn't being saved into the EUS Database.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 9.1.2
   
  - Added a potentional recovery for when the HTTPS method dies unexpectedly.

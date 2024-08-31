@@ -11,6 +11,23 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 7.8.6
+ 
+ - Improved MongoDB Last Attempt installation process.
+ - Fixed an issue there the UniFi Recovery process could install a too new version of mongodb-server and mongodb-clients.
+ - Fixed an issue where the script couldn't locate signed-by file for ports.ubuntu.com repositories.
+ - Fixed an issue where it spit out debug messaging during support files.
+ 
+ ####
+
+ |  UniFi Network Application Installation Script  |  Version 7.8.5
+ 
+ - Added a potentional recovery for apt extended_states corruption.
+ - Improved the unsupported MongoDB version change check.
+ - Fixed an issue where the free space warning data wasn't being saved into the EUS Database.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 7.8.4
  
  - Added a potentional recovery for when the HTTPS method dies unexpectedly.
