@@ -11,6 +11,12 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Encrypt Script  |  Version 3.0.6
+ 
+ - Added support file reason when using the --support-file option.
+ 
+ ###
+
  |  UniFi Easy Encrypt Script  |  Version 3.0.5
  
  - Improved certbot installation process.

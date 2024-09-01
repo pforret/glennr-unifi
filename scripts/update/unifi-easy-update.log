@@ -11,6 +11,19 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 9.1.6
+  
+ - Fixed an issue where it could print out errors during script startup.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 9.1.5
+  
+ - Added support file reason when using the --support-file option.
+ - Improved finding the last known good MongoDB version.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 9.1.4
   
  - Improved MongoDB Last Attempt installation process.

@@ -11,6 +11,19 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 7.8.8
+ 
+ - Fixed an issue where it could print out errors during script startup.
+ 
+ ####
+
+ |  UniFi Network Application Installation Script  |  Version 7.8.7
+ 
+ - Added support file reason when using the --support-file option.
+ - Improved finding the last known good MongoDB version.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 7.8.6
  
  - Improved MongoDB Last Attempt installation process.
