@@ -11,6 +11,13 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Encrypt Script  |  Version 3.0.7
+ 
+ - Improved certbot installation process for DNS challenges.
+ - Improved error handling for DNS challenges.
+ 
+ ###
+
  |  UniFi Easy Encrypt Script  |  Version 3.0.6
  
  - Added support file reason when using the --support-file option.

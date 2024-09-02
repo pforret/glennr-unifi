@@ -2,7 +2,7 @@
 
 # UniFi Easy Encrypt script.
 # Script   | UniFi Network Easy Encrypt Script
-# Version  | 3.0.6
+# Version  | 3.0.7
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -1053,6 +1053,7 @@ create_eus_database
 # Set auto DNS challenge variables.
 if [[ -n "${auto_dns_challenge_arguments}" ]]; then
   if [[ -n "${auto_dns_challenge_credentials_file}" ]]; then
+    chmod 600 "${auto_dns_challenge_credentials_file}" &> /dev/null
     while read -r requirement; do
       if ! grep -ioq "${requirement}" "${auto_dns_challenge_credentials_file}"; then
         header_red
@@ -2193,7 +2194,10 @@ apt_get_install_package() {
 }
 
 certbot_install_function() {
-  if [[ "${dns_manual_flag}" == '--non-interactive' ]]; then return; fi
+  if [[ "${dns_manual_flag}" == '--non-interactive' ]]; then
+    try_snapd="false"
+    if "$(which dpkg)" -l snapd 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi"; then if snap list certbot | grep -ioq certbot 2> /dev/null; then snap remove certbot &>> "${eus_dir}/logs/snapd.log"; fi; fi
+  fi
   if [[ "${own_certificate}" != "true" ]]; then
     if [[ "${os_codename}" == "jessie" ]]; then
       if [[ "${os_codename}" == "jessie" ]]; then
@@ -3435,6 +3439,9 @@ le_import_failed() {
     fi
     if grep -iq 'live directory exists' "${eus_dir}/logs/lets_encrypt_${time_date}.log"; then
       echo -e "\\n${RED}---${RESET}\\n\\n${RED}#${RESET} A live directory exists for ${server_fqdn}\\n\\n${RED}---${RESET}"
+    fi
+    if grep -iq 'Missing properties in credentials configuration file' "${eus_dir}/logs/lets_encrypt_${time_date}.log"; then
+      echo -e "\\n${RED}---${RESET}\\n\\n${RED}#${RESET} Please ensure your ${auto_dns_challenge_credentials_file} contains the right (API) tokens/details...\\n\\n${RED}---${RESET}"
     fi
     if grep -iq 'Problem binding to port 80' "${eus_dir}/logs/lets_encrypt_${time_date}.log"; then
       echo -e "\\n${RED}---${RESET}\\n\\n${RED}#${RESET} Script failed to stop the service running on port 80, please manually stop it and run the script again!\\n\\n${RED}---${RESET}"
