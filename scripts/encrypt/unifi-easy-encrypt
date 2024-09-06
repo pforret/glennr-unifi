@@ -11,6 +11,18 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Encrypt Script  |  Version 3.0.9
+ 
+ - Fixed an issue that caused the Other supported DNS providers to not work at all.
+ 
+ ###
+
+ |  UniFi Easy Encrypt Script  |  Version 3.0.8
+ 
+ - Fixed an issue where the go command couldn't be located.
+ 
+ ###
+
  |  UniFi Easy Encrypt Script  |  Version 3.0.7
  
  - Improved certbot installation process for DNS challenges.

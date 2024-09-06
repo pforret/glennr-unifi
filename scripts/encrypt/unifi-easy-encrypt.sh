@@ -2,7 +2,7 @@
 
 # UniFi Easy Encrypt script.
 # Script   | UniFi Network Easy Encrypt Script
-# Version  | 3.0.7
+# Version  | 3.0.9
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -878,10 +878,10 @@ while [ -n "$1" ]; do
        echo "--retry ${2}" &>> /tmp/EUS/script_options
        shift;;
   --external-dns)
-       if [[ -n "${2}" ]]; then echo -e "\\n${WHITE_R}----${RESET}\\n"; echo -ne "\\r${WHITE_R}#${RESET} Checking if '${2}' is a valid DNS server..."; if [[ "${2}" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then if [[ "$(echo "${2}" | cut -d'.' -f1)" -le '255' && "$(echo "${2}" | cut -d'.' -f2)" -le '255' && "$(echo "${2}" | cut -d'.' -f3)" -le '255' && "$(echo "${2}" | cut -d'.' -f4)" -le '255' ]]; then ip_valid=true; elif [[ "${run_ipv6}" == 'true' ]]; then external_dns_server='@2606:4700:4700::1111'; else external_dns_server='@1.1.1.1'; fi; fi; fi
+       if [[ -n "${2}" ]]; then echo -ne "\\r${WHITE_R}#${RESET} Checking if ${2} is a valid DNS server...\\n"; if [[ "${2}" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then if [[ "$(echo "${2}" | cut -d'.' -f1)" -le '255' && "$(echo "${2}" | cut -d'.' -f2)" -le '255' && "$(echo "${2}" | cut -d'.' -f3)" -le '255' && "$(echo "${2}" | cut -d'.' -f4)" -le '255' ]]; then ip_valid=true; elif [[ "${run_ipv6}" == 'true' ]]; then external_dns_server='@2606:4700:4700::1111'; else external_dns_server='@1.1.1.1'; fi; fi; fi
        if [[ "${ip_valid}" == 'true' ]]; then if ping -c 1 "${2}" > /dev/null; then ping_ok=true; external_dns_server="@${2}"; elif [[ "${run_ipv6}" == 'true' ]]; then external_dns_server='@2606:4700:4700::1111'; else external_dns_server='@1.1.1.1'; fi; fi
        if [[ "${ping_ok}" == 'true' ]]; then check_dig_curl; if dig +short "${dig_option}" google.com "${external_dns_server}" &> /dev/null; then custom_external_dns_server_provided=true; elif [[ "${run_ipv6}" == 'true' ]]; then external_dns_server='@2606:4700:4700::1111'; else external_dns_server='@1.1.1.1'; fi; fi
-       if [[ "${custom_external_dns_server_provided}" == 'true' ]]; then echo "--external-dns ${2}" &>> /tmp/EUS/script_options; echo -ne "\\r${GREEN}#${RESET} '${2}' is a valid DNS server! The script will use '${2}' for DNS! \\n\\n${WHITE_R}----${RESET}\\n"; sleep 2; else echo "--external-dns" &>> /tmp/EUS/script_options; if [[ -n "${2}" ]]; then echo -ne "\\r${RED}#${RESET} '${2}' is not a valid DNS server, the script will use '1.1.1.1'... \\n\\n${WHITE_R}----${RESET}\\n"; sleep 2; fi; if [[ "${run_ipv6}" == 'true' ]]; then external_dns_server='@2606:4700:4700::1111'; else external_dns_server='@1.1.1.1'; fi; fi;;
+       if [[ "${custom_external_dns_server_provided}" == 'true' ]]; then echo "--external-dns ${2}" &>> /tmp/EUS/script_options; echo -e "${GREEN}#${RESET} ${2} appears to be a valid DNS server! The script will use ${2} for DNS lookups! \\n"; sleep 2; else echo "--external-dns" &>> /tmp/EUS/script_options; if [[ -n "${2}" ]]; then echo -e "${RED}#${RESET} ${2} does not appear to be a valid DNS server, the script will use 1.1.1.1 for DNS lookups... \\n"; sleep 2; fi; if [[ "${run_ipv6}" == 'true' ]]; then external_dns_server='@2606:4700:4700::1111'; else external_dns_server='@1.1.1.1'; fi; fi;;
   --force-renew | --renew)
        script_option_renew=true
        run_force_renew=true
@@ -1051,7 +1051,7 @@ create_eus_database() {
 create_eus_database
 
 # Set auto DNS challenge variables.
-if [[ -n "${auto_dns_challenge_arguments}" ]]; then
+if [[ -n "${auto_dns_challenge_arguments}" ]] || [[ "${certbot_multi_plugin}" == 'true' ]]; then
   if [[ -n "${auto_dns_challenge_credentials_file}" ]]; then
     chmod 600 "${auto_dns_challenge_credentials_file}" &> /dev/null
     while read -r requirement; do
@@ -2196,7 +2196,7 @@ apt_get_install_package() {
 certbot_install_function() {
   if [[ "${dns_manual_flag}" == '--non-interactive' ]]; then
     try_snapd="false"
-    if "$(which dpkg)" -l snapd 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi"; then if snap list certbot | grep -ioq certbot 2> /dev/null; then snap remove certbot &>> "${eus_dir}/logs/snapd.log"; fi; fi
+    if "$(which dpkg)" -l snapd 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi"; then if snap list certbot 2> /dev/null | grep -ioq certbot 2> /dev/null; then snap remove certbot &>> "${eus_dir}/logs/snapd.log"; fi; fi
   fi
   if [[ "${own_certificate}" != "true" ]]; then
     if [[ "${os_codename}" == "jessie" ]]; then
@@ -2513,7 +2513,8 @@ if [[ -n "${auto_dns_challenge_provider}" ]]; then
       if ! curl --location "${nos_curl_argument[@]}" --output "${eus_dir}/go.tar.gz" "https://go.dev/dl/$(curl --silent "https://go.dev/dl/?mode=json" | jq -r '.[0].files[] | select(.os == "linux" and .arch == "'"${architecture}"'").filename')" &>> "${eus_dir}/logs/go-application.log"; then
         abort_reason="Failed to download go."; abort
       else
-        if ! rm -rf /usr/local/go && tar -C /usr/local -xzf "${eus_dir}/go.tar.gz" &>> "${eus_dir}/logs/go-application.log"; then
+        if [[ -e /usr/local/go ]]; then rm -rf /usr/local/go &> /dev/null; fi
+        if ! tar -C /usr/local -xzf "${eus_dir}/go.tar.gz" &>> "${eus_dir}/logs/go-application.log"; then
           abort_reason="Failed to extract go."; abort
         else
           export PATH="$PATH:/usr/local/go/bin"
@@ -2657,6 +2658,10 @@ certbot_auto_install_run() {
 if [[ "${os_codename}" =~ (jessie) || "${downloaded_certbot}" == 'true' ]]; then
   certbot="${eus_dir}/certbot-auto"
   certbot_auto=true
+elif [[ "${certbot_multi_plugin}" == 'true' ]]; then
+  if [[ -e "/usr/bin/certbot" ]]; then mv /usr/bin/certbot /usr/bin/certbot.eus_org &>> "${eus_dir}/logs/certbot-multi-dns-symlink.log"; fi
+  ln -sf /opt/certbot/bin/certbot /usr/bin/certbot &>> "${eus_dir}/logs/certbot-multi-dns-symlink.log"
+  certbot="/opt/certbot/bin/certbot"
 else
   certbot="certbot"
 fi
