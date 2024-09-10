@@ -11,6 +11,12 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Encrypt Script  |  Version 3.1.0
+ 
+ - Improved error handling when API's are unavailable.
+ 
+ ###
+
  |  UniFi Easy Encrypt Script  |  Version 3.0.9
  
  - Fixed an issue that caused the Other supported DNS providers to not work at all.

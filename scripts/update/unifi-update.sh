@@ -2,7 +2,7 @@
 
 # UniFi Network Application Easy Update Script.
 # Script   | UniFi Network Easy Update Script
-# Version  | 9.1.6
+# Version  | 9.1.7
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -101,10 +101,10 @@ get_unifi_version() {
 
 cleanup_codename_mismatch_repos() {
   get_distro
-  if command -v jq &> /dev/null; then
+  if [[ -n "$(command -v jq)" ]]; then
     list_of_distro_versions="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/list-versions?list-all" 2> /dev/null | jq -r '.[]' 2> /dev/null)"
   else
-    list_of_distro_versions="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/list-versions?list-all" | sed -e 's/\[//g' -e 's/\]//g' -e 's/ //g' -e 's/,//g' | grep .)"
+    list_of_distro_versions="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/list-versions?list-all" 2> /dev/null | sed -e 's/\[//g' -e 's/\]//g' -e 's/ //g' -e 's/,//g' | grep .)"
   fi
   found_codenames=()
   if [[ -f "/etc/apt/sources.list.d/glennr-install-script.list" ]]; then
@@ -197,10 +197,10 @@ check_apt_listbugs() {
 }
 
 set_curl_arguments() {
-  if [[ "$(command -v jq)" ]]; then ssl_check_status="$(curl --silent "https://api.glennr.nl/api/ssl-check" | jq -r '.status')"; else ssl_check_status="$(curl --silent "https://api.glennr.nl/api/ssl-check" | grep -oP '(?<="status":")[^"]+')"; fi
+  if [[ "$(command -v jq)" ]]; then ssl_check_status="$(curl --silent "https://api.glennr.nl/api/ssl-check" 2> /dev/null | jq -r '.status' 2> /dev/null)"; else ssl_check_status="$(curl --silent "https://api.glennr.nl/api/ssl-check" 2> /dev/null | grep -oP '(?<="status":")[^"]+')"; fi
   if [[ "${ssl_check_status}" != "OK" ]]; then
     if [[ -e "/etc/ssl/certs/" ]]; then
-      if [[ "$(command -v jq)" ]]; then ssl_check_status="$(curl --silent --capath /etc/ssl/certs/ "https://api.glennr.nl/api/ssl-check" | jq -r '.status')"; else ssl_check_status="$(curl --silent --capath /etc/ssl/certs/ "https://api.glennr.nl/api/ssl-check" | grep -oP '(?<="status":")[^"]+')"; fi
+      if [[ "$(command -v jq)" ]]; then ssl_check_status="$(curl --silent --capath /etc/ssl/certs/ "https://api.glennr.nl/api/ssl-check" 2> /dev/null | jq -r '.status' 2> /dev/null)"; else ssl_check_status="$(curl --silent --capath /etc/ssl/certs/ "https://api.glennr.nl/api/ssl-check" 2> /dev/null | grep -oP '(?<="status":")[^"]+')"; fi
       if [[ "${ssl_check_status}" == "OK" ]]; then curl_args="--capath /etc/ssl/certs/"; fi
     fi
     if [[ -z "${curl_args}" && "${ssl_check_status}" != "OK" ]]; then curl_args="--insecure"; fi
@@ -633,7 +633,7 @@ support_file() {
         esac
       fi
       if [[ "$(jq -r '.database["support-file-upload"]' "${eus_dir}/db/db.json")" == 'true' ]] || [[ "${eus_support_one_time_upload}" == 'true' ]]; then
-        upload_result="$(curl "${curl_argument[@]}" -X POST -F "file=@${support_file}" "https://api.glennr.nl/api/eus-support" | jq -r '.[]')"
+        upload_result="$(curl "${curl_argument[@]}" -X POST -F "file=@${support_file}" "https://api.glennr.nl/api/eus-support" 2> /dev/null | jq -r '.[]' 2> /dev/null)"
         if [[ "$(dpkg-query --showformat='${Version}' --show jq | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
           jq '.scripts."'"${script_name}"'".support."'"${support_file_name}"'"."upload-results" = "'"${upload_result}"'"' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
         else
@@ -722,22 +722,22 @@ abort() {
       abort_mongodb
       check_dpkg_lock
       if [[ "${glennr_compiled_mongod_purged_server_import}" == 'true' ]]; then
-        echo -e "${WHITE_R}#${RESET} Un-installing mongod-armv8..."
-        if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_downgrade_option[@]}" "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' purge "mongod-armv8" &>> "${eus_dir}/logs/mongodb_upgrade_${mongodb_upgrade_from_version::2}_to_${mongo_version_max}-downgrade-abort.log"; then
-          echo -e "${GREEN}#${RESET} Successfully un-installed mongod-armv8! \\n"
+        echo -e "${WHITE_R}#${RESET} Un-installing ${gr_mongod_name}..."
+        if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_downgrade_option[@]}" "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' purge "${gr_mongod_name}" &>> "${eus_dir}/logs/mongodb_upgrade_${mongodb_upgrade_from_version::2}_to_${mongo_version_max}-downgrade-abort.log"; then
+          echo -e "${GREEN}#${RESET} Successfully un-installed ${gr_mongod_name}! \\n"
           echo "mongodb-org-server" &>> /tmp/EUS/mongodb/packages_list
-          sed -i '/mongod-armv8/d' /tmp/EUS/mongodb/packages_list
+          sed -i "/${gr_mongod_name}/d" /tmp/EUS/mongodb/packages_list
         else
           check_unmet_dependencies
           broken_packages_check
           attempt_recover_broken_packages
           add_apt_option_no_install_recommends="true"; get_apt_options
-          if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_downgrade_option[@]}" "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' purge "mongod-armv8" &>> "${eus_dir}/logs/mongodb_upgrade_${mongodb_upgrade_from_version::2}_to_${mongo_version_max}-downgrade-abort.log"; then
-            echo -e "${GREEN}#${RESET} Successfully un-installed mongod-armv8! \\n"
+          if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_downgrade_option[@]}" "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' purge "${gr_mongod_name}" &>> "${eus_dir}/logs/mongodb_upgrade_${mongodb_upgrade_from_version::2}_to_${mongo_version_max}-downgrade-abort.log"; then
+            echo -e "${GREEN}#${RESET} Successfully un-installed ${gr_mongod_name}! \\n"
             echo "mongodb-org-server" &>> /tmp/EUS/mongodb/packages_list
-            sed -i '/mongod-armv8/d' /tmp/EUS/mongodb/packages_list
+            sed -i "/${gr_mongod_name}/d" /tmp/EUS/mongodb/packages_list
           else
-            echo -e "${RED}#${RESET} Failed to un-install mongod-armv8...\\n"
+            echo -e "${RED}#${RESET} Failed to un-install ${gr_mongod_name}...\\n"
           fi
           get_apt_options
         fi
@@ -1110,6 +1110,9 @@ start_application_upgrade() {
 # Set architecture
 architecture="$("$(which dpkg)" --print-architecture)"
 if [[ "${architecture}" == 'i686' ]]; then architecture="i386"; fi
+if [[ "${architecture}" == 'arm64' ]]; then gr_mongod_name="mongod-armv8"; fi
+if [[ "${architecture}" == 'amd64' ]]; then gr_mongod_name="mongod-amd64"; fi
+if [[ -z "${gr_mongod_name}" ]]; then gr_mongod_name="mongod-armv8"; echo -e "$(date +%F-%R) | Variable gr_mongod_name was empty..." &>> "${eus_dir}/logs/variables.log"; fi
 if [[ -n "$(command -v jq)" && -e "${eus_dir}/db/db.json" ]]; then
   if [[ "$(dpkg-query --showformat='${Version}' --show jq | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
     jq '."database" += {"architecture": "'"${architecture}"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
@@ -1350,7 +1353,7 @@ add_repositories() {
     elif echo "${repo_url_arguments}" | grep -ioq "security.debian"; then 
       check_debian_version="${os_version_number}-security"
     fi
-    if [[ "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/debian-release?version=${check_debian_version}" | jq -r '.expired')" == 'true' ]]; then 
+    if [[ "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/debian-release?version=${check_debian_version}" 2> /dev/null | jq -r '.expired' 2> /dev/null)" == 'true' ]]; then 
       if [[ "${use_deb822_format}" == 'true' ]]; then
         deb822_trusted="\nTrusted: yes"
       else
@@ -1503,7 +1506,7 @@ if ! "$(which dpkg)" -l unifi 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|
 fi
 
 # If there a RC?
-is_there_a_release_candidate='no'
+is_there_a_release_candidate='yes'
 
 # UniFi Core Setups if no RC channel is available
 if [[ "${unifi_core_system}" == 'true' && "${is_there_a_release_candidate}" == 'yes' ]]; then
@@ -1553,14 +1556,14 @@ release_wanted () {
         2*) release_stage="RC"; release_stage_friendly="Release Candidate";;
     esac
   fi
-  if [[ "${release_stage}" == 'RC' ]]; then rc_version_available="8.4.59"; rc_version_available_secret="8.4.59-y2b2oj1o96"; fi
+  if [[ "${release_stage}" == 'RC' ]]; then rc_version_available="8.4.62"; rc_version_available_secret="8.4.62-i3q2j125cz"; fi
 }
 
 if [[ "$(command -v jq)" ]]; then latest_release_api_status="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?status" 2> /dev/null | jq -r '.availability' 2> /dev/null)"; else latest_release_api_status="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?status" 2> /dev/null | grep -oP '(?<="availability":")[^"]+')"; fi
 if [[ "${latest_release_api_status}" == "OK" ]]; then
-  if command -v jq &> /dev/null; then latest_release="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?version=latest" 2> /dev/null | jq -r '.latest_version')"; else latest_release="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?version=latest" | sed -n 's/.*"latest_release":"\([^"]*\)".*/\1/p')"; fi
+  if [[ -n "$(command -v jq)" ]]; then latest_release="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?version=latest" 2> /dev/null | jq -r '.latest_version' 2> /dev/null)"; else latest_release="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?version=latest" 2> /dev/null | sed -n 's/.*"latest_release":"\([^"]*\)".*/\1/p')"; fi
 else
-  latest_release="8.4.59"
+  latest_release="8.4.62"
 fi
 
 broken_packages_check() {
@@ -1633,10 +1636,10 @@ check_unmet_dependencies() {
           if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${dependency_to_install}" &>> "${eus_dir}/logs/unmet-dependency.log"; then
             sed -i "s/Depends: ${dependency_no_version}/Depends (completed): ${dependency_no_version}/g" "${log_file}" 2>> "${eus_dir}/logs/unmet-dependency-sed.log"
           else
-            if command -v jq &> /dev/null; then
+            if [[ -n "$(command -v jq)" ]]; then
               list_of_distro_versions="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/list-versions?distribution=${os_id}" 2> /dev/null | jq -r '.[]' 2> /dev/null)"
             else
-              list_of_distro_versions="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/list-versions?distribution=${os_id}" | sed -e 's/\[//g' -e 's/\]//g' -e 's/ //g' -e 's/,//g' | grep .)"
+              list_of_distro_versions="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/list-versions?distribution=${os_id}" 2> /dev/null | sed -e 's/\[//g' -e 's/\]//g' -e 's/ //g' -e 's/,//g' | grep .)"
             fi
             while read -r version; do
               add_repositories_source_list_override="glennr-install-script-unmet"
@@ -1745,10 +1748,10 @@ script_version_check() {
   local local_version
   local online_version
   local_version="$(grep -i "# Version" "${script_location}" | head -n 1 | cut -d'|' -f2 | sed 's/ //g')"
-  if command -v jq &> /dev/null; then
-    online_version="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-script-version?script=unifi-update" | jq -r '."latest-script-version"')"
+  if [[ -n "$(command -v jq)" ]]; then
+    online_version="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-script-version?script=unifi-update" 2> /dev/null | jq -r '."latest-script-version"' 2> /dev/null)"
   else
-    online_version="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-script-version?script=unifi-update" | grep -oP '(?<="latest-script-version":")[0-9.]+')"
+    online_version="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-script-version?script=unifi-update" 2> /dev/null | grep -oP '(?<="latest-script-version":")[0-9.]+')"
   fi
   IFS='.' read -r -a local_parts <<< "${local_version}"
   IFS='.' read -r -a online_parts <<< "${online_version}"
@@ -1792,7 +1795,7 @@ if ! [[ "${os_codename}" =~ (precise|maya|trusty|qiana|rebecca|rafaela|rosa|xeni
   if [[ -z "$(which apt)" ]]; then non_apt_based_linux="true"; fi
   unsupported_no_modify="true"
   get_distro
-  if [[ "${non_apt_based_linux}" != 'true' ]]; then distro_support_missing_report="$(curl "${curl_argument[@]}" -X POST -H "Content-Type: application/json" -d "{\"distribution\": \"${os_id}\", \"codename\": \"${os_codename}\", \"script-name\": \"${script_name}\", \"full-os-details\": \"${full_os_details}\"}" https://api.glennr.nl/api/missing-distro-support | jq -r '.[]')"; fi
+  if [[ "${non_apt_based_linux}" != 'true' ]]; then distro_support_missing_report="$(curl "${curl_argument[@]}" -X POST -H "Content-Type: application/json" -d "{\"distribution\": \"${os_id}\", \"codename\": \"${os_codename}\", \"script-name\": \"${script_name}\", \"full-os-details\": \"${full_os_details}\"}" https://api.glennr.nl/api/missing-distro-support 2> /dev/null | jq -r '.[]' 2> /dev/null)"; fi
   if [[ "${script_option_debug}" != 'true' ]]; then clear; fi
   header_red
   if [[ "${distro_support_missing_report}" == "OK" ]]; then
@@ -1863,27 +1866,27 @@ check_time_date_for_repositories() {
   if ls /tmp/EUS/apt/*.log 1> /dev/null 2>&1; then
     if grep -ioqE '^E: Release file for .* is not valid yet \(invalid for another' /tmp/EUS/apt/*.log; then
       get_timezone
-      if command -v jq &> /dev/null; then current_api_time="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/current-time?timezone=${timezone}" | jq -r '."current_time_ns"' | sed '/null/d')"; else current_api_time="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/current-time?timezone=${timezone}" | grep -o '"current_time_ns":"[^"]*"' | cut -d'"' -f4)"; fi
+      if [[ -n "$(command -v jq)" ]]; then current_api_time="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/current-time?timezone=${timezone}" 2> /dev/null | jq -r '."current_time_ns"' 2> /dev/null | sed '/null/d')"; else current_api_time="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/current-time?timezone=${timezone}" 2> /dev/null | grep -o '"current_time_ns":"[^"]*"' | cut -d'"' -f4)"; fi
       if [[ "${current_api_time}" != "$(date +"%Y-%m-%d %H:%M")" ]]; then
         if command -v timedatectl &> /dev/null; then
           ntp_status="$(timedatectl show --property=NTP 2> /dev/null | awk -F '[=]' '{print $2}')"
           if [[ -z "${ntp_status}" ]]; then ntp_status="$(timedatectl status 2> /dev/null | grep -i ntp | cut -d':' -f2 | sed -e 's/ //g')"; fi
           if [[ -z "${ntp_status}" ]]; then ntp_status="$(timedatectl status 2> /dev/null | grep "systemd-timesyncd" | awk -F '[:]' '{print$2}' | sed -e 's/ //g')"; fi
           if [[ "${ntp_status}" == 'yes' ]]; then if "$(which dpkg)" -l systemd-timesyncd 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then timedatectl set-ntp false &>> "${eus_dir}/logs/invalid-time.log"; fi; fi
-          if command -v jq &> /dev/null; then
-            timedatectl set-time "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/current-time?timezone=${timezone}" | jq -r '."current_time"' | sed '/null/d')" &>> "${eus_dir}/logs/invalid-time.log"
+          if [[ -n "$(command -v jq)" ]]; then
+            timedatectl set-time "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/current-time?timezone=${timezone}" 2> /dev/null | jq -r '."current_time"' 2> /dev/null | sed '/null/d')" &>> "${eus_dir}/logs/invalid-time.log"
           else
-            timedatectl set-time "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/current-time?timezone=${timezone}" | grep -o '"current_time":"[^"]*"' | cut -d'"' -f4)" &>> "${eus_dir}/logs/invalid-time.log"
+            timedatectl set-time "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/current-time?timezone=${timezone}" 2> /dev/null | grep -o '"current_time":"[^"]*"' | cut -d'"' -f4)" &>> "${eus_dir}/logs/invalid-time.log"
           fi
           if "$(which dpkg)" -l systemd-timesyncd 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then timedatectl set-ntp true &>> "${eus_dir}/logs/invalid-time.log"; fi
           repository_changes_applied="true"
         elif command -v date &> /dev/null; then
-          if command -v jq &> /dev/null; then
-            date +%Y%m%d -s "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/current-time?timezone=${timezone}" | jq -r '."current_time"' | sed '/null/d' | cut -d' ' -f1)" &>> "${eus_dir}/logs/invalid-time.log"
-            date +%T -s "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/current-time?timezone=${timezone}" | jq -r '."current_time"' | sed '/null/d' | cut -d' ' -f2)" &>> "${eus_dir}/logs/invalid-time.log"
+          if [[ -n "$(command -v jq)" ]]; then
+            date +%Y%m%d -s "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/current-time?timezone=${timezone}" 2> /dev/null | jq -r '."current_time"' 2> /dev/null | sed '/null/d' | cut -d' ' -f1)" &>> "${eus_dir}/logs/invalid-time.log"
+            date +%T -s "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/current-time?timezone=${timezone}" 2> /dev/null | jq -r '."current_time"' 2> /dev/null | sed '/null/d' | cut -d' ' -f2)" &>> "${eus_dir}/logs/invalid-time.log"
           else
-            date +%Y%m%d -s "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/current-time?timezone=${timezone}" | grep -o '"current_time":"[^"]*"' | cut -d'"' -f4 | cut -d' ' -f1)" &>> "${eus_dir}/logs/invalid-time.log"
-            date +%T -s "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/current-time?timezone=${timezone}" | grep -o '"current_time":"[^"]*"' | cut -d'"' -f4 | cut -d' ' -f2)" &>> "${eus_dir}/logs/invalid-time.log"
+            date +%Y%m%d -s "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/current-time?timezone=${timezone}" 2> /dev/null | grep -o '"current_time":"[^"]*"' | cut -d'"' -f4 | cut -d' ' -f1)" &>> "${eus_dir}/logs/invalid-time.log"
+            date +%T -s "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/current-time?timezone=${timezone}" 2> /dev/null | grep -o '"current_time":"[^"]*"' | cut -d'"' -f4 | cut -d' ' -f2)" &>> "${eus_dir}/logs/invalid-time.log"
           fi
           repository_changes_applied="true"
         fi
@@ -2163,10 +2166,11 @@ get_mongodb_org_v() {
   mongodb_org_v="$("$(which dpkg)" -l | grep "mongodb-org-server\\|mongodb-server\\|mongodb-10gen" | grep -i "^ii\\|^hi\\|^ri\\|^pi\\|^ui" | sed '/tool/d' | awk '{print $3}' | sed 's/\.//g' | sed 's/.*://' | sed 's/-.*//g' | sed 's/+.*//g' | sort -V | tail -n 1)"
 }
 
+# https://github.com/AmazedMender16/mongodb-no-avx-patch
 add_glennr_mongod_repo() {
   repo_http_https="https"
-  mongod_armv8_v="$("$(which dpkg)" -l | grep "mongod-armv8" | grep -i "^ii\\|^hi\\|^ri\\|^pi\\|^ui" | awk '{print $3}' | sed 's/\.//g' | sed 's/.*://' | sed 's/-.*//g' | sed 's/+.*//g' | sort -V | tail -n 1)"
-  if [[ "${mongod_armv8_v::2}" == '70' ]] || [[ "${add_mongod_70_repo}" == 'true' ]]; then
+  glennr_mongod_v="$("$(which dpkg)" -l | grep "${gr_mongod_name}" | grep -i "^ii\\|^hi\\|^ri\\|^pi\\|^ui" | awk '{print $3}' | sed 's/\.//g' | sed 's/.*://' | sed 's/-.*//g' | sed 's/+.*//g' | sort -V | tail -n 1)"
+  if [[ "${glennr_mongod_v::2}" == '70' ]] || [[ "${add_mongod_70_repo}" == 'true' ]]; then
     mongod_version_major_minor="7.0"
     mongod_repo_type="mongod/7.0"
     if [[ "${os_codename}" =~ (stretch) ]]; then
@@ -2234,8 +2238,8 @@ add_glennr_mongod_repo() {
       echo -e "${GREEN}#${RESET} Successfully added the Glenn R. APT repository for mongod ${mongod_version_major_minor}${try_http_glennr_mongod_repo_text_2}!\\n" && sleep 2
       if [[ "${mongodb_key_update}" != 'true' ]]; then
         run_apt_get_update
-        mongod_upgrade_to_version_with_dot="$(apt-cache policy mongod-armv8 | grep -i "${mongo_version_max_with_dot}" | grep -i Candidate | sed -e 's/ //g' -e 's/*//g' | cut -d':' -f2)"
-        if [[ -z "${mongod_upgrade_to_version_with_dot}" ]]; then mongod_upgrade_to_version_with_dot="$(apt-cache policy mongod-armv8 | grep -i "${mongo_version_max_with_dot}" | sed -e 's/500//g' -e 's/-1//g' -e 's/100//g' -e 's/ //g' -e '/http/d' -e 's/*//g' | cut -d':' -f2 | sed '/mongod/d' | sed 's/*//g' | sort -r -V | head -n 1)"; fi
+        mongod_upgrade_to_version_with_dot="$(apt-cache policy "${gr_mongod_name}" | grep -i "${mongo_version_max_with_dot}" | grep -i Candidate | sed -e 's/ //g' -e 's/*//g' | cut -d':' -f2)"
+        if [[ -z "${mongod_upgrade_to_version_with_dot}" ]]; then mongod_upgrade_to_version_with_dot="$(apt-cache policy "${gr_mongod_name}" | grep -i "${mongo_version_max_with_dot}" | sed -e 's/500//g' -e 's/-1//g' -e 's/100//g' -e 's/ //g' -e '/http/d' -e 's/*//g' | cut -d':' -f2 | sed '/mongod/d' | sed 's/*//g' | sort -r -V | head -n 1)"; fi
         if [[ -z "${mongod_upgrade_to_version_with_dot}" && "${try_http_glennr_mongod_repo}" != "true" ]]; then try_http_glennr_mongod_repo="true"; add_glennr_mongod_repo; return; fi
         mongod_upgrade_to_version="${mongod_upgrade_to_version_with_dot//./}"
         if [[ "${mongod_upgrade_to_version::2}" == "${mongo_version_max}" ]]; then
@@ -2248,7 +2252,7 @@ add_glennr_mongod_repo() {
       abort
     fi
   fi
-  unset mongod_armv8_v
+  unset glennr_mongod_v
   unset signed_by_value
   unset deb822_signed_by_value
   unset try_http_glennr_mongod_repo_text_1
@@ -2286,8 +2290,8 @@ add_mongodb_repo() {
   for add_repo_variable in "${mongodb_add_repo_variables[@]}"; do if [[ "${!add_repo_variable}" == 'true' ]]; then mongodb_add_repo_variables_true_statements+=("${add_repo_variable}"); fi; done
   if [[ "${mongodb_key_update}" == 'true' ]]; then skip_mongodb_org_v="true"; fi
   if [[ "${skip_mongodb_org_v}" != 'true' ]]; then
-    if "$(which dpkg)" -l mongod-armv8 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
-      mongodb_org_v="$("$(which dpkg)" -l | grep "mongod-armv8" | grep -i "^ii\\|^hi\\|^ri\\|^pi\\|^ui" | awk '{print $3}' | sed 's/\.//g' | sed 's/.*://' | sed 's/-.*//g' | sed 's/+.*//g' | sort -V | tail -n 1)"
+    if "$(which dpkg)" -l "${gr_mongod_name}" 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+      mongodb_org_v="$("$(which dpkg)" -l | grep "${gr_mongod_name}" | grep -i "^ii\\|^hi\\|^ri\\|^pi\\|^ui" | awk '{print $3}' | sed 's/\.//g' | sed 's/.*://' | sed 's/-.*//g' | sed 's/+.*//g' | sort -V | tail -n 1)"
     else
       mongodb_org_v="$("$(which dpkg)" -l | grep "mongodb-org-server" | grep -i "^ii\\|^hi\\|^ri\\|^pi\\|^ui" | awk '{print $3}' | sed 's/\.//g' | sed 's/.*://' | sed 's/-.*//g' | sed 's/+.*//g' | sort -V | tail -n 1)"
     fi
@@ -2602,7 +2606,7 @@ add_mongodb_repo() {
       fi
     fi
   fi
-  if [[ "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/mongodb-release?version=${mongodb_version_major_minor}" | jq -r '.expired')" == 'true' ]]; then trusted_mongodb_repo=" trusted=yes"; deb822_trusted_mongodb_repo="\nTrusted: yes"; fi
+  if [[ "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/mongodb-release?version=${mongodb_version_major_minor}" 2> /dev/null | jq -r '.expired' 2> /dev/null)" == 'true' ]]; then trusted_mongodb_repo=" trusted=yes"; deb822_trusted_mongodb_repo="\nTrusted: yes"; fi
   mongodb_key_check_time="$(date +%s)"
   if [[ "$(dpkg-query --showformat='${Version}' --show jq | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
     jq --arg mongodb_key_check_time "${mongodb_key_check_time}" '."database" += {"mongodb-key-last-check": "'"${mongodb_key_check_time}"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
@@ -2613,7 +2617,7 @@ add_mongodb_repo() {
   if [[ "${try_different_mongodb_repo}" == 'true' ]]; then try_different_mongodb_repo_test="a different"; try_different_mongodb_repo_test_2="different "; else try_different_mongodb_repo_test="the"; try_different_mongodb_repo_test_2=""; fi
   if [[ "${try_http_mongodb_repo}" == 'true' ]]; then repo_http_https="http"; try_different_mongodb_repo_test="a HTTP instead of HTTPS"; try_different_mongodb_repo_test_2="HTTP "; else try_different_mongodb_repo_test="the"; try_different_mongodb_repo_test_2=""; fi
   if [[ -n "${mongodb_version_major_minor}" ]]; then
-    if gpg --list-packets "/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg" &> /dev/null && [[ "${mongodb_key_update}" != 'true' ]]; then if [[ "$(gpg --show-keys --with-colons "/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg" 2> /dev/null | awk -F':' '$1=="pub"{print $7}' | head -n1)" -le "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/mongodb-release?version=${mongodb_version_major_minor}" | jq -r '.updated')" ]]; then expired_existing_mongodb_key="true"; fi; fi
+    if gpg --list-packets "/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg" &> /dev/null && [[ "${mongodb_key_update}" != 'true' ]]; then if [[ "$(gpg --show-keys --with-colons "/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg" 2> /dev/null | awk -F':' '$1=="pub"{print $7}' | head -n1)" -le "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/mongodb-release?version=${mongodb_version_major_minor}" 2> /dev/null | jq -r '.updated' 2> /dev/null)" ]]; then expired_existing_mongodb_key="true"; fi; fi
     if [[ "${mongodb_version_major_minor}" != "4.4" ]]; then unset mongo_version_locked; fi
     if ! gpg --list-packets "/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg" &> /dev/null || [[ "${expired_existing_mongodb_key}" == 'true' ]] || [[ "${mongodb_key_update}" == 'true' ]] || [[ "${try_different_mongodb_repo}" == 'true' ]] || [[ "${try_http_mongodb_repo}" == 'true' ]]; then
       echo -e "${WHITE_R}#${RESET} Adding key for MongoDB ${mongodb_version_major_minor}..."
@@ -3281,7 +3285,7 @@ ignore_unifi_package_dependencies() {
     if [[ "${unifi_version_modified}" == 'true' ]]; then get_unifi_version; fi
   fi
   if [[ -f "/tmp/EUS/ignore-depends" ]]; then rm --force /tmp/EUS/ignore-depends &> /dev/null; fi
-  if ! "$(which dpkg)" -l | grep "^ii\\|^hi" | grep -iq "mongodb-server\\|mongodb-org-server\\|mongod-armv8"; then echo -e "mongodb-server" &>> /tmp/EUS/ignore-depends; fi
+  if ! "$(which dpkg)" -l | grep "^ii\\|^hi" | grep -iq "mongodb-server\\|mongodb-org-server\\|mongod-armv8\\|mongod-amd64"; then echo -e "mongodb-server" &>> /tmp/EUS/ignore-depends; fi
   if [[ "${first_digit_unifi}" -lt '8' ]]; then
     if ! "$(which dpkg)" -l | grep "^ii\\|^hi" | grep -iq "${required_java_version}-jre-headless"; then echo -e "${required_java_version}-jre-headless" &>> /tmp/EUS/ignore-depends; fi
   fi
@@ -3310,13 +3314,13 @@ unifi_deb_package_modification() {
     non_default_java_package="$("$(which dpkg)" -l | grep "^ii\\|^hi" | grep -i "${required_java_version}" | grep -v "openjdk-${required_java_version_short}-jre-headless\\|temurin-${required_java_version_short}-jre\\|temurin-${required_java_version_short}-jdk" | awk '{print $2}' | head -n1)"
     if ! "$(which dpkg)" -l | grep "^ii\\|^hi" | grep -ioq "openjdk-${required_java_version_short}-jre-headless\\|temurin-${required_java_version_short}-jre\\|temurin-${required_java_version_short}-jdk" && [[ -z "${non_default_java_package}" ]]; then custom_unifi_deb_file_required="true"; fi
   fi
-  if "$(which dpkg)" -l | grep "^ii\\|^hi" | grep -iq "mongod-armv8"; then
-    unifi_deb_package_modification_mongodb_package="mongod-armv8"
+  if "$(which dpkg)" -l | grep "^ii\\|^hi" | grep -iq "${gr_mongod_name}"; then
+    unifi_deb_package_modification_mongodb_package="${gr_mongod_name}"
     custom_unifi_deb_file_required="true"
     prevent_mongodb_org_server_install
   fi
   if [[ "${custom_unifi_deb_file_required}" == 'true' ]]; then
-    if [[ "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/locate-network-release?status" | jq -r '.availability')" == "OK" ]]; then download_pre_build_deb_available="true"; fi
+    if [[ "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/locate-network-release?status" 2> /dev/null | jq -r '.availability' 2> /dev/null)" == "OK" ]]; then download_pre_build_deb_available="true"; fi
     if [[ -n "${unifi_deb_package_modification_mongodb_package}" && -n "${temurin_type}" ]]; then
       unifi_deb_package_modification_message_1="temurin-${required_java_version_short}-${temurin_type} and ${unifi_deb_package_modification_mongodb_package}"
       if [[ "${download_pre_build_deb_available}" == 'true' ]]; then
@@ -4092,7 +4096,7 @@ mongo_last_attempt() {
   fi
 }
 
-if "$(which dpkg)" -l mongod-armv8 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then mongodb_org_server_package="mongod-armv8"; else mongodb_org_server_package="mongodb-org-server"; fi
+if "$(which dpkg)" -l "${gr_mongod_name}" 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then mongodb_org_server_package="${gr_mongod_name}"; else mongodb_org_server_package="mongodb-org-server"; fi
 
 if "$(which dpkg)" -l "${mongodb_org_server_package}" 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
   mongodb_org_version="$(dpkg-query --showformat='${Version}' --show "${mongodb_org_server_package}" | sed 's/.*://' | sed 's/-.*//g')"
@@ -4221,7 +4225,7 @@ if [[ -d "/usr/lib/unifi/logs/" ]]; then
     found_mongodb_version_sd="$(echo "${found_mongodb_version}" | cut -d'.' -f2)"
     found_mongodb_version_td="$(echo "${found_mongodb_version}" | cut -d'.' -f3)"
     while read -r file; do
-      if ! "${grep_command}" -A50 -aE "${found_mongodb_version_fd}\.${found_mongodb_version_sd}\.${found_mongodb_version_td}" "${file}" | sed -n "/${found_mongodb_version_fd}\.${found_mongodb_version_sd}\.${found_mongodb_version_td}/,/SERVER RESTARTED/p" | sed -e "1s/^.*${found_mongodb_version_fd}\.${found_mongodb_version_sd}\.${found_mongodb_version_td} //; /^SERVER RESTARTED/d" | grep -sqiaE "This version of MongoDB is too recent to start up on the existing data files|This may be due to an unsupported upgrade or downgrade.|UPGRADE PROBLEM|Cannot start server with an unknown storage engine|unsupported WiredTiger file version"; then
+      if ! "${grep_command}" -A100 -aE "${found_mongodb_version_fd}\.${found_mongodb_version_sd}\.${found_mongodb_version_td}" "${file}" | sed -n "/${found_mongodb_version_fd}\.${found_mongodb_version_sd}\.${found_mongodb_version_td}/,/SERVER RESTARTED/p" | sed -e "1s/^.*${found_mongodb_version_fd}\.${found_mongodb_version_sd}\.${found_mongodb_version_td} //; /^SERVER RESTARTED/d" | grep -sqiaE "This version of MongoDB is too recent to start up on the existing data files|This may be due to an unsupported upgrade or downgrade.|UPGRADE PROBLEM|Cannot start server with an unknown storage engine|unsupported WiredTiger file version"; then
         last_known_good_mongodb_version="${found_mongodb_version}"
         echo -e "$(date +%F-%R) | Last known good MongoDB version is \"${last_known_good_mongodb_version}\" found in \"${file}\"!" &>> "${eus_dir}/logs/mongodb-unsupported-version-change-locate.log"
         continue
@@ -4249,7 +4253,7 @@ fi
 # Override MongoDB version change attempts when the application is up and running.
 if [[ "${unsupported_database_version_change}" == 'true' ]]; then
   if grep -sioq "^unifi.https.port" "/usr/lib/unifi/data/system.properties"; then dmport="$(awk '/^unifi.https.port/' /usr/lib/unifi/data/system.properties | cut -d'=' -f2)"; else dmport="8443"; fi
-  if command -v jq &> /dev/null; then
+  if [[ -n "$(command -v jq)" ]]; then
     application_up="$(curl --silent --insecure "https://localhost:${dmport}/status" | jq -r '.meta.up' 2> /dev/null)"
     if [[ -z "${application_up}" ]]; then application_up="$(curl "${noproxy_curl_argument[@]}" --silent --insecure --connect-timeout 1 "https://localhost:${dmport}/status" | jq -r '.meta.up' 2> /dev/null)"; fi
   else
@@ -4318,7 +4322,7 @@ if [[ "${mongo_version_locked}" == '4.4.18' ]] || [[ "${unsupported_database_ver
         sed -i "/${installed_mongodb_package}/d" /tmp/EUS/mongodb/packages_list
       fi
     done < "/tmp/EUS/mongodb/packages_list.tmp"
-    if "$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep -iq "mongod-armv8" && [[ "${recovery_install_mongodb_version::2}" != "70" ]]; then if sed -i "s/mongod-armv8/mongodb-org-server/g" /tmp/EUS/mongodb/packages_list; then echo "mongod-armv8" &>> /tmp/EUS/mongodb/packages_remove_list; fi; fi
+    if "$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep -iq "${gr_mongod_name}" && [[ "${recovery_install_mongodb_version::2}" != "70" ]]; then if sed -i "s/${gr_mongod_name}/mongodb-org-server/g" /tmp/EUS/mongodb/packages_list; then echo "${gr_mongod_name}" &>> /tmp/EUS/mongodb/packages_remove_list; fi; fi
     rm --force "/tmp/EUS/mongodb/packages_list.tmp" &> /dev/null
     awk '{ if ($0 == "mongodb-server") { server_found = 1; } else if ($0 == "mongodb-server-core") { core_found = 1; } if (!found_both) { original[NR] = $0; } } END { if (server_found && core_found) { found_both = 1; printed_server = 0; printed_core = 0; for (i = 1; i <= NR; i++) { if (original[i] == "mongodb-server" && !printed_server) { printed_server = 1; continue; } else if (original[i] == "mongodb-server-core" && !printed_core) { printed_core = 1; print "mongodb-server"; } print original[i]; } } else { for (i = 1; i <= NR; i++) { print original[i]; } } }' /tmp/EUS/mongodb/packages_remove_list &> /tmp/EUS/mongodb/packages_remove_list.tmp && mv /tmp/EUS/mongodb/packages_remove_list.tmp /tmp/EUS/mongodb/packages_remove_list
     if grep -iq "unifi" /tmp/EUS/mongodb/packages_remove_list; then reinstall_unifi="true"; fi
@@ -4402,14 +4406,14 @@ if [[ "${mongo_version_locked}" == '4.4.18' ]] || [[ "${unsupported_database_ver
       if [[ -z "${reinstall_unifi_version}" ]]; then reinstall_unifi_version="$(dpkg-query --showformat='${Version}' --show unifi | awk -F '[-]' '{print $1}')"; fi
       eus_directory_location="/tmp/EUS"
       eus_create_directories "downloads"
-      if [[ "$(curl "${curl_argument[@]}" https://api.glennr.nl/api/network-release?status | jq -r '.[]')" == "OK" ]]; then
+      if [[ "$(curl "${curl_argument[@]}" https://api.glennr.nl/api/network-release?status 2> /dev/null | jq -r '.[]' 2> /dev/null)" == "OK" ]]; then
         fw_update_dl_link="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-release?version=${reinstall_unifi_version}" | jq -r '."download_link"' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
         fw_update_gr_dl_link="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-release?version=${reinstall_unifi_version}&server=archive" | jq -r '."download_link"' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
         fw_update_dl_link_sha256sum="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-release?version=${reinstall_unifi_version}" | jq -r '.sha256sum' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
       fi
       if [[ -z "${fw_update_dl_link}" ]]; then
-        fw_update_dl_link="$(curl "${curl_argument[@]}" --location --request GET "https://fw-update.ui.com/api/firmware-latest?filter=eq~~version_major~~$(awk -F'.' '{print $1}' <<< "${reinstall_unifi_version}")&filter=eq~~version_minor~~$(awk -F'.' '{print $2}' <<< "${reinstall_unifi_version}")&filter=eq~~version_patch~~$(awk -F'.' '{print $3}' <<< "${reinstall_unifi_version}")&filter=eq~~platform~~debian" | jq -r "._embedded.firmware[0]._links.data.href" | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
-        fw_update_dl_link_sha256sum="$(curl "${curl_argument[@]}" --location --request GET "https://fw-update.ui.com/api/firmware-latest?filter=eq~~version_major~~$(awk -F'.' '{print $1}' <<< "${reinstall_unifi_version}")&filter=eq~~version_minor~~$(awk -F'.' '{print $2}' <<< "${reinstall_unifi_version}")&filter=eq~~version_patch~~$(awk -F'.' '{print $3}' <<< "${reinstall_unifi_version}")&filter=eq~~platform~~debian" | jq -r "._embedded.firmware[0].sha256_checksum" | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
+        fw_update_dl_link="$(curl "${curl_argument[@]}" --location --request GET "https://fw-update.ui.com/api/firmware-latest?filter=eq~~version_major~~$(awk -F'.' '{print $1}' <<< "${reinstall_unifi_version}")&filter=eq~~version_minor~~$(awk -F'.' '{print $2}' <<< "${reinstall_unifi_version}")&filter=eq~~version_patch~~$(awk -F'.' '{print $3}' <<< "${reinstall_unifi_version}")&filter=eq~~platform~~debian" 2> "${eus_dir}/logs/locate-download.log" | jq -r "._embedded.firmware[0]._links.data.href" 2> "${eus_dir}/logs/locate-download.log" | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
+        fw_update_dl_link_sha256sum="$(curl "${curl_argument[@]}" --location --request GET "https://fw-update.ui.com/api/firmware-latest?filter=eq~~version_major~~$(awk -F'.' '{print $1}' <<< "${reinstall_unifi_version}")&filter=eq~~version_minor~~$(awk -F'.' '{print $2}' <<< "${reinstall_unifi_version}")&filter=eq~~version_patch~~$(awk -F'.' '{print $3}' <<< "${reinstall_unifi_version}")&filter=eq~~platform~~debian" 2> "${eus_dir}/logs/locate-download.log" | jq -r "._embedded.firmware[0].sha256_checksum" 2> "${eus_dir}/logs/locate-download.log" | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
       fi
       if [[ -z "${unifi_temp}" ]]; then unifi_temp="$(mktemp --tmpdir=/tmp/EUS/downloads "${unifi_deb_file_name}"_"${reinstall_unifi_version}"_XXXXX.deb)"; fi
       if [[ -n "${fw_update_gr_dl_link}" ]]; then
@@ -4465,7 +4469,7 @@ if [[ "${mongo_version_locked}" == '4.4.18' ]] || [[ "${unsupported_database_ver
       fi
     fi
     if grep -sioq "^unifi.https.port" "/usr/lib/unifi/data/system.properties"; then dmport="$(awk '/^unifi.https.port/' /usr/lib/unifi/data/system.properties | cut -d'=' -f2)"; else dmport="8443"; fi
-    if command -v jq &> /dev/null; then
+    if [[ -n "$(command -v jq)" ]]; then
       application_up="$(curl --silent --insecure "https://localhost:${dmport}/status" | jq -r '.meta.up' 2> /dev/null)"
       if [[ -z "${application_up}" ]]; then application_up="$(curl "${noproxy_curl_argument[@]}" --silent --insecure --connect-timeout 1 "https://localhost:${dmport}/status" | jq -r '.meta.up' 2> /dev/null)"; fi
     else
@@ -4525,7 +4529,7 @@ Pin-Priority: -1
 EOF
   fi
 }
-if "$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep -iq "mongod-armv8"; then prevent_mongodb_org_server_install; fi
+if "$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep -iq "${gr_mongod_name}"; then prevent_mongodb_org_server_install; fi
 
 ###################################################################################################################################################################################################
 #                                                                                                                                                                                                 #
@@ -4571,7 +4575,7 @@ mongodb_avx_support_check() {
           else
             echo -e "${WHITE_R}----${RESET}\\n"
             echo -e "${YELLOW}#${RESET} Your CPU is no longer officially supported by MongoDB themselves..."
-            read -rp $'\033[39m#\033[0m Would you like to try mongod compiled from MongoDB source code specifically for your CPU by Glenn R.? (Y/n) ' yes_no
+            read -rp $'\033[39m#\033[0m Would you like to use mongod compiled from MongoDB source code specifically for your CPU by Glenn R.? (Y/n) ' yes_no
           fi
           case "$yes_no" in
               [Yy]*|"")
@@ -4597,11 +4601,36 @@ mongodb_avx_support_check() {
       fi
     else
       if ! (lscpu 2>/dev/null | grep -iq "avx") || ! grep -iq "avx" /proc/cpuinfo; then
-        unset add_mongodb_70_repo
-        add_mongodb_44_repo="true"
-        mongo_version_max="44"
-        mongo_version_max_with_dot="4.4"
-        mongo_version_locked="4.4.18"
+        if [[ "${mongo_version_max}" =~ (70) ]]; then
+          if "$(which dpkg)" -l | grep "^ii\\|^hi" | grep -iq "mongod-amd64" || [[ "${script_option_skip}" == 'true' ]] || [[ "${glennr_compiled_mongod}" == 'true' ]]; then
+            mongod_amd64_installed="true"
+            yes_no="y"
+          else
+            echo -e "${WHITE_R}----${RESET}\\n"
+            echo -e "${YELLOW}#${RESET} Your CPU is no longer officially supported by MongoDB themselves..."
+            read -rp $'\033[39m#\033[0m Would you like to use mongod compiled from MongoDB source code specifically for your CPU by Glenn R.? (Y/n) ' yes_no
+          fi
+          case "$yes_no" in
+              [Yy]*|"")
+                 add_mongod_70_repo="true"
+                 glennr_compiled_mongod="true"
+                 cleanup_unifi_repos
+                 if [[ "${mongod_amd64_installed}" != 'true' ]]; then echo ""; fi;;
+              [Nn]*)
+                 unset add_mongodb_70_repo
+                 add_mongodb_44_repo="true"
+                 mongo_version_max="44"
+                 mongo_version_max_with_dot="4.4"
+                 mongo_version_locked="4.4.18";;
+          esac
+          unset yes_no
+        else
+          unset add_mongodb_70_repo
+          add_mongodb_44_repo="true"
+          mongo_version_max="44"
+          mongo_version_max_with_dot="4.4"
+          mongo_version_locked="4.4.18"
+        fi
       fi
     fi
   fi
@@ -4609,7 +4638,7 @@ mongodb_avx_support_check() {
 mongodb_avx_support_check
 
 mongo_command() {
-  mongo_command_server_version="$("$(which dpkg)" -l | grep "^ii\\|^hi" | grep "mongodb-server\\|mongodb-org-server\\|mongod-armv8" | awk '{print $3}' | sed 's/\.//g' | sed 's/.*://' | sed 's/-.*//g')"
+  mongo_command_server_version="$("$(which dpkg)" -l | grep "^ii\\|^hi" | grep "mongodb-server\\|mongodb-org-server\\|mongod-armv8\\|mongod-amd64" | awk '{print $3}' | sed 's/\.//g' | sed 's/.*://' | sed 's/-.*//g')"
   if "$(which dpkg)" -l mongodb-mongosh-shared-openssl3 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui" && [[ "${mongo_command_server_version::2}" -ge "40" ]]; then
     mongocommand="mongosh"
     mongoprefix="EJSON.stringify( "
@@ -5209,7 +5238,7 @@ monitor_update_progress_pid() {
 ###################################################################################################################################################################################################
 
 only_archive_or_delete() {
-  mongodb_server_version=$("$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep "mongodb-server\\|mongodb-org-server\\|mongod-armv8" | awk '{print $3}' | sed 's/\.//g' | sed 's/.*://' | sed 's/-.*//g')
+  mongodb_server_version=$("$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep "mongodb-server\\|mongodb-org-server\\|mongod-armv8\\|mongod-amd64" | awk '{print $3}' | sed 's/\.//g' | sed 's/.*://' | sed 's/-.*//g')
   header
   if [[ "${script_option_archive_alerts}" == 'true' ]]; then
     echo -e "${WHITE_R}#${RESET} Archiving the Alerts..."
@@ -5528,7 +5557,7 @@ alert_event_cleanup() {
   #alert_find_m=$("${mongocommand}" --port 27117 ace --eval 'db.alarm.find({"ip":{ $regex: "127.0.0.1|0:0:0:0:0:0:0:1"}})' | grep -c "log.* 127.0.0.1\|log.* 0:0:0:0:0:0:0:1")
   #event_find_m=$("${mongocommand}" --port 27117 ace --eval 'db.event.find({"ip":{ $regex: "127.0.0.1|0:0:0:0:0:0:0:1"}})' | grep -c "log.* 127.0.0.1\|log.* 0:0:0:0:0:0:0:1")
   if [[ "${application_login}" == 'success' ]]; then
-    mongodb_server_version=$("$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep "mongodb-server\\|mongodb-org-server\\|mongod-armv8" | awk '{print $3}' | sed 's/\.//g' | sed 's/.*://' | sed 's/-.*//g')
+    mongodb_server_version=$("$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep "mongodb-server\\|mongodb-org-server\\|mongod-armv8\\|mongod-amd64" | awk '{print $3}' | sed 's/\.//g' | sed 's/.*://' | sed 's/-.*//g')
     header
     echo -e "${WHITE_R}#${RESET} What would you like to do with the script login events?"
     echo -e "${WHITE_R}#${RESET} Deleting/Archiving can take a while on big setups.\\n"
@@ -5973,7 +6002,7 @@ uap_upgrade() {
           if [[ "${firmware_cached}" == 'yes' ]]; then
             firmware_url="http://${application_inform_address}:${cache_fw_port}/dl/firmware-cached/${cached_fw_path}"
           else
-            firmware_url=$(curl -s "http://fw-update.ui.com/api/firmware-latest?filter=eq~~platform~~U7PG2&filter=eq~~channel~~release" | jq -r '._embedded.firmware[]._links.data.href' | sed 's/https/http/g')
+            firmware_url=$(curl -s "http://fw-update.ui.com/api/firmware-latest?filter=eq~~platform~~U7PG2&filter=eq~~channel~~release" 2> /dev/null | jq -r '._embedded.firmware[]._links.data.href' 2> /dev/null | sed 's/https/http/g')
             if [[ -z "${firmware_url}" ]]; then firmware_url="http://dl.ui.com/unifi/firmware/U7PG2/4.0.80.10875/BZ.qca956x.v4.0.80.10875.200111.2335.bin"; fi
           fi
           while read -r uap_mac; do
@@ -6028,7 +6057,7 @@ uap_upgrade() {
           if [[ "${firmware_cached}" == 'yes' ]]; then
             firmware_url="http://${application_inform_address}:${cache_fw_port}/dl/firmware-cached/${cached_fw_path}"
           else
-            firmware_url=$(curl -s "http://fw-update.ui.com/api/firmware-latest?filter=eq~~platform~~U7HD&filter=eq~~channel~~release" | jq -r '._embedded.firmware[]._links.data.href' | sed 's/https/http/g')
+            firmware_url=$(curl -s "http://fw-update.ui.com/api/firmware-latest?filter=eq~~platform~~U7HD&filter=eq~~channel~~release" 2> /dev/null | jq -r '._embedded.firmware[]._links.data.href' 2> /dev/null | sed 's/https/http/g')
             if [[ -z "${firmware_url}" ]]; then firmware_url="http://dl.ui.com/unifi/firmware/U7HD/4.0.80.10875/BZ.ipq806x.v4.0.80.10875.200111.1635.bin"; fi
           fi
           while read -r uap_mac; do
@@ -6114,7 +6143,7 @@ usw_upgrade() {
           if [[ "${firmware_cached}" == 'yes' ]]; then
             firmware_url="http://${application_inform_address}:${cache_fw_port}/dl/firmware-cached/${cached_fw_path}"
           else
-            firmware_url=$(curl -s "http://fw-update.ui.com/api/firmware-latest?filter=eq~~platform~~USXG&filter=eq~~channel~~release" | jq -r '._embedded.firmware[]._links.data.href' | sed 's/https/http/g')
+            firmware_url=$(curl -s "http://fw-update.ui.com/api/firmware-latest?filter=eq~~platform~~USXG&filter=eq~~channel~~release" 2> /dev/null | jq -r '._embedded.firmware[]._links.data.href' 2> /dev/null | sed 's/https/http/g')
             if [[ -z "${firmware_url}" ]]; then firmware_url="http://dl.ui.com/unifi/firmware/USXG/4.0.80.10875/US.bcm5341x.v4.0.80.10875.200111.1635.bin"; fi
           fi
           while read -r usw_mac; do
@@ -6124,7 +6153,7 @@ usw_upgrade() {
           if [[ "${firmware_cached}" == 'yes' ]]; then
             firmware_url="http://${application_inform_address}:${cache_fw_port}/dl/firmware-cached/${cached_fw_path}"
           else
-            firmware_url=$(curl -s "http://fw-update.ui.com/api/firmware-latest?filter=eq~~platform~~US24P250&filter=eq~~channel~~release" | jq -r '._embedded.firmware[]._links.data.href' | sed 's/https/http/g')
+            firmware_url=$(curl -s "http://fw-update.ui.com/api/firmware-latest?filter=eq~~platform~~US24P250&filter=eq~~channel~~release" 2> /dev/null | jq -r '._embedded.firmware[]._links.data.href' 2> /dev/null | sed 's/https/http/g')
             if [[ -z "${firmware_url}" ]]; then firmware_url="http://dl.ui.com/unifi/firmware/US24P250/4.0.80.10875/US.bcm5334x.v4.0.80.10875.200111.2335.bin"; fi
           fi
           while read -r usw_mac; do
@@ -6215,7 +6244,7 @@ ugw_upgrade() {
           if [[ "${firmware_cached}" == 'yes' ]]; then
             firmware_url="http://${application_inform_address}:${cache_fw_port}/dl/firmware-cached/${cached_fw_path}"
           else
-            firmware_url=$(curl -s "http://fw-update.ui.com/api/firmware-latest?filter=eq~~platform~~UGW3&filter=eq~~channel~~release" | jq -r '._embedded.firmware[]._links.data.href' | sed 's/https/http/g')
+            firmware_url=$(curl -s "http://fw-update.ui.com/api/firmware-latest?filter=eq~~platform~~UGW3&filter=eq~~channel~~release" 2> /dev/null | jq -r '._embedded.firmware[]._links.data.href' 2> /dev/null | sed 's/https/http/g')
             if [[ -z "${firmware_url}" ]]; then firmware_url="http://dl.ui.com/unifi/firmware/UGW3/4.4.51.5287926/UGW3.v4.4.51.5287926.tar"; fi
           fi
           while read -r ugw_mac; do
@@ -6225,7 +6254,7 @@ ugw_upgrade() {
           if [[ "${firmware_cached}" == 'yes' ]]; then
             firmware_url="http://${application_inform_address}:${cache_fw_port}/dl/firmware-cached/${cached_fw_path}"
           else
-            firmware_url=$(curl -s "http://fw-update.ui.com/api/firmware-latest?filter=eq~~platform~~UGW4&filter=eq~~channel~~release" | jq -r '._embedded.firmware[]._links.data.href' | sed 's/https/http/g')
+            firmware_url=$(curl -s "http://fw-update.ui.com/api/firmware-latest?filter=eq~~platform~~UGW4&filter=eq~~channel~~release" 2> /dev/null | jq -r '._embedded.firmware[]._links.data.href' 2> /dev/null | sed 's/https/http/g')
             if [[ -z "${firmware_url}" ]]; then firmware_url="http://dl.ui.com/unifi/firmware/UGW4/4.4.51.5287926/UGW4.v4.4.51.5287926.tar"; fi
           fi
           while read -r ugw_mac; do
@@ -7085,7 +7114,7 @@ custom_url_upgrade_check() {
       if [[ "${first_digit_unifi}" -gt '7' ]] || [[ "${first_digit_unifi}" == '7' && "${second_digit_unifi}" -ge '3' ]]; then
         header_red
         echo -e "${WHITE_R}#${RESET} UniFi Network Application ${custom_application_digit_1}.${custom_application_digit_2}.${custom_application_digit_3} is not supported on your Gen1 UniFi Cloudkey (UC-CK)."
-        echo -e "${WHITE_R}#${RESET} The latest supported version on your Cloudkey is $(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?version=7.2" | jq -r '.latest_version') and older.. \\n\\n"
+        echo -e "${WHITE_R}#${RESET} The latest supported version on your Cloudkey is $(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?version=7.2" 2> /dev/null | jq -r '.latest_version' 2> /dev/null) and older.. \\n\\n"
         echo -e "${WHITE_R}#${RESET} Consider upgrading to a Gen2 Cloudkey:"
         echo -e "${WHITE_R}#${RESET} UniFi Cloud Key Gen2       | https://store.ui.com/products/unifi-cloud-key-gen2"
         echo -e "${WHITE_R}#${RESET} UniFi Cloud Key Gen2 Plus  | https://store.ui.com/products/unifi-cloudkey-gen2-plus\\n\\n"
@@ -7096,10 +7125,10 @@ custom_url_upgrade_check() {
     if [[ "${first_digit_unifi}" -gt '7' ]] || [[ "${first_digit_unifi}" == '7' && "${second_digit_unifi}" -ge '5' ]]; then
       if [[ "$(getconf LONG_BIT)" == '32' ]]; then
         header_red
-        mongodb_server_version=$("$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep "mongodb-server\\|mongodb-org-server\\|mongod-armv8" | awk '{print $3}' | sed 's/\.//g' | sed 's/.*://' | sed 's/-.*//g')
+        mongodb_server_version=$("$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep "mongodb-server\\|mongodb-org-server\\|mongod-armv8\\|mongod-amd64" | awk '{print $3}' | sed 's/\.//g' | sed 's/.*://' | sed 's/-.*//g')
         if [[ "${mongodb_server_version::2}" -le "25" ]]; then unifi_latest_supported_version="7.3"; else unifi_latest_supported_version="7.4"; fi
         echo -e "${WHITE_R}#${RESET} Your 32-bit system/OS is no longer supported by UniFi Network Application ${custom_application_version}!"
-        echo -e "${WHITE_R}#${RESET} The latest supported version on your system/OS is $(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?version=${unifi_latest_supported_version}" | jq -r '.latest_version') and older..."
+        echo -e "${WHITE_R}#${RESET} The latest supported version on your system/OS is $(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?version=${unifi_latest_supported_version}" 2> /dev/null | jq -r '.latest_version' 2> /dev/null) and older..."
         echo -e "${WHITE_R}#${RESET} Consider upgrading to a 64-bit system/OS!\\n\\n"
         author
         exit 0
@@ -7116,13 +7145,13 @@ custom_url_upgrade_check() {
           minimum_required_mongodb_version="26"
           unifi_latest_supported_version_number="7.3"
         fi
-        mongodb_server_version=$("$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep "mongodb-server\\|mongodb-org-server\\|mongod-armv8" | awk '{print $3}' | sed 's/\.//g' | sed 's/.*://' | sed 's/-.*//g')
+        mongodb_server_version=$("$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep "mongodb-server\\|mongodb-org-server\\|mongod-armv8\\|mongod-amd64" | awk '{print $3}' | sed 's/\.//g' | sed 's/.*://' | sed 's/-.*//g')
         if [[ "${mongodb_server_version::2}" -lt "${minimum_required_mongodb_version}" ]]; then
           if [[ "${unifi_core_system}" == 'true' ]]; then
             if [[ "${os_codename}" == 'stretch' ]]; then
               header_red
               echo -e "${WHITE_R}#${RESET} UniFi Network Application ${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi} requires a newer version of UniFi OS."
-              echo -e "${WHITE_R}#${RESET} The latest version that you can run with UniFi OS version $(cut -d'.' -f3,4,5 /usr/lib/version | sed 's/v//g') is $(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?version=${unifi_latest_supported_version_number}" | jq -r '.latest_version') and older.. \\n\\n"
+              echo -e "${WHITE_R}#${RESET} The latest version that you can run with UniFi OS version $(cut -d'.' -f3,4,5 /usr/lib/version | sed 's/v//g') is $(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?version=${unifi_latest_supported_version_number}" 2> /dev/null | jq -r '.latest_version' 2> /dev/null) and older.. \\n\\n"
               unifi_core_upgrade_message="true"
             else
               unifi_core_mongodb_upgrade_bypass="true"
@@ -7130,7 +7159,7 @@ custom_url_upgrade_check() {
           else
             header_red
             echo -e "${WHITE_R}#${RESET} UniFi Network Application ${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi} requires MongoDB ${minimum_required_mongodb_version_dot} or newer."
-            echo -e "${WHITE_R}#${RESET} The latest version that you can run with MongoDB version $("$(which dpkg)" -l | grep "mongodb-server\\|mongodb-org-server\\|mongod-armv8" | awk '{print $3}' | sed -e 's/.*://' -e 's/-.*//') is $(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?version=${unifi_latest_supported_version_number}" | jq -r '.latest_version') and older.. \\n\\n"
+            echo -e "${WHITE_R}#${RESET} The latest version that you can run with MongoDB version $("$(which dpkg)" -l | grep "mongodb-server\\|mongodb-org-server\\|mongod-armv8\\|mongod-amd64" | awk '{print $3}' | sed -e 's/.*://' -e 's/-.*//') is $(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?version=${unifi_latest_supported_version_number}" 2> /dev/null | jq -r '.latest_version' 2> /dev/null) and older.. \\n\\n"
             if [[ "${mongodb_org_v::2}" =~ (24|26|30|32|34) && "${mongo_version_max}" == "36" && "${mongodb_upgrade_supported}" == 'true' ]] || [[ "${mongodb_org_v::2}" =~ (24|26|30|32|34|36|40|42) && "${mongo_version_max}" == "44" && "${mongodb_upgrade_supported}" == 'true' ]]; then
               read -rp $'\033[39m#\033[0m Would you like to run the option to upgrade to MongoDB '"${mongo_version_max_with_dot}"'? (Y/n) ' yes_no
               case "$yes_no" in
@@ -7948,7 +7977,7 @@ mongodb_upgrade() {
   rm --force "/tmp/EUS/mongodb/packages_list.tmp" &> /dev/null
   if [[ "${glennr_compiled_mongod}" == 'true' ]]; then
     cp /tmp/EUS/mongodb/packages_list /tmp/EUS/mongodb/before_glennr_compiled_mongod_packages_list &> /dev/null
-    if grep -siq "mongodb-org-server" /tmp/EUS/mongodb/packages_list; then sed -i 's/mongodb-org-server/mongod-armv8/g' /tmp/EUS/mongodb/packages_list; echo "mongodb-org-server" &>> /tmp/EUS/mongodb/purge_packages_list; else echo "mongod-armv8" &>> /tmp/EUS/mongodb/packages_list; fi
+    if grep -siq "mongodb-org-server" /tmp/EUS/mongodb/packages_list; then sed -i "s/mongodb-org-server/${gr_mongod_name}/g" /tmp/EUS/mongodb/packages_list; echo "mongodb-org-server" &>> /tmp/EUS/mongodb/purge_packages_list; else echo "${gr_mongod_name}" &>> /tmp/EUS/mongodb/packages_list; fi
   fi
   check_dpkg_lock
   if [[ -e "/tmp/EUS/mongodb/unhold" ]]; then rm --force "/tmp/EUS/mongodb/unhold"; fi
@@ -7967,21 +7996,23 @@ mongodb_upgrade() {
     third_digit_current_unifi="$(echo "${unifi}" | cut -d'.' -f3)"
     echo -e "${WHITE_R}#${RESET} Locating a download URL for UniFi Network Application version ${first_digit_current_unifi}.${second_digit_current_unifi}.${third_digit_current_unifi}..."
     if [[ -n "${token}" ]]; then
-	  unifi_deb_dl="$(curl "${curl_argument[@]}" --location --request GET "https://fw-update.ui.com/api/firmware-latest?filter=eq~~version_major~~${first_digit_current_unifi}&filter=eq~~version_minor~~${second_digit_current_unifi}&filter=eq~~version_patch~~${third_digit_current_unifi}&filter=eq~~platform~~debian" --header 'Authorization: Bearer token:'"${token}"'' | jq -r "._embedded.firmware[0]._links.data.href" | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
-      if [[ -z "${unifi_deb_dl}" ]]; then unifi_deb_dl="$(curl "${curl_argument[@]}" --location --request GET "http://fw-update.ui.com/api/firmware-latest?filter=eq~~version_major~~${first_digit_current_unifi}&filter=eq~~version_minor~~${second_digit_current_unifi}&filter=eq~~version_patch~~${third_digit_current_unifi}&filter=eq~~platform~~debian" --header 'Authorization: Bearer token:'"${token}"'' | jq -r "._embedded.firmware[0]._links.data.href" | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"; fi
-	  unifi_deb_md5="$(curl "${curl_argument[@]}" --location --request GET "https://fw-update.ui.com/api/firmware-latest?filter=eq~~version_major~~${first_digit_current_unifi}&filter=eq~~version_minor~~${second_digit_current_unifi}&filter=eq~~version_patch~~${third_digit_current_unifi}&filter=eq~~platform~~debian" --header 'Authorization: Bearer token:'"${token}"'' | jq -r "._embedded.firmware[0].md5" | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
-	  if [[ -z "${unifi_deb_md5}" ]]; then unifi_deb_md5="$(curl "${curl_argument[@]}" --location --request GET "http://fw-update.ui.com/api/firmware-latest?filter=eq~~version_major~~${first_digit_current_unifi}&filter=eq~~version_minor~~${second_digit_current_unifi}&filter=eq~~version_patch~~${third_digit_current_unifi}&filter=eq~~platform~~debian" --header 'Authorization: Bearer token:'"${token}"'' | jq -r "._embedded.firmware[0].md5" | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"; fi
+	  unifi_deb_dl="$(curl "${curl_argument[@]}" --location --request GET "https://fw-update.ui.com/api/firmware-latest?filter=eq~~version_major~~${first_digit_current_unifi}&filter=eq~~version_minor~~${second_digit_current_unifi}&filter=eq~~version_patch~~${third_digit_current_unifi}&filter=eq~~platform~~debian" --header 'Authorization: Bearer token:'"${token}"'' 2> "${eus_dir}/logs/locate-download.log" | jq -r "._embedded.firmware[0]._links.data.href" 2> "${eus_dir}/logs/locate-download.log" | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
+      if [[ -z "${unifi_deb_dl}" ]]; then unifi_deb_dl="$(curl "${curl_argument[@]}" --location --request GET "http://fw-update.ui.com/api/firmware-latest?filter=eq~~version_major~~${first_digit_current_unifi}&filter=eq~~version_minor~~${second_digit_current_unifi}&filter=eq~~version_patch~~${third_digit_current_unifi}&filter=eq~~platform~~debian" --header 'Authorization: Bearer token:'"${token}"'' 2> "${eus_dir}/logs/locate-download.log" | jq -r "._embedded.firmware[0]._links.data.href" 2> "${eus_dir}/logs/locate-download.log" | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"; fi
+	  unifi_deb_md5="$(curl "${curl_argument[@]}" --location --request GET "https://fw-update.ui.com/api/firmware-latest?filter=eq~~version_major~~${first_digit_current_unifi}&filter=eq~~version_minor~~${second_digit_current_unifi}&filter=eq~~version_patch~~${third_digit_current_unifi}&filter=eq~~platform~~debian" --header 'Authorization: Bearer token:'"${token}"'' 2> "${eus_dir}/logs/locate-download.log" | jq -r "._embedded.firmware[0].md5" 2> "${eus_dir}/logs/locate-download.log" | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
+	  if [[ -z "${unifi_deb_md5}" ]]; then unifi_deb_md5="$(curl "${curl_argument[@]}" --location --request GET "http://fw-update.ui.com/api/firmware-latest?filter=eq~~version_major~~${first_digit_current_unifi}&filter=eq~~version_minor~~${second_digit_current_unifi}&filter=eq~~version_patch~~${third_digit_current_unifi}&filter=eq~~platform~~debian" --header 'Authorization: Bearer token:'"${token}"'' 2> "${eus_dir}/logs/locate-download.log" | jq -r "._embedded.firmware[0].md5" 2> "${eus_dir}/logs/locate-download.log" | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"; fi
     else
-      unifi_deb_dl="$(curl "${curl_argument[@]}" --location --request GET "https://fw-update.ui.com/api/firmware-latest?filter=eq~~version_major~~${first_digit_current_unifi}&filter=eq~~version_minor~~${second_digit_current_unifi}&filter=eq~~version_patch~~${third_digit_current_unifi}&filter=eq~~platform~~debian" | jq -r "._embedded.firmware[0]._links.data.href" | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
-      if [[ -z "${unifi_deb_dl}" ]]; then unifi_deb_dl="$(curl "${curl_argument[@]}" --location --request GET "http://fw-update.ui.com/api/firmware-latest?filter=eq~~version_major~~${first_digit_current_unifi}&filter=eq~~version_minor~~${second_digit_current_unifi}&filter=eq~~version_patch~~${third_digit_current_unifi}&filter=eq~~platform~~debian" | jq -r "._embedded.firmware[0]._links.data.href" | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"; fi
-      unifi_deb_md5="$(curl "${curl_argument[@]}" --location --request GET "https://fw-update.ui.com/api/firmware-latest?filter=eq~~version_major~~${first_digit_current_unifi}&filter=eq~~version_minor~~${second_digit_current_unifi}&filter=eq~~version_patch~~${third_digit_current_unifi}&filter=eq~~platform~~debian" | jq -r "._embedded.firmware[0].md5" | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
-      if [[ -z "${unifi_deb_md5}" ]]; then unifi_deb_md5="$(curl "${curl_argument[@]}" --location --request GET "http://fw-update.ui.com/api/firmware-latest?filter=eq~~version_major~~${first_digit_current_unifi}&filter=eq~~version_minor~~${second_digit_current_unifi}&filter=eq~~version_patch~~${third_digit_current_unifi}&filter=eq~~platform~~debian" | jq -r "._embedded.firmware[0].md5" | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"; fi
+      unifi_deb_dl="$(curl "${curl_argument[@]}" --location --request GET "https://fw-update.ui.com/api/firmware-latest?filter=eq~~version_major~~${first_digit_current_unifi}&filter=eq~~version_minor~~${second_digit_current_unifi}&filter=eq~~version_patch~~${third_digit_current_unifi}&filter=eq~~platform~~debian" 2> "${eus_dir}/logs/locate-download.log" | jq -r "._embedded.firmware[0]._links.data.href" 2> "${eus_dir}/logs/locate-download.log" | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
+      if [[ -z "${unifi_deb_dl}" ]]; then unifi_deb_dl="$(curl "${curl_argument[@]}" --location --request GET "http://fw-update.ui.com/api/firmware-latest?filter=eq~~version_major~~${first_digit_current_unifi}&filter=eq~~version_minor~~${second_digit_current_unifi}&filter=eq~~version_patch~~${third_digit_current_unifi}&filter=eq~~platform~~debian" 2> "${eus_dir}/logs/locate-download.log" | jq -r "._embedded.firmware[0]._links.data.href" 2> "${eus_dir}/logs/locate-download.log" | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"; fi
+      unifi_deb_md5="$(curl "${curl_argument[@]}" --location --request GET "https://fw-update.ui.com/api/firmware-latest?filter=eq~~version_major~~${first_digit_current_unifi}&filter=eq~~version_minor~~${second_digit_current_unifi}&filter=eq~~version_patch~~${third_digit_current_unifi}&filter=eq~~platform~~debian" 2> "${eus_dir}/logs/locate-download.log" | jq -r "._embedded.firmware[0].md5" 2> "${eus_dir}/logs/locate-download.log" | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
+      if [[ -z "${unifi_deb_md5}" ]]; then unifi_deb_md5="$(curl "${curl_argument[@]}" --location --request GET "http://fw-update.ui.com/api/firmware-latest?filter=eq~~version_major~~${first_digit_current_unifi}&filter=eq~~version_minor~~${second_digit_current_unifi}&filter=eq~~version_patch~~${third_digit_current_unifi}&filter=eq~~platform~~debian" 2> "${eus_dir}/logs/locate-download.log" | jq -r "._embedded.firmware[0].md5" 2> "${eus_dir}/logs/locate-download.log" | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"; fi
     fi
-    if [[ -z "${unifi_deb_dl}" ]]; then
-      unifi_deb_dl="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-release?version=${first_digit_current_unifi}.${second_digit_current_unifi}.${third_digit_current_unifi}" | jq -r '.download_link' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
-      unifi_deb_md5="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-release?version=${first_digit_current_unifi}.${second_digit_current_unifi}.${third_digit_current_unifi}" | jq -r '.md5sum' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
+    if [[ "$(curl "${curl_argument[@]}" https://api.glennr.nl/api/network-release?status 2> /dev/null | jq -r '.[]' 2> /dev/null)" == "OK" ]]; then
+      if [[ -z "${unifi_deb_dl}" ]]; then
+        unifi_deb_dl="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-release?version=${first_digit_current_unifi}.${second_digit_current_unifi}.${third_digit_current_unifi}" | jq -r '.download_link' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
+        unifi_deb_md5="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-release?version=${first_digit_current_unifi}.${second_digit_current_unifi}.${third_digit_current_unifi}" | jq -r '.md5sum' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
+      fi
+      unifi_deb_gr_dl="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-release?version=${first_digit_current_unifi}.${second_digit_current_unifi}.${third_digit_current_unifi}&server=archive" | jq -r '.download_link' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
     fi
-    unifi_deb_gr_dl="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-release?version=${first_digit_current_unifi}.${second_digit_current_unifi}.${third_digit_current_unifi}&server=archive" | jq -r '.download_link' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
     if [[ -z "${unifi_deb_dl}" ]]; then
       unifi_deb_dl_failed="true"
       echo -e "${RED}#${RESET} Failed to locate a download URL for UniFi Network Application version ${first_digit_current_unifi}.${second_digit_current_unifi}.${third_digit_current_unifi}... \\n"
@@ -8082,8 +8113,8 @@ mongodb_upgrade() {
     if rm --force "${apt_cache}" &> /dev/null; then if [[ "${apt_cache_archive_success_message}" != 'true' ]]; then echo -e "${GREEN}#${RESET} Successfully removed apt cache archives! \\n"; apt_cache_archive_success_message="true"; fi; fi
   done < <(find /var/cache/apt/archives/ -name "*mongo*" -type f)
   check_unmet_dependencies
-  # Install mongod-armv8 dependencies
-  if grep -siq "mongod-armv8" /tmp/EUS/mongodb/packages_list; then
+  # Install Glenn R. mongod dependencies
+  if grep -siq "${gr_mongod_name}" /tmp/EUS/mongodb/packages_list; then
     check_default_repositories
     if [[ "$(find /etc/apt/ -type f \( -name "*.sources" -o -name "*.list" \) -exec grep -lE 'raspbian.|raspberrypi.' {} + | wc -l)" -ge "1" ]]; then
       if [[ "${os_codename}" =~ (jessie|stretch|buster|bullseye) ]]; then
@@ -8095,22 +8126,22 @@ mongodb_upgrade() {
         run_apt_get_update
       fi
     fi
-    list_of_mongod_armv8_dependencies="$(apt-cache depends mongod-armv8 | tr '[:upper:]' '[:lower:]' | grep -i depends | awk '!a[$0]++' | sed -e 's/|//g' -e 's/ //g' -e 's/<//g' -e 's/>//g' -e 's/depends://g' | sort -V | awk '!/^gcc/ || !f++')"
-    mongod_armv8_dependency_version="$(echo "${list_of_mongod_armv8_dependencies}" | grep -Eio "gcc-[0-9]{1,2}-base" | sed -e 's/gcc-//g' -e 's/-base//g')"
-    while read -r mongod_armv8_dependency; do
-      if [[ "${mongod_armv8_dependency}" =~ (libssl1.0.0|libssl1.1|libssl3) ]]; then
-        mongodb_package_libssl="mongod-armv8"
+    list_of_glennr_mongod_dependencies="$(apt-cache depends "${gr_mongod_name}" | tr '[:upper:]' '[:lower:]' | grep -i depends | awk '!a[$0]++' | sed -e 's/|//g' -e 's/ //g' -e 's/<//g' -e 's/>//g' -e 's/depends://g' | sort -V | awk '!/^gcc/ || !f++')"
+    glennr_mongod_dependency_version="$(echo "${list_of_glennr_mongod_dependencies}" | grep -Eio "gcc-[0-9]{1,2}-base" | sed -e 's/gcc-//g' -e 's/-base//g')"
+    while read -r glennr_mongod_dependency; do
+      if [[ "${glennr_mongod_dependency}" =~ (libssl1.0.0|libssl1.1|libssl3) ]]; then
+        mongodb_package_libssl="${gr_mongod_name}"
         mongodb_package_version_libssl="${install_mongod_version}"
         libssl_installation_check
         continue
       fi
-      if "$(which dpkg)" -l mongodb-mongosh-shared-openssl11 "${mongod_armv8_dependency}" 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
-        mongod_armv8_dependency_version_current="$(dpkg-query --showformat='${Version}' --show "${mongod_armv8_dependency}" | awk -F'[-.]' '{print $1}')"
+      if "$(which dpkg)" -l mongodb-mongosh-shared-openssl11 "${glennr_mongod_dependency}" 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+        glennr_mongod_dependency_version_current="$(dpkg-query --showformat='${Version}' --show "${glennr_mongod_dependency}" | awk -F'[-.]' '{print $1}')"
       else
-        mongod_armv8_dependency_version_current="0"
+        glennr_mongod_dependency_version_current="0"
       fi
-      if [[ "${mongod_armv8_dependency_version_current}" -lt "${mongod_armv8_dependency_version}" ]]; then
-        if ! apt-cache policy "${mongod_armv8_dependency}" | tr '[:upper:]' '[:lower:]' | sed '1,/version table/d' | sed -e 's/500//g' -e 's/100//g' -e '/http/d' -e '/var/d' -e 's/*//g' -e 's/ //g' | grep -iq "^${mongod_armv8_dependency_version}"; then
+      if [[ "${glennr_mongod_dependency_version_current}" -lt "${glennr_mongod_dependency_version}" ]]; then
+        if ! apt-cache policy "${glennr_mongod_dependency}" | tr '[:upper:]' '[:lower:]' | sed '1,/version table/d' | sed -e 's/500//g' -e 's/100//g' -e '/http/d' -e '/var/d' -e 's/*//g' -e 's/ //g' | grep -iq "^${glennr_mongod_dependency_version}"; then
           if [[ "${os_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish) ]]; then
             repo_codename="jammy"
             get_repo_url
@@ -8131,40 +8162,40 @@ mongodb_upgrade() {
           add_repositories
           run_apt_get_update
         fi
-        mongod_armv8_dependency_install_version="$(apt-cache policy "${mongod_armv8_dependency}" | tr '[:upper:]' '[:lower:]' | sed '1,/version table/d' | sed -e 's/500//g' -e 's/100//g' -e '/http/d' -e '/var/d' -e 's/*//g' -e 's/ //g' | grep -i "^${mongod_armv8_dependency_version}" | head -n1)"
-        if [[ -z "${mongod_armv8_dependency_install_version}" ]]; then
-          echo -e "${RED}#${RESET} Failed to locate required version for ${mongod_armv8_dependency}...\\n"
+        glennr_mongod_dependency_install_version="$(apt-cache policy "${glennr_mongod_dependency}" | tr '[:upper:]' '[:lower:]' | sed '1,/version table/d' | sed -e 's/500//g' -e 's/100//g' -e '/http/d' -e '/var/d' -e 's/*//g' -e 's/ //g' | grep -i "^${glennr_mongod_dependency_version}" | head -n1)"
+        if [[ -z "${glennr_mongod_dependency_install_version}" ]]; then
+          echo -e "${RED}#${RESET} Failed to locate required version for ${glennr_mongod_dependency}...\\n"
         fi
         check_dpkg_lock
-        echo -e "${WHITE_R}#${RESET} Installing ${mongod_armv8_dependency}..."
-        if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${mongod_armv8_dependency}"="${mongod_armv8_dependency_install_version}" &>> "${eus_dir}/logs/mongod-armv8-dependencies.log"; then
+        echo -e "${WHITE_R}#${RESET} Installing ${glennr_mongod_dependency}..."
+        if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${glennr_mongod_dependency}"="${glennr_mongod_dependency_install_version}" &>> "${eus_dir}/logs/${gr_mongod_name}-dependencies.log"; then
           check_dpkg_lock
-          if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${mongod_armv8_dependency}" &>> "${eus_dir}/logs/mongod-armv8-dependencies.log"; then
+          if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${glennr_mongod_dependency}" &>> "${eus_dir}/logs/${gr_mongod_name}-dependencies.log"; then
             check_unmet_dependencies
             broken_packages_check
             attempt_recover_broken_packages
             add_apt_option_no_install_recommends="true"; get_apt_options
             check_dpkg_lock
-            if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${mongod_armv8_dependency}" &>> "${eus_dir}/logs/mongod-armv8-dependencies.log"; then
-              abort_reason="Failed to install ${mongod_armv8_dependency}."
+            if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${glennr_mongod_dependency}" &>> "${eus_dir}/logs/${gr_mongod_name}-dependencies.log"; then
+              abort_reason="Failed to install ${glennr_mongod_dependency}."
               abort
             else
-              echo -e "${GREEN}#${RESET} Successfully installed ${mongod_armv8_dependency}! \\n" && sleep 2
+              echo -e "${GREEN}#${RESET} Successfully installed ${glennr_mongod_dependency}! \\n" && sleep 2
             fi
             get_apt_options
           else
-            echo -e "${GREEN}#${RESET} Successfully installed ${mongod_armv8_dependency}! \\n" && sleep 2
+            echo -e "${GREEN}#${RESET} Successfully installed ${glennr_mongod_dependency}! \\n" && sleep 2
           fi
         else
-          echo -e "${GREEN}#${RESET} Successfully installed ${mongod_armv8_dependency}! \\n" && sleep 2
+          echo -e "${GREEN}#${RESET} Successfully installed ${glennr_mongod_dependency}! \\n" && sleep 2
         fi
       fi
-    done < <(echo "${list_of_mongod_armv8_dependencies}")
+    done < <(echo "${list_of_glennr_mongod_dependencies}")
   fi
   # Install/Upgrade MongoDB
   while read -r mongodb_package; do
     echo -e "${WHITE_R}#${RESET} ${mongodb_upgrade_mongodb_org_message} ${mongodb_package}..."
-    if [[ "${mongodb_package}" == 'mongod-armv8' ]]; then install_mongodb_version_with_equality_sign_tmp="${install_mongodb_version_with_equality_sign}"; install_mongodb_version_with_equality_sign="${install_mongod_version_with_equality_sign}"; elif [[ -n "${install_mongodb_version_with_equality_sign_tmp}" ]]; then install_mongodb_version_with_equality_sign="${install_mongodb_version_with_equality_sign_tmp}"; fi
+    if [[ "${mongodb_package}" == "${gr_mongod_name}" ]]; then install_mongodb_version_with_equality_sign_tmp="${install_mongodb_version_with_equality_sign}"; install_mongodb_version_with_equality_sign="${install_mongod_version_with_equality_sign}"; elif [[ -n "${install_mongodb_version_with_equality_sign_tmp}" ]]; then install_mongodb_version_with_equality_sign="${install_mongodb_version_with_equality_sign_tmp}"; fi
     mongodb_package_libssl="${mongodb_package}"
     mongodb_package_version_libssl="${install_mongodb_version}"
     libssl_installation_check
@@ -8220,7 +8251,7 @@ mongodb_upgrade() {
       fi
     fi
   done < /tmp/EUS/mongodb/packages_list
-  if "$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep -iq "mongod-armv8"; then prevent_mongodb_org_server_install; fi
+  if "$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep -iq "${gr_mongod_name}"; then prevent_mongodb_org_server_install; fi
   if [[ "${mongo_version_max}" -ge '70' ]]; then
     if ! "$(which dpkg)" -l mongodb-mongosh-shared-openssl11 mongodb-mongosh-shared-openssl3 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
       mongodb_mongosh_libssl_version="$(apt-cache depends "mongodb-org-server${install_mongodb_version_with_equality_sign}" | sed -e 's/>//g' -e 's/<//g' | grep -io "libssl1.1$\\|libssl3$")"
@@ -8369,8 +8400,8 @@ mongodb_upgrade() {
   chown -R "${unifi_database_location_user}":"${unifi_database_location_group}" "${unifi_database_location}" &> /dev/null
   if ! [[ -d "/var/run/unifi" ]]; then /usr/sbin/unifi-network-service-helper create-dirs &>> "${eus_dir}/logs/unifi-var-run-missing.log"; fi
   #
-  mongodb_org_v="$("$(which dpkg)" -l | grep "mongodb-org-server\\|mongod-armv8" | grep -i "^ii\\|^hi\\|^ri\\|^pi\\|^ui" | awk '{print $3}' | sed 's/\.//g' | sed 's/.*://' | sed 's/-.*//g' | sed 's/+.*//g' | sort -V | tail -n 1)"
-  mongodb_org_v_with_dot="$("$(which dpkg)" -l | grep "mongodb-org-server\\|mongod-armv8" | grep -i "^ii\\|^hi\\|^ri\\|^pi\\|^ui" | awk '{print $3}' | sed 's/.*://' | sed 's/-.*//g' | sed 's/+.*//g' | sort -V | tail -n 1)"
+  mongodb_org_v="$("$(which dpkg)" -l | grep "mongodb-org-server\\|mongod-armv8\\|mongod-amd64" | grep -i "^ii\\|^hi\\|^ri\\|^pi\\|^ui" | awk '{print $3}' | sed 's/\.//g' | sed 's/.*://' | sed 's/-.*//g' | sed 's/+.*//g' | sort -V | tail -n 1)"
+  mongodb_org_v_with_dot="$("$(which dpkg)" -l | grep "mongodb-org-server\\|mongod-armv8\\|mongod-amd64" | grep -i "^ii\\|^hi\\|^ri\\|^pi\\|^ui" | awk '{print $3}' | sed 's/.*://' | sed 's/-.*//g' | sed 's/+.*//g' | sort -V | tail -n 1)"
   if [[ "${mongo_version_max}" =~ (44|70) ]] || [[ "${mongodb_org_v::2}" =~ (44|70) ]]; then mongodb_upgrade_system_propties; fi
   while read -r unifi_package; do
     echo -e "${WHITE_R}#${RESET} Starting service ${unifi_package}..."
@@ -8606,7 +8637,7 @@ free_space_check() {
           free_space_check_date="$(date +%s)"
           echo -e "${YELLOW}#${RESET} OK... Proceeding with the script.. please note that failures may occur due to not enough disk space... \\n"; sleep 10;;
     esac
-    if command -v jq &> /dev/null; then
+    if [[ -n "$(command -v jq)" ]]; then
       if [[ "$(dpkg-query --showformat='${Version}' --show jq | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" && -e "${eus_dir}/db/db.json" ]]; then
         jq '.scripts."'"${script_name}"'" += {"warnings": {"low-free-disk-space": {"response": "'"${free_space_check_response}"'", "detected-date": "'"${free_space_check_date}"'"}}}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
       else
@@ -8639,7 +8670,7 @@ free_boot_space_check() {
               free_boot_space_check_date="$(date +%s)"
               echo -e "${YELLOW}#${RESET} OK... Proceeding with the script.. please note that failures may occur due to not enough disk space... \\n"; sleep 10; skip_linux_images_recovery="true";;
         esac
-        if command -v jq &> /dev/null; then
+        if [[ -n "$(command -v jq)" ]]; then
           if [[ "$(dpkg-query --showformat='${Version}' --show jq | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" && -e "${eus_dir}/db/db.json" ]]; then
             jq '.scripts."'"${script_name}"'" += {"warnings": {"low-free-boot-partition-space": {"response": "'"${free_boot_space_check_response}"'", "detected-date": "'"${free_boot_space_check_date}"'"}}}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
           else
@@ -8760,7 +8791,7 @@ while read -r mongodb_repo_version; do
     fi
   done < <(grep -sriIl "${mongodb_repo_version} main\\|${mongodb_repo_version} multiverse" /etc/apt/sources.list /etc/apt/sources.list.d/)
   #
-  if [[ "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/mongodb-release?version=${mongodb_repo_version}" | jq -r '.updated')" -ge "$(jq -r '.database["mongodb-key-last-check"]' "${eus_dir}/db/db.json")" ]]; then
+  if [[ "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/mongodb-release?version=${mongodb_repo_version}" 2> /dev/null | jq -r '.updated' 2> /dev/null)" -ge "$(jq -r '.database["mongodb-key-last-check"]' "${eus_dir}/db/db.json")" ]]; then
     if [[ "${expired_header}" != 'true' ]]; then if header; then expired_header="true"; fi; fi
     if [[ "${expired_mongodb_check_message}" != 'true' ]]; then if echo -e "${WHITE_R}#${RESET} Checking for expired MongoDB repository keys..."; then expired_mongodb_check_message="true"; fi; fi
     if [[ "${expired_mongodb_check_message}" == 'true' ]]; then echo -e "${YELLOW}#${RESET} The script detected that the repository key for MongoDB version ${mongodb_repo_version} has been updated by MongoDB... \\n"; fi
@@ -8773,7 +8804,7 @@ while read -r mongodb_repo_version; do
     fi
   fi
   while read -r repo_file; do
-    if ! grep -ioq "trusted=yes" "${repo_file}" && [[ "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/mongodb-release?version=${mongodb_repo_version}" | jq -r '.expired')" == 'true' ]]; then
+    if ! grep -ioq "trusted=yes" "${repo_file}" && [[ "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/mongodb-release?version=${mongodb_repo_version}" 2> /dev/null | jq -r '.expired' 2> /dev/null)" == 'true' ]]; then
       if [[ "${expired_header}" != 'true' ]]; then if header; then expired_header="true"; fi; fi
       if [[ "${expired_mongodb_check_message}" != 'true' ]]; then if echo -e "${WHITE_R}#${RESET} Checking for expired MongoDB repository keys..."; then expired_mongodb_check_message="true"; fi; fi
       if [[ "${mongodb_repo_version//./}" =~ (30|32|34|36|40|42|44|50|60|70) ]]; then
@@ -9026,7 +9057,7 @@ application_upgrade_releases() {
     if [[ "${first_digit_unifi}" -gt '7' ]] || [[ "${first_digit_unifi}" == '7' && "${second_digit_unifi}" -ge '3' ]]; then
       header_red
       echo -e "${WHITE_R}#${RESET} UniFi Network Application ${application_version_release_digit_1}.${application_version_release_digit_2}.${application_version_release_digit_3} is not supported on your Gen1 UniFi Cloudkey (UC-CK)."
-      echo -e "${WHITE_R}#${RESET} The latest supported version on your Cloudkey is $(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?version=7.2" | jq -r '.latest_version') and older.. \\n\\n"
+      echo -e "${WHITE_R}#${RESET} The latest supported version on your Cloudkey is $(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?version=7.2" 2> /dev/null | jq -r '.latest_version' 2> /dev/null) and older.. \\n\\n"
       echo -e "${WHITE_R}#${RESET} Consider upgrading to a Gen2 Cloudkey:"
       echo -e "${WHITE_R}#${RESET} UniFi Cloud Key Gen2       | https://store.ui.com/products/unifi-cloud-key-gen2"
       echo -e "${WHITE_R}#${RESET} UniFi Cloud Key Gen2 Plus  | https://store.ui.com/products/unifi-cloudkey-gen2-plus\\n\\n"
@@ -9037,10 +9068,10 @@ application_upgrade_releases() {
   if [[ "${first_digit_unifi}" -gt '7' ]] || [[ "${first_digit_unifi}" == '7' && "${second_digit_unifi}" -ge '5' ]]; then
     if [[ "$(getconf LONG_BIT)" == '32' ]]; then
       header_red
-      mongodb_server_version="$("$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep "mongodb-server\\|mongodb-org-server\\|mongod-armv8" | awk '{print $3}' | sed 's/\.//g' | sed 's/.*://' | sed 's/-.*//g')"
+      mongodb_server_version="$("$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep "mongodb-server\\|mongodb-org-server\\|mongod-armv8\\|mongod-amd64" | awk '{print $3}' | sed 's/\.//g' | sed 's/.*://' | sed 's/-.*//g')"
       if [[ "${mongodb_server_version::2}" -le "25" ]]; then unifi_latest_supported_version="7.3"; else unifi_latest_supported_version="7.4"; fi
       echo -e "${WHITE_R}#${RESET} Your 32-bit system/OS is no longer supported by UniFi Network Application ${application_version_release}!"
-      echo -e "${WHITE_R}#${RESET} The latest supported version on your system/OS is $(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?version=${unifi_latest_supported_version}" | jq -r '.latest_version') and older..."
+      echo -e "${WHITE_R}#${RESET} The latest supported version on your system/OS is $(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?version=${unifi_latest_supported_version}" 2> /dev/null | jq -r '.latest_version' 2> /dev/null) and older..."
       echo -e "${WHITE_R}#${RESET} Consider upgrading to a 64-bit system/OS!\\n\\n"
       author
       exit 0
@@ -9056,13 +9087,13 @@ application_upgrade_releases() {
       minimum_required_mongodb_version="26"
       unifi_latest_supported_version_number="7.3"
     fi
-    mongodb_server_version="$("$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep "mongodb-server\\|mongodb-org-server\\|mongod-armv8" | awk '{print $3}' | sed 's/\.//g' | sed 's/.*://' | sed 's/-.*//g')"
+    mongodb_server_version="$("$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep "mongodb-server\\|mongodb-org-server\\|mongod-armv8\\|mongod-amd64" | awk '{print $3}' | sed 's/\.//g' | sed 's/.*://' | sed 's/-.*//g')"
     if [[ "${mongodb_server_version::2}" -lt "${minimum_required_mongodb_version}" ]]; then
       if [[ "${unifi_core_system}" == 'true' ]]; then
         if [[ "${os_codename}" == 'stretch' ]]; then
           header_red
           echo -e "${WHITE_R}#${RESET} UniFi Network Application ${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi} requires a newer version of UniFi OS."
-          echo -e "${WHITE_R}#${RESET} The latest version that you can run with UniFi OS version $(cut -d'.' -f3,4,5 /usr/lib/version | sed 's/v//g') is $(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?version=${unifi_latest_supported_version_number}" | jq -r '.latest_version') and older.. \\n\\n"
+          echo -e "${WHITE_R}#${RESET} The latest version that you can run with UniFi OS version $(cut -d'.' -f3,4,5 /usr/lib/version | sed 's/v//g') is $(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?version=${unifi_latest_supported_version_number}" 2> /dev/null | jq -r '.latest_version' 2> /dev/null) and older.. \\n\\n"
           unifi_core_upgrade_message="true"
         else
           unifi_core_mongodb_upgrade_bypass="true"
@@ -9070,7 +9101,7 @@ application_upgrade_releases() {
       else
         header_red
         echo -e "${WHITE_R}#${RESET} UniFi Network Application ${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi} requires MongoDB ${minimum_required_mongodb_version_dot} or newer."
-        echo -e "${WHITE_R}#${RESET} The latest version that you can run with MongoDB version $("$(which dpkg)" -l | grep "mongodb-server\\|mongodb-org-server\\|mongod-armv8" | awk '{print $3}' | sed -e 's/.*://' -e 's/-.*//') is $(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?version=${unifi_latest_supported_version_number}" | jq -r '.latest_version') and older.. \\n\\n"
+        echo -e "${WHITE_R}#${RESET} The latest version that you can run with MongoDB version $("$(which dpkg)" -l | grep "mongodb-server\\|mongodb-org-server\\|mongod-armv8\\|mongod-amd64" | awk '{print $3}' | sed -e 's/.*://' -e 's/-.*//') is $(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?version=${unifi_latest_supported_version_number}" 2> /dev/null | jq -r '.latest_version' 2> /dev/null) and older.. \\n\\n"
         if [[ "${mongodb_org_v::2}" =~ (24|26|30|32|34) && "${mongo_version_max}" == "36" && "${mongodb_upgrade_supported}" == 'true' ]] || [[ "${mongodb_org_v::2}" =~ (24|26|30|32|34|36|40|42) && "${mongo_version_max}" == "44" && "${mongodb_upgrade_supported}" == 'true' ]] || [[ "${mongodb_org_v::2}" =~ (24|26|30|32|34|36|40|42|44|50|60) && "${mongo_version_max}" == "70" && "${mongodb_upgrade_supported}" == 'true' ]]; then
           read -rp $'\033[39m#\033[0m Would you like to run the option to upgrade to MongoDB '"${mongo_version_max_with_dot}"'? (Y/n) ' yes_no
           case "$yes_no" in
@@ -9111,17 +9142,17 @@ application_upgrade_releases() {
   echo -e "${WHITE_R}#${RESET} Downloading UniFi Network Application version ${application_version_release}..."
   eus_directory_location="/tmp/EUS"
   eus_create_directories "downloads"
-  if [[ "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/locate-network-release?status" 2> "${eus_dir}/logs/locate-download.log" | jq -r '.availability')" == "OK" ]]; then
-    fw_update_dl_link="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-release?version=${application_version_release}" 2> "${eus_dir}/logs/locate-download.log" | jq -r '.download_link' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
-    fw_update_gr_dl_link="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-release?version=${application_version_release}&server=archive" 2> "${eus_dir}/logs/locate-download.log" | jq -r '.download_link' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
+  if [[ "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/locate-network-release?status" 2> "${eus_dir}/logs/locate-download.log" | jq -r '.availability' 2> "${eus_dir}/logs/locate-download.log")" == "OK" ]]; then
+    fw_update_dl_link="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-release?version=${application_version_release}" | jq -r '.download_link' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
+    fw_update_gr_dl_link="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-release?version=${application_version_release}&server=archive" | jq -r '.download_link' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
   else
-    fw_update_dl_link="$(curl "${curl_argument[@]}" "https://fw-update.ui.com/api/firmware-latest?filter=eq~~version_major~~${application_version_release_digit_1}&filter=eq~~version_minor~~${application_version_release_digit_2}&filter=eq~~version_patch~~${application_version_release_digit_3}&filter=eq~~platform~~debian" 2> "${eus_dir}/logs/locate-download.log" | jq -r "._embedded.firmware[]._links.data.href" | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
+    fw_update_dl_link="$(curl "${curl_argument[@]}" "https://fw-update.ui.com/api/firmware-latest?filter=eq~~version_major~~${application_version_release_digit_1}&filter=eq~~version_minor~~${application_version_release_digit_2}&filter=eq~~version_patch~~${application_version_release_digit_3}&filter=eq~~platform~~debian" 2> "${eus_dir}/logs/locate-download.log" | jq -r "._embedded.firmware[]._links.data.href" 2> "${eus_dir}/logs/locate-download.log" | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
   fi
   if [[ "${unifi_deb_file_name}" == "unifi_sysvinit_all" ]]; then
-    if [[ "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/locate-network-release?status" 2> "${eus_dir}/logs/locate-download.log" | jq -r '.availability')" == "OK" ]]; then
-      unifi_sha256sum="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-release?version=${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi}" 2> "${eus_dir}/logs/locate-download.log" | jq -r '."sha256sum"' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
+    if [[ "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/locate-network-release?status" 2> "${eus_dir}/logs/locate-download.log" | jq -r '.availability' 2> "${eus_dir}/logs/locate-download.log")" == "OK" ]]; then
+      unifi_sha256sum="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-release?version=${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi}" | jq -r '."sha256sum"' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
     else
-      unifi_sha256sum="$(curl "${curl_argument[@]}" "https://fw-update.ui.com/api/firmware-latest?filter=eq~~version_major~~${application_version_release_digit_1}&filter=eq~~version_minor~~${application_version_release_digit_2}&filter=eq~~version_patch~~${application_version_release_digit_3}&filter=eq~~platform~~debian" 2> "${eus_dir}/logs/locate-download.log" | jq -r "._embedded.firmware[].sha256_checksum" | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
+      unifi_sha256sum="$(curl "${curl_argument[@]}" "https://fw-update.ui.com/api/firmware-latest?filter=eq~~version_major~~${application_version_release_digit_1}&filter=eq~~version_minor~~${application_version_release_digit_2}&filter=eq~~version_patch~~${application_version_release_digit_3}&filter=eq~~platform~~debian" 2> "${eus_dir}/logs/locate-download.log" | jq -r "._embedded.firmware[].sha256_checksum" 2> "${eus_dir}/logs/locate-download.log" | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
     fi
   fi
   if [[ -z "${unifi_temp}" ]]; then unifi_temp="$(mktemp --tmpdir=/tmp/EUS/downloads "${unifi_deb_file_name}"_"${application_version_release}"_XXXXX.deb)"; fi
@@ -11514,7 +11545,7 @@ elif [[ "${first_digit_unifi}" == '8' && "${second_digit_unifi}" == '3' ]]; then
 ##########################################################################################################################################################################
 
 elif [[ "${first_digit_unifi}" == '8' && "${second_digit_unifi}" == '4' ]]; then
-  if [[ "${third_digit_unifi}" -gt '59' ]]; then not_supported_version; fi
+  if [[ "${third_digit_unifi}" -gt '62' ]]; then not_supported_version; fi
   release_wanted
   if [[ "${release_stage}" == 'S' ]]; then if [[ "${unifi}" == "${latest_release}" ]]; then debug_check_no_upgrade; unifi_update_latest; fi; fi
   if [[ "${release_stage}" == 'RC' ]]; then if [[ "${unifi}" == "${rc_version_available}" ]]; then debug_check_no_upgrade; unifi_update_latest; fi; fi

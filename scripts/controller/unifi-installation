@@ -11,6 +11,19 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 7.9.0
+ 
+ - Fixed an issue where it would complain that get_unifi_version cannot be found.
+ 
+ ####
+
+ |  UniFi Network Application Installation Script  |  Version 7.8.9
+ 
+ - Added support for upgrading MongoDB to version 7.0 for non-AVX amd64 CPU's.
+ - Improved error handling when API's are unavailable.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 7.8.8
  
  - Fixed an issue where it could print out errors during script startup.

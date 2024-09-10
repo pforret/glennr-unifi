@@ -2,7 +2,7 @@
 
 # UniFi Easy Encrypt script.
 # Script   | UniFi Network Easy Encrypt Script
-# Version  | 3.0.9
+# Version  | 3.1.0
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -224,10 +224,10 @@ eus_database_move() {
 
 cleanup_codename_mismatch_repos() {
   get_distro
-  if command -v jq &> /dev/null; then
+  if [[ -n "$(command -v jq)" ]]; then
     list_of_distro_versions="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/list-versions?list-all" 2> /dev/null | jq -r '.[]' 2> /dev/null)"
   else
-    list_of_distro_versions="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/list-versions?list-all" | sed -e 's/\[//g' -e 's/\]//g' -e 's/ //g' -e 's/,//g' | grep .)"
+    list_of_distro_versions="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/list-versions?list-all" 2> /dev/null | sed -e 's/\[//g' -e 's/\]//g' -e 's/ //g' -e 's/,//g' | grep .)"
   fi
   found_codenames=()
   if [[ -f "/etc/apt/sources.list.d/glennr-install-script.list" ]]; then
@@ -534,7 +534,7 @@ support_file() {
         esac
       fi
       if [[ "$(jq -r '.database["support-file-upload"]' "${eus_dir}/db/db.json")" == 'true' ]] || [[ "${eus_support_one_time_upload}" == 'true' ]]; then
-        upload_result="$(curl "${curl_argument[@]}" -X POST -F "file=@${support_file}" "https://api.glennr.nl/api/eus-support" | jq -r '.[]')"
+        upload_result="$(curl "${curl_argument[@]}" -X POST -F "file=@${support_file}" "https://api.glennr.nl/api/eus-support" 2> /dev/null | jq -r '.[]' 2> /dev/null)"
         if [[ "$(dpkg-query --showformat='${Version}' --show jq | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
           jq '.scripts."'"${script_name}"'".support."'"${support_file_name}"'"."upload-results" = "'"${upload_result}"'"' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
         else
@@ -657,10 +657,10 @@ check_apt_listbugs() {
 }
 
 set_curl_arguments() {
-  if [[ "$(command -v jq)" ]]; then ssl_check_status="$(curl --silent "https://api.glennr.nl/api/ssl-check" | jq -r '.status')"; else ssl_check_status="$(curl --silent "https://api.glennr.nl/api/ssl-check" | grep -oP '(?<="status":")[^"]+')"; fi
+  if [[ "$(command -v jq)" ]]; then ssl_check_status="$(curl --silent "https://api.glennr.nl/api/ssl-check" 2> /dev/null | jq -r '.status' 2> /dev/null)"; else ssl_check_status="$(curl --silent "https://api.glennr.nl/api/ssl-check" 2> /dev/null | grep -oP '(?<="status":")[^"]+')"; fi
   if [[ "${ssl_check_status}" != "OK" ]]; then
     if [[ -e "/etc/ssl/certs/" ]]; then
-      if [[ "$(command -v jq)" ]]; then ssl_check_status="$(curl --silent --capath /etc/ssl/certs/ "https://api.glennr.nl/api/ssl-check" | jq -r '.status')"; else ssl_check_status="$(curl --silent --capath /etc/ssl/certs/ "https://api.glennr.nl/api/ssl-check" | grep -oP '(?<="status":")[^"]+')"; fi
+      if [[ "$(command -v jq)" ]]; then ssl_check_status="$(curl --silent --capath /etc/ssl/certs/ "https://api.glennr.nl/api/ssl-check" 2> /dev/null | jq -r '.status' 2> /dev/null)"; else ssl_check_status="$(curl --silent --capath /etc/ssl/certs/ "https://api.glennr.nl/api/ssl-check" 2> /dev/null | grep -oP '(?<="status":")[^"]+')"; fi
       if [[ "${ssl_check_status}" == "OK" ]]; then curl_args="--capath /etc/ssl/certs/"; fi
     fi
     if [[ -z "${curl_args}" && "${ssl_check_status}" != "OK" ]]; then curl_args="--insecure"; fi
@@ -1061,11 +1061,11 @@ if [[ -n "${auto_dns_challenge_arguments}" ]] || [[ "${certbot_multi_plugin}" ==
         echo -e "${RED}#${RESET} The following fields should be within that file: \\n"
         while read -r requirement_missing; do
           echo -e " ${RED}-${RESET} ${requirement_missing}"
-        done < <(curl "${curl_argument[@]}" "https://api.glennr.nl/api/multi-dns?provider=${auto_dns_challenge_provider}" 2> /dev/null | jq -r '.required_fields[]')
+        done < <(curl "${curl_argument[@]}" "https://api.glennr.nl/api/multi-dns?provider=${auto_dns_challenge_provider}" 2> /dev/null | jq -r '.required_fields[]' 2> /dev/null)
         abort_skip_support_file_upload="true"
         abort
       fi
-    done < <(curl "${curl_argument[@]}" "https://api.glennr.nl/api/multi-dns?provider=${auto_dns_challenge_provider}" 2> /dev/null | jq -r '.required_fields[]')
+    done < <(curl "${curl_argument[@]}" "https://api.glennr.nl/api/multi-dns?provider=${auto_dns_challenge_provider}" 2> /dev/null | jq -r '.required_fields[]' 2> /dev/null)
     if [[ "${certbot_native_plugin}" == 'true' ]]; then
       if [[ "${auto_dns_challenge_provider}" =~ (route53) ]]; then
         # shellcheck disable=SC2269
@@ -1404,7 +1404,7 @@ add_repositories() {
     elif echo "${repo_url_arguments}" | grep -ioq "security.debian"; then 
       check_debian_version="${os_version_number}-security"
     fi
-    if [[ "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/debian-release?version=${check_debian_version}" | jq -r '.expired')" == 'true' ]]; then 
+    if [[ "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/debian-release?version=${check_debian_version}" 2> /dev/null | jq -r '.expired' 2> /dev/null)" == 'true' ]]; then 
       if [[ "${use_deb822_format}" == 'true' ]]; then
         deb822_trusted="\nTrusted: yes"
       else
@@ -1530,10 +1530,10 @@ check_unmet_dependencies() {
           if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${dependency_to_install}" &>> "${eus_dir}/logs/unmet-dependency.log"; then
             sed -i "s/Depends: ${dependency_no_version}/Depends (completed): ${dependency_no_version}/g" "${log_file}" 2>> "${eus_dir}/logs/unmet-dependency-sed.log"
           else
-            if command -v jq &> /dev/null; then
+            if [[ -n "$(command -v jq)" ]]; then
               list_of_distro_versions="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/list-versions?distribution=${os_id}" 2> /dev/null | jq -r '.[]' 2> /dev/null)"
             else
-              list_of_distro_versions="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/list-versions?distribution=${os_id}" | sed -e 's/\[//g' -e 's/\]//g' -e 's/ //g' -e 's/,//g' | grep .)"
+              list_of_distro_versions="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/list-versions?distribution=${os_id}" 2> /dev/null | sed -e 's/\[//g' -e 's/\]//g' -e 's/ //g' -e 's/,//g' | grep .)"
             fi
             while read -r version; do
               add_repositories_source_list_override="glennr-install-script-unmet"
@@ -1642,10 +1642,10 @@ script_version_check() {
   local local_version
   local online_version
   local_version="$(grep -i "# Version" "${script_location}" | head -n 1 | cut -d'|' -f2 | sed 's/ //g')"
-  if command -v jq &> /dev/null; then
-    online_version="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-script-version?script=unifi-easy-encrypt" | jq -r '."latest-script-version"')"
+  if [[ -n "$(command -v jq)" ]]; then
+    online_version="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-script-version?script=unifi-easy-encrypt" 2> /dev/null | jq -r '."latest-script-version"' 2> /dev/null)"
   else
-    online_version="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-script-version?script=unifi-easy-encrypt" | grep -oP '(?<="latest-script-version":")[0-9.]+')"
+    online_version="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-script-version?script=unifi-easy-encrypt" 2> /dev/null | grep -oP '(?<="latest-script-version":")[0-9.]+')"
   fi
   IFS='.' read -r -a local_parts <<< "${local_version}"
   IFS='.' read -r -a online_parts <<< "${online_version}"
@@ -1689,7 +1689,7 @@ if ! [[ "${os_codename}" =~ (precise|maya|trusty|qiana|rebecca|rafaela|rosa|xeni
   if [[ -z "$(which apt)" ]]; then non_apt_based_linux="true"; fi
   unsupported_no_modify="true"
   get_distro
-  if [[ "${non_apt_based_linux}" != 'true' ]]; then distro_support_missing_report="$(curl "${curl_argument[@]}" -X POST -H "Content-Type: application/json" -d "{\"distribution\": \"${os_id}\", \"codename\": \"${os_codename}\", \"script-name\": \"${script_name}\", \"full-os-details\": \"${full_os_details}\"}" https://api.glennr.nl/api/missing-distro-support | jq -r '.[]')"; fi
+  if [[ "${non_apt_based_linux}" != 'true' ]]; then distro_support_missing_report="$(curl "${curl_argument[@]}" -X POST -H "Content-Type: application/json" -d "{\"distribution\": \"${os_id}\", \"codename\": \"${os_codename}\", \"script-name\": \"${script_name}\", \"full-os-details\": \"${full_os_details}\"}" https://api.glennr.nl/api/missing-distro-support 2> /dev/null | jq -r '.[]' 2> /dev/null)"; fi
   if [[ "${script_option_debug}" != 'true' ]]; then clear; fi
   header_red
   if [[ "${distro_support_missing_report}" == "OK" ]]; then
@@ -1760,27 +1760,27 @@ check_time_date_for_repositories() {
   if ls /tmp/EUS/apt/*.log 1> /dev/null 2>&1; then
     if grep -ioqE '^E: Release file for .* is not valid yet \(invalid for another' /tmp/EUS/apt/*.log; then
       get_timezone
-      if command -v jq &> /dev/null; then current_api_time="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/current-time?timezone=${timezone}" | jq -r '."current_time_ns"' | sed '/null/d')"; else current_api_time="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/current-time?timezone=${timezone}" | grep -o '"current_time_ns":"[^"]*"' | cut -d'"' -f4)"; fi
+      if [[ -n "$(command -v jq)" ]]; then current_api_time="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/current-time?timezone=${timezone}" 2> /dev/null | jq -r '."current_time_ns"' 2> /dev/null | sed '/null/d')"; else current_api_time="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/current-time?timezone=${timezone}" 2> /dev/null | grep -o '"current_time_ns":"[^"]*"' | cut -d'"' -f4)"; fi
       if [[ "${current_api_time}" != "$(date +"%Y-%m-%d %H:%M")" ]]; then
         if command -v timedatectl &> /dev/null; then
           ntp_status="$(timedatectl show --property=NTP 2> /dev/null | awk -F '[=]' '{print $2}')"
           if [[ -z "${ntp_status}" ]]; then ntp_status="$(timedatectl status 2> /dev/null | grep -i ntp | cut -d':' -f2 | sed -e 's/ //g')"; fi
           if [[ -z "${ntp_status}" ]]; then ntp_status="$(timedatectl status 2> /dev/null | grep "systemd-timesyncd" | awk -F '[:]' '{print$2}' | sed -e 's/ //g')"; fi
           if [[ "${ntp_status}" == 'yes' ]]; then if "$(which dpkg)" -l systemd-timesyncd 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then timedatectl set-ntp false &>> "${eus_dir}/logs/invalid-time.log"; fi; fi
-          if command -v jq &> /dev/null; then
-            timedatectl set-time "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/current-time?timezone=${timezone}" | jq -r '."current_time"' | sed '/null/d')" &>> "${eus_dir}/logs/invalid-time.log"
+          if [[ -n "$(command -v jq)" ]]; then
+            timedatectl set-time "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/current-time?timezone=${timezone}" 2> /dev/null | jq -r '."current_time"' 2> /dev/null | sed '/null/d')" &>> "${eus_dir}/logs/invalid-time.log"
           else
-            timedatectl set-time "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/current-time?timezone=${timezone}" | grep -o '"current_time":"[^"]*"' | cut -d'"' -f4)" &>> "${eus_dir}/logs/invalid-time.log"
+            timedatectl set-time "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/current-time?timezone=${timezone}" 2> /dev/null | grep -o '"current_time":"[^"]*"' | cut -d'"' -f4)" &>> "${eus_dir}/logs/invalid-time.log"
           fi
           if "$(which dpkg)" -l systemd-timesyncd 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then timedatectl set-ntp true &>> "${eus_dir}/logs/invalid-time.log"; fi
           repository_changes_applied="true"
         elif command -v date &> /dev/null; then
-          if command -v jq &> /dev/null; then
-            date +%Y%m%d -s "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/current-time?timezone=${timezone}" | jq -r '."current_time"' | sed '/null/d' | cut -d' ' -f1)" &>> "${eus_dir}/logs/invalid-time.log"
-            date +%T -s "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/current-time?timezone=${timezone}" | jq -r '."current_time"' | sed '/null/d' | cut -d' ' -f2)" &>> "${eus_dir}/logs/invalid-time.log"
+          if [[ -n "$(command -v jq)" ]]; then
+            date +%Y%m%d -s "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/current-time?timezone=${timezone}" 2> /dev/null | jq -r '."current_time"' 2> /dev/null | sed '/null/d' | cut -d' ' -f1)" &>> "${eus_dir}/logs/invalid-time.log"
+            date +%T -s "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/current-time?timezone=${timezone}" 2> /dev/null | jq -r '."current_time"' 2> /dev/null | sed '/null/d' | cut -d' ' -f2)" &>> "${eus_dir}/logs/invalid-time.log"
           else
-            date +%Y%m%d -s "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/current-time?timezone=${timezone}" | grep -o '"current_time":"[^"]*"' | cut -d'"' -f4 | cut -d' ' -f1)" &>> "${eus_dir}/logs/invalid-time.log"
-            date +%T -s "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/current-time?timezone=${timezone}" | grep -o '"current_time":"[^"]*"' | cut -d'"' -f4 | cut -d' ' -f2)" &>> "${eus_dir}/logs/invalid-time.log"
+            date +%Y%m%d -s "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/current-time?timezone=${timezone}" 2> /dev/null | grep -o '"current_time":"[^"]*"' | cut -d'"' -f4 | cut -d' ' -f1)" &>> "${eus_dir}/logs/invalid-time.log"
+            date +%T -s "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/current-time?timezone=${timezone}" 2> /dev/null | grep -o '"current_time":"[^"]*"' | cut -d'"' -f4 | cut -d' ' -f2)" &>> "${eus_dir}/logs/invalid-time.log"
           fi
           repository_changes_applied="true"
         fi
@@ -2698,7 +2698,7 @@ fqdn_option() {
     fi
   fi
   while read -r line; do
-    if [[ "${manual_server_ip}" == 'true' ]]; then server_ip="$(head -n1 "${eus_dir}/server_ip")"; else server_ip="$(curl "${curl_argument[@]}" "${curl_option}" https://api.glennr.nl/api/geo | jq -r '."address"')"; fi
+    if [[ "${manual_server_ip}" == 'true' ]]; then server_ip="$(head -n1 "${eus_dir}/server_ip")"; else server_ip="$(curl "${curl_argument[@]}" "${curl_option}" https://api.glennr.nl/api/geo 2> /dev/null | jq -r '."address"' 2> /dev/null)"; fi
     echo -e "${WHITE_R}#${RESET} Checking if '${line}' resolves to '${server_ip}'" | tee -a "${eus_dir}/logs/unattended.log"
     domain_record="$(dig +short "${dig_option}" "${line}" "${external_dns_server}" &>> "${eus_dir}/domain_records")"
     if grep -xq "${server_ip}" "${eus_dir}/domain_records"; then domain_record="${server_ip}"; fi
@@ -2868,7 +2868,7 @@ le_resolve() {
   if [[ "${manual_server_ip}" == 'true' ]]; then
     server_ip="$(head -n1 "${eus_dir}/server_ip")"
   else
-    server_ip="$(curl "${curl_argument[@]}" "${curl_option}" https://api.glennr.nl/api/geo | jq -r '."address"')"
+    server_ip="$(curl "${curl_argument[@]}" "${curl_option}" https://api.glennr.nl/api/geo 2> /dev/null | jq -r '."address"' 2> /dev/null)"
   fi
   domain_record="$(dig +short "${dig_option}" "${server_fqdn}" "${external_dns_server}" &>> "${eus_dir}/domain_records")"
   if grep -xq "${server_ip}" "${eus_dir}/domain_records"; then
@@ -5057,7 +5057,7 @@ add_repositories() {
       check_debian_version="\${os_version_number}"
       if echo "\${repo_url}" | grep -ioq "archive"; then check_debian_version="\${os_version_number}-archive"; fi
       if echo "\${repo_url_arguments}" | grep -ioq "security"; then check_debian_version="\${os_version_number}-security"; fi
-      if [[ "\$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/debian-release?version=\${check_debian_version}" | jq -r '.expired')" == 'true' ]]; then if [[ -n "\${signed_by_value_repo_key}" ]]; then signed_by_value_repo_key="[ /etc/apt/keyrings/\${repo_key_name}.gpg trusted=yes ] "; else signed_by_value_repo_key="[ trusted=yes ] "; fi; fi
+      if [[ "\$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/debian-release?version=\${check_debian_version}" 2> /dev/null | jq -r '.expired' 2> /dev/null)" == 'true' ]]; then if [[ -n "\${signed_by_value_repo_key}" ]]; then signed_by_value_repo_key="[ /etc/apt/keyrings/\${repo_key_name}.gpg trusted=yes ] "; else signed_by_value_repo_key="[ trusted=yes ] "; fi; fi
     fi
     echo -e "deb \${signed_by_value_repo_key}\${repo_url}\${repo_url_arguments} \${repo_codename}\${repo_component}" &>> /etc/apt/sources.list.d/glennr-install-script.list
     unset missing_key

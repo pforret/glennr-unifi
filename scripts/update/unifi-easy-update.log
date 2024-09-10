@@ -11,6 +11,14 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 9.1.7
+  
+ - Added support for upgrading MongoDB to version 7.0 for non-AVX amd64 CPU's.
+ - Added support for upgrading to 8.4.62 RC.
+ - Improved error handling when API's are unavailable.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 9.1.6
   
  - Fixed an issue where it could print out errors during script startup.
