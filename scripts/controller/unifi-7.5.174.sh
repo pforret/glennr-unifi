@@ -56,7 +56,7 @@
 ###################################################################################################################################################################################################
 
 # Script                | UniFi Network Easy Installation Script
-# Version               | 7.9.0
+# Version               | 7.9.2
 # Application version   | 7.5.174-e258d1dd8c
 # Debian Repo version   | 7.5.174-22700-1
 # Author                | Glenn Rietveld
@@ -2625,7 +2625,7 @@ attempt_recover_broken_packages() {
       else
         echo -e "${RED}#${RESET} Failed to prevent ${broken_package} from screwing over apt...\\n"
       fi
-    done < <(awk 'tolower($0) ~ /errors were encountered while processing/ {flag=1; next} flag {if (NF > 0) {gsub(/^[ ]+/, "", $0); lower=$0; tolower(lower); if (lower ~ /^[a-z0-9.-]+$/ && !seen[lower]++) {print $0}} else {flag=0}}' "${log_file}" | awk -F: '{print $1}' | sort -u)
+    done < <(awk 'tolower($0) ~ /errors were encountered while processing/ {flag=1; next} flag { if ($0 ~ /^[ \t]+/) { gsub(/^[ \t]+/, "", $0); print $0 } else { flag=0 } }' "${log_file}" | sort -u)
   done < <(grep -slE '^Errors were encountered while processing:' /tmp/EUS/apt/*.log "${eus_dir}"/logs/*.log | sort -u 2>> /dev/null)
   check_dpkg_interrupted
 }
@@ -2687,7 +2687,7 @@ check_unmet_dependencies() {
           echo -e "${RED}#${RESET} Failed to prevent ${breaking_package} from screwing over apt...\\n"
         fi
       done < <(grep "Breaks:" "${log_file}" | sed -E 's/^(.*) : Breaks: ([^ ]+).*/\1\n\2/' | sed 's/^[ \t]*//' | sort | uniq)
-    done < <(grep -slE '^E: Unable to correct problems, you have held broken packages.|^The following packages have unmet dependencies' /tmp/EUS/apt/*.log "${eus_dir}"/*.log | sort -u 2>> /dev/null)
+    done < <(grep -slE '^E: Unable to correct problems, you have held broken packages.|^The following packages have unmet dependencies' /tmp/EUS/apt/*.log "${eus_dir}"/logs/*.log | sort -u 2>> /dev/null)
   fi
 }
 
@@ -3558,7 +3558,7 @@ if ! "$(which dpkg)" -l gnupg 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|
     echo -e "${GREEN}#${RESET} Successfully installed gnupg! \\n" && sleep 2
   fi
 else
-  if dmesg | grep -i gpg | grep -iq segfault; then
+  if dmesg 2> /dev/null | grep -i gpg | grep -iq segfault; then
     gnupg_segfault_packages=("gnupg" "gnupg2" "libc6" "libreadline8" "libreadline-dev" "libslang2" "zlib1g" "libbz2-1.0" "libgcrypt20" "libsqlite3-0" "libassuan0" "libgpg-error0" "libm6" "libpthread-stubs0-dev" "libtinfo6")
     reinstall_gnupg_segfault_packages=()
     for gnupg_segfault_package in "${gnupg_segfault_packages[@]}"; do if "$(which dpkg)" -l "${gnupg_segfault_package}" &> /dev/null; then reinstall_gnupg_segfault_packages+=("${gnupg_segfault_package}"); fi; done
@@ -3719,9 +3719,12 @@ else
     unifi_repo_version="$(grep -i "# Debian repo version" "${script_location}" | head -n 1 | cut -d'|' -f2 | sed 's/ //g')"
   fi
 fi
-first_digit_unifi="$(echo "${unifi_clean}" | cut -d'.' -f1)"
-second_digit_unifi="$(echo "${unifi_clean}" | cut -d'.' -f2)"
-third_digit_unifi="$(echo "${unifi_clean}" | cut -d'.' -f3)"
+get_unifi_version() {
+  first_digit_unifi="$(echo "${unifi_clean}" | cut -d'.' -f1)"
+  second_digit_unifi="$(echo "${unifi_clean}" | cut -d'.' -f2)"
+  third_digit_unifi="$(echo "${unifi_clean}" | cut -d'.' -f3)"
+}
+get_unifi_version
 #
 if [[ -n "$(command -v jq)" && -e "${eus_dir}/db/db.json" ]]; then
   if [[ "$(dpkg-query --showformat='${Version}' --show jq | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
@@ -4654,6 +4657,31 @@ openjdk_java() {
       add_repositories
     fi
   fi
+}
+
+unifi_dependencies_check() {
+  if [[ "${required_java_version}" == "openjdk-8" ]]; then
+    unifi_dependencies_list=( "binutils" "ca-certificates-java" "java-common" "jsvc" "libcommons-daemon-java" )
+  else
+    unifi_dependencies_list=( "binutils" "ca-certificates-java" "java-common" )
+  fi
+  for unifi_dependency in "${unifi_dependencies_list[@]}"; do
+    if ! "$(which dpkg)" -l "${unifi_dependency}" 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+      if [[ "${unifi_dependencies_mesasge}" != 'true' ]]; then header; echo -e "${WHITE_R}#${RESET} Preparing installation of the UniFi Network Application dependencies...\\n"; sleep 2; unifi_dependencies_mesasge="true"; fi
+      echo -e "\\n------- UniFi Dependecy \"${unifi_dependency}\" installation ------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/apt.log"
+      if ! apt-cache search --names-only ^"${unifi_dependency}" | awk '{print $1}' | grep -ioq "${unifi_dependency}"; then
+        get_repo_url
+        if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then
+          repo_component="main universe"
+        elif [[ "${repo_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
+          repo_component="main"
+        fi
+        add_repositories
+      fi
+      required_package="${unifi_dependency}"
+      apt_get_install_package
+    fi
+  done
 }
 
 available_java_packages_check() {
@@ -5871,7 +5899,11 @@ if [[ "${mongo_version_locked}" == '4.4.18' ]] || [[ "${unsupported_database_ver
       done
       if [[ "${unifi_downloaded}" == 'true' ]]; then
         unset unifi_downloaded
+        first_digit_unifi="$(echo "${reinstall_unifi_version}" | cut -d'.' -f1)"
+        second_digit_unifi="$(echo "${reinstall_unifi_version}" | cut -d'.' -f2)"
+        third_digit_unifi="$(echo "${reinstall_unifi_version}" | cut -d'.' -f3)"
         java_install_check
+        unifi_dependencies_check
         unifi_deb_package_modification
         unifi_version="${reinstall_unifi_version}"
         ignore_unifi_package_dependencies
@@ -5880,6 +5912,7 @@ if [[ "${mongo_version_locked}" == '4.4.18' ]] || [[ "${unsupported_database_ver
         # shellcheck disable=SC2086
         if DEBIAN_FRONTEND='noninteractive' "$(which dpkg)" -i ${dpkg_ignore_depends_flag} "${unifi_temp}" &>> "${eus_dir}/logs/mongodb-unsupported-version-change.log"; then
           echo -e "${GREEN}#${RESET} Successfully re-installed UniFi Network Application version ${reinstall_unifi_version}! \\n"
+          get_unifi_version
         else
           abort_reason="Failed to reinstall UniFi Network Application ${reinstall_unifi_version} during the MongoDB Downgrade process."
           abort
@@ -5938,30 +5971,7 @@ fi
 # Java Installation Process
 java_install_check
 java_cleanup_not_required_versions
-
-if [[ "${required_java_version}" == "openjdk-8" ]]; then
-  unifi_dependencies_list=( "binutils" "ca-certificates-java" "java-common" "jsvc" "libcommons-daemon-java" )
-else
-  unifi_dependencies_list=( "binutils" "ca-certificates-java" "java-common" )
-fi
-
-for unifi_dependency in "${unifi_dependencies_list[@]}"; do
-  if ! "$(which dpkg)" -l "${unifi_dependency}" 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
-    if [[ "${unifi_dependencies_mesasge}" != 'true' ]]; then header; echo -e "${WHITE_R}#${RESET} Preparing installation of the UniFi Network Application dependencies...\\n"; sleep 2; unifi_dependencies_mesasge="true"; fi
-    echo -e "\\n------- UniFi Dependecy \"${unifi_dependency}\" installation ------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/apt.log"
-    if ! apt-cache search --names-only ^"${unifi_dependency}" | awk '{print $1}' | grep -ioq "${unifi_dependency}"; then
-      get_repo_url
-      if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then
-        repo_component="main universe"
-      elif [[ "${repo_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
-        repo_component="main"
-      fi
-      add_repositories
-    fi
-    required_package="${unifi_dependency}"
-    apt_get_install_package
-  fi
-done
+unifi_dependencies_check
 
 # Quick workaround for 7.2.91 and older 7.2 versions.
 if [[ "${first_digit_unifi}" == "7" && "${second_digit_unifi}" == "2" && "${third_digit_unifi}" -le "91" ]]; then

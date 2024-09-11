@@ -2,7 +2,7 @@
 
 # UniFi Easy Encrypt script.
 # Script   | UniFi Network Easy Encrypt Script
-# Version  | 3.1.0
+# Version  | 3.1.3
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -1512,7 +1512,7 @@ attempt_recover_broken_packages() {
       else
         echo -e "${RED}#${RESET} Failed to prevent ${broken_package} from screwing over apt...\\n"
       fi
-    done < <(awk 'tolower($0) ~ /errors were encountered while processing/ {flag=1; next} flag {if (NF > 0) {gsub(/^[ ]+/, "", $0); lower=$0; tolower(lower); if (lower ~ /^[a-z0-9.-]+$/ && !seen[lower]++) {print $0}} else {flag=0}}' "${log_file}" | awk -F: '{print $1}' | sort -u)
+    done < <(awk 'tolower($0) ~ /errors were encountered while processing/ {flag=1; next} flag { if ($0 ~ /^[ \t]+/) { gsub(/^[ \t]+/, "", $0); print $0 } else { flag=0 } }' "${log_file}" | sort -u)
   done < <(grep -slE '^Errors were encountered while processing:' /tmp/EUS/apt/*.log "${eus_dir}"/logs/*.log | sort -u 2>> /dev/null)
   check_dpkg_interrupted
 }
@@ -1574,7 +1574,7 @@ check_unmet_dependencies() {
           echo -e "${RED}#${RESET} Failed to prevent ${breaking_package} from screwing over apt...\\n"
         fi
       done < <(grep "Breaks:" "${log_file}" | sed -E 's/^(.*) : Breaks: ([^ ]+).*/\1\n\2/' | sed 's/^[ \t]*//' | sort | uniq)
-    done < <(grep -slE '^E: Unable to correct problems, you have held broken packages.|^The following packages have unmet dependencies' /tmp/EUS/apt/*.log "${eus_dir}"/*.log | sort -u 2>> /dev/null)
+    done < <(grep -slE '^E: Unable to correct problems, you have held broken packages.|^The following packages have unmet dependencies' /tmp/EUS/apt/*.log "${eus_dir}"/logs/*.log | sort -u 2>> /dev/null)
   fi
 }
 
@@ -2341,7 +2341,7 @@ if ! "$(which dpkg)" -l gnupg 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|
     echo -e "${GREEN}#${RESET} Successfully installed gnupg! \\n" && sleep 2
   fi
 else
-  if dmesg | grep -i gpg | grep -iq segfault; then
+  if dmesg 2> /dev/null | grep -i gpg | grep -iq segfault; then
     gnupg_segfault_packages=("gnupg" "gnupg2" "libc6" "libreadline8" "libreadline-dev" "libslang2" "zlib1g" "libbz2-1.0" "libgcrypt20" "libsqlite3-0" "libassuan0" "libgpg-error0" "libm6" "libpthread-stubs0-dev" "libtinfo6")
     reinstall_gnupg_segfault_packages=()
     for gnupg_segfault_package in "${gnupg_segfault_packages[@]}"; do if "$(which dpkg)" -l "${gnupg_segfault_package}" &> /dev/null; then reinstall_gnupg_segfault_packages+=("${gnupg_segfault_package}"); fi; done
@@ -2426,8 +2426,7 @@ if [[ -n "${auto_dns_challenge_provider}" ]]; then
       if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "python3-certbot-dns-${auto_dns_challenge_provider}" &>> "${eus_dir}/logs/required.log"; then
         echo -e "${RED}#${RESET} Failed to install python3-certbot-dns-${auto_dns_challenge_provider} in the first run...\\n"
         if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then
-          if [[ "${repo_codename}" =~ (focal|groovy|hirsute|impish) ]]; then repo_component="main universe"; add_repositories; fi
-          if [[ "${repo_codename}" =~ (jammy|kinetic|lunar|mantic|noble|oracular) ]]; then repo_component="main"; add_repositories; fi
+          if [[ "${repo_codename}" =~ (focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then repo_component="main universe"; add_repositories; fi
           repo_codename_argument="-security"
           repo_component="main universe"
         elif [[ "${repo_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
@@ -2450,8 +2449,7 @@ if [[ -n "${auto_dns_challenge_provider}" ]]; then
       if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install python3-certbot &>> "${eus_dir}/logs/required.log"; then
         echo -e "${RED}#${RESET} Failed to install python3-certbot in the first run...\\n"
         if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then
-          if [[ "${repo_codename}" =~ (focal|groovy|hirsute|impish) ]]; then repo_component="main universe"; add_repositories; fi
-          if [[ "${repo_codename}" =~ (jammy|kinetic|lunar|mantic|noble|oracular) ]]; then repo_component="main"; add_repositories; fi
+          if [[ "${repo_codename}" =~ (focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then repo_component="main universe"; add_repositories; fi
           repo_codename_argument="-security"
           repo_component="main universe"
         elif [[ "${repo_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
@@ -2476,8 +2474,7 @@ if [[ -n "${auto_dns_challenge_provider}" ]]; then
         if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${package}" &>> "${eus_dir}/logs/required.log"; then
           echo -e "${RED}#${RESET} Failed to install ${package} in the first run...\\n"
           if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then
-            if [[ "${repo_codename}" =~ (focal|groovy|hirsute|impish) ]]; then repo_component="main universe"; add_repositories; fi
-            if [[ "${repo_codename}" =~ (jammy|kinetic|lunar|mantic|noble|oracular) ]]; then repo_component="main"; add_repositories; fi
+            if [[ "${repo_codename}" =~ (focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then repo_component="main universe"; add_repositories; fi
             repo_codename_argument="-security"
             repo_component="main universe"
           elif [[ "${repo_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then

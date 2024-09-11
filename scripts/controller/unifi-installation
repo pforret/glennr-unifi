@@ -11,6 +11,20 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 7.9.2
+ 
+ - Fixed an issue where dmesg operation not permitted could be printed when running the script.
+ 
+ ####
+
+ |  UniFi Network Application Installation Script  |  Version 7.9.1
+ 
+ - Improved the unsupported MongoDB version change recovery process.
+ - Improved the APT recovery process.
+ - Improved the unmet dependecy recovery process.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 7.9.0
  
  - Fixed an issue where it would complain that get_unifi_version cannot be found.
