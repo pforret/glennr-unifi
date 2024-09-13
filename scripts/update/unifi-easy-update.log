@@ -11,6 +11,12 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 9.2.0
+  
+ - Added support for upgrading to 8.4.62 Stable/Official.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 9.1.9
   
  - Fixed an issue where dmesg operation not permitted could be printed when running the script.
