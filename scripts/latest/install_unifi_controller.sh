@@ -56,7 +56,7 @@
 ###################################################################################################################################################################################################
 
 # Script                | UniFi Network Easy Installation Script
-# Version               | 7.9.2
+# Version               | 7.9.3
 # Application version   | 8.4.62-i3q2j125cz
 # Debian Repo version   | 8.4.62-26656-1
 # Author                | Glenn Rietveld
@@ -2606,26 +2606,58 @@ check_default_repositories() {
   add_repositories
 }
 
+attempt_recover_broken_packages_removal_question() {
+  if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Do you allow the script to remove the broken packages? (Y/n) ' yes_no; fi
+  case "$yes_no" in
+       [Yy]*|"") attempt_recover_broken_packages_remove="true";;
+       [Nn]*) attempt_recover_broken_packages_remove="false";;
+  esac
+}
+
 attempt_recover_broken_packages() {
   while IFS= read -r log_file; do
     while IFS= read -r broken_package; do
+      broken_package="$(echo "${broken_package}" | xargs)"
+      if ! dpkg -l | awk '{print $2}' | grep -iq "^limacharlie$"; then continue; fi
+      echo -e "\\n------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/attempt-recover-broken-packages.log"
+      echo -e "${WHITE_R}#${RESET} Attempting to recover broken packages..."
       check_dpkg_lock
       if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_downgrade_option[@]}" "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install -f &>> "${eus_dir}/logs/attempt-recover-broken-packages.log"; then
         echo -e "${GREEN}#${RESET} Successfully attempted to recover broken packages! \\n"
       else
         echo -e "${RED}#${RESET} Failed to attempt to recover broken packages...\\n"
+        failed_attempt_recover_broken_packages="true"
+        declare -A vars
+        vars["broken_$broken_package"]="true"
+        broken_package_key="broken_$broken_package"
+      fi
+      check_dpkg_lock
+      if ! dpkg --get-selections | grep -q "^${broken_package}\s*hold$"; then
+        echo -e "${WHITE_R}#${RESET} Attempting to prevent ${broken_package} from screwing over apt..."
+        check_dpkg_lock
+        if echo "${broken_package} hold" | "$(which dpkg)" --set-selections &>> "${eus_dir}/logs/attempt-recover-broken-packages.log"; then
+          echo -e "${GREEN}#${RESET} Successfully prevented ${broken_package} from screwing over apt! \\n"
+        else
+          echo -e "${RED}#${RESET} Failed to prevent ${broken_package} from screwing over apt...\\n"
+        fi
       fi
       force_dpkg_configure="true"
-      check_dpkg_interrupted
-      check_dpkg_lock
-      echo -e "${WHITE_R}#${RESET} Attempting to prevent ${broken_package} from screwing over apt..."
-      if echo "${broken_package} hold" | "$(which dpkg)" --set-selections &>> "${eus_dir}/logs/attempt-recover-broken-packages.log"; then
-        echo -e "${GREEN}#${RESET} Successfully prevented ${broken_package} from screwing over apt! \\n"
-        sed -i "s/Errors were encountered while processing:/Errors were encountered while processing (completed):/g" "${log_file}" 2>> "${eus_dir}/logs/attempt-recover-broken-packages-sed.log"
-      else
-        echo -e "${RED}#${RESET} Failed to prevent ${broken_package} from screwing over apt...\\n"
+      if [[ "${dpkg_interrupted_attempt_recover_broken_check}" != 'true' ]]; then check_dpkg_interrupted; fi
+      if [[ "${attempt_recover_broken_packages_remove}" != 'true' ]]; then attempt_recover_broken_packages_removal_question; fi
+      if [[ "${failed_attempt_recover_broken_packages}" == 'true' && "${vars[$broken_package_key]}" == 'true' && "${attempt_recover_broken_packages_remove}" == 'true' ]] && apt-mark showmanual | grep -ioq "^$broken_package$"; then
+        echo -e "\\n${WHITE_R}#${RESET} Removing the ${broken_package} package so that the files are kept on the system..."
+        check_dpkg_lock
+        if "$(which dpkg)" --remove --force-remove-reinstreq "${broken_package}" &>> "${eus_dir}/logs/attempt-recover-broken-packages.log"; then
+          echo -e "${GREEN}#${RESET} Successfully removed the ${broken_package} package! \\n"
+          unset "${vars[$broken_package_key]}"
+        else
+          echo -e "${RED}#${RESET} Failed to remove the ${broken_package} package...\\n"
+        fi
+        force_dpkg_configure="true"
+        check_dpkg_interrupted
       fi
-    done < <(awk 'tolower($0) ~ /errors were encountered while processing/ {flag=1; next} flag { if ($0 ~ /^[ \t]+/) { gsub(/^[ \t]+/, "", $0); print $0 } else { flag=0 } }' "${log_file}" | sort -u)
+    done < <(awk 'tolower($0) ~ /errors were encountered while processing/ {flag=1; next} flag { if ($0 ~ /^[ \t]+/) { gsub(/^[ \t]+/, "", $0); print $0 } else { flag=0 } }' "${log_file}" | sort -u | tr -d '\r')
+    sed -i "s/Errors were encountered while processing:/Errors were encountered while processing (completed):/g" "${log_file}" 2>> "${eus_dir}/logs/attempt-recover-broken-packages-sed.log"
   done < <(grep -slE '^Errors were encountered while processing:' /tmp/EUS/apt/*.log "${eus_dir}"/logs/*.log | sort -u 2>> /dev/null)
   check_dpkg_interrupted
 }
@@ -2693,11 +2725,14 @@ check_unmet_dependencies() {
 
 check_dpkg_interrupted() {
   if [[ "${force_dpkg_configure}" == 'true' ]] || [[ -e "/var/lib/dpkg/info/*.status" ]] || tail -n5 "${eus_dir}/logs/"* | grep -iq "you must manually run 'sudo dpkg --configure -a' to correct the problem\\|you must manually run 'dpkg --configure -a' to correct the problem"; then
-    echo -e "${WHITE_R}#${RESET} Looks like dpkg was interrupted... running \"dpkg --configure -a\"... \\n" | tee -a "${eus_dir}/logs/dpkg-interrupted.log"
+    echo -e "\\n------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/dpkg-interrupted.log"
+    echo -e "${WHITE_R}#${RESET} Looks like dpkg was interrupted... running \"dpkg --configure -a\"..." | tee -a "${eus_dir}/logs/dpkg-interrupted.log"
     if DEBIAN_FRONTEND=noninteractive "$(which dpkg)" --configure -a &>> "${eus_dir}/logs/dpkg-interrupted.log"; then
       echo -e "${GREEN}#${RESET} Successfully ran \"dpkg --configure -a\"! \\n"
+      unset failed_attempt_recover_broken_packages
     else
       echo -e "${RED}#${RESET} Failed to run \"dpkg --configure -a\"...\\n"
+      if [[ "${failed_attempt_recover_broken_packages}" == 'true' ]]; then dpkg_interrupted_attempt_recover_broken_check="true"; attempt_recover_broken_packages; unset failed_attempt_recover_broken_packages; unset dpkg_interrupted_attempt_recover_broken_check; fi
     fi
     while read -r log_file; do
       sed -i 's/--configure -a/--configure -a (completed)/g' "${log_file}" &> /dev/null
@@ -3310,10 +3345,12 @@ apt_get_install_package() {
     if [[ "${PIPESTATUS[0]}" -eq "0" ]]; then
       echo -e "${GREEN}#${RESET} Successfully ${apt_get_install_package_variable_2} ${required_package}! \\n"; sleep 2
     else
+      echo -e "${RED}#${RESET} Failed to ${apt_get_install_package_variable} ${required_package}...\\n"
       check_unmet_dependencies
       broken_packages_check
       attempt_recover_broken_packages
       add_apt_option_no_install_recommends="true"; get_apt_options
+      echo -e "${WHITE_R}#${RESET} Trying to ${apt_get_install_package_variable} ${required_package}..."
       if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${required_package}" 2>&1 | tee -a "${eus_dir}/logs/apt.log" > /tmp/EUS/apt/apt.log; then
         if [[ "${PIPESTATUS[0]}" -eq "0" ]]; then
           echo -e "${GREEN}#${RESET} Successfully ${apt_get_install_package_variable_2} ${required_package}! \\n"; sleep 2
@@ -5245,11 +5282,12 @@ mongodb_installation() {
           if [[ "${os_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish) ]]; then
             repo_codename="jammy"
             get_repo_url
+            repo_component="universe"
           elif [[ "${os_codename}" =~ (jessie|stretch|buster|bullseye) ]]; then
             repo_codename="bookworm"
             get_repo_url
+            repo_component="main contrib"
           fi
-          repo_component="universe"
           add_repositories
           run_apt_get_update
         fi
@@ -5599,6 +5637,9 @@ if [[ "${mongodb_installed}" != 'true' ]]; then
         mongo_version_max="70"
         mongo_version_max_with_dot="7.0"
         if [[ "${broken_glennr_compiled_mongod}" == 'true' ]]; then
+          add_mongod_70_repo="true"
+          glennr_compiled_mongod="true"
+        elif ! (lscpu 2>/dev/null | grep -iq "avx") || ! grep -iq "avx" /proc/cpuinfo; then
           add_mongod_70_repo="true"
           glennr_compiled_mongod="true"
         fi

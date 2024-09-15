@@ -2,7 +2,7 @@
 
 # UniFi Network Application Easy Update Script.
 # Script   | UniFi Network Easy Update Script
-# Version  | 9.2.0
+# Version  | 9.2.1
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -1599,26 +1599,58 @@ check_default_repositories() {
   add_repositories
 }
 
+attempt_recover_broken_packages_removal_question() {
+  if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Do you allow the script to remove the broken packages? (Y/n) ' yes_no; fi
+  case "$yes_no" in
+       [Yy]*|"") attempt_recover_broken_packages_remove="true";;
+       [Nn]*) attempt_recover_broken_packages_remove="false";;
+  esac
+}
+
 attempt_recover_broken_packages() {
   while IFS= read -r log_file; do
     while IFS= read -r broken_package; do
+      broken_package="$(echo "${broken_package}" | xargs)"
+      if ! dpkg -l | awk '{print $2}' | grep -iq "^limacharlie$"; then continue; fi
+      echo -e "\\n------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/attempt-recover-broken-packages.log"
+      echo -e "${WHITE_R}#${RESET} Attempting to recover broken packages..."
       check_dpkg_lock
       if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_downgrade_option[@]}" "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install -f &>> "${eus_dir}/logs/attempt-recover-broken-packages.log"; then
         echo -e "${GREEN}#${RESET} Successfully attempted to recover broken packages! \\n"
       else
         echo -e "${RED}#${RESET} Failed to attempt to recover broken packages...\\n"
+        failed_attempt_recover_broken_packages="true"
+        declare -A vars
+        vars["broken_$broken_package"]="true"
+        broken_package_key="broken_$broken_package"
+      fi
+      check_dpkg_lock
+      if ! dpkg --get-selections | grep -q "^${broken_package}\s*hold$"; then
+        echo -e "${WHITE_R}#${RESET} Attempting to prevent ${broken_package} from screwing over apt..."
+        check_dpkg_lock
+        if echo "${broken_package} hold" | "$(which dpkg)" --set-selections &>> "${eus_dir}/logs/attempt-recover-broken-packages.log"; then
+          echo -e "${GREEN}#${RESET} Successfully prevented ${broken_package} from screwing over apt! \\n"
+        else
+          echo -e "${RED}#${RESET} Failed to prevent ${broken_package} from screwing over apt...\\n"
+        fi
       fi
       force_dpkg_configure="true"
-      check_dpkg_interrupted
-      check_dpkg_lock
-      echo -e "${WHITE_R}#${RESET} Attempting to prevent ${broken_package} from screwing over apt..."
-      if echo "${broken_package} hold" | "$(which dpkg)" --set-selections &>> "${eus_dir}/logs/attempt-recover-broken-packages.log"; then
-        echo -e "${GREEN}#${RESET} Successfully prevented ${broken_package} from screwing over apt! \\n"
-        sed -i "s/Errors were encountered while processing:/Errors were encountered while processing (completed):/g" "${log_file}" 2>> "${eus_dir}/logs/attempt-recover-broken-packages-sed.log"
-      else
-        echo -e "${RED}#${RESET} Failed to prevent ${broken_package} from screwing over apt...\\n"
+      if [[ "${dpkg_interrupted_attempt_recover_broken_check}" != 'true' ]]; then check_dpkg_interrupted; fi
+      if [[ "${attempt_recover_broken_packages_remove}" != 'true' ]]; then attempt_recover_broken_packages_removal_question; fi
+      if [[ "${failed_attempt_recover_broken_packages}" == 'true' && "${vars[$broken_package_key]}" == 'true' && "${attempt_recover_broken_packages_remove}" == 'true' ]] && apt-mark showmanual | grep -ioq "^$broken_package$"; then
+        echo -e "\\n${WHITE_R}#${RESET} Removing the ${broken_package} package so that the files are kept on the system..."
+        check_dpkg_lock
+        if "$(which dpkg)" --remove --force-remove-reinstreq "${broken_package}" &>> "${eus_dir}/logs/attempt-recover-broken-packages.log"; then
+          echo -e "${GREEN}#${RESET} Successfully removed the ${broken_package} package! \\n"
+          unset "${vars[$broken_package_key]}"
+        else
+          echo -e "${RED}#${RESET} Failed to remove the ${broken_package} package...\\n"
+        fi
+        force_dpkg_configure="true"
+        check_dpkg_interrupted
       fi
-    done < <(awk 'tolower($0) ~ /errors were encountered while processing/ {flag=1; next} flag { if ($0 ~ /^[ \t]+/) { gsub(/^[ \t]+/, "", $0); print $0 } else { flag=0 } }' "${log_file}" | sort -u)
+    done < <(awk 'tolower($0) ~ /errors were encountered while processing/ {flag=1; next} flag { if ($0 ~ /^[ \t]+/) { gsub(/^[ \t]+/, "", $0); print $0 } else { flag=0 } }' "${log_file}" | sort -u | tr -d '\r')
+    sed -i "s/Errors were encountered while processing:/Errors were encountered while processing (completed):/g" "${log_file}" 2>> "${eus_dir}/logs/attempt-recover-broken-packages-sed.log"
   done < <(grep -slE '^Errors were encountered while processing:' /tmp/EUS/apt/*.log "${eus_dir}"/logs/*.log | sort -u 2>> /dev/null)
   check_dpkg_interrupted
 }
@@ -1686,11 +1718,14 @@ check_unmet_dependencies() {
 
 check_dpkg_interrupted() {
   if [[ "${force_dpkg_configure}" == 'true' ]] || [[ -e "/var/lib/dpkg/info/*.status" ]] || tail -n5 "${eus_dir}/logs/"* | grep -iq "you must manually run 'sudo dpkg --configure -a' to correct the problem\\|you must manually run 'dpkg --configure -a' to correct the problem"; then
-    echo -e "${WHITE_R}#${RESET} Looks like dpkg was interrupted... running \"dpkg --configure -a\"... \\n" | tee -a "${eus_dir}/logs/dpkg-interrupted.log"
+    echo -e "\\n------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/dpkg-interrupted.log"
+    echo -e "${WHITE_R}#${RESET} Looks like dpkg was interrupted... running \"dpkg --configure -a\"..." | tee -a "${eus_dir}/logs/dpkg-interrupted.log"
     if DEBIAN_FRONTEND=noninteractive "$(which dpkg)" --configure -a &>> "${eus_dir}/logs/dpkg-interrupted.log"; then
       echo -e "${GREEN}#${RESET} Successfully ran \"dpkg --configure -a\"! \\n"
+      unset failed_attempt_recover_broken_packages
     else
       echo -e "${RED}#${RESET} Failed to run \"dpkg --configure -a\"...\\n"
+      if [[ "${failed_attempt_recover_broken_packages}" == 'true' ]]; then dpkg_interrupted_attempt_recover_broken_check="true"; attempt_recover_broken_packages; unset failed_attempt_recover_broken_packages; unset dpkg_interrupted_attempt_recover_broken_check; fi
     fi
     while read -r log_file; do
       sed -i 's/--configure -a/--configure -a (completed)/g' "${log_file}" &> /dev/null
@@ -2765,10 +2800,12 @@ apt_get_install_package() {
     if [[ "${PIPESTATUS[0]}" -eq "0" ]]; then
       echo -e "${GREEN}#${RESET} Successfully ${apt_get_install_package_variable_2} ${required_package}! \\n"; sleep 2
     else
+      echo -e "${RED}#${RESET} Failed to ${apt_get_install_package_variable} ${required_package}...\\n"
       check_unmet_dependencies
       broken_packages_check
       attempt_recover_broken_packages
       add_apt_option_no_install_recommends="true"; get_apt_options
+      echo -e "${WHITE_R}#${RESET} Trying to ${apt_get_install_package_variable} ${required_package}..."
       if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${required_package}" 2>&1 | tee -a "${eus_dir}/logs/apt.log" > /tmp/EUS/apt/apt.log; then
         if [[ "${PIPESTATUS[0]}" -eq "0" ]]; then
           echo -e "${GREEN}#${RESET} Successfully ${apt_get_install_package_variable_2} ${required_package}! \\n"; sleep 2
@@ -3416,6 +3453,216 @@ unifi_deb_package_modification() {
       unifi_temp="${gr_unifi_temp}"
     fi
   fi
+}
+
+###################################################################################################################################################################################################
+#                                                                                                                                                                                                 #
+#                                                                                    Network Application Tasks                                                                                    #
+#                                                                                                                                                                                                 #
+###################################################################################################################################################################################################
+
+stop_network_application() {
+  echo -e "${WHITE_R}#${RESET} Stopping the Network Application..."
+  if [[ "${limited_functionality}" == 'true' ]]; then
+    if service unifi stop &>> "${eus_dir}/logs/mongodb-repair-task.log"; then echo -e "${GREEN}#${RESET} Successfully stopped the Network Application! \\n"; else echo -e "${RED}#${RESET} Failed to stop the Network Application... \\n"; fi
+  else
+    if systemctl stop unifi &>> "${eus_dir}/logs/mongodb-repair-task.log"; then echo -e "${GREEN}#${RESET} Successfully stopped the Network Application! \\n"; else echo -e "${RED}#${RESET} Failed to stop the Network Application... \\n"; fi
+  fi
+  if [[ -n "$(pgrep [m]ongod)" ]]; then
+    echo -e "${GREEN}#${RESET} There are still some services using MongoDB...\\n"
+    if kill "$(pgrep [m]ongod)" &> "${eus_dir}/logs/mongodb-repair-task.log"; then
+      echo -e "${GREEN}#${RESET} Successfully killed the MongoDB process! \\n"
+    else
+      echo -e "${RED}#${RESET} Failed to kill MongoDB process! \\n"
+    fi
+  fi
+}
+
+start_network_application() {
+  echo -e "${WHITE_R}#${RESET} Starting the Network Application..."
+  if [[ "${limited_functionality}" == 'true' ]]; then
+    if service unifi stop &>> "${eus_dir}/logs/mongodb-repair-task.log"; then echo -e "${GREEN}#${RESET} Successfully started the Network Application! \\n"; else echo -e "${RED}#${RESET} Failed to start the Network Application... \\n"; fi
+  else
+    if systemctl stop unifi &>> "${eus_dir}/logs/mongodb-repair-task.log"; then echo -e "${GREEN}#${RESET} Successfully started the Network Application! \\n"; else echo -e "${RED}#${RESET} Failed to start the Network Application... \\n"; fi
+  fi
+}
+
+###################################################################################################################################################################################################
+#                                                                                                                                                                                                 #
+#                                                                                          MongoDB Tasks                                                                                          #
+#                                                                                                                                                                                                 #
+###################################################################################################################################################################################################
+
+# Removes unsupported options
+mongodb_upgrade_system_propties() {
+  unifi_data_directory="$(readlink -f /usr/lib/unifi/data)"
+  system_properties="${unifi_data_directory}/system.properties"
+  cp "${unifi_data_directory}/system.properties" "${unifi_data_directory}/system.properties.mongodb-upgrade-${mongodb_upgrade_date}" &>> "${eus_dir}/logs/system-properties.log"
+  values_to_clear=( "--journalOptions" "--nssize" "--noprealloc" "--quota" "--quotaFiles" "--smallfiles" "--repairpath" "--replIndexPrefetch" )
+  while IFS= read -r sp_line; do
+    if [[ "${sp_line}" == unifi.db.extraargs=* ]]; then
+      sp_args="${sp_line#unifi.db.extraargs=}"
+      # shellcheck disable=SC2001
+      for value in "${values_to_clear[@]}"; do sp_args="$(echo "${sp_args}" | sed "s/${value}[^ ]*//g")"; done
+      # shellcheck disable=SC2001
+      sp_args="$(echo "${sp_args}" | sed 's/--[a-zA-Z]*=[^ ]*//g')"
+      sp_args="$(echo "${sp_args}" | xargs)"
+      if [[ -z "${sp_args}" ]]; then continue; fi
+      # shellcheck disable=SC2001
+      sp_args="$(echo "${sp_args}" | sed 's/=/\\=/g')"
+      sp_line="unifi.db.extraargs=${sp_args}"
+    fi
+    echo "${sp_line}"
+  done < "${system_properties}" > "${system_properties}.tmp"
+  mv "${system_properties}.tmp" "${system_properties}" &>> "${eus_dir}/logs/system-properties.log"
+  sed -i '/^#.*unifi.db.nojournal/! s/^unifi.db.nojournal/# &/' "${system_properties}" &>> "${eus_dir}/logs/system-properties.log"
+  if [[ -e "${unifi_data_directory}/system.properties.mongodb-upgrade-${mongodb_upgrade_date}" ]]; then
+    if [[ "$(md5sum "${unifi_data_directory}/system.properties.mongodb-upgrade-${mongodb_upgrade_date}" | awk '{print $1}')" != "$(md5sum "${system_properties}" | awk '{print $1}')" ]]; then
+      echo -e "$(date +%F-%R) | system.properties file was adjusted!" &>> "${eus_dir}/logs/system-properties.log"
+      if [[ "$(command -v diff)" ]]; then echo -e "$(date +%F-%R) | difference between \"${unifi_data_directory}/system.properties.mongodb-upgrade-${mongodb_upgrade_date}\" and \"${system_properties}\"..." &>> "${eus_dir}/logs/system-properties.log"; diff "${unifi_data_directory}/system.properties.mongodb-upgrade-${mongodb_upgrade_date}" "${system_properties}" &>> "${eus_dir}/logs/system-properties.log"; fi
+    fi
+  fi
+  chown -R "${unifi_database_location_user}":"${unifi_database_location_group}" "${system_properties}" "${unifi_data_directory}/system.properties.mongodb-upgrade-${mongodb_upgrade_date}" &>> "${eus_dir}/logs/system-properties.log"
+}
+
+shutdown_mongodb() {
+  echo -e "${WHITE_R}#${RESET} Shutting down the UniFi Network Application database..."
+  if "$(which mongod)" --dbpath "${unifi_database_location}" --port 27117 --shutdown --verbose &> "${eus_dir}/logs/run-mongod-shutdown.log"; then
+    echo -e "${GREEN}#${RESET} Successfully shutdown the UniFi Network Application database! \\n"
+  else
+    echo -e "${RED}#${RESET} Failed to shutdown the UniFi Network Application database... Trying to kill it...\\n"
+    if ps -p "${eus_mongodb_process}" > /dev/null; then
+      if kill -9 "${eus_mongodb_process}" &> "${eus_dir}/logs/run-mongod-pid-kill.log"; then
+        echo -e "${GREEN}#${RESET} Successfully killed PID ${eus_mongodb_process}! \\n"
+      else
+        abort_reason="Failed to kill PID ${eus_mongodb_process}."
+        abort
+      fi
+    else
+      echo -e "${RED}#${RESET} PID ${eus_mongodb_process} does not exist...\\n"
+    fi
+  fi
+}
+
+start_unifi_database() {
+  current_unifi_database_pid="$(pgrep -f "mongo.pid|mongod.pid")"
+  current_unifi_database_pid_stop_attempt="0"
+  current_unifi_database_pid_stop_attempt_round="0"
+  if [[ -n "${current_unifi_database_pid}" ]]; then
+    while [[ -n "$(ps -p "${current_unifi_database_pid}" -o pid=)" ]]; do
+      if [[ "${current_unifi_database_pid_message}" != 'true' ]]; then current_unifi_database_pid_message="true"; echo -e "${YELLOW}#${RESET} Another process is already using the UniFi Network Application database...\\n${YELLOW}#${RESET} Attempting to stop the other process..."; fi
+      if [[ "${current_unifi_database_pid_stop_attempt}" == "0" ]]; then systemctl stop unifi &>> "${eus_dir}/logs/shutting-down-unifi-database.log"; sleep 10; fi
+      if [[ "${current_unifi_database_pid_stop_attempt}" == "1" ]]; then "$(which mongod)" --dbpath "${unifi_database_location}" --port 27117 --shutdown 2>&1 | tee -a "${eus_dir}/logs/already-running-mongod-shutdown.log" > "${eus_dir}/logs/shutting-down-unifi-database.log"; sleep 10; fi
+      ((current_unifi_database_pid_stop_attempt=current_unifi_database_pid_stop_attempt+1))
+      ((current_unifi_database_pid_stop_attempt_round=current_unifi_database_pid_stop_attempt_round+1))
+      if [[ "${current_unifi_database_pid_stop_attempt}" == "1" ]]; then current_unifi_database_pid_stop_attempt="0"; fi
+      if [[ "${current_unifi_database_pid_stop_attempt_round}" -ge "10" ]]; then abort_reason="Unable to shutdown the UniFi Network database used by another process... Please reach out to Glenn R."; abort; fi
+    done
+    echo -e "${GREEN}#${RESET} Successfully stopped the process that was using the UniFi Network Application database! \\n"
+    unset current_unifi_database_pid
+    unset current_unifi_database_pid_message
+  fi
+  start_unifi_database_attempts="0"
+  if [[ "${start_unifi_database_attempts}" -ge '1' ]]; then
+    echo -e "${WHITE_R}#${RESET} Attempting to start the UniFi Network Application database..."
+  else
+    echo -e "${WHITE_R}#${RESET} Starting the UniFi Network Application database..."
+  fi
+  if su -l "${unifi_database_location_user}" -s /bin/bash -c "$(which mongod) --dbpath '${unifi_database_location}' --port 27117 --bind_ip 127.0.0.1 --logpath '${unifi_logs_location}/eus-run-mongod-${start_unifi_database_task}.log' --logappend 2>&1 &" &>> "${eus_dir}/logs/starting-unifi-database.log"; then
+  #if sudo -u unifi "$(which mongod)" --dbpath "${unifi_database_location}" --port 27117 --bind_ip 127.0.0.1 --logpath "${unifi_logs_location}/eus-run-mongod-import.log" --logappend & &>/dev/null; then
+    sleep 6
+    mongo_wait_initilize="0"
+    until "${mongocommand}" --port 27117 --eval "print(\"waited for connection\")" &>> "${eus_dir}/logs/mongodb-initialize-waiting.log"; do
+      if [[ -e "${unifi_logs_location}/eus-run-mongod-${start_unifi_database_task}.log" ]]; then if tail -n10 "${unifi_logs_location}/eus-run-mongod-${start_unifi_database_task}.log" | grep -ioq "address already in use"; then break; fi; fi
+      ((mongo_wait_initilize=mongo_wait_initilize+1))
+      echo -ne "\\r${YELLOW}#${RESET} Waiting for MongoDB to initialize... ${mongo_wait_initilize}/20"
+      sleep 10
+      if [[ "${mongo_wait_initilize}" -ge '20' ]]; then abort_reason="MongoDB did not respond within the set time frame... Please reach out to Glenn R."; if [[ "${start_unifi_database_task}" == 'import' ]]; then unifi_database_move_sucess="true"; mongodb_upgrade_import_failure="true"; shutdown_mongodb; fi; abort; fi
+    done
+    if [[ "${mongo_wait_initilize}" -gt '0' ]]; then echo -e ""; fi
+    echo -e "${GREEN}#${RESET} Successfully started the UniFi Network Application database! \\n"
+    sleep 3
+    while read -r pid; do
+      if ps -fp "${pid}" | grep -iq mongo; then
+        eus_mongodb_process="${pid}"
+      fi
+    done < <(ps aux | awk '{print$1,$2}' | grep -i "${unifi_database_location_user}" | awk '{print$2}')
+  else
+    echo -e "${RED}#${RESET} Failed to start the UniFi Network Application database... \\n"
+  fi
+  if [[ -z "${eus_mongodb_process}" ]]; then
+    ((start_unifi_database_attempts=start_unifi_database_attempts+1))
+    if [[ "${start_unifi_database_attempts}" -ge "2" ]]; then
+      abort_reason="variable start_unifi_database_attempts is great than 2 (${start_unifi_database_attempts})"
+      abort_function_skip_reason="true"
+      abort
+    else
+      start_unifi_database
+    fi
+  fi
+}
+
+repair_unifi_database() {
+  echo -e "${WHITE_R}#${RESET} Attempting to repair the UniFi Network Application database..."
+  if [[ "${mongodb_upgrade_started_success_value}" == 'true' ]]; then shutdown_mongodb; else stop_network_application; fi
+  repair_unifi_database_journal="$(find "${unifi_database_location}" -name "journal" -type d | head -n1)"
+  if [[ -d "${repair_unifi_database_journal}" && -n "${repair_unifi_database_journal}" ]]; then
+    echo -e "${WHITE_R}#${RESET} Moving the database journal files to \"${repair_unifi_database_journal}-$(date +%Y%m%d_%H%M_%S%N)\"..."
+    if mv -vi "${repair_unifi_database_journal}" "${repair_unifi_database_journal}-$(date +%Y%m%d_%H%M_%S%N)" &>> "${eus_dir}/logs/unifi-database-repair-move.log"; then
+      echo -e "${GREEN}#${RESET} Successfully moved the database journal files to \"${repair_unifi_database_journal}-$(date +%Y%m%d_%H%M_%S%N)\"! \\n"
+    else
+      echo -e "${GREEN}#${RESET} Failed to move the database journal files to \"${repair_unifi_database_journal}-$(date +%Y%m%d_%H%M_%S%N)\"...\\n"
+    fi
+  fi
+  echo -e "${WHITE_R}#${RESET} Repairing the UniFi Network Application database..."
+  if "$(which mongod)" --dbpath "${unifi_database_location}" --logpath "${eus_dir}/logs/unifi-database-repair.log" --repair &>> "${eus_dir}/logs/unifi-database-repair-command.log"; then
+    echo -e "${GREEN}#${RESET} Successfully repaired the UniFi Network Application database! \\n"
+  else
+    echo -e "${GREEN}#${RESET} Failed to repair the UniFi Network Application database...\\n"
+  fi
+  chown -R "${unifi_database_location_user}":"${unifi_database_location_group}" "${unifi_database_location}" &> /dev/null
+  chown -R "${unifi_database_location_user}":"${unifi_database_location_group}" "${unifi_logs_location}" &> /dev/null
+  sleep 3
+  if [[ "${mongodb_upgrade_started_success_value}" == 'true' ]]; then start_unifi_database; else start_network_application; fi
+}
+
+mongodb_upgrade_space_check() {
+  mongodb_upgrade_method="regular"
+  free_space_kilobyte="$(df -k "${eus_dir}/" | awk '{print $4}' | tail -n1)"
+  unifi_database_size_kilobyte="$(du -s "${unifi_database_location}" | awk '{print $1}')"
+  if [[ "${free_space_kilobyte}" -lt "$((unifi_database_size_kilobyte*10/100 + unifi_database_size_kilobyte + unifi_database_size_kilobyte))" ]]; then
+    if [[ "${unifi_database_location}" != "/usr/lib/unifi/data/db" ]] && [[ "${unifi_database_location}" != "/var/lib/unifi/db" ]]; then
+      unifi_db_eus_dir="$(dirname "${unifi_database_location}")"
+      free_space_kilobyte="$(df -k "${unifi_db_eus_dir}/" | awk '{print $4}' | tail -n1)"
+      unifi_database_size_kilobyte="$(du -s "${unifi_database_location}" | awk '{print $1}')"
+    fi
+    if [[ "${free_space_kilobyte}" -lt "$((unifi_database_size_kilobyte*10/100 + unifi_database_size_kilobyte + unifi_database_size_kilobyte))" ]]; then
+      header_red
+      echo -e "${WHITE_R}#${RESET} Your UniFi Network Application database is $(du -sh "${unifi_database_location}" | awk '{print $1}') in size and you have $(df -H "${eus_dir}/" | awk '{print $4}' | tail -n1) of available space..."
+      echo -e "${WHITE_R}#${RESET} The MongoDB Upgrade might fail due to not having enough space to export/import the database...\\n"
+      if [[ "$(find "$(readlink -f /usr/lib/unifi/data/backup/autobackup/)" -maxdepth 1 -type f -name "*.unf" | wc -l)" -gt '5' ]] && [[ "${cleanup_backup_files_during_mongodb_upgrade_complete}" != 'true' ]]; then
+        cleanup_backup_files_during_mongodb_upgrade="true"
+        cleanup_backup_files_dir="$(readlink -f /usr/lib/unifi/data/backup/autobackup/)"
+        cleanup_backup_files
+        if [[ "${cleanup_backup_files_during_mongodb_upgrade_complete}" == 'true' ]]; then mongodb_upgrade_space_check; return; fi
+      fi
+      echo -e "${WHITE_R}#${RESET} How would you like to proceed with the MongoDB upgrade process?\\n"
+      echo -e "\\n${WHITE_R}---${RESET}\\n"
+      echo -e " [   ${WHITE_R}1 ${RESET}   ]  |  Regular method, with a higher chance of failure due to low disk space."
+      echo -e " [   ${WHITE_R}2 ${RESET}   ]  |  No statistics method, with a lower chance of failure."
+      echo -e " [   ${WHITE_R}3 ${RESET}   ]  |  I want to free up disk space before attempting again."
+      echo -e "\\n"
+      read -rp $'Your choice | \033[39m' choice
+      case "$choice" in
+         1) migrate_unifi_database_without_stats="false";;
+         2) migrate_unifi_database_without_stats="true"; mongodb_upgrade_method="no statistics"; migrate_unifi_database_without_stats_message_1=", without statistics";;
+         3) echo -e "${YELLOW}#${RESET} OK... Please free up disk space before running the MongoDB Upgrade again..."; cancel_script;;
+	     *) header_red; echo -e "${WHITE_R}#${RESET} Option ${choice} is not a valid..."; sleep 3; mongodb_upgrade_space_check;;
+      esac
+    fi
+  fi
+  jq '.scripts["'"$script_name"'"].tasks += {"mongodb-upgrade ('"${mongodb_upgrade_date}"')": [.scripts["'"$script_name"'"].tasks["mongodb-upgrade ('"${mongodb_upgrade_date}"')"][0] + {"method":"'"${mongodb_upgrade_method}"'","free disk space":"'"${free_space_kilobyte}"'","database size":"'"${unifi_database_size_kilobyte}"'","unifi_db_eus_dir":"'"${unifi_db_eus_dir}"'"}]}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+  eus_database_move
 }
 
 ###################################################################################################################################################################################################
@@ -7362,178 +7609,6 @@ custom_url_install() {
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
-# Removes unsupported options
-mongodb_upgrade_system_propties() {
-  unifi_data_directory="$(readlink -f /usr/lib/unifi/data)"
-  system_properties="${unifi_data_directory}/system.properties"
-  cp "${unifi_data_directory}/system.properties" "${unifi_data_directory}/system.properties.mongodb-upgrade-${mongodb_upgrade_date}" &>> "${eus_dir}/logs/system-properties.log"
-  values_to_clear=( "--journalOptions" "--nssize" "--noprealloc" "--quota" "--quotaFiles" "--smallfiles" "--repairpath" "--replIndexPrefetch" )
-  while IFS= read -r sp_line; do
-    if [[ "${sp_line}" == unifi.db.extraargs=* ]]; then
-      sp_args="${sp_line#unifi.db.extraargs=}"
-      # shellcheck disable=SC2001
-      for value in "${values_to_clear[@]}"; do sp_args="$(echo "${sp_args}" | sed "s/${value}[^ ]*//g")"; done
-      # shellcheck disable=SC2001
-      sp_args="$(echo "${sp_args}" | sed 's/--[a-zA-Z]*=[^ ]*//g')"
-      sp_args="$(echo "${sp_args}" | xargs)"
-      if [[ -z "${sp_args}" ]]; then continue; fi
-      # shellcheck disable=SC2001
-      sp_args="$(echo "${sp_args}" | sed 's/=/\\=/g')"
-      sp_line="unifi.db.extraargs=${sp_args}"
-    fi
-    echo "${sp_line}"
-  done < "${system_properties}" > "${system_properties}.tmp"
-  mv "${system_properties}.tmp" "${system_properties}" &>> "${eus_dir}/logs/system-properties.log"
-  sed -i '/^#.*unifi.db.nojournal/! s/^unifi.db.nojournal/# &/' "${system_properties}" &>> "${eus_dir}/logs/system-properties.log"
-  if [[ -e "${unifi_data_directory}/system.properties.mongodb-upgrade-${mongodb_upgrade_date}" ]]; then
-    if [[ "$(md5sum "${unifi_data_directory}/system.properties.mongodb-upgrade-${mongodb_upgrade_date}" | awk '{print $1}')" != "$(md5sum "${system_properties}" | awk '{print $1}')" ]]; then
-      echo -e "$(date +%F-%R) | system.properties file was adjusted!" &>> "${eus_dir}/logs/system-properties.log"
-      if [[ "$(command -v diff)" ]]; then echo -e "$(date +%F-%R) | difference between \"${unifi_data_directory}/system.properties.mongodb-upgrade-${mongodb_upgrade_date}\" and \"${system_properties}\"..." &>> "${eus_dir}/logs/system-properties.log"; diff "${unifi_data_directory}/system.properties.mongodb-upgrade-${mongodb_upgrade_date}" "${system_properties}" &>> "${eus_dir}/logs/system-properties.log"; fi
-    fi
-  fi
-  chown -R "${unifi_database_location_user}":"${unifi_database_location_group}" "${system_properties}" "${unifi_data_directory}/system.properties.mongodb-upgrade-${mongodb_upgrade_date}" &>> "${eus_dir}/logs/system-properties.log"
-}
-
-shutdown_mongodb() {
-  echo -e "${WHITE_R}#${RESET} Shutting down the UniFi Network Application database..."
-  if "$(which mongod)" --dbpath "${unifi_database_location}" --port 27117 --shutdown --verbose &> "${eus_dir}/logs/run-mongod-shutdown.log"; then
-    echo -e "${GREEN}#${RESET} Successfully shutdown the UniFi Network Application database! \\n"
-  else
-    echo -e "${RED}#${RESET} Failed to shutdown the UniFi Network Application database... Trying to kill it...\\n"
-    if ps -p "${eus_mongodb_process}" > /dev/null; then
-      if kill -9 "${eus_mongodb_process}" &> "${eus_dir}/logs/run-mongod-pid-kill.log"; then
-        echo -e "${GREEN}#${RESET} Successfully killed PID ${eus_mongodb_process}! \\n"
-      else
-        abort_reason="Failed to kill PID ${eus_mongodb_process}."
-        abort
-      fi
-    else
-      echo -e "${RED}#${RESET} PID ${eus_mongodb_process} does not exist...\\n"
-    fi
-  fi
-}
-
-start_unifi_database() {
-  current_unifi_database_pid="$(pgrep -f "mongo.pid|mongod.pid")"
-  current_unifi_database_pid_stop_attempt="0"
-  current_unifi_database_pid_stop_attempt_round="0"
-  if [[ -n "${current_unifi_database_pid}" ]]; then
-    while [[ -n "$(ps -p "${current_unifi_database_pid}" -o pid=)" ]]; do
-      if [[ "${current_unifi_database_pid_message}" != 'true' ]]; then current_unifi_database_pid_message="true"; echo -e "${YELLOW}#${RESET} Another process is already using the UniFi Network Application database...\\n${YELLOW}#${RESET} Attempting to stop the other process..."; fi
-      if [[ "${current_unifi_database_pid_stop_attempt}" == "0" ]]; then systemctl stop unifi &>> "${eus_dir}/logs/shutting-down-unifi-database.log"; sleep 10; fi
-      if [[ "${current_unifi_database_pid_stop_attempt}" == "1" ]]; then "$(which mongod)" --dbpath "${unifi_database_location}" --port 27117 --shutdown 2>&1 | tee -a "${eus_dir}/logs/already-running-mongod-shutdown.log" > "${eus_dir}/logs/shutting-down-unifi-database.log"; sleep 10; fi
-      ((current_unifi_database_pid_stop_attempt=current_unifi_database_pid_stop_attempt+1))
-      ((current_unifi_database_pid_stop_attempt_round=current_unifi_database_pid_stop_attempt_round+1))
-      if [[ "${current_unifi_database_pid_stop_attempt}" == "1" ]]; then current_unifi_database_pid_stop_attempt="0"; fi
-      if [[ "${current_unifi_database_pid_stop_attempt_round}" -ge "10" ]]; then abort_reason="Unable to shutdown the UniFi Network database used by another process... Please reach out to Glenn R."; abort; fi
-    done
-    echo -e "${GREEN}#${RESET} Successfully stopped the process that was using the UniFi Network Application database! \\n"
-    unset current_unifi_database_pid
-    unset current_unifi_database_pid_message
-  fi
-  start_unifi_database_attempts="0"
-  if [[ "${start_unifi_database_attempts}" -ge '1' ]]; then
-    echo -e "${WHITE_R}#${RESET} Attempting to start the UniFi Network Application database..."
-  else
-    echo -e "${WHITE_R}#${RESET} Starting the UniFi Network Application database..."
-  fi
-  if su -l "${unifi_database_location_user}" -s /bin/bash -c "$(which mongod) --dbpath '${unifi_database_location}' --port 27117 --bind_ip 127.0.0.1 --logpath '${unifi_logs_location}/eus-run-mongod-${start_unifi_database_task}.log' --logappend 2>&1 &" &>> "${eus_dir}/logs/starting-unifi-database.log"; then
-  #if sudo -u unifi "$(which mongod)" --dbpath "${unifi_database_location}" --port 27117 --bind_ip 127.0.0.1 --logpath "${unifi_logs_location}/eus-run-mongod-import.log" --logappend & &>/dev/null; then
-    sleep 6
-    mongo_wait_initilize="0"
-    until "${mongocommand}" --port 27117 --eval "print(\"waited for connection\")" &>> "${eus_dir}/logs/mongodb-initialize-waiting.log"; do
-      if [[ -e "${unifi_logs_location}/eus-run-mongod-${start_unifi_database_task}.log" ]]; then if tail -n10 "${unifi_logs_location}/eus-run-mongod-${start_unifi_database_task}.log" | grep -ioq "address already in use"; then break; fi; fi
-      ((mongo_wait_initilize=mongo_wait_initilize+1))
-      echo -ne "\\r${YELLOW}#${RESET} Waiting for MongoDB to initialize... ${mongo_wait_initilize}/20"
-      sleep 10
-      if [[ "${mongo_wait_initilize}" -ge '20' ]]; then abort_reason="MongoDB did not respond within the set time frame... Please reach out to Glenn R."; if [[ "${start_unifi_database_task}" == 'import' ]]; then unifi_database_move_sucess="true"; mongodb_upgrade_import_failure="true"; shutdown_mongodb; fi; abort; fi
-    done
-    if [[ "${mongo_wait_initilize}" -gt '0' ]]; then echo -e ""; fi
-    echo -e "${GREEN}#${RESET} Successfully started the UniFi Network Application database! \\n"
-    sleep 3
-    while read -r pid; do
-      if ps -fp "${pid}" | grep -iq mongo; then
-        eus_mongodb_process="${pid}"
-      fi
-    done < <(ps aux | awk '{print$1,$2}' | grep -i "${unifi_database_location_user}" | awk '{print$2}')
-  else
-    echo -e "${RED}#${RESET} Failed to start the UniFi Network Application database... \\n"
-  fi
-  if [[ -z "${eus_mongodb_process}" ]]; then
-    ((start_unifi_database_attempts=start_unifi_database_attempts+1))
-    if [[ "${start_unifi_database_attempts}" -ge "2" ]]; then
-      abort_reason="variable start_unifi_database_attempts is great than 2 (${start_unifi_database_attempts})"
-      abort_function_skip_reason="true"
-      abort
-    else
-      start_unifi_database
-    fi
-  fi
-}
-
-repair_unifi_database() {
-  echo -e "${WHITE_R}#${RESET} Attempting to repair the UniFi Network Application database..."
-  shutdown_mongodb
-  repair_unifi_database_journal="$(find "${unifi_database_location}" -name "journal" -type d | head -n1)"
-  if [[ -d "${repair_unifi_database_journal}" && -n "${repair_unifi_database_journal}" ]]; then
-    echo -e "${WHITE_R}#${RESET} Moving the database journal files to \"${repair_unifi_database_journal}-$(date +%Y%m%d_%H%M_%S%N)\"..."
-    if mv -vi "${repair_unifi_database_journal}" "${repair_unifi_database_journal}-$(date +%Y%m%d_%H%M_%S%N)" &>> "${eus_dir}/logs/unifi-database-repair-move.log"; then
-      echo -e "${GREEN}#${RESET} Successfully moved the database journal files to \"${repair_unifi_database_journal}-$(date +%Y%m%d_%H%M_%S%N)\"! \\n"
-    else
-      echo -e "${GREEN}#${RESET} Failed to move the database journal files to \"${repair_unifi_database_journal}-$(date +%Y%m%d_%H%M_%S%N)\"...\\n"
-    fi
-  fi
-  echo -e "${WHITE_R}#${RESET} Repairing the UniFi Network Application database..."
-  if "$(which mongod)" --dbpath "${unifi_database_location}" --logpath "${eus_dir}/logs/unifi-database-repair.log" --repair &>> "${eus_dir}/logs/unifi-database-repair-command.log"; then
-    echo -e "${GREEN}#${RESET} Successfully repaired the UniFi Network Application database! \\n"
-  else
-    echo -e "${GREEN}#${RESET} Failed to repair the UniFi Network Application database...\\n"
-  fi
-  chown -R "${unifi_database_location_user}":"${unifi_database_location_group}" "${unifi_database_location}" &> /dev/null
-  chown -R "${unifi_database_location_user}":"${unifi_database_location_group}" "${unifi_logs_location}" &> /dev/null
-  sleep 3
-  start_unifi_database
-}
-
-mongodb_upgrade_space_check() {
-  mongodb_upgrade_method="regular"
-  free_space_kilobyte="$(df -k "${eus_dir}/" | awk '{print $4}' | tail -n1)"
-  unifi_database_size_kilobyte="$(du -s "${unifi_database_location}" | awk '{print $1}')"
-  if [[ "${free_space_kilobyte}" -lt "$((unifi_database_size_kilobyte*10/100 + unifi_database_size_kilobyte + unifi_database_size_kilobyte))" ]]; then
-    if [[ "${unifi_database_location}" != "/usr/lib/unifi/data/db" ]] && [[ "${unifi_database_location}" != "/var/lib/unifi/db" ]]; then
-      unifi_db_eus_dir="$(dirname "${unifi_database_location}")"
-      free_space_kilobyte="$(df -k "${unifi_db_eus_dir}/" | awk '{print $4}' | tail -n1)"
-      unifi_database_size_kilobyte="$(du -s "${unifi_database_location}" | awk '{print $1}')"
-    fi
-    if [[ "${free_space_kilobyte}" -lt "$((unifi_database_size_kilobyte*10/100 + unifi_database_size_kilobyte + unifi_database_size_kilobyte))" ]]; then
-      header_red
-      echo -e "${WHITE_R}#${RESET} Your UniFi Network Application database is $(du -sh "${unifi_database_location}" | awk '{print $1}') in size and you have $(df -H "${eus_dir}/" | awk '{print $4}' | tail -n1) of available space..."
-      echo -e "${WHITE_R}#${RESET} The MongoDB Upgrade might fail due to not having enough space to export/import the database...\\n"
-      if [[ "$(find "$(readlink -f /usr/lib/unifi/data/backup/autobackup/)" -maxdepth 1 -type f -name "*.unf" | wc -l)" -gt '5' ]] && [[ "${cleanup_backup_files_during_mongodb_upgrade_complete}" != 'true' ]]; then
-        cleanup_backup_files_during_mongodb_upgrade="true"
-        cleanup_backup_files_dir="$(readlink -f /usr/lib/unifi/data/backup/autobackup/)"
-        cleanup_backup_files
-        if [[ "${cleanup_backup_files_during_mongodb_upgrade_complete}" == 'true' ]]; then mongodb_upgrade_space_check; return; fi
-      fi
-      echo -e "${WHITE_R}#${RESET} How would you like to proceed with the MongoDB upgrade process?\\n"
-      echo -e "\\n${WHITE_R}---${RESET}\\n"
-      echo -e " [   ${WHITE_R}1 ${RESET}   ]  |  Regular method, with a higher chance of failure due to low disk space."
-      echo -e " [   ${WHITE_R}2 ${RESET}   ]  |  No statistics method, with a lower chance of failure."
-      echo -e " [   ${WHITE_R}3 ${RESET}   ]  |  I want to free up disk space before attempting again."
-      echo -e "\\n"
-      read -rp $'Your choice | \033[39m' choice
-      case "$choice" in
-         1) migrate_unifi_database_without_stats="false";;
-         2) migrate_unifi_database_without_stats="true"; mongodb_upgrade_method="no statistics"; migrate_unifi_database_without_stats_message_1=", without statistics";;
-         3) echo -e "${YELLOW}#${RESET} OK... Please free up disk space before running the MongoDB Upgrade again..."; cancel_script;;
-	     *) header_red; echo -e "${WHITE_R}#${RESET} Option ${choice} is not a valid..."; sleep 3; mongodb_upgrade_space_check;;
-      esac
-    fi
-  fi
-  jq '.scripts["'"$script_name"'"].tasks += {"mongodb-upgrade ('"${mongodb_upgrade_date}"')": [.scripts["'"$script_name"'"].tasks["mongodb-upgrade ('"${mongodb_upgrade_date}"')"][0] + {"method":"'"${mongodb_upgrade_method}"'","free disk space":"'"${free_space_kilobyte}"'","database size":"'"${unifi_database_size_kilobyte}"'","unifi_db_eus_dir":"'"${unifi_db_eus_dir}"'"}]}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
-  eus_database_move
-}
-
 mongodb_upgrade() {
   mongodb_upgrade_started_success_value="true"
   if grep -sioq "^unifi.https.port" "/usr/lib/unifi/data/system.properties"; then dmport="$(awk '/^unifi.https.port/' /usr/lib/unifi/data/system.properties | cut -d'=' -f2)"; else dmport="8443"; fi
@@ -8183,11 +8258,12 @@ mongodb_upgrade() {
           if [[ "${os_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish) ]]; then
             repo_codename="jammy"
             get_repo_url
+            repo_component="universe"
           elif [[ "${os_codename}" =~ (jessie|stretch|buster|bullseye) ]]; then
             repo_codename="bookworm"
             get_repo_url
+            repo_component="main contrib"
           fi
-          repo_component="universe"
           add_repositories
           run_apt_get_update
         fi
@@ -8799,6 +8875,22 @@ else
     fi
   fi
 fi
+
+mongodb_repair_required_check() {
+  last_match_line="$(grep -n 'SERVER RESTARTED' /usr/lib/unifi/logs/mongod.log 2> /dev/null | tail -n 1 | cut -d: -f1)"
+  if [[ -n "${last_match_line}" ]]; then
+    if tail -n +$((last_match_line + 1)) /usr/lib/unifi/logs/mongod.log | grep -iaEq "WT_NOTFOUND: item not found, terminating"; then
+      database_repair_required="true"
+    fi
+  fi
+  if [[ "${database_repair_required}" == 'true' ]]; then
+    unifi_database_location="$(readlink -f /usr/lib/unifi/data/db)"
+    unifi_database_location_user="$(stat -c "%U" "${unifi_database_location}")"
+    unifi_database_location_group="$(stat -c "%G" "${unifi_database_location}")"
+    repair_unifi_database
+  fi
+}
+mongodb_repair_required_check
 
 if [[ "$(jq '.database | has("mongodb-key-check-reset")' "${eus_dir}/db/db.json")" == 'true' ]]; then
   jq 'del(.database."mongodb-key-check-reset")' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"

@@ -11,6 +11,15 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 9.2.1
+  
+ - Added a database repair required check.
+ - Improved the broken packages recovery process.
+   - It can now also remove broken packages from the system to prevent apt from failing over and over again.
+ - Fixed an issue where the script could add invalid repositories.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 9.2.0
   
  - Added support for upgrading to 8.4.62 Stable/Official.

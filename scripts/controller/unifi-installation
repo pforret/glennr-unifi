@@ -11,6 +11,14 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 7.9.3
+ 
+ - Improved the broken packages recovery process.
+   - It can now also remove broken packages from the system to prevent apt from failing over and over again.
+ - Fixed an issue where the script could add invalid repositories.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 7.9.2
  
  - Fixed an issue where dmesg operation not permitted could be printed when running the script.
