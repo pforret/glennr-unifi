@@ -11,6 +11,14 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 9.2.2
+  
+ - Improved the Glenn R. MongoDB installation process.
+ - Improved checking if a database repair is required.
+ - Fixed an issue where the broken packages recovery process always skipped if a certain package wasn't installed (left over debugging).
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 9.2.1
   
  - Added a database repair required check.

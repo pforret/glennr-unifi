@@ -2,7 +2,7 @@
 
 # UniFi Network Application Easy Update Script.
 # Script   | UniFi Network Easy Update Script
-# Version  | 9.2.1
+# Version  | 9.2.2
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -374,6 +374,13 @@ support_file() {
   uname -a &> "/tmp/EUS/support/uname-results"
   lscpu &> "/tmp/EUS/support/lscpu-results"
   dmesg &> "/tmp/EUS/support/dmesg-results"
+  locale &> "/tmp/EUS/support/locale-results"
+  {
+    echo -e "-----( --get-selections )----- \n"; update-alternatives --get-selections 2> /dev/null
+    echo -e "-----( --display java )----- \n"; update-alternatives --display java 2> /dev/null
+    echo -e "-----( JAVA_HOME results )----- \n"; grep -r 'JAVA_HOME' /etc/ 2> /dev/null
+    echo -e "-----( readlink java )----- \n"; readlink -f /usr/bin/java 2> /dev/null
+  } >> "/tmp/EUS/support/java-details.log"
   grep -is '^unifi:' /etc/passwd /etc/group &> "/tmp/EUS/support/unifi-user-group-results"
   find /usr/sbin -name "unifi*" -type f -print0 | xargs -0 -I {} sh -c 'echo -e "\n------[ {} ]------\n"; cat "{}"; echo;' &> "/tmp/EUS/support/unifi-helper-results"
   ps -p $$ -o command= &> "/tmp/EUS/support/script-usage"
@@ -1611,7 +1618,7 @@ attempt_recover_broken_packages() {
   while IFS= read -r log_file; do
     while IFS= read -r broken_package; do
       broken_package="$(echo "${broken_package}" | xargs)"
-      if ! dpkg -l | awk '{print $2}' | grep -iq "^limacharlie$"; then continue; fi
+      if ! dpkg -l | awk '{print $2}' | grep -iq "^${broken_package}$"; then continue; fi
       echo -e "\\n------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/attempt-recover-broken-packages.log"
       echo -e "${WHITE_R}#${RESET} Attempting to recover broken packages..."
       check_dpkg_lock
@@ -8252,8 +8259,11 @@ mongodb_upgrade() {
           elif [[ "${os_codename}" =~ (jessie|stretch|buster|bullseye) ]]; then
             repo_codename="bookworm"
             get_repo_url
+          elif [[ "${os_id}" == "ubuntu" ]]; then
+            repo_component="main universe"
+          else
+            repo_component="main"
           fi
-          repo_component="main"
           add_repositories
           if [[ "${os_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish) ]]; then
             repo_codename="jammy"
@@ -8263,6 +8273,10 @@ mongodb_upgrade() {
             repo_codename="bookworm"
             get_repo_url
             repo_component="main contrib"
+          elif [[ "${os_id}" == "ubuntu" ]]; then
+            repo_component="main universe"
+          else
+            repo_component="main"
           fi
           add_repositories
           run_apt_get_update
@@ -8879,7 +8893,7 @@ fi
 mongodb_repair_required_check() {
   last_match_line="$(grep -n 'SERVER RESTARTED' /usr/lib/unifi/logs/mongod.log 2> /dev/null | tail -n 1 | cut -d: -f1)"
   if [[ -n "${last_match_line}" ]]; then
-    if tail -n +$((last_match_line + 1)) /usr/lib/unifi/logs/mongod.log | grep -iaEq "WT_NOTFOUND: item not found, terminating"; then
+    if tail -n +$((last_match_line + 1)) /usr/lib/unifi/logs/mongod.log | grep -iaEq "WT_NOTFOUND: item not found, terminating|__wt_panic"; then
       database_repair_required="true"
     fi
   fi

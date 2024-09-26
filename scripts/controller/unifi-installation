@@ -11,6 +11,13 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 7.9.4
+ 
+ - Improved the Glenn R. MongoDB installation process.
+ - Fixed an issue where the broken packages recovery process always skipped if a certain package wasn't installed (left over debugging).
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 7.9.3
  
  - Improved the broken packages recovery process.

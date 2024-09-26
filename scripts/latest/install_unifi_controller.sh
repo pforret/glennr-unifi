@@ -56,7 +56,7 @@
 ###################################################################################################################################################################################################
 
 # Script                | UniFi Network Easy Installation Script
-# Version               | 7.9.3
+# Version               | 7.9.4
 # Application version   | 8.4.62-i3q2j125cz
 # Debian Repo version   | 8.4.62-26656-1
 # Author                | Glenn Rietveld
@@ -422,6 +422,13 @@ support_file() {
   uname -a &> "/tmp/EUS/support/uname-results"
   lscpu &> "/tmp/EUS/support/lscpu-results"
   dmesg &> "/tmp/EUS/support/dmesg-results"
+  locale &> "/tmp/EUS/support/locale-results"
+  {
+    echo -e "-----( --get-selections )----- \n"; update-alternatives --get-selections 2> /dev/null
+    echo -e "-----( --display java )----- \n"; update-alternatives --display java 2> /dev/null
+    echo -e "-----( JAVA_HOME results )----- \n"; grep -r 'JAVA_HOME' /etc/ 2> /dev/null
+    echo -e "-----( readlink java )----- \n"; readlink -f /usr/bin/java 2> /dev/null
+  } >> "/tmp/EUS/support/java-details.log"
   grep -is '^unifi:' /etc/passwd /etc/group &> "/tmp/EUS/support/unifi-user-group-results"
   find /usr/sbin -name "unifi*" -type f -print0 | xargs -0 -I {} sh -c 'echo -e "\n------[ {} ]------\n"; cat "{}"; echo;' &> "/tmp/EUS/support/unifi-helper-results"
   ps -p $$ -o command= &> "/tmp/EUS/support/script-usage"
@@ -2618,7 +2625,7 @@ attempt_recover_broken_packages() {
   while IFS= read -r log_file; do
     while IFS= read -r broken_package; do
       broken_package="$(echo "${broken_package}" | xargs)"
-      if ! dpkg -l | awk '{print $2}' | grep -iq "^limacharlie$"; then continue; fi
+      if ! dpkg -l | awk '{print $2}' | grep -iq "^${broken_package}$"; then continue; fi
       echo -e "\\n------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/attempt-recover-broken-packages.log"
       echo -e "${WHITE_R}#${RESET} Attempting to recover broken packages..."
       check_dpkg_lock
@@ -5276,8 +5283,11 @@ mongodb_installation() {
           elif [[ "${os_codename}" =~ (jessie|stretch|buster|bullseye) ]]; then
             repo_codename="bookworm"
             get_repo_url
+          elif [[ "${os_id}" == "ubuntu" ]]; then
+            repo_component="main universe"
+          else
+            repo_component="main"
           fi
-          repo_component="main"
           add_repositories
           if [[ "${os_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish) ]]; then
             repo_codename="jammy"
@@ -5287,6 +5297,10 @@ mongodb_installation() {
             repo_codename="bookworm"
             get_repo_url
             repo_component="main contrib"
+          elif [[ "${os_id}" == "ubuntu" ]]; then
+            repo_component="main universe"
+          else
+            repo_component="main"
           fi
           add_repositories
           run_apt_get_update
@@ -5566,6 +5580,9 @@ if [[ "${mongodb_installed}" != 'true' ]]; then
       unset glennr_compiled_mongod
       unset unsupported_database_version_change
       if [[ "${previous_mongodb_version::2}" == '26' ]]; then
+        eus_directory_location="/tmp/EUS"
+        eus_create_directories "mongodb"
+        apt-cache policy mongodb-server &> /tmp/EUS/mongodb/apt-cache-policy-mongodb-server
         mongodb_server_installable_versions="$(apt-cache policy mongodb-server | grep -i "2.6\\|3.0" | grep -i Candidate | sed -e 's/1://g' -e 's/ //g' -e 's/*//g' | cut -d':' -f2 | cut -d'-' -f1 | sed -e 's/\.//g' | uniq)"
         if [[ -z "${mongodb_server_installable_versions}" ]]; then mongodb_server_installable_versions="$(apt-cache policy mongodb-server | grep -i "2.6\\|3.0" | sed -e 's/500//g' -e 's/-1//g' -e 's/100//g' -e 's/ //g' -e '/http/d' -e 's/*//g' -e 's/^[^:]*://' -e 's/^[0-9]*://' | cut -d'-' -f1 | uniq | sed -e 's/\.//g')"; fi
         IFS=' ' read -r -a version_array <<< "$mongodb_server_installable_versions"

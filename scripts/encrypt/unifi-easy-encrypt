@@ -11,6 +11,12 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Encrypt Script  |  Version 3.1.5
+ 
+ - Fixed an issue where the broken packages recovery process always skipped if a certain package wasn't installed (left over debugging).
+ 
+ ###
+
  |  UniFi Easy Encrypt Script  |  Version 3.1.4
  
  - Improved the broken packages recovery process.
