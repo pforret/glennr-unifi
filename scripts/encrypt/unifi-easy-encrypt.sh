@@ -2,7 +2,7 @@
 
 # UniFi Easy Encrypt script.
 # Script   | UniFi Network Easy Encrypt Script
-# Version  | 3.1.5
+# Version  | 3.1.6
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -651,6 +651,17 @@ check_dns() {
     done
   fi
   return 1
+}
+
+check_repository_key_permissions() {
+  if [[ "$(stat -c %a "${repository_key_location}")" != "644" ]]; then
+    if chmod 644 "${repository_key_location}" &>> "${eus_dir}/logs/update-repository-key-permissions.log"; then
+      echo -e "$(date +%F-%R) | Successfully updated the permissions for ${repository_key_location} to 644!" &>> "${eus_dir}/logs/update-repository-key-permissions.log"
+    else
+      echo -e "$(date +%F-%R) | Failed to set the permissions for ${repository_key_location} to 644..." &>> "${eus_dir}/logs/update-repository-key-permissions.log"
+    fi
+  fi
+  unset repository_key_location
 }
 
 check_apt_listbugs() {
@@ -1397,6 +1408,7 @@ add_repositories() {
   if [[ "${apt_key_deprecated}" == 'true' && -n "${repo_key}" && -n "${repo_key_name}" ]]; then
     if gpg --no-default-keyring --keyring "/etc/apt/keyrings/${repo_key_name}.gpg" --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys "${repo_key}" &> /dev/null; then
       signed_by_value_repo_key="signed-by=/etc/apt/keyrings/${repo_key_name}.gpg"
+      repository_key_location="/etc/apt/keyrings/${repo_key_name}.gpg"; check_repository_key_permissions
     else
       abort_reason="Failed to add repository key ${repo_key}."
       abort
@@ -2055,7 +2067,7 @@ run_apt_get_update() {
           gpg -vvv --debug-all --keyserver keyserver.ubuntu.com --recv-keys "${key}" &> /tmp/EUS/apt/failed_key
           debug_key="$(grep "KS_GET" /tmp/EUS/apt/failed_key | grep -io "0x.*")"
           if curl "${curl_argument[@]}" "https://keyserver.ubuntu.com/pks/lookup?op=get&search=${debug_key}" | gpg -o "/tmp/EUS/apt/EUS-${key}.gpg" --dearmor --yes &> /dev/null; then
-            if mv "/tmp/EUS/apt/EUS-${key}.gpg" /etc/apt/trusted.gpg.d/; then echo -e "${GREEN}#${RESET} Successfully added key ${key}!\\n"; echo "${key}" &>> /tmp/EUS/apt/missing_keys_done; else echo -e "${RED}#${RESET} Failed to add key ${key}... \\n"; echo "${key}" &>> /tmp/EUS/apt/missing_keys_failed; fi
+            if mv "/tmp/EUS/apt/EUS-${key}.gpg" /etc/apt/trusted.gpg.d/; then echo -e "${GREEN}#${RESET} Successfully added key ${key}!\\n"; repository_key_location="/etc/apt/trusted.gpg.d/EUS-${key}.gpg"; check_repository_key_permissions; echo "${key}" &>> /tmp/EUS/apt/missing_keys_done; else echo -e "${RED}#${RESET} Failed to add key ${key}... \\n"; echo "${key}" &>> /tmp/EUS/apt/missing_keys_failed; fi
           else
             echo -e "${RED}#${RESET} Failed to add key ${key}... \\n"
             echo "${key}" &>> /tmp/EUS/apt/missing_keys_failed

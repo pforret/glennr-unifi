@@ -56,7 +56,7 @@
 ###################################################################################################################################################################################################
 
 # Script                | UniFi Network Easy Installation Script
-# Version               | 7.9.4
+# Version               | 7.9.5
 # Application version   | 8.4.62-i3q2j125cz
 # Debian Repo version   | 8.4.62-26656-1
 # Author                | Glenn Rietveld
@@ -232,6 +232,17 @@ check_dns() {
     done
   fi
   return 1
+}
+
+check_repository_key_permissions() {
+  if [[ "$(stat -c %a "${repository_key_location}")" != "644" ]]; then
+    if chmod 644 "${repository_key_location}" &>> "${eus_dir}/logs/update-repository-key-permissions.log"; then
+      echo -e "$(date +%F-%R) | Successfully updated the permissions for ${repository_key_location} to 644!" &>> "${eus_dir}/logs/update-repository-key-permissions.log"
+    else
+      echo -e "$(date +%F-%R) | Failed to set the permissions for ${repository_key_location} to 644..." &>> "${eus_dir}/logs/update-repository-key-permissions.log"
+    fi
+  fi
+  unset repository_key_location
 }
 
 check_apt_listbugs() {
@@ -1429,7 +1440,7 @@ run_apt_get_update() {
           gpg -vvv --debug-all --keyserver keyserver.ubuntu.com --recv-keys "${key}" &> /tmp/EUS/apt/failed_key
           debug_key="$(grep "KS_GET" /tmp/EUS/apt/failed_key | grep -io "0x.*")"
           if curl "${curl_argument[@]}" "https://keyserver.ubuntu.com/pks/lookup?op=get&search=${debug_key}" | gpg -o "/tmp/EUS/apt/EUS-${key}.gpg" --dearmor --yes &> /dev/null; then
-            if mv "/tmp/EUS/apt/EUS-${key}.gpg" /etc/apt/trusted.gpg.d/; then echo -e "${GREEN}#${RESET} Successfully added key ${key}!\\n"; echo "${key}" &>> /tmp/EUS/apt/missing_keys_done; else echo -e "${RED}#${RESET} Failed to add key ${key}... \\n"; echo "${key}" &>> /tmp/EUS/apt/missing_keys_failed; fi
+            if mv "/tmp/EUS/apt/EUS-${key}.gpg" /etc/apt/trusted.gpg.d/; then echo -e "${GREEN}#${RESET} Successfully added key ${key}!\\n"; repository_key_location="/etc/apt/trusted.gpg.d/EUS-${key}.gpg"; check_repository_key_permissions; echo "${key}" &>> /tmp/EUS/apt/missing_keys_done; else echo -e "${RED}#${RESET} Failed to add key ${key}... \\n"; echo "${key}" &>> /tmp/EUS/apt/missing_keys_failed; fi
           else
             echo -e "${RED}#${RESET} Failed to add key ${key}... \\n"
             echo "${key}" &>> /tmp/EUS/apt/missing_keys_failed
@@ -1510,6 +1521,7 @@ add_glennr_mongod_repo() {
           if [[ "${glennr_curl_exit_status}" -eq "0" && "${glennr_gpg_exit_status}" -eq "0" && -s "/etc/apt/keyrings/apt-glennr.gpg" ]]; then
             echo -e "${GREEN}#${RESET} Successfully added the key for the Glenn R. APT Repository! \\n"
             signed_by_value=" signed-by=/etc/apt/keyrings/apt-glennr.gpg"; deb822_signed_by_value="\nSigned-By: /etc/apt/keyrings/apt-glennr.gpg"
+            repository_key_location="/etc/apt/keyrings/apt-glennr.gpg"; check_repository_key_permissions
           else
             abort_reason="Failed to add the key for the Glenn R. APT Repository."
             abort
@@ -1932,6 +1944,7 @@ add_mongodb_repo() {
           if [[ "${mongodb_curl_exit_status}" -eq "0" && "${mongodb_gpg_exit_status}" -eq "0" && -s "/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg" ]]; then
             echo -e "${GREEN}#${RESET} Successfully added the key for MongoDB ${mongodb_version_major_minor}! \\n"
             signed_by_value=" signed-by=/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg"; deb822_signed_by_value="\nSigned-By: /etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg"
+            repository_key_location="/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg"; check_repository_key_permissions
           else
             echo -e "$(date +%F-%R) | www.mongodb.org repository key.\\n" &>> "${eus_dir}/logs/repository-keys.log"
             if curl "${curl_argument[@]}" -fSL "${repo_http_https}://www.mongodb.org/static/pgp/server-${mongodb_version_major_minor}.asc" 2>&1 | tee -a "${eus_dir}/logs/repository-keys.log" | gpg -o "/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg" --dearmor --yes &> /dev/null; then
@@ -1940,6 +1953,7 @@ add_mongodb_repo() {
               if [[ "${mongodb_curl_exit_status}" -eq "0" && "${mongodb_gpg_exit_status}" -eq "0" && -s "/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg" ]]; then
                 echo -e "${GREEN}#${RESET} Successfully added the key for MongoDB ${mongodb_version_major_minor}! \\n"
                 signed_by_value=" signed-by=/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg"; deb822_signed_by_value="\nSigned-By: /etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg"
+                repository_key_location="/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg"; check_repository_key_permissions
               else
                 echo -e "$(date +%F-%R) | pgp.mongodb.com repository key.\\n" &>> "${eus_dir}/logs/repository-keys.log"
                 if curl "${curl_argument[@]}" --insecure -fSL "${repo_http_https}://pgp.mongodb.com/server-${mongodb_version_major_minor}.asc" 2>&1 | tee -a "${eus_dir}/logs/repository-keys.log" | gpg -o "/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg" --dearmor --yes &> /dev/null; then
@@ -1948,6 +1962,7 @@ add_mongodb_repo() {
                   if [[ "${mongodb_curl_exit_status}" -eq "0" && "${mongodb_gpg_exit_status}" -eq "0" && -s "/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg" ]]; then
                     echo -e "${GREEN}#${RESET} Successfully added the key for MongoDB ${mongodb_version_major_minor}! \\n"
                     signed_by_value=" signed-by=/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg"; deb822_signed_by_value="\nSigned-By: /etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg"
+                    repository_key_location="/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg"; check_repository_key_permissions
                   else
                     abort_reason="Failed to add the key for MongoDB ${mongodb_version_major_minor}."
                     abort
@@ -2375,6 +2390,7 @@ add_repositories() {
   if [[ "${apt_key_deprecated}" == 'true' && -n "${repo_key}" && -n "${repo_key_name}" ]]; then
     if gpg --no-default-keyring --keyring "/etc/apt/keyrings/${repo_key_name}.gpg" --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys "${repo_key}" &> /dev/null; then
       signed_by_value_repo_key="signed-by=/etc/apt/keyrings/${repo_key_name}.gpg"
+      repository_key_location="/etc/apt/keyrings/${repo_key_name}.gpg"; check_repository_key_permissions
     else
       abort_reason="Failed to add repository key ${repo_key}."
       abort
@@ -4577,6 +4593,7 @@ adoptium_java() {
         adoptium_gpg_exit_status="${PIPESTATUS[2]}"
         if [[ "${adoptium_curl_exit_status}" -eq "0" && "${adoptium_gpg_exit_status}" -eq "0" && -s "/etc/apt/keyrings/packages-adoptium.gpg" ]]; then
           echo -e "${GREEN}#${RESET} Successfully added the key for adoptium packages! \\n"; signed_by_value_adoptium="signed-by=/etc/apt/keyrings/packages-adoptium.gpg"; deb822_signed_by_value="\nSigned-By: /etc/apt/keyrings/packages-adoptium.gpg"
+          repository_key_location="/etc/apt/keyrings/packages-adoptium.gpg"; check_repository_key_permissions
         else
           abort_reason="Failed to add the key for adoptium packages."; abort
         fi
@@ -5279,9 +5296,11 @@ mongodb_installation() {
         if ! apt-cache policy "${glennr_mongod_dependency}" | tr '[:upper:]' '[:lower:]' | sed '1,/version table/d' | sed -e 's/500//g' -e 's/100//g' -e '/http/d' -e '/var/d' -e 's/*//g' -e 's/ //g' | grep -iq "^${glennr_mongod_dependency_version}"; then
           if [[ "${os_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish) ]]; then
             repo_codename="jammy"
+            repo_component="main universe"
             get_repo_url
           elif [[ "${os_codename}" =~ (jessie|stretch|buster|bullseye) ]]; then
             repo_codename="bookworm"
+            repo_component="main"
             get_repo_url
           elif [[ "${os_id}" == "ubuntu" ]]; then
             repo_component="main universe"
@@ -5431,6 +5450,7 @@ mongodb_installation_armhf() {
       raspbian_gpg_exit_status="${PIPESTATUS[2]}"
       if [[ "${raspbian_curl_exit_status}" -eq "0" && "${raspbian_gpg_exit_status}" -eq "0" && -s "/etc/apt/keyrings/raspbian.gpg" ]]; then
         echo -e "${GREEN}#${RESET} Successfully added the key for the raspbian repository! \\n"; signed_by_value_raspbian="[ signed-by=/etc/apt/keyrings/raspbian.gpg ]"
+        repository_key_location="/etc/apt/keyrings/raspbian.gpg"; check_repository_key_permissions
       else
         abort_reason="Failed to add the key for the raspbian repository."; abort
       fi

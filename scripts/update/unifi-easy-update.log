@@ -11,6 +11,14 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 9.2.3
+  
+ - Added a check for repository key permissions.
+ - Improved the Glenn R. MongoDB installation process.
+ - Fixed the inability to use HTTP for the Glenn R. APT repository.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 9.2.2
   
  - Improved the Glenn R. MongoDB installation process.
