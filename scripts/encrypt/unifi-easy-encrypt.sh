@@ -2,7 +2,7 @@
 
 # UniFi Easy Encrypt script.
 # Script   | UniFi Network Easy Encrypt Script
-# Version  | 3.1.6
+# Version  | 3.1.7
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -1245,14 +1245,14 @@ get_distro() {
     elif [[ "${os_codename}" =~ ^(xenial|sarah|serena|sonya|sylvia|loki)$ ]]; then repo_codename="xenial"; os_codename="xenial"; os_id="ubuntu"
     elif [[ "${os_codename}" =~ ^(bionic|tara|tessa|tina|tricia|hera|juno)$ ]]; then repo_codename="bionic"; os_codename="bionic"; os_id="ubuntu"
     elif [[ "${os_codename}" =~ ^(focal|ulyana|ulyssa|uma|una|odin|jolnir)$ ]]; then repo_codename="focal"; os_codename="focal"; os_id="ubuntu"
-    elif [[ "${os_codename}" =~ ^(jammy|vanessa|vera|victoria|virginia|horus)$ ]]; then repo_codename="jammy"; os_codename="jammy"; os_id="ubuntu"
-    elif [[ "${os_codename}" =~ ^(noble|wilma)$ ]]; then repo_codename="noble"; os_codename="noble"; os_id="ubuntu"
+    elif [[ "${os_codename}" =~ ^(jammy|vanessa|vera|victoria|virginia|horus|cade)$ ]]; then repo_codename="jammy"; os_codename="jammy"; os_id="ubuntu"
+    elif [[ "${os_codename}" =~ ^(noble|wilma|scootski)$ ]]; then repo_codename="noble"; os_codename="noble"; os_id="ubuntu"
     elif [[ "${os_codename}" =~ ^(oracular)$ ]]; then repo_codename="oracular"; os_codename="oracular"; os_id="ubuntu"
     elif [[ "${os_codename}" =~ ^(jessie|betsy)$ ]]; then repo_codename="jessie"; os_codename="jessie"; os_id="debian"
     elif [[ "${os_codename}" =~ ^(stretch|continuum|helium|cindy)$ ]]; then repo_codename="stretch"; os_codename="stretch"; os_id="debian"
     elif [[ "${os_codename}" =~ ^(buster|debbie|parrot|engywuck-backports|engywuck|deepin|lithium)$ ]]; then repo_codename="buster"; os_codename="buster"; os_id="debian"
     elif [[ "${os_codename}" =~ ^(bullseye|kali-rolling|elsie|ara|beryllium)$ ]]; then repo_codename="bullseye"; os_codename="bullseye"; os_id="debian"
-    elif [[ "${os_codename}" =~ ^(bookworm|lory|faye|boron|beige)$ ]]; then repo_codename="bookworm"; os_codename="bookworm"; os_id="debian"
+    elif [[ "${os_codename}" =~ ^(bookworm|lory|faye|boron|beige|preslee)$ ]]; then repo_codename="bookworm"; os_codename="bookworm"; os_id="debian"
     elif [[ "${os_codename}" =~ ^(unstable|rolling)$ ]]; then repo_codename="unstable"; os_codename="unstable"; os_id="debian"
     else
       repo_codename="${os_codename}"
@@ -1307,7 +1307,7 @@ get_repo_url() {
         else
           if [[ "${archived_repo}" == "true" ]]; then repo_url="${http_or_https}://old-releases.ubuntu.com/ubuntu"; else repo_url="http://ports.ubuntu.com"; fi
         fi
-      elif [[ "${os_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
+      elif [[ "${os_codename}" =~ (wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
         if curl "${curl_argument[@]}" "${http_or_https}://archive.debian.org/debian/dists/" 2> /dev/null | grep -iq "${os_codename}" 2> /dev/null; then archived_repo="true"; fi
         if [[ "${archived_repo}" == "true" ]]; then repo_url="${http_or_https}://archive.debian.org/debian"; else repo_url="${http_or_https}://deb.debian.org/debian"; fi
       fi
@@ -1315,7 +1315,7 @@ get_repo_url() {
   else
     if [[ "${os_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then
       repo_url="http://archive.ubuntu.com/ubuntu"
-    elif [[ "${os_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
+    elif [[ "${os_codename}" =~ (wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
       repo_url="${http_or_https}://deb.debian.org/debian"
     fi
   fi
@@ -1415,7 +1415,7 @@ add_repositories() {
     fi
   fi
   # Handle Debian versions
-  if [[ "${os_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) && "$(command -v jq)" ]]; then
+  if [[ "${os_codename}" =~ (wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky) && "$(command -v jq)" ]]; then
     os_version_number="$(lsb_release -rs | tr '[:upper:]' '[:lower:]' | cut -d'.' -f1)"
     check_debian_version="${os_version_number}"
     if echo "${repo_url}" | grep -ioq "archive.debian"; then 
@@ -1738,7 +1738,7 @@ script_version_check() {
 }
 if [[ "$(command -v curl)" ]]; then script_version_check; fi
 
-if ! [[ "${os_codename}" =~ (precise|maya|trusty|qiana|rebecca|rafaela|rosa|xenial|sarah|serena|sonya|sylvia|bionic|tara|tessa|tina|tricia|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
+if ! [[ "${os_codename}" =~ (precise|maya|trusty|qiana|rebecca|rafaela|rosa|xenial|sarah|serena|sonya|sylvia|bionic|tara|tessa|tina|tricia|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
   if [[ -e "/etc/os-release" ]]; then full_os_details="$(sed ':a;N;$!ba;s/\n/\\n/g' /etc/os-release | sed 's/"/\\"/g')"; fi
   if [[ -z "$(which apt)" ]]; then non_apt_based_linux="true"; fi
   unsupported_no_modify="true"
@@ -2365,8 +2365,8 @@ if ! dpkg -l dnsutils 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi"; th
     if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic) ]]; then
       if [[ "${repo_codename}" =~ (xenial) ]]; then repo_codename_argument="-security"; repo_component="main"; fi
       if [[ "${repo_codename}" =~ (bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar) ]]; then repo_component="main"; fi
-    elif [[ "${repo_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
-      if [[ "${repo_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then repo_url_arguments="-security/"; repo_codename_argument="/updates"; repo_component="main"; add_repositories; fi
+    elif [[ "${repo_codename}" =~ (wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
+      if [[ "${repo_codename}" =~ (wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then repo_url_arguments="-security/"; repo_codename_argument="/updates"; repo_component="main"; add_repositories; fi
       repo_component="main"
     fi
     add_repositories
@@ -2387,7 +2387,7 @@ if ! "$(which dpkg)" -l gnupg 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|
       if [[ "${repo_codename}" =~ (precise|trusty|xenial) ]]; then repo_codename_argument="-security"; repo_component="main"; fi
       if [[ "${repo_codename}" =~ (bionic|cosmic) ]]; then repo_codename_argument="-security"; repo_component="main universe"; fi
       if [[ "${repo_codename}" =~ (disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then repo_component="main universe"; fi
-    elif [[ "${repo_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
+    elif [[ "${repo_codename}" =~ (wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
       repo_component="main"
     fi
     add_repositories
@@ -2416,8 +2416,8 @@ if ! "$(which dpkg)" -l jq 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi
       if [[ "${repo_codename}" =~ (bionic|cosmic|disco|eoan|focal|focal|groovy|hirsute|impish) ]]; then repo_component="main universe"; add_repositories; fi
       if [[ "${repo_codename}" =~ (jammy|kinetic|lunar|mantic|noble|oracular) ]]; then repo_component="main"; add_repositories; fi
       repo_codename_argument="-security"; repo_component="main universe"
-    elif [[ "${repo_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
-      if [[ "${repo_codename}" =~ (jessie|stretch|buster) ]]; then repo_url_arguments="-security/"; repo_codename_argument="/updates"; repo_component="main"; add_repositories; fi
+    elif [[ "${repo_codename}" =~ (wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
+      if [[ "${repo_codename}" =~ (wheezy|jessie|stretch|buster) ]]; then repo_url_arguments="-security/"; repo_codename_argument="/updates"; repo_component="main"; add_repositories; fi
       if [[ "${repo_codename}" =~ (bullseye|bookworm|trixie|forky) ]]; then repo_url_arguments="-security/"; repo_codename_argument="-security"; repo_component="main"; add_repositories; fi
       repo_component="main"
     fi
@@ -2485,7 +2485,7 @@ if [[ -n "${auto_dns_challenge_provider}" ]]; then
           if [[ "${repo_codename}" =~ (focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then repo_component="main universe"; add_repositories; fi
           repo_codename_argument="-security"
           repo_component="main universe"
-        elif [[ "${repo_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
+        elif [[ "${repo_codename}" =~ (wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
           if [[ "${repo_codename}" =~ (stretch) ]]; then repo_url_arguments="-security/"; repo_codename_argument="/updates"; repo_component="main"; add_repositories; fi
           repo_component="main"
         fi
@@ -2508,7 +2508,7 @@ if [[ -n "${auto_dns_challenge_provider}" ]]; then
           if [[ "${repo_codename}" =~ (focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then repo_component="main universe"; add_repositories; fi
           repo_codename_argument="-security"
           repo_component="main universe"
-        elif [[ "${repo_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
+        elif [[ "${repo_codename}" =~ (wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
           if [[ "${repo_codename}" =~ (stretch) ]]; then repo_url_arguments="-security/"; repo_codename_argument="/updates"; repo_component="main"; add_repositories; fi
           repo_component="main"
         fi
@@ -2533,7 +2533,7 @@ if [[ -n "${auto_dns_challenge_provider}" ]]; then
             if [[ "${repo_codename}" =~ (focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then repo_component="main universe"; add_repositories; fi
             repo_codename_argument="-security"
             repo_component="main universe"
-          elif [[ "${repo_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
+          elif [[ "${repo_codename}" =~ (wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
             if [[ "${repo_codename}" =~ (stretch) ]]; then repo_url_arguments="-security/"; repo_codename_argument="/updates"; repo_component="main"; add_repositories; fi
             repo_component="main"
           fi
@@ -2674,7 +2674,7 @@ certbot_auto_install_run() {
   echo -e "${WHITE_R}#${RESET} This may take a while, depending on the device."
   echo -e "${WHITE_R}#${RESET} certbot-auto verbose log is saved here: ${eus_dir}/logs/certbot_auto_install.log\\n\\n${WHITE_R}----${RESET}\\n"
   sleep 2
-  if [[ "${os_codename}" =~ (jessie) ]]; then
+  if [[ "${os_codename}" =~ (wheezy|jessie) ]]; then
     if ! dpkg -l | awk '{print$2}' | grep -iq "libssl-dev"; then
       echo deb http://archive.debian.org/debian jessie-backports main >>/etc/apt/sources.list.d/glennr-install-script.list
       echo -e "${WHITE_R}#${RESET} Running apt-get update..."
@@ -2708,7 +2708,7 @@ certbot_auto_install_run() {
   fi
 }
 
-if [[ "${os_codename}" =~ (jessie) || "${downloaded_certbot}" == 'true' ]]; then
+if [[ "${os_codename}" =~ (wheezy|jessie) || "${downloaded_certbot}" == 'true' ]]; then
   certbot="${eus_dir}/certbot-auto"
   certbot_auto=true
 elif [[ "${certbot_multi_plugin}" == 'true' ]]; then
@@ -4893,7 +4893,7 @@ lets_encrypt() {
   if [[ "${script_option_fqdn}" == 'true' ]]; then fqdn_option; fi
   # shellcheck disable=SC2012
   ls -t "${eus_dir}/logs/lets_encrypt_*.log" 2> /dev/null | awk 'NR>2' | xargs rm -f &> /dev/null
-  if [[ "${os_codename}" =~ (jessie) || "${downloaded_certbot}" == 'true' ]]; then certbot_auto_install_run; fi
+  if [[ "${os_codename}" =~ (wheezy|jessie) || "${downloaded_certbot}" == 'true' ]]; then certbot_auto_install_run; fi
   if [[ "${script_option_skip}" != 'true' ]]; then timezone; fi
   if [[ "${script_option_skip}" != 'true' ]]; then delete_certs_question; fi
   if [[ "${script_option_fqdn}" != 'true' ]]; then domain_name; fi
@@ -5076,14 +5076,14 @@ get_repo_url() {
     if [[ "\${os_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic) ]]; then
       if curl -s http://old-releases.ubuntu.com/ubuntu/dists/ | grep -iq "\${os_codename}" 2> /dev/null; then archived_repo="true"; fi
       if [[ "\${archived_repo}" == "true" ]]; then repo_url="http://old-releases.ubuntu.com/ubuntu"; else repo_url="http://archive.ubuntu.com/ubuntu"; fi
-    elif [[ "\${os_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
+    elif [[ "\${os_codename}" =~ (wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
       if curl -s http://archive.debian.org/debian/dists/ | grep -iq "\${os_codename}" 2> /dev/null; then archived_repo="true"; fi
       if [[ "\${archived_repo}" == "true" ]]; then repo_url="\${http_or_https}://archive.debian.org/debian"; else repo_url="\${http_or_https}://ftp.debian.org/debian"; fi
     fi
   else
     if [[ "\${os_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic) ]]; then
       repo_url="http://archive.ubuntu.com/ubuntu"
-    elif [[ "\${os_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
+    elif [[ "\${os_codename}" =~ (wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
       repo_url="\${http_or_https}://deb.debian.org/debian"
     fi
   fi
@@ -5105,7 +5105,7 @@ add_repositories() {
         echo -e "\${missing_key}" &>> /tmp/EUS/keys/missing_keys
       fi
     fi
-    if [[ "\${os_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
+    if [[ "\${os_codename}" =~ (wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
       os_version_number="\$(lsb_release -rs | tr '[:upper:]' '[:lower:]' | cut -d'.' -f1)"
       check_debian_version="\${os_version_number}"
       if echo "\${repo_url}" | grep -ioq "archive"; then check_debian_version="\${os_version_number}-archive"; fi
@@ -5234,7 +5234,7 @@ if [[ -n "\${auto_dns_challenge_provider}" ]]; then
           if [[ "\${repo_codename}" =~ (jammy|kinetic|lunar|mantic|noble|oracular) ]]; then repo_component="main"; add_repositories; fi
           repo_codename_argument="-security"
           repo_component="main universe"
-        elif [[ "\${repo_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
+        elif [[ "\${repo_codename}" =~ (wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
           if [[ "\${repo_codename}" =~ (stretch) ]]; then repo_url_arguments="-security/"; repo_codename_argument="/updates"; repo_component="main"; add_repositories; fi
           repo_component="main"
         fi
@@ -5250,7 +5250,7 @@ if [[ -n "\${auto_dns_challenge_provider}" ]]; then
           if [[ "\${repo_codename}" =~ (jammy|kinetic|lunar|mantic|noble|oracular) ]]; then repo_component="main"; add_repositories; fi
           repo_codename_argument="-security"
           repo_component="main universe"
-        elif [[ "\${repo_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
+        elif [[ "\${repo_codename}" =~ (wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
           if [[ "\${repo_codename}" =~ (stretch) ]]; then repo_url_arguments="-security/"; repo_codename_argument="/updates"; repo_component="main"; add_repositories; fi
           repo_component="main"
         fi

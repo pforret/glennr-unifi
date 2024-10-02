@@ -11,6 +11,18 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 7.9.7
+ 
+ - Added support for Pearl Linux ( Scootski | Cade | Preslee ).
+ 
+ ####
+
+ |  UniFi Network Application Installation Script  |  Version 7.9.6
+ 
+ - Improved the Glenn R. MongoDB installation process.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 7.9.5
  
  - Added a check for repository key permissions.

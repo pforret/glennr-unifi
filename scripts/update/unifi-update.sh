@@ -2,7 +2,7 @@
 
 # UniFi Network Application Easy Update Script.
 # Script   | UniFi Network Easy Update Script
-# Version  | 9.2.3
+# Version  | 9.2.5
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -1171,14 +1171,14 @@ get_distro() {
     elif [[ "${os_codename}" =~ ^(xenial|sarah|serena|sonya|sylvia|loki)$ ]]; then repo_codename="xenial"; os_codename="xenial"; os_id="ubuntu"
     elif [[ "${os_codename}" =~ ^(bionic|tara|tessa|tina|tricia|hera|juno)$ ]]; then repo_codename="bionic"; os_codename="bionic"; os_id="ubuntu"
     elif [[ "${os_codename}" =~ ^(focal|ulyana|ulyssa|uma|una|odin|jolnir)$ ]]; then repo_codename="focal"; os_codename="focal"; os_id="ubuntu"
-    elif [[ "${os_codename}" =~ ^(jammy|vanessa|vera|victoria|virginia|horus)$ ]]; then repo_codename="jammy"; os_codename="jammy"; os_id="ubuntu"
-    elif [[ "${os_codename}" =~ ^(noble|wilma)$ ]]; then repo_codename="noble"; os_codename="noble"; os_id="ubuntu"
+    elif [[ "${os_codename}" =~ ^(jammy|vanessa|vera|victoria|virginia|horus|cade)$ ]]; then repo_codename="jammy"; os_codename="jammy"; os_id="ubuntu"
+    elif [[ "${os_codename}" =~ ^(noble|wilma|scootski)$ ]]; then repo_codename="noble"; os_codename="noble"; os_id="ubuntu"
     elif [[ "${os_codename}" =~ ^(oracular)$ ]]; then repo_codename="oracular"; os_codename="oracular"; os_id="ubuntu"
     elif [[ "${os_codename}" =~ ^(jessie|betsy)$ ]]; then repo_codename="jessie"; os_codename="jessie"; os_id="debian"
     elif [[ "${os_codename}" =~ ^(stretch|continuum|helium|cindy)$ ]]; then repo_codename="stretch"; os_codename="stretch"; os_id="debian"
     elif [[ "${os_codename}" =~ ^(buster|debbie|parrot|engywuck-backports|engywuck|deepin|lithium)$ ]]; then repo_codename="buster"; os_codename="buster"; os_id="debian"
     elif [[ "${os_codename}" =~ ^(bullseye|kali-rolling|elsie|ara|beryllium)$ ]]; then repo_codename="bullseye"; os_codename="bullseye"; os_id="debian"
-    elif [[ "${os_codename}" =~ ^(bookworm|lory|faye|boron|beige)$ ]]; then repo_codename="bookworm"; os_codename="bookworm"; os_id="debian"
+    elif [[ "${os_codename}" =~ ^(bookworm|lory|faye|boron|beige|preslee)$ ]]; then repo_codename="bookworm"; os_codename="bookworm"; os_id="debian"
     elif [[ "${os_codename}" =~ ^(unstable|rolling)$ ]]; then repo_codename="unstable"; os_codename="unstable"; os_id="debian"
     else
       repo_codename="${os_codename}"
@@ -1242,7 +1242,7 @@ get_repo_url() {
         else
           if [[ "${archived_repo}" == "true" ]]; then repo_url="${http_or_https}://old-releases.ubuntu.com/ubuntu"; else repo_url="http://ports.ubuntu.com"; fi
         fi
-      elif [[ "${os_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
+      elif [[ "${os_codename}" =~ (wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
         if curl "${curl_argument[@]}" "${http_or_https}://archive.debian.org/debian/dists/" 2> /dev/null | grep -iq "${os_codename}" 2> /dev/null; then archived_repo="true"; fi
         if [[ "${archived_repo}" == "true" ]]; then repo_url="${http_or_https}://archive.debian.org/debian"; else repo_url="${http_or_https}://deb.debian.org/debian"; fi
         if [[ "${architecture}" == 'armhf' ]]; then
@@ -1261,7 +1261,7 @@ get_repo_url() {
   else
     if [[ "${os_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|oracular) ]]; then
       repo_url="http://archive.ubuntu.com/ubuntu"
-    elif [[ "${os_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
+    elif [[ "${os_codename}" =~ (wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
       repo_url="${http_or_https}://deb.debian.org/debian"
       #if [[ "${architecture}" == 'armhf' ]]; then
       #  raspbian_repo_url="${http_or_https}://archive.raspbian.org/raspbian"
@@ -1364,7 +1364,7 @@ add_repositories() {
     fi
   fi
   # Handle Debian versions
-  if [[ "$(lsb_release --codename --short | tr '[:upper:]' '[:lower:]')" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) && "$(command -v jq)" ]]; then
+  if [[ "$(lsb_release --codename --short | tr '[:upper:]' '[:lower:]')" =~ (wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky) && "$(command -v jq)" ]]; then
     os_version_number="$(lsb_release -rs | tr '[:upper:]' '[:lower:]' | cut -d'.' -f1)"
     check_debian_version="${os_version_number}"
     if echo "${repo_url}" | grep -ioq "archive.debian"; then 
@@ -1610,8 +1610,8 @@ check_default_repositories() {
     if [[ "${repo_codename}" =~ (jammy|kinetic|lunar|mantic|noble|oracular) ]]; then repo_component="main"; add_repositories; fi
     repo_codename_argument="-security"
     repo_component="main universe"
-  elif [[ "${repo_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
-    if [[ "${repo_codename}" =~ (jessie|stretch|buster) ]]; then repo_url_arguments="-security/"; repo_codename_argument="/updates"; repo_component="main"; add_repositories; fi
+  elif [[ "${repo_codename}" =~ (wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
+    if [[ "${repo_codename}" =~ (wheezy|jessie|stretch|buster) ]]; then repo_url_arguments="-security/"; repo_codename_argument="/updates"; repo_component="main"; add_repositories; fi
     if [[ "${repo_codename}" =~ (bullseye|bookworm|trixie|forky) ]]; then repo_url_arguments="-security/"; repo_codename_argument="-security"; repo_component="main"; add_repositories; fi
     repo_component="main"
   fi
@@ -1844,7 +1844,7 @@ script_version_check() {
 }
 if [[ "$(command -v curl)" ]]; then script_version_check; fi
 
-if ! [[ "${os_codename}" =~ (precise|maya|trusty|qiana|rebecca|rafaela|rosa|xenial|sarah|serena|sonya|sylvia|bionic|tara|tessa|tina|tricia|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
+if ! [[ "${os_codename}" =~ (precise|maya|trusty|qiana|rebecca|rafaela|rosa|xenial|sarah|serena|sonya|sylvia|bionic|tara|tessa|tina|tricia|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
   if [[ -e "/etc/os-release" ]]; then full_os_details="$(sed ':a;N;$!ba;s/\n/\\n/g' /etc/os-release | sed 's/"/\\"/g')"; fi
   if [[ -z "$(which apt)" ]]; then non_apt_based_linux="true"; fi
   unsupported_no_modify="true"
@@ -2879,7 +2879,7 @@ unifi_required_packages() {
       echo -e "${RED}#${RESET} Failed to install logrotate in the first run...\\n"
       if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then
         repo_component="universe"
-      elif [[ "${repo_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
+      elif [[ "${repo_codename}" =~ (wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
         repo_component="main"
       fi
       add_repositories
@@ -2902,8 +2902,8 @@ if ! "$(which dpkg)" -l jq 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi
       if [[ "${repo_codename}" =~ (bionic|cosmic|disco|eoan|focal|focal|groovy|hirsute|impish) ]]; then repo_component="main universe"; add_repositories; fi
       if [[ "${repo_codename}" =~ (jammy|kinetic|lunar|mantic|noble|oracular) ]]; then repo_component="main"; add_repositories; fi
       repo_codename_argument="-security"; repo_component="main universe"
-    elif [[ "${repo_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
-      if [[ "${repo_codename}" =~ (jessie|stretch|buster) ]]; then repo_url_arguments="-security/"; repo_codename_argument="/updates"; repo_component="main"; add_repositories; fi
+    elif [[ "${repo_codename}" =~ (wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
+      if [[ "${repo_codename}" =~ (wheezy|jessie|stretch|buster) ]]; then repo_url_arguments="-security/"; repo_codename_argument="/updates"; repo_component="main"; add_repositories; fi
       if [[ "${repo_codename}" =~ (bullseye|bookworm|trixie|forky) ]]; then repo_url_arguments="-security/"; repo_codename_argument="-security"; repo_component="main"; add_repositories; fi
       repo_component="main"
     fi
@@ -2930,7 +2930,7 @@ if [[ "${unifi_core_system}" != 'true' ]]; then
         repo_component="universe"
         add_repositories
         repo_component="main restricted"
-      elif [[ "${repo_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
+      elif [[ "${repo_codename}" =~ (wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
         repo_component="main"
       fi
       add_repositories
@@ -2981,7 +2981,7 @@ if ! "$(which dpkg)" -l psmisc 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\
     if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then
       if [[ "${repo_codename}" =~ (precise) ]]; then repo_codename_argument="-updates"; repo_component="main restricted"; fi
       if [[ "${repo_codename}" =~ (trusty|xenial|bionic|cosmicdisco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then repo_component="universe"; fi
-    elif [[ "${repo_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
+    elif [[ "${repo_codename}" =~ (wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
       repo_component="main"
     fi
     add_repositories
@@ -3001,7 +3001,7 @@ if ! "$(which dpkg)" -l lsb-release 2> /dev/null | awk '{print $1}' | grep -iq "
     echo -e "${RED}#${RESET} Failed to install lsb-release in the first run...\\n"
     if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then
       repo_component="main universe"
-    elif [[ "${repo_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
+    elif [[ "${repo_codename}" =~ (wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
       repo_component="main"
     fi
     add_repositories
@@ -3021,7 +3021,7 @@ if ! "$(which dpkg)" -l gnupg 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|
       if [[ "${repo_codename}" =~ (precise|trusty|xenial) ]]; then repo_codename_argument="-security"; repo_component="main"; fi
       if [[ "${repo_codename}" =~ (bionic|cosmic) ]]; then repo_codename_argument="-security"; repo_component="main universe"; fi
       if [[ "${repo_codename}" =~ (disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then repo_component="main universe"; fi
-    elif [[ "${repo_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
+    elif [[ "${repo_codename}" =~ (wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
       repo_component="main"
     fi
     add_repositories
@@ -3072,7 +3072,7 @@ if ! "$(which dpkg)" -l adduser 2> /dev/null | awk '{print $1}' | grep -iq "^ii\
     echo -e "${RED}#${RESET} Failed to install adduser in the first run...\\n"
     if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then
       repo_component="universe"
-    elif [[ "${repo_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
+    elif [[ "${repo_codename}" =~ (wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
       repo_component="main"
     fi
     add_repositories
@@ -3116,7 +3116,7 @@ repackage_deb_file_required_package() {
         repo_component="main"
       elif [[ "${repo_codename}" =~ (jammy|kinetic|lunar|mantic|noble|oracular) ]]; then
         repo_component="main"
-      elif [[ "${repo_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
+      elif [[ "${repo_codename}" =~ (wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
         repo_component="main"
       fi
       add_repositories
@@ -3134,7 +3134,7 @@ repackage_deb_file_required_package() {
       if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then
         repo_codename_argument="-security"
         repo_component="main"
-      elif [[ "${repo_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
+      elif [[ "${repo_codename}" =~ (wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
         repo_component="main"
       fi
       add_repositories
@@ -3695,7 +3695,7 @@ mongodb_upgrade_space_check() {
 ###################################################################################################################################################################################################
 
 adoptium_java() {
-  if [[ "${os_codename}" =~ (jessie|forky|lunar|impish|eoan|disco|cosmic|mantic) ]]; then
+  if [[ "${os_codename}" =~ (wheezy|jessie|forky|lunar|impish|eoan|disco|cosmic|mantic) ]]; then
     if ! curl "${curl_argument[@]}" "https://packages.adoptium.net/artifactory/deb/dists/" | sed -e 's/<[^>]*>//g' -e '/^$/d' -e '/\/\//d' -e '/function/d' -e '/location/d' -e '/}/d' -e 's/\///g' -e '/Name/d' -e '/Index/d' -e '/\.\./d' -e '/Artifactory/d' | awk '{print $1}' | grep -iq "${os_codename}"; then
       if [[ "${os_codename}" =~ (jessie) ]]; then
         os_codename="wheezy"
@@ -3763,7 +3763,7 @@ adoptium_java() {
       abort
     fi
     check_default_repositories
-    if [[ "${os_codename}" =~ (jessie|stretch) ]]; then
+    if [[ "${os_codename}" =~ (wheezy|jessie|stretch) ]]; then
       repo_codename="buster"
       repo_component="main"
       get_repo_url
@@ -3866,7 +3866,7 @@ unifi_dependencies_check() {
         get_repo_url
         if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then
           repo_component="main universe"
-        elif [[ "${repo_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
+        elif [[ "${repo_codename}" =~ (wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
           repo_component="main"
         fi
         add_repositories
@@ -4171,7 +4171,7 @@ libssl_installation_check() {
     elif [[ "$(dpkg-query --showformat='${Version}' --show libssl3 | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -lt "${libssl_version//./}" ]]; then
       libssl_install_required="true"
     fi
-    if [[ "${os_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
+    if [[ "${os_codename}" =~ (wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
       libssl_repo_url="${http_or_https}://deb.debian.org/debian"
     else
       if [[ "${architecture}" =~ (amd64|i386) ]]; then
@@ -4193,7 +4193,7 @@ libssl_installation_check() {
             repo_component="main universe"
           fi
           repo_codename="jammy"
-        elif [[ "${os_codename}" =~ (jessie|stretch|buster|bullseye) ]]; then
+        elif [[ "${os_codename}" =~ (wheezy|jessie|stretch|buster|bullseye) ]]; then
           repo_codename="bookworm"
           get_repo_url
           repo_component="main"
@@ -4211,7 +4211,7 @@ libssl_installation_check() {
     elif [[ "$(dpkg-query --showformat='${Version}' --show libssl1.1 | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g')" -lt "${libssl_version//./}" ]]; then
       libssl_install_required="true"
     fi
-    if [[ "${os_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
+    if [[ "${os_codename}" =~ (wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
       libssl_repo_url="${http_or_https}://deb.debian.org/debian"
     else
       if [[ "${architecture}" =~ (amd64|i386) ]]; then
@@ -4234,7 +4234,7 @@ libssl_installation_check() {
           fi
           repo_codename="focal"
           get_repo_url
-        elif [[ "${os_codename}" =~ (jessie|stretch|buster) ]]; then
+        elif [[ "${os_codename}" =~ (wheezy|jessie|stretch|buster) ]]; then
           repo_codename="bullseye"
           get_repo_url
           repo_component="main"
@@ -4456,7 +4456,7 @@ if "$(which dpkg)" -l mongodb-server 2> /dev/null | awk '{print $1}' | grep -iq 
         get_repo_url
         add_repositories
         run_apt_get_update
-      elif [[ "${os_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
+      elif [[ "${os_codename}" =~ (wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
         repo_component="main"
         repo_codename="stretch"
         get_repo_url
@@ -6996,6 +6996,56 @@ unifi_firmware_requirement() {
   fi
 }
 
+usg_unsupported_notice() {
+  eus_directory_location="/tmp/EUS"
+  eus_create_directories "requirement"
+  header
+  echo -e "${WHITE_R}#${RESET} Checking if your setup contains any UniFi Security Gateway models..."
+  "${mongocommand}" --quiet --port 27117 ace --eval "${mongoprefix}db.getCollection('device').find({model: {\$in: ['UGWXG', 'UGW4', 'UGW3']}})${mongosuffix}" | sed 's/\(ObjectId(\|)\|NumberLong(\)\|ISODate(//g' | jq 'map(select(.type != null) | {type: .type, model: .model, version: .version, build_id: (.version | split(".") | .[3] // "unknown"), connected_at: .connected_at, site_id: .site_id, mac: .mac})' > /tmp/EUS/requirement/usg_unsupported_notice
+  sed -i 's/"connected_at": null/"connected_at": 0/g' /tmp/EUS/requirement/usg_unsupported_notice
+  usg_unsupported_site_count="$(jq 'length' /tmp/EUS/requirement/usg_unsupported_notice 2> /dev/null)"
+  if [[ "${usg_unsupported_site_count}" -gt "5" ]]; then usg_unsupported_site_count_max="8"; else usg_unsupported_site_count_max="${usg_unsupported_site_count}"; fi
+  if [[ "${usg_unsupported_site_count}" -ge "1" ]]; then
+    usg_unsupported_site_number="0"
+    sed -i 's/UGW3/USG3/g' /tmp/EUS/requirement/usg_unsupported_notice
+    sed -i 's/UGW4/USG-Pro-4/g' /tmp/EUS/requirement/usg_unsupported_notice
+    sed -i 's/UGWXG/USG-XG-8/g' /tmp/EUS/requirement/usg_unsupported_notice
+    until [[ "${usg_unsupported_site_number}" == "${usg_unsupported_site_count_max}" ]]; do
+      usg_unsupported_model="$(jq -r ".[${usg_unsupported_site_number}].model" /tmp/EUS/requirement/usg_unsupported_notice 2> /dev/null)"
+      usg_unsupported_mac="$(jq -r ".[${usg_unsupported_site_number}].mac" /tmp/EUS/requirement/usg_unsupported_notice 2> /dev/null)"
+      usg_unsupported_site_object_id="$(jq -r ".[${usg_unsupported_site_number}].site_id" /tmp/EUS/requirement/usg_unsupported_notice 2> /dev/null)"
+      usg_unsupported_site_desc="$("${mongocommand}" --quiet --port 27117 ace --eval "${mongoprefix}db.getCollection('site').find({\"_id\":ObjectId('${usg_unsupported_site_object_id}')})${mongosuffix}" 2> /dev/null | sed 's/\(ObjectId(\|)\|NumberLong(\)\|ISODate(//g' 2> /dev/null | jq -r '.[].desc' 2> /dev/null)"
+      if [[ "$(jq -r ".[${usg_unsupported_site_number}].connected_at" /tmp/EUS/requirement/usg_unsupported_notice 2> /dev/null)" -ge "1" ]]; then usg_unsupported_device_status="Online (connected)"; else usg_unsupported_device_status="Offline (disconnected)"; fi
+      if [[ "${usg_unsupported_site_number}" == "0" ]]; then echo -e "${WHITE_R}#${RESET} The script detected the following UniFi Security Gateways on your setup: \\n"; fi
+      echo -e "${WHITE_R}#${RESET} ${usg_unsupported_model} (${usg_unsupported_mac}) was detected on ${usg_unsupported_site_desc}, and it's currently ${usg_unsupported_device_status}..."
+      ((usg_unsupported_site_number=usg_unsupported_site_number+1))
+      if [[ "${usg_unsupported_site_number}" == "${usg_unsupported_site_count_max}" && "$((usg_unsupported_site_count - usg_unsupported_site_count_max))" != "0" ]]; then echo -e "\\n${WHITE_R}#${RESET} Along with $((usg_unsupported_site_count - usg_unsupported_site_count_max)) other sites that contain UniFi Security Gateway models..."; fi
+    done
+    echo -e "\\n${WHITE_R}#${RESET} Please note that the UniFi Security Gateways are no longer officially supported. If you proceed with the"
+    echo -e "${WHITE_R}#${RESET} upgrade, you'll no longer be able to make any further configuration changes involving these gateways. \\n"
+    read -rp $'\033[39m#\033[0m Do you want to proceed with the upgrade and lose configuration control for these devices? (y/N) ' yes_no
+    case "$yes_no" in
+        [Yy]*)
+           if [[ "$(dpkg-query --showformat='${Version}' --show jq | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
+             jq '.scripts."'"${script_name}"'" |= . + {"tasks": (.tasks + {"usg-unsupported-notice ('"$(date +%Y%m%d_%H%M_%s)"')":[{"user-warned":"true"}]})}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+           else
+             jq '.scripts["'"${script_name}"'"] |= (.tasks += {"usg-unsupported-notice ('"$(date +%Y%m%d_%H%M_%s)"')": [{"user-warned":"true"}]})' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+           fi
+           eus_database_move;;
+        [Nn]*|"")
+           if [[ "$(dpkg-query --showformat='${Version}' --show jq | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
+             jq '.scripts."'"${script_name}"'" |= . + {"tasks": (.tasks + {"usg-unsupported-notice ('"$(date +%Y%m%d_%H%M_%s)"')":[{"user-cancelled":"true"}]})}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+           else
+             jq '.scripts["'"${script_name}"'"] |= (.tasks += {"usg-unsupported-notice ('"$(date +%Y%m%d_%H%M_%s)"')": [{"user-cancelled":"true"}]})' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+           fi
+           eus_database_move
+           cancel_script;;
+    esac
+  else
+    echo -e "${GREEN}#${RESET} Your setup doesn't appear to have any USG models, we're good! \\n"; sleep 3
+  fi
+}
+
 ###################################################################################################################################################################################################
 #                                                                                                                                                                                                 #
 #                                                                                            OS Update                                                                                            #
@@ -7573,6 +7623,7 @@ custom_url_install() {
   system_properties_check
   unifi_autobackup_dir_check
   keystore_alias_check
+  if [[ "${current_application_digit_1}" -lt "9" && "${custom_application_digit_1}" -ge "9" ]]; then usg_unsupported_notice; fi
   if [[ -s "/tmp/EUS/repository/unifi-repo-file" && "${release_stage}" == "S" ]]; then
     while read -r unifi_repo_file; do
       unifi_repo_file_version_current=$(grep -io "unifi-[0-9].[0-9]" "${unifi_repo_file}")
@@ -7841,7 +7892,7 @@ mongodb_upgrade() {
             get_repo_url
             add_repositories
             run_apt_get_update
-          elif [[ "${os_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
+          elif [[ "${os_codename}" =~ (wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
             repo_component="main"
             repo_codename="stretch"
             get_repo_url
@@ -7883,7 +7934,7 @@ mongodb_upgrade() {
             get_repo_url
             add_repositories
             run_apt_get_update
-          elif [[ "${os_codename}" =~ (jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
+          elif [[ "${os_codename}" =~ (wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
             repo_component="main"
             repo_codename="stretch"
             get_repo_url
@@ -8245,7 +8296,7 @@ mongodb_upgrade() {
   if grep -siq "${gr_mongod_name}" /tmp/EUS/mongodb/packages_list; then
     check_default_repositories
     if [[ "$(find /etc/apt/ -type f \( -name "*.sources" -o -name "*.list" \) -exec grep -lE 'raspbian.|raspberrypi.' {} + | wc -l)" -ge "1" ]]; then
-      if [[ "${os_codename}" =~ (jessie|stretch|buster|bullseye) ]]; then
+      if [[ "${os_codename}" =~ (wheezy|jessie|stretch|buster|bullseye) ]]; then
         repo_codename="bookworm"
         use_raspberrypi_repo="true"
         get_repo_url
@@ -8272,14 +8323,20 @@ mongodb_upgrade() {
         if ! apt-cache policy "${glennr_mongod_dependency}" | tr '[:upper:]' '[:lower:]' | sed '1,/version table/d' | sed -e 's/500//g' -e 's/100//g' -e '/http/d' -e '/var/d' -e 's/*//g' -e 's/ //g' | grep -iq "^${glennr_mongod_dependency_version}"; then
           if [[ "${os_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish) ]]; then
             repo_codename="jammy"
-            repo_component="main universe"
+            repo_component="main"
             get_repo_url
-          elif [[ "${os_codename}" =~ (jessie|stretch|buster|bullseye) ]]; then
+            add_repositories
+            repo_codename="jammy"
+            repo_component="universe"
+            get_repo_url
+          elif [[ "${os_codename}" =~ (wheezy|jessie|stretch|buster|bullseye) ]]; then
             repo_codename="bookworm"
             repo_component="main"
             get_repo_url
           elif [[ "${os_id}" == "ubuntu" ]]; then
-            repo_component="main universe"
+            repo_component="main"
+            add_repositories
+            repo_component="universe"
           else
             repo_component="main"
           fi
@@ -8288,12 +8345,16 @@ mongodb_upgrade() {
             repo_codename="jammy"
             get_repo_url
             repo_component="universe"
-          elif [[ "${os_codename}" =~ (jessie|stretch|buster|bullseye) ]]; then
+          elif [[ "${os_codename}" =~ (wheezy|jessie|stretch|buster|bullseye) ]]; then
             repo_codename="bookworm"
             get_repo_url
-            repo_component="main contrib"
+            repo_component="main"
+            add_repositories
+            repo_component="contrib"
           elif [[ "${os_id}" == "ubuntu" ]]; then
-            repo_component="main universe"
+            repo_component="main"
+            add_repositories
+            repo_component="universe"
           else
             repo_component="main"
           fi
@@ -9178,8 +9239,8 @@ application_upgrade_releases() {
   system_properties_check
   unifi_autobackup_dir_check
   keystore_alias_check
-  unifi_current=$("$(which dpkg)" -l unifi | tail -n1 |  awk '{print $3}' | cut -d'-' -f1)
-  application_version_release=$(echo "${application_version}" | cut -d'-' -f1)
+  unifi_current="$("$(which dpkg)" -l unifi | tail -n1 |  awk '{print $3}' | cut -d'-' -f1)"
+  application_version_release="$(echo "${application_version}" | cut -d'-' -f1)"
   if [[ -e "/usr/lib/unifi/data/db/version" ]]; then
     unifi_database_version="$(grep -E '^[0-9.]+$' "/usr/lib/unifi/data/db/version")"
     if [[ "${unifi_current}" != "${unifi_database_version}" ]]; then
@@ -9281,6 +9342,7 @@ application_upgrade_releases() {
       fi
     fi
   fi
+  if [[ "${application_current_digit_1}" -lt "9" && "${application_version_release_digit_1}" -ge "9" ]]; then usg_unsupported_notice; fi
   if [[ -s "/tmp/EUS/repository/unifi-repo-file" && "${release_stage}" == "S" ]]; then
     while read -r unifi_repo_file; do
       unifi_repo_file_version_current="$(grep -io "unifi-[0-9].[0-9]" "${unifi_repo_file}")"
