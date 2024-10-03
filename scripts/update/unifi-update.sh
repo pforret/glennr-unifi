@@ -2,7 +2,7 @@
 
 # UniFi Network Application Easy Update Script.
 # Script   | UniFi Network Easy Update Script
-# Version  | 9.2.5
+# Version  | 9.2.6
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -830,7 +830,7 @@ abort() {
   if [[ -f "/tmp/EUS/mongodb/unifi_package_list" ]]; then
     while read -r unifi_package; do
       echo -e "${WHITE_R}#${RESET} Starting service ${unifi_package}..."
-      if [[ "${unifi_package}" == "unifi" ]]; then check_service_overrides; old_systemd_version_check; fi
+      if [[ "${unifi_package}" == "unifi" ]]; then check_service_overrides; old_systemd_version_check; check_service_timeoutsec_increase; fi
       if [[ "${limited_functionality}" == 'true' ]]; then
         if [[ "${old_systemd_version}" == 'true' && "${unifi_package}" == "unifi" ]]; then if [[ "${old_systemd_version_check_unifi_restart}" == 'true' ]]; then echo -e "${GREEN}#${RESET} Successfully started service ${unifi_package}! \\n"; else echo -e "${RED}#${RESET} Failed to start service ${unifi_package}... \\n"; fi; elif ! service "${unifi_package}" start &> /dev/null; then echo -e "${RED}#${RESET} Failed to start service ${unifi_package}... \\n"; else echo -e "${GREEN}#${RESET} Successfully started service ${unifi_package}! \\n"; fi
       else
@@ -5389,6 +5389,46 @@ old_systemd_version_check() {
   fi
 }
 
+check_service_timeoutsec_increase() {
+  current_timeoutsec_value="$(grep -si "TimeoutSec" /etc/systemd/system/unifi.service.d/override.conf /lib/systemd/system/unifi.service 2> /dev/null | sed 's/ *TimeoutSec *= *\([0-9]*\)min/\1/g' | awk -F: '{print $2}' | sort -n | tail -n 1)"
+  if [[ -z "${current_timeoutsec_value}" ]]; then current_timeoutsec_value="15"; fi
+  if [[ "${limited_functionality}" != 'true' ]]; then
+    unifi_data_size="$("${mongocommand}" --quiet --port 27117 ace --eval "var stats = db.stats(); print(Math.floor(stats.dataSize / (1024 * 1024 * 1024)))" 2> /dev/null)"
+    if [[ "${unifi_data_size}" -ge "5" ]]; then
+      timeoutsec_value="$((unifi_data_size * 2 + 5))"
+      if [[ "${timeoutsec_value}" -gt "15" && "${current_timeoutsec_value}" != "${timeoutsec_value}" ]]; then
+        current_timeoutsec_value="${timeoutsec_value}"
+        echo -e "$(date +%F-%R:%S) | MongoDB dataSize is ${unifi_data_size}, increasing TimeoutSec to ${timeoutsec_value}" &>> "${eus_dir}/logs/unifi-service-timeoutsec-increase.log"
+        if ! [[ -d "/etc/systemd/system/unifi.service.d/" ]]; then eus_directory_location="/etc/systemd/system"; eus_create_directories "unifi.service.d"; fi
+        if grep -siq "^\[Service\]" /etc/systemd/system/unifi.service.d/override.conf; then
+          if grep -siq "^TimeoutSec" /etc/systemd/system/unifi.service.d/override.conf; then
+            sed -i "s/^TimeoutSec=.*/TimeoutSec=${timeoutsec_value}min/" /etc/systemd/system/unifi.service.d/override.conf
+          else
+            sed -i "/^\[Service\]/a TimeoutSec=${timeoutsec_value}min" /etc/systemd/system/unifi.service.d/override.conf
+          fi
+        else
+          echo -e "[Service]\nTimeoutSec=${timeoutsec_value}min" | tee /etc/systemd/system/unifi.service.d/override.conf &> /dev/null
+        fi
+        systemctl daemon-reload &> /dev/null
+        systemctl reset-failed unifi.service &> /dev/null
+      fi
+    fi
+  fi
+  if [[ "${current_timeoutsec_value}" -gt "60" ]]; then
+    unifi_upgrade_estimate_duration_hours="$((current_timeoutsec_value / 60))"
+    if [[ "${unifi_upgrade_estimate_duration_hours}" -gt "1" ]]; then unifi_upgrade_estimate_duration_hours_variable="hours"; else unifi_upgrade_estimate_duration_hours_variable="hour"; fi
+    unifi_upgrade_estimate_duration_minutes="$((current_timeoutsec_value % 60))"
+    if [[ "${unifi_upgrade_estimate_duration_minutes}" -gt "1" ]]; then unifi_upgrade_estimate_duration_minutes_variable="minutes"; else unifi_upgrade_estimate_duration_minutes_variable="minute"; fi
+    if [[ "${unifi_upgrade_estimate_duration_minutes}" -gt "0" ]]; then
+      unifi_upgrade_estimate_duration="${unifi_upgrade_estimate_duration_hours} ${unifi_upgrade_estimate_duration_hours_variable} and ${unifi_upgrade_estimate_duration_minutes} ${unifi_upgrade_estimate_duration_minutes_variable}"
+    else
+      unifi_upgrade_estimate_duration="${unifi_upgrade_estimate_duration_hours} ${unifi_upgrade_estimate_duration_minutes_variable}"
+    fi
+  else
+    unifi_upgrade_estimate_duration="${current_timeoutsec_value} minutes"
+  fi
+}
+
 check_service_overrides() {
   if [[ "${limited_functionality}" != 'true' ]]; then
     if [[ -e "/etc/systemd/system/unifi.service" ]] || [[ -e "/etc/systemd/system/unifi.service.d/" ]]; then
@@ -7623,7 +7663,7 @@ custom_url_install() {
   system_properties_check
   unifi_autobackup_dir_check
   keystore_alias_check
-  if [[ "${current_application_digit_1}" -lt "9" && "${custom_application_digit_1}" -ge "9" ]]; then usg_unsupported_notice; fi
+  #if [[ "${current_application_digit_1}" -lt "9" && "${custom_application_digit_1}" -ge "9" ]]; then usg_unsupported_notice; fi
   if [[ -s "/tmp/EUS/repository/unifi-repo-file" && "${release_stage}" == "S" ]]; then
     while read -r unifi_repo_file; do
       unifi_repo_file_version_current=$(grep -io "unifi-[0-9].[0-9]" "${unifi_repo_file}")
@@ -7635,13 +7675,15 @@ custom_url_install() {
   header
   check_service_overrides
   old_systemd_version_check
+  check_service_timeoutsec_increase
   unifi_deb_package_modification
   ignore_unifi_package_dependencies
   if [[ "${current_application_digit_1}${current_application_digit_2}" -le "80" && "${custom_application_digit_1}${custom_application_digit_2}" -ge "81" ]]; then
-    echo -e "${WHITE_R}#${RESET} Upgrading your UniFi Network Application from \"${current_application_version}\" to \"${custom_application_version}\" may take a while"
+    echo -e "${WHITE_R}#${RESET} Upgrading your UniFi Network Application from \"${current_application_version}\" to \"${custom_application_version}\" could take up to ${unifi_upgrade_estimate_duration}"
     echo -e "${WHITE_R}#${RESET} because it needs to migrate $("${mongocommand}" --quiet --port 27117 ace_stat --eval "${mongoprefix}db.dpi.stats() )" 2> /dev/null | jq '.count' 2> /dev/null) Traffic Identification records..."
   else
-    echo -e "${WHITE_R}#${RESET} Upgrading your UniFi Network Application from \"${current_application_version}\" to \"${custom_application_version}\".."
+    echo -e "${WHITE_R}#${RESET} Upgrading your UniFi Network Application from \"${current_application_version}\" to \"${custom_application_version}\"..."
+    echo -e "${WHITE_R}#${RESET} This process could take up to ${unifi_upgrade_estimate_duration}..."
   fi
   if [[ "$(dpkg-query --showformat='${Version}' --show jq | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
     jq '.scripts."'"${script_name}"'" |= if .["upgrade-path"] | index("'"${current_application_digit_1}.${current_application_digit_2}.${current_application_digit_3} > ${custom_application_digit_1}.${custom_application_digit_2}.${custom_application_digit_3}"'") | not then .["upgrade-path"] += ["'"${current_application_digit_1}.${current_application_digit_2}.${current_application_digit_3} > ${custom_application_digit_1}.${custom_application_digit_2}.${custom_application_digit_3}"'"] else . end' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
@@ -8607,7 +8649,7 @@ mongodb_upgrade() {
     if systemctl start "${unifi_package}" &>> "${eus_dir}/logs/mongodb_upgrade_${mongodb_upgrade_from_version::2}_to_${mongo_version_max}_systemctl.log"; then
       echo -e "${GREEN}#${RESET} Successfully started service ${unifi_package}! \\n"
     else
-      if [[ "${unifi_package}" == "unifi" ]]; then old_systemd_version_check; fi
+      if [[ "${unifi_package}" == "unifi" ]]; then old_systemd_version_check; check_service_timeoutsec_increase; fi
       if [[ "${old_systemd_version}" == 'true' && "${unifi_package}" == "unifi" ]]; then
         if [[ "${old_systemd_version_check_unifi_restart}" == 'true'  ]]; then
           echo -e "${GREEN}#${RESET} Successfully started service ${unifi_package}! \\n"
@@ -9342,7 +9384,7 @@ application_upgrade_releases() {
       fi
     fi
   fi
-  if [[ "${application_current_digit_1}" -lt "9" && "${application_version_release_digit_1}" -ge "9" ]]; then usg_unsupported_notice; fi
+  #if [[ "${application_current_digit_1}" -lt "9" && "${application_version_release_digit_1}" -ge "9" ]]; then usg_unsupported_notice; fi
   if [[ -s "/tmp/EUS/repository/unifi-repo-file" && "${release_stage}" == "S" ]]; then
     while read -r unifi_repo_file; do
       unifi_repo_file_version_current="$(grep -io "unifi-[0-9].[0-9]" "${unifi_repo_file}")"
@@ -9354,6 +9396,7 @@ application_upgrade_releases() {
   header
   check_service_overrides
   old_systemd_version_check
+  check_service_timeoutsec_increase
   echo -e "${WHITE_R}#${RESET} Updating your UniFi Network Application version from ${unifi_current} to ${application_version_release}! \\n"
   echo -e "${WHITE_R}#${RESET} Downloading UniFi Network Application version ${application_version_release}..."
   eus_directory_location="/tmp/EUS"
@@ -9402,10 +9445,11 @@ application_upgrade_releases() {
   unifi_deb_package_modification
   ignore_unifi_package_dependencies
   if [[ "${application_current_digit_1}${application_current_digit_2}" -le "80" && "${application_version_release_digit_1}${application_version_release_digit_2}" -ge "81" ]]; then
-    echo -e "${WHITE_R}#${RESET} Upgrading your UniFi Network Application from \"${unifi_current}\" to \"${application_version_release}\" may take a while"
+    echo -e "${WHITE_R}#${RESET} Upgrading your UniFi Network Application from \"${unifi_current}\" to \"${application_version_release}\" could take up to ${unifi_upgrade_estimate_duration}"
     echo -e "${WHITE_R}#${RESET} because it needs to migrate $("${mongocommand}" --quiet --port 27117 ace_stat --eval "${mongoprefix}db.dpi.stats() )" 2> /dev/null | jq '.count' 2> /dev/null) Traffic Identification records..."
   else
     echo -e "${WHITE_R}#${RESET} Upgrading your UniFi Network Application from \"${unifi_current}\" to \"${application_version_release}\"..."
+    echo -e "${WHITE_R}#${RESET} This process could take up to ${unifi_upgrade_estimate_duration}..."
   fi
   if [[ "$(dpkg-query --showformat='${Version}' --show jq | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
     jq '.scripts."'"${script_name}"'" |= if .["upgrade-path"] | index("'"${application_current_digit_1}.${application_current_digit_2}.${application_current_digit_3} > ${application_version_release_digit_1}.${application_version_release_digit_2}.${application_version_release_digit_3}"'") | not then .["upgrade-path"] += ["'"${application_current_digit_1}.${application_current_digit_2}.${application_current_digit_3} > ${application_version_release_digit_1}.${application_version_release_digit_2}.${application_version_release_digit_3}"'"] else . end' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
