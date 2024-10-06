@@ -11,6 +11,16 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 9.2.7
+  
+ - Added recovery for apt MergeList issues.
+ - Added automatic recovery for duplicated default networks.
+   - This feature will restore all affected setups that utilized the MongoDB upgrade process prior to January 12, 2024.
+   - You can manually initiate this process by using the argument: --check-default-networks
+ - Improved the UniFi Network Application database repair required check.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 9.2.6
   
  - Added upgrade time estimate to the upgrade messaging.

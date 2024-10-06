@@ -2,7 +2,7 @@
 
 # UniFi Network Application Easy Update Script.
 # Script   | UniFi Network Easy Update Script
-# Version  | 9.2.6
+# Version  | 9.2.7
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -941,6 +941,7 @@ help_script() {
     --archive-alerts            Archive all alerts from the UniFi Network Application.
     --delete-events             Delete all events from the UniFi Network Application.
     --do-not-start-unifi        Automatically stop the UniFi Network Application post updates.
+    --check-default-networks    Automatically check and cleanup sites with multiple default LAN networks.
     --custom-url [argument]     Manually provide a UniFi Network Application download URL.
                                 example:
                                 --custom-url https://dl.ui.com/unifi/5.13.32/unifi_sysvinit_all.deb
@@ -964,6 +965,10 @@ while [ -n "$1" ]; do
   --do-not-start-unifi)
        script_option_do_not_start_unifi="true"
        echo "--do-not-start-unifi" &>> /tmp/EUS/script_options;;
+  ---check-default-networks)
+       check_multiple_default_lan_networks="true"
+       echo -e "$(date +%F-%R) | Script option --check-default-lans was used, changing variable check_multiple_default_lan_networks to true..." &>> "${eus_dir}/logs/cleanup-multiple-default-lan-networks.log"
+       echo "--check-default-networks" &>> /tmp/EUS/script_options;;
   --custom-url)
        if [[ -n "${2}" ]]; then if echo "${2}" | grep -ioq ".deb"; then custom_url_down_provided="true"; custom_download_url="${2}"; else header_red; echo -e "${RED}#${RESET} Provided URL does not have the 'deb' extension...\\n"; help_script; fi; fi
        script_option_custom_url="true"
@@ -1602,6 +1607,129 @@ broken_packages_check() {
   fi
 }
 
+mongo_command() {
+  mongo_command_server_version="$("$(which dpkg)" -l | grep "^ii\\|^hi" | grep "mongodb-server\\|mongodb-org-server\\|mongod-armv8\\|mongod-amd64" | awk '{print $3}' | sed 's/\.//g' | sed 's/.*://' | sed 's/-.*//g')"
+  if "$(which dpkg)" -l mongodb-mongosh-shared-openssl3 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui" && [[ "${mongo_command_server_version::2}" -ge "40" ]]; then
+    mongocommand="mongosh"
+    mongoprefix="EJSON.stringify( "
+    mongosuffix=".toArray() )"
+  elif "$(which dpkg)" -l mongodb-mongosh-shared-openssl11 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui" && [[ "${mongo_command_server_version::2}" -ge "40" ]]; then
+    mongocommand="mongosh"
+    mongoprefix="EJSON.stringify( "
+    mongosuffix=".toArray() )"
+  elif "$(which dpkg)" -l mongodb-mongosh 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui" && [[ "${mongo_command_server_version::2}" -ge "40" ]]; then
+    mongocommand="mongosh"
+    mongoprefix="EJSON.stringify( "
+    mongosuffix=".toArray() )"
+  elif "$(which dpkg)" -l mongosh 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui" && [[ "${mongo_command_server_version::2}" -ge "40" ]]; then
+    mongocommand="mongosh"
+    mongoprefix="EJSON.stringify( "
+    mongosuffix=".toArray() )"
+  else
+    mongocommand="mongo"
+    mongoprefix="JSON.stringify( "
+    #mongosuffix=".forEach(printjson) )"
+    mongosuffix=".toArray() )"
+  fi
+}
+
+cleanup_multiple_default_lan_networks() {
+  mongo_command
+  remove_duplicated_networkconf_id() { # Log removed network data and remove the ID from the UniFi Network Application database.
+    removed_networkconf_data="$("${mongocommand}" --quiet --port 27117 ace --eval "${mongoprefix}db.getCollection('networkconf').find({ _id: ObjectId('${networkconf_id_remove}') })${mongosuffix}")"
+    removed_networkconf_info="$("${mongocommand}" --quiet --port 27117 ace --eval "db.getCollection('networkconf').deleteMany({ _id: ObjectId('${networkconf_id_remove}') })")"
+    echo -e "$(date +%F-%R) | networkconf data for ${networkconf_id_remove}: ${removed_networkconf_data}" &>> "${eus_dir}/logs/cleanup-multiple-default-lan-networks.log"
+    echo -e "$(date +%F-%R) | networkconf ${networkconf_id_remove} removal results: ${removed_networkconf_info}" &>> "${eus_dir}/logs/cleanup-multiple-default-lan-networks.log"
+    echo -e "${GREEN}#${RESET} Successfully cleaned up multiple default LAN networks for site ${cleanup_multiple_default_lan_networks_site_desc}! \\n"
+  }
+  check_fields() { # Check if any ID's match criteria
+    local id="$1"
+    json_output="$("${mongocommand}" --quiet --port 27117 ace --eval "${mongoprefix}db.getCollection('networkconf').find({'_id': ObjectId('""${id}""')})${mongosuffix}")"
+    name="$(echo "${json_output}" | jq -r '.[0].name' | tr '[:upper:]' '[:lower:]')"
+    ip_subnet="$(echo "${json_output}" | jq -r '.[0].ip_subnet' | tr '[:upper:]' '[:lower:]')"
+    dhcpd_stop="$(echo "${json_output}" | jq -r '.[0].dhcpd_stop' | tr '[:upper:]' '[:lower:]')"
+    dhcpd_start="$(echo "${json_output}" | jq -r '.[0].dhcpd_start' | tr '[:upper:]' '[:lower:]')"
+    domain_name="$(echo "${json_output}" | jq -r '.[0].domain_name' | tr '[:upper:]' '[:lower:]')"
+    if [[ "${name}" == "default" && "${ip_subnet}" == "192.168.1.1/24" && "${dhcpd_stop}" == "192.168.1.254" && "${dhcpd_start}" == "192.168.1.6" && "${domain_name}" == "localdomain" ]]; then
+      return 0  # Match found
+    else
+      return 1  # No match
+    fi
+  }
+  cleanup_epoch="$(date +%s)"
+  eus_create_directories "data"
+  eus_create_directories "data/multiple-default-lan-networks"
+  "${mongocommand}" --quiet --port 27117 ace --eval "${mongoprefix}db.getCollection('networkconf').aggregate([{ \"\$match\": { \"attr_no_delete\": true, \"attr_hidden_id\": \"LAN\" } }, { \"\$group\": { \"_id\": \"\$site_id\", \"count\": { \"\$sum\": 1 }, \"ids\": { \"\$push\": \"\$_id\" } } }, { \"\$match\": { \"count\": { \"\$gte\": 2 } } }, { \"\$project\": { \"_id\": 0, \"site_id\": \"\$_id\", \"count\": 1, \"duplicate_ids\": \"\$ids\" } }])${mongosuffix}" | jq 'map({count: .count, site_id: .site_id, duplicate_ids: (.duplicate_ids | map(.["$oid"]))})' &> "${eus_dir}/data/multiple-default-lan-networks/${cleanup_epoch}-data.json"
+  affected_sites_count="$(jq 'length' "${eus_dir}/data/multiple-default-lan-networks/${cleanup_epoch}-data.json")"
+  if [[ "${affected_sites_count}" == '0' ]]; then
+    rm --force "${eus_dir}/data/multiple-default-lan-networks/${cleanup_epoch}-data.json" &> /dev/null
+    if [[ "$(jq -r '.scripts."'"${script_name}"'".tasks | to_entries[]? | select(.key | startswith("cleanup-multiple-default-lan-networks")) | .value[]? | ."check-completed" // empty' "${eus_dir}/db/db.json" 2> /dev/null | tail -n1)" != 'true' ]]; then
+      if [[ "$(dpkg-query --showformat='${Version}' --show jq | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
+        jq '.scripts."'"${script_name}"'" |= . + {"tasks": (.tasks + {"cleanup-multiple-default-lan-networks ('"${cleanup_epoch}"')":[{"check-completed":"true", "affected-sites":"'"${affected_sites_count}"'"}]})}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+      else
+        jq '.scripts["'"${script_name}"'"] |= (.tasks += {"cleanup-multiple-default-lan-networks ('"${cleanup_epoch}"')": [{"check-completed":"true", "affected-sites":"'"${affected_sites_count}"'"}]})' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+      fi
+      eus_database_move
+    fi
+    return
+  fi
+  duplicate_resolve_cycles="0"
+  until [[ "${duplicate_resolve_cycles}" == "${affected_sites_count}" ]]; do
+    cleanup_multiple_default_lan_networks_site_id="$(jq -r ".[${duplicate_resolve_cycles}].site_id" "${eus_dir}/data/multiple-default-lan-networks/${cleanup_epoch}-data.json")"
+    cleanup_multiple_default_lan_networks_site_desc="$("${mongocommand}" --quiet --port 27117 ace --eval "${mongoprefix}db.getCollection('site').find({\"_id\":ObjectId('${cleanup_multiple_default_lan_networks_site_id}')})${mongosuffix}" 2> /dev/null | sed 's/\(ObjectId(\|)\|NumberLong(\)\|ISODate(//g' 2> /dev/null | jq -r '.[].desc' 2> /dev/null)"
+    echo -e "${WHITE_R}#${RESET} Checking for multiple default LAN networks for site ${cleanup_multiple_default_lan_networks_site_desc}..."
+    declare -A timestamp_map
+    while read -r duplicated_id; do
+      time_stamp="$("${mongocommand}" --quiet --port 27117 ace --eval 'Math.floor(ObjectId("'"${duplicated_id}"'").getTimestamp().getTime() / 1000)')"
+      timestamp_map["$time_stamp"]+="$duplicated_id "
+    done < <(jq -r ".[${duplicate_resolve_cycles}].duplicate_ids[]" "${eus_dir}/data/multiple-default-lan-networks/${cleanup_epoch}-data.json")
+    max_timestamp=""
+    for ts in "${!timestamp_map[@]}"; do
+      if [[ -z "$max_timestamp" || "$ts" -gt "$max_timestamp" ]]; then
+        max_timestamp="$ts"
+      fi
+    done
+    if [[ -n "${timestamp_map[$max_timestamp]}" ]]; then
+      networkconf_ids_with_max_time="${timestamp_map[$max_timestamp]}"
+      id_count="$(echo "$networkconf_ids_with_max_time" | wc -w)"
+      if [[ "${id_count}" -gt "1" ]]; then
+        echo -e "$(date +%F-%R) | Multiple networkconf IDs found with the same timestamp (${max_timestamp}): ${networkconf_ids_with_max_time}" &>> "${eus_dir}/logs/cleanup-multiple-default-lan-networks.log"
+        matching_ids=()
+        any_match=false
+        for networkconf_id in $networkconf_ids_with_max_time; do
+          if check_fields "${networkconf_id}"; then
+            echo -e "$(date +%F-%R) | networkconf ID ${networkconf_id} matches the criteria." &>> "${eus_dir}/logs/cleanup-multiple-default-lan-networks.log"
+            matching_ids+=("${networkconf_id}")
+            any_match=true
+          fi
+        done
+        if [[ "${any_match}" == "true" ]]; then
+          matching_id="${matching_ids[0]}"
+          networkconf_id_remove="${matching_id//[[:space:]]/}"
+          echo -e "$(date +%F-%R) | Processing networkconf ID ${networkconf_id_remove} for removal." &>> "${eus_dir}/logs/cleanup-multiple-default-lan-networks.log"
+          remove_duplicated_networkconf_id "${networkconf_id_remove}"
+        else
+          last_id="$(echo "$networkconf_ids_with_max_time" | awk '{print $NF}' | sed 's/[[:space:]]//g')"
+          networkconf_id_remove="${last_id}"
+          echo -e "$(date +%F-%R) | No networkconf IDs matched the criteria. Processing networkconf ID ${networkconf_id_remove} for removal." &>> "${eus_dir}/logs/cleanup-multiple-default-lan-networks.log"
+          remove_duplicated_networkconf_id "${networkconf_id_remove}"
+        fi
+      else
+        networkconf_id_remove="${networkconf_ids_with_max_time//[[:space:]]/}"
+        echo -e "$(date +%F-%R) | Single networkconf ID returned, processing ${networkconf_ids_with_max_time} for removal" &>> "${eus_dir}/logs/cleanup-multiple-default-lan-networks.log"
+        remove_duplicated_networkconf_id "${networkconf_id_remove}"
+      fi
+    fi
+    ((duplicate_resolve_cycles=duplicate_resolve_cycles+1))
+  done
+  if [[ "$(dpkg-query --showformat='${Version}' --show jq | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
+    jq '.scripts."'"${script_name}"'" |= . + {"tasks": (.tasks + {"cleanup-multiple-default-lan-networks ('"${cleanup_epoch}"')":[{"check-completed":"true", "affected-sites":"'"${affected_sites_count}"'"}]})}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+  else
+    jq '.scripts["'"${script_name}"'"] |= (.tasks += {"cleanup-multiple-default-lan-networks ('"${cleanup_epoch}"')": [{"check-completed":"true", "affected-sites":"'"${affected_sites_count}"'"}]})' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+  fi
+  eus_database_move
+}
+
 # Add default repositories
 check_default_repositories() {
   get_repo_url
@@ -1868,7 +1996,7 @@ fi
 
 check_package_cache_file_corruption() {
   if ls /tmp/EUS/apt/*.log 1> /dev/null 2>&1; then
-    if grep -ioqE '^E: The package cache file is corrupted' /tmp/EUS/apt/*.log; then
+    if grep -ioqE '^E: The package cache file is corrupted\\|^E: Problem with MergeList\\|^E: Unable to parse package file' /tmp/EUS/apt/*.log; then
       rm -r /var/lib/apt/lists/* &> "${eus_dir}/logs/package-cache-corruption.log"
       mkdir /var/lib/apt/lists/partial &> "${eus_dir}/logs/package-cache-corruption.log"
       repository_changes_applied="true"
@@ -3575,7 +3703,7 @@ start_unifi_database() {
     while [[ -n "$(ps -p "${current_unifi_database_pid}" -o pid=)" ]]; do
       if [[ "${current_unifi_database_pid_message}" != 'true' ]]; then current_unifi_database_pid_message="true"; echo -e "${YELLOW}#${RESET} Another process is already using the UniFi Network Application database...\\n${YELLOW}#${RESET} Attempting to stop the other process..."; fi
       if [[ "${current_unifi_database_pid_stop_attempt}" == "0" ]]; then systemctl stop unifi &>> "${eus_dir}/logs/shutting-down-unifi-database.log"; sleep 10; fi
-      if [[ "${current_unifi_database_pid_stop_attempt}" == "1" ]]; then "$(which mongod)" --dbpath "${unifi_database_location}" --port 27117 --shutdown 2>&1 | tee -a "${eus_dir}/logs/already-running-mongod-shutdown.log" > "${eus_dir}/logs/shutting-down-unifi-database.log"; sleep 10; fi
+      if [[ "${current_unifi_database_pid_stop_attempt}" == "1" ]]; then "$(which mongod)" --dbpath "${unifi_database_location}" --port 27117 --shutdown 2>&1 | tee -a "${eus_dir}/logs/already-running-mongod-shutdown.log" >> "${eus_dir}/logs/shutting-down-unifi-database.log"; sleep 10; fi
       ((current_unifi_database_pid_stop_attempt=current_unifi_database_pid_stop_attempt+1))
       ((current_unifi_database_pid_stop_attempt_round=current_unifi_database_pid_stop_attempt_round+1))
       if [[ "${current_unifi_database_pid_stop_attempt}" == "1" ]]; then current_unifi_database_pid_stop_attempt="0"; fi
@@ -4532,7 +4660,25 @@ if [[ -d "/usr/lib/unifi/logs/" ]]; then
     done < <(find /usr/lib/unifi/logs/ -maxdepth 1 -type f -print0 | while IFS= read -r -d '' file; do if "${grep_command}" -Eial "db version v${found_mongodb_version}|buildInfo\":{\"version\":\"${found_mongodb_version}\"" "$file" > /dev/null 2>&1; then if [[ -e "$file" ]]; then stat --format '%Y %n' "$file"; fi; fi; done | sort -nr | awk '{print $2}')
     if [[ -n "${last_known_good_mongodb_version}" ]]; then wait; break; fi
   done < <(find /usr/lib/unifi/logs/ -maxdepth 1 -type f -print0 | xargs -0 "${grep_command}" -sEioa "db version v[0-9].[0-9].[0-9]{1,2}|buildInfo\":{\"version\":\"[0-9].[0-9].[0-9]{1,2}\"" | sed -e 's/^.*://' -e 's/db version v//g' -e 's/buildInfo":{"version":"//g' -e 's/"//g' | sort -V | uniq | sort -r)
-  if [[ -n "${last_known_good_mongodb_version}" ]]; then previous_mongodb_version="${last_known_good_mongodb_version//./}"; previous_mongodb_version_with_dot="${last_known_good_mongodb_version}"; fi
+  if [[ -n "${last_known_good_mongodb_version}" ]]; then
+    previous_mongodb_version="${last_known_good_mongodb_version//./}"
+    previous_mongodb_version_with_dot="${last_known_good_mongodb_version}"
+  else
+    if [[ -e "${eus_dir}/logs/mongodb-unsupported-version-change-locate.log" ]]; then
+      dynamic_bad_mongodb_versions=()
+      while IFS= read -r line; do
+        dynamic_bad_mongodb_versions+=("${line}")
+      done < <(sed -n 's/.*"\([^"]*\)" is marked as bad.*/\1/p' "${eus_dir}/logs/mongodb-unsupported-version-change-locate.log" | sort -r | uniq)
+      while read -r eus_db_mongodb_version; do
+        if [[ ! "${dynamic_bad_mongodb_versions[*]}" =~ ${eus_db_mongodb_version} ]]; then
+          previous_mongodb_version="${eus_db_mongodb_version//./}"
+          previous_mongodb_version_with_dot="${eus_db_mongodb_version}"
+          echo -e "$(date +%F-%R) | Last known good MongoDB version is \"${eus_db_mongodb_version}\" found in the EUS database!" &>> "${eus_dir}/logs/mongodb-unsupported-version-change-locate.log"
+          break
+        fi
+      done < <(jq -r '.scripts."UniFi Network Easy Update Script".tasks | to_entries[] | select(.key | startswith("mongodb-upgrade")) | .value[].from' "${eus_dir}/db/db.json" 2> /dev/null | sort -r | uniq)
+    fi
+  fi
 fi
 
 # downgrade arm64 to 4.4.18 if 4.4 MongoDB is installed.
@@ -4936,32 +5082,6 @@ mongodb_avx_support_check() {
   fi
 }
 mongodb_avx_support_check
-
-mongo_command() {
-  mongo_command_server_version="$("$(which dpkg)" -l | grep "^ii\\|^hi" | grep "mongodb-server\\|mongodb-org-server\\|mongod-armv8\\|mongod-amd64" | awk '{print $3}' | sed 's/\.//g' | sed 's/.*://' | sed 's/-.*//g')"
-  if "$(which dpkg)" -l mongodb-mongosh-shared-openssl3 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui" && [[ "${mongo_command_server_version::2}" -ge "40" ]]; then
-    mongocommand="mongosh"
-    mongoprefix="EJSON.stringify( "
-    mongosuffix=".toArray() )"
-  elif "$(which dpkg)" -l mongodb-mongosh-shared-openssl11 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui" && [[ "${mongo_command_server_version::2}" -ge "40" ]]; then
-    mongocommand="mongosh"
-    mongoprefix="EJSON.stringify( "
-    mongosuffix=".toArray() )"
-  elif "$(which dpkg)" -l mongodb-mongosh 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui" && [[ "${mongo_command_server_version::2}" -ge "40" ]]; then
-    mongocommand="mongosh"
-    mongoprefix="EJSON.stringify( "
-    mongosuffix=".toArray() )"
-  elif "$(which dpkg)" -l mongosh 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui" && [[ "${mongo_command_server_version::2}" -ge "40" ]]; then
-    mongocommand="mongosh"
-    mongoprefix="EJSON.stringify( "
-    mongosuffix=".toArray() )"
-  else
-    mongocommand="mongo"
-    mongoprefix="JSON.stringify( "
-    #mongosuffix=".forEach(printjson) )"
-    mongosuffix=".toArray() )"
-  fi
-}
 mongo_command
 
 unifi_version=''
@@ -8078,7 +8198,7 @@ mongodb_upgrade() {
   token="$("${mongocommand}" --quiet --port 27117 ace --eval 'db.setting.find({"key": "super_fwupdate"}).forEach(function(document){ print(document.x_sso_token) })' | grep -Eio "[0-9,a-z]{8}-[0-9,a-z]{4}-[0-9,a-z]{4}-[0-9,a-z]{4}-[0-9,a-z]{12}")"
   while read -r unifi_package; do
     echo -e "${WHITE_R}#${RESET} Stopping service ${unifi_package}..."
-    if systemctl stop "${unifi_package}"; then echo -e "${GREEN}#${RESET} Successfully stopped service ${unifi_package}! \\n"; else abort_reason="Failed to stop service ${unifi_package}."; abort; fi
+    if systemctl stop "${unifi_package}" &>> "${eus_dir}/logs/mongodb_upgrade_${mongodb_upgrade_from_version::2}_to_${mongo_version_max}_systemctl.log"; then echo -e "${GREEN}#${RESET} Successfully stopped service ${unifi_package}! \\n"; else abort_reason="Failed to stop service ${unifi_package}."; abort; fi
   done < /tmp/EUS/mongodb/unifi_package_list
   # DB Dumping
   if [[ "${mongodb_upgrade_without_export_import}" != 'true' ]]; then
@@ -9015,7 +9135,7 @@ fi
 mongodb_repair_required_check() {
   last_match_line="$(grep -n 'SERVER RESTARTED' /usr/lib/unifi/logs/mongod.log 2> /dev/null | tail -n 1 | cut -d: -f1)"
   if [[ -n "${last_match_line}" ]]; then
-    if tail -n +$((last_match_line + 1)) /usr/lib/unifi/logs/mongod.log | grep -iaEq "WT_NOTFOUND: item not found, terminating|__wt_panic"; then
+    if tail -n +$((last_match_line + 1)) /usr/lib/unifi/logs/mongod.log | grep -iaEq "WT_NOTFOUND: item not found, terminating|__wt_panic|An incomplete repair has been detected!"; then
       database_repair_required="true"
     fi
   fi
@@ -9027,6 +9147,15 @@ mongodb_repair_required_check() {
   fi
 }
 mongodb_repair_required_check
+
+while read -r mongodb_upgrade_log_file; do
+  mongodb_upgrade_log_file_epoch_time="$( (stat "${mongodb_upgrade_log_file}" | awk '/Birth:/{print $2, $3}' || find "$(dirname "${mongodb_upgrade_log_file}")" -maxdepth 1 -name "$(basename "${mongodb_upgrade_log_file}")" -printf '%TY-%Tm-%Td %TH:%TM:%TS\n') | xargs -I{} date --date="{}" +"%s" )"
+  if [[ "${mongodb_upgrade_log_file_epoch_time}" -lt "1705096140" ]]; then # Check if file is before 12 Jan 2024.
+    echo -e "$(date +%F-%R) | Log file \"${mongodb_upgrade_log_file}\" epoch time is ${mongodb_upgrade_log_file_epoch_time}, changing variable check_multiple_default_lan_networks to true..." &>> "${eus_dir}/logs/cleanup-multiple-default-lan-networks.log"
+    check_multiple_default_lan_networks="true"
+  fi
+done < <(find "${eus_dir}/logs/" -type f -name "mongodb_upgrade*")
+if [[ "${check_multiple_default_lan_networks}" == 'true' ]]; then cleanup_multiple_default_lan_networks; sleep 3; fi
 
 if [[ "$(jq '.database | has("mongodb-key-check-reset")' "${eus_dir}/db/db.json")" == 'true' ]]; then
   jq 'del(.database."mongodb-key-check-reset")' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"

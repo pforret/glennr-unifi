@@ -57,7 +57,7 @@
 ###################################################################################################################################################################################################
 
 # Script                | UniFi Network Easy Installation Script
-# Version               | 7.9.7
+# Version               | 7.9.8
 # Application version   | 8.4.62-i3q2j125cz
 # Debian Repo version   | 8.4.62-26656-1
 # Author                | Glenn Rietveld
@@ -1136,7 +1136,7 @@ rm --force /tmp/EUS/log_files
 
 check_package_cache_file_corruption() {
   if ls /tmp/EUS/apt/*.log 1> /dev/null 2>&1; then
-    if grep -ioqE '^E: The package cache file is corrupted' /tmp/EUS/apt/*.log; then
+    if grep -ioqE '^E: The package cache file is corrupted\\|^E: Problem with MergeList\\|^E: Unable to parse package file' /tmp/EUS/apt/*.log; then
       rm -r /var/lib/apt/lists/* &> "${eus_dir}/logs/package-cache-corruption.log"
       mkdir /var/lib/apt/lists/partial &> "${eus_dir}/logs/package-cache-corruption.log"
       repository_changes_applied="true"
@@ -2850,8 +2850,23 @@ if [[ -d "/usr/lib/unifi/logs/" ]]; then
     last_known_good_mongodb_version_eus_db="$(jq -r '.scripts["UniFi Network Easy Update Script"].tasks | to_entries[] | select(.key | startswith("mongodb-upgrade")) | .value[] | select(.status == "success") | .to' "${eus_dir}/db/db.json" 2> /dev/null | sort -V | tail -n1)"
     if [[ -n "${last_known_good_mongodb_version_eus_db}" ]]; then
       echo -e "$(date +%F-%R) | Using last known good MongoDB version \"${last_known_good_mongodb_version_eus_db}\" from the EUS database!" &>> "${eus_dir}/logs/mongodb-unsupported-version-change-locate.log"
+      previous_mongodb_version="${previous_mongodb_version_with_dot//./}"
       previous_mongodb_version_with_dot="${last_known_good_mongodb_version_eus_db}"
-      previous_mongodb_version_with_dot="${previous_mongodb_version_with_dot//./}"
+    else
+      if [[ -e "${eus_dir}/logs/mongodb-unsupported-version-change-locate.log" ]]; then
+        dynamic_bad_mongodb_versions=()
+        while IFS= read -r line; do
+          dynamic_bad_mongodb_versions+=("${line}")
+        done < <(sed -n 's/.*"\([^"]*\)" is marked as bad.*/\1/p' "${eus_dir}/logs/mongodb-unsupported-version-change-locate.log" | sort -r | uniq)
+        while read -r eus_db_mongodb_version; do
+          if [[ ! "${dynamic_bad_mongodb_versions[*]}" =~ ${eus_db_mongodb_version} ]]; then
+            previous_mongodb_version="${eus_db_mongodb_version//./}"
+            previous_mongodb_version_with_dot="${eus_db_mongodb_version}"
+            echo -e "$(date +%F-%R) | Last known good MongoDB version is \"${eus_db_mongodb_version}\" found in the EUS database!" &>> "${eus_dir}/logs/mongodb-unsupported-version-change-locate.log"
+            break
+          fi
+        done < <(jq -r '.scripts."UniFi Network Easy Update Script".tasks | to_entries[] | select(.key | startswith("mongodb-upgrade")) | .value[].from' "${eus_dir}/db/db.json" 2> /dev/null | sort -r | uniq)
+      fi
     fi
   fi
   if "$(which dpkg)" -l | grep "mongodb-server\\|mongodb-org-server\\|mongod-armv8\\|mongod-amd64" | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui" && [[ -n "${previous_mongodb_version}" ]]; then
@@ -3821,46 +3836,49 @@ if [[ "${first_digit_unifi}" -gt '7' ]] || [[ "${first_digit_unifi}" == '7' && "
   fi
 fi
 #
-mongo_version_max="36"
-mongo_version_max_with_dot="3.6"
-unifi_mongo_version_max="36"
-add_mongodb_36_repo="true"
-mongo_version_not_supported="4.0"
-# MongoDB Version override
-if [[ "${first_digit_unifi}" -le '5' && "${second_digit_unifi}" -le '13' ]]; then
-  mongo_version_max="34"
-  mongo_version_max_with_dot="3.4"
-  unifi_mongo_version_max="34"
-  add_mongodb_34_repo="true"
-  unset add_mongodb_36_repo
-  mongo_version_not_supported="3.6"
-fi
-if [[ "${first_digit_unifi}" == '5' && "${second_digit_unifi}" == '13' && "${third_digit_unifi}" -gt '10' ]]; then
+set_required_unifi_package_versions() {
   mongo_version_max="36"
   mongo_version_max_with_dot="3.6"
   unifi_mongo_version_max="36"
   add_mongodb_36_repo="true"
   mongo_version_not_supported="4.0"
-fi
-# JAVA/MongoDB Version override
-if [[ "${first_digit_unifi}" -gt '8' ]] || [[ "${first_digit_unifi}" == '8' && "${second_digit_unifi}" -ge "1" ]]; then
-  mongo_version_max="70"
-  mongo_version_max_with_dot="7.0"
-  unifi_mongo_version_max="70"
-  add_mongodb_70_repo="true"
-  unset add_mongodb_44_repo
-  unset add_mongodb_36_repo
-  unset add_mongodb_34_repo
-  mongo_version_not_supported="7.1"
-elif [[ "${first_digit_unifi}" -gt '7' ]] || [[ "${first_digit_unifi}" == '7' && "${second_digit_unifi}" -ge "5" ]]; then
-  mongo_version_max="44"
-  mongo_version_max_with_dot="4.4"
-  unifi_mongo_version_max="44"
-  add_mongodb_44_repo="true"
-  unset add_mongodb_36_repo
-  unset add_mongodb_34_repo
-  mongo_version_not_supported="4.5"
-fi
+  # MongoDB Version override
+  if [[ "${first_digit_unifi}" -le '5' && "${second_digit_unifi}" -le '13' ]]; then
+    mongo_version_max="34"
+    mongo_version_max_with_dot="3.4"
+    unifi_mongo_version_max="34"
+    add_mongodb_34_repo="true"
+    unset add_mongodb_36_repo
+    mongo_version_not_supported="3.6"
+  fi
+  if [[ "${first_digit_unifi}" == '5' && "${second_digit_unifi}" == '13' && "${third_digit_unifi}" -gt '10' ]]; then
+    mongo_version_max="36"
+    mongo_version_max_with_dot="3.6"
+    unifi_mongo_version_max="36"
+    add_mongodb_36_repo="true"
+    mongo_version_not_supported="4.0"
+  fi
+  # JAVA/MongoDB Version override
+  if [[ "${first_digit_unifi}" -gt '8' ]] || [[ "${first_digit_unifi}" == '8' && "${second_digit_unifi}" -ge "1" ]]; then
+    mongo_version_max="70"
+    mongo_version_max_with_dot="7.0"
+    unifi_mongo_version_max="70"
+    add_mongodb_70_repo="true"
+    unset add_mongodb_44_repo
+    unset add_mongodb_36_repo
+    unset add_mongodb_34_repo
+    mongo_version_not_supported="7.1"
+  elif [[ "${first_digit_unifi}" -gt '7' ]] || [[ "${first_digit_unifi}" == '7' && "${second_digit_unifi}" -ge "5" ]]; then
+    mongo_version_max="44"
+    mongo_version_max_with_dot="4.4"
+    unifi_mongo_version_max="44"
+    add_mongodb_44_repo="true"
+    unset add_mongodb_36_repo
+    unset add_mongodb_34_repo
+    mongo_version_not_supported="4.5"
+  fi
+}
+set_required_unifi_package_versions
 
 java_required_variables() {
   if [[ "${first_digit_unifi}" -gt '7' ]] || [[ "${first_digit_unifi}" == '7' && "${second_digit_unifi}" -ge "5" ]]; then
@@ -5691,6 +5709,8 @@ if [[ "${mongodb_installed}" != 'true' ]]; then
           add_mongod_70_repo="true"
           glennr_compiled_mongod="true"
         fi
+      else
+        set_required_unifi_package_versions
       fi
       mongodb_avx_support_check
     fi
