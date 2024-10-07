@@ -11,6 +11,12 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 9.2.8
+  
+ - Added support for updating to 8.5.6 RC.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 9.2.7
   
  - Added recovery for apt MergeList issues.
