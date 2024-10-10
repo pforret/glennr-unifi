@@ -11,6 +11,38 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 9.3.3
+  
+ - Added ability to run the script in a non-interactive mode with --skip and --unifi-version [argument].
+   - This requires you to already have a supported MongoDB version installed, else you will get a prompt.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 9.3.2
+  
+ - Fixed an issue where users could get a single cancel prompt while already on 8.5.6.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 9.3.1
+  
+ - Fixed an issue where the script would cancel when trying to upgrade from 8.4.62 to 8.5.6.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 9.3.0
+  
+ - Added recovery when the UniFi Network Application cannot start due to missing directories.
+ - Fixed an issue where the script tries to check for multiple default LAN networks while the Network Application is not running.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 9.2.9
+  
+ - Added support for upgrading to 8.5.6 Stable/Official.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 9.2.8
   
  - Added support for updating to 8.5.6 RC.

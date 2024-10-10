@@ -11,6 +11,12 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 7.9.9
+ 
+ - Added recovery when the UniFi Network Application cannot start due to missing directories.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 7.9.8
  
  - Added recovery for apt MergeList issues.
