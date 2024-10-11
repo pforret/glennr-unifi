@@ -57,7 +57,7 @@
 ###################################################################################################################################################################################################
 
 # Script                | UniFi Network Easy Installation Script
-# Version               | 7.9.9
+# Version               | 8.0.1
 # Application version   | 6.0.27-e23884806a
 # Debian Repo version   | 6.0.27-14276-1
 # Author                | Glenn Rietveld
@@ -3045,7 +3045,7 @@ old_systemd_version_check() {
   if [[ "$(dpkg-query --showformat='${Version}' --show systemd | awk -F '[.-]' '{print $1}')" -lt "231" && "${old_systemd_unifi_check_passed}" == 'true' ]]; then
     old_systemd_version="true"
     if ! [[ -d "/etc/systemd/system/unifi.service.d/" ]]; then eus_directory_location="/etc/systemd/system"; eus_create_directories "unifi.service.d"; fi
-    unifi_helpers="$(grep "unifi-network-service-helper" /lib/systemd/system/unifi.service | grep "=+" | while read -r helper; do echo "${helper//+/}"; done)"
+    unifi_helpers="$(grep -s "unifi-network-service-helper" /lib/systemd/system/unifi.service | grep "=+" | while read -r helper; do echo "${helper//+/}"; done)"
     if echo -e "[Service]\nPermissionsStartOnly=true\nExecStartPre=/usr/sbin/unifi-network-service-helper create-dirs\n${unifi_helpers}" &> /etc/systemd/system/unifi.service.d/override.conf; then
       daemon_reexec
       systemctl daemon-reload &>> "${eus_dir}/logs/old-systemd.log"
@@ -3118,7 +3118,7 @@ check_service_overrides() {
 }
 
 unifi_autobackup_dir_check() {
-  unifi_autobackup_dir="$(grep "^autobackup.dir" /usr/lib/unifi/data/system.properties 2> /dev/null | sed 's/autobackup.dir=//g')"
+  unifi_autobackup_dir="$(grep -s "^autobackup.dir" /usr/lib/unifi/data/system.properties 2> /dev/null | sed 's/autobackup.dir=//g')"
   if [[ -z "${unifi_autobackup_dir}" ]]; then unifi_autobackup_dir="/usr/lib/unifi/data/backup/autobackup"; fi
   if ! [[ -d "${unifi_autobackup_dir}" ]]; then install -d -m 0755 -o unifi -g unifi "${unifi_autobackup_dir}" &>> "${eus_dir}/logs/unifi-autbackup-dir-check.log"; fi
 }
@@ -3176,8 +3176,8 @@ unifi_folder_permission_check() {
           unifi_folder_permission_check_detected_files+=("${unifi_file_or_directory}")
         fi
       fi
-    done < <(find "${unifi_directory}" -type d -print -o -type f -print)
-  done < <(find /usr/lib/unifi/ -maxdepth 1 -type l -printf '%l\n')
+    done < <(find "${unifi_directory}" -type d -print -o -type f -print 2> /dev/null)
+  done < <(find /usr/lib/unifi/ -maxdepth 1 -type l -printf '%l\n' 2> /dev/null)
   if [[ "${#unifi_folder_permission_check_detected_files[@]}" -gt 0 ]]; then
     for unifi_folder_permission_check_detected_file in "${unifi_folder_permission_check_detected_files[@]}"; do
       if [[ -e "${unifi_folder_permission_check_detected_file}" ]]; then
@@ -6095,7 +6095,7 @@ if [[ "${first_digit_unifi}" == "7" && "${second_digit_unifi}" == "2" && "${thir
 fi
 
 header
-echo -e "${WHITE_R}#${RESET} Installing your UniFi Network Application ( ${WHITE_R}${unifi_clean}${RESET} )...\\n"
+echo -e "${WHITE_R}#${RESET} Installing your UniFi Network Application ${WHITE_R}${unifi_clean}${RESET}...\\n"
 sleep 2
 if [[ "${unifi_network_application_downloaded}" != 'true' ]]; then
   eus_directory_location="/tmp/EUS"
@@ -6160,6 +6160,7 @@ ignore_unifi_package_dependencies
 check_service_overrides
 unifi_required_packages_check
 system_properties_check
+unifi_folder_permission_check
 echo -e "${WHITE_R}#${RESET} Installing the UniFi Network Application..."
 echo -e "\\n------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/unifi-install.log"
 echo "unifi unifi/has_backup boolean true" 2> /dev/null | debconf-set-selections
@@ -6172,6 +6173,7 @@ else
   abort_reason="Failed to install the UniFi Network Application."
   abort
 fi
+if journalctl -u unifi 2> /dev/null | grep -qiE "unifi-network-service-helper.*(rm: cannot remove|mv: cannot move)"; then /usr/sbin/unifi-network-service-helper create-dirs &>> "${eus_dir}/logs/unifi-missing-directories.log"; fi
 system_properties_free_memory_check
 unifi_autobackup_dir_check
 unifi_folder_permission_check
@@ -6186,6 +6188,11 @@ eus_database_move
 rm --force "${unifi_temp}" 2> /dev/null
 if ! systemctl is-active --quiet unifi && [[ "${limited_functionality}" != 'true' ]]; then unifi_service_not_running="true"; elif [[ "$(pgrep -f "/usr/lib/unifi" | grep -cv grep)" -lt "2" ]]; then unifi_service_not_running="true"; fi
 if [[ "${unifi_service_not_running}" == 'true' ]]; then
+  if [[ "${limited_functionality}" == 'true' ]]; then
+    service unifi stop &>> "${eus_dir}/logs/post-unifi-install-stop.log"
+  else
+    systemctl stop unifi &>> "${eus_dir}/logs/post-unifi-install-stop.log"
+  fi
   echo -e "${WHITE_R}#${RESET} Starting the UniFi Network Application..."
   old_systemd_version_check
   if [[ "${limited_functionality}" == 'true' ]]; then
