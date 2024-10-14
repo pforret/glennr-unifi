@@ -2,7 +2,7 @@
 
 # UniFi Network Application Easy Update Script.
 # Script   | UniFi Network Easy Update Script
-# Version  | 9.3.3
+# Version  | 9.3.5
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -1715,10 +1715,11 @@ cleanup_multiple_default_lan_networks() {
           fi
         done
         if [[ "${any_match}" == "true" ]]; then
-          matching_id="${matching_ids[0]}"
-          networkconf_id_remove="${matching_id//[[:space:]]/}"
-          echo -e "$(date +%F-%R) | Processing networkconf ID ${networkconf_id_remove} for removal." &>> "${eus_dir}/logs/cleanup-multiple-default-lan-networks.log"
-          remove_duplicated_networkconf_id "${networkconf_id_remove}"
+          for matching_id in "${matching_ids[@]}"; do
+            networkconf_id_remove="${matching_id//[[:space:]]/}"
+            echo -e "$(date +%F-%R) | Processing networkconf ID ${networkconf_id_remove} for removal." &>> "${eus_dir}/logs/cleanup-multiple-default-lan-networks.log"
+            remove_duplicated_networkconf_id "${networkconf_id_remove}"
+          done
         else
           last_id="$(echo "$networkconf_ids_with_max_time" | awk '{print $NF}' | sed 's/[[:space:]]//g')"
           networkconf_id_remove="${last_id}"
@@ -3730,6 +3731,7 @@ start_unifi_database() {
   else
     echo -e "${WHITE_R}#${RESET} Starting the UniFi Network Application database..."
   fi
+  if [[ -e "/tmp/mongodb-27117.sock" ]]; then rm --force "/tmp/mongodb-27117.sock" &> /dev/null; fi
   if su -l "${unifi_database_location_user}" -s /bin/bash -c "$(which mongod) --dbpath '${unifi_database_location}' --port 27117 --bind_ip 127.0.0.1 --logpath '${unifi_logs_location}/eus-run-mongod-${start_unifi_database_task}.log' --logappend 2>&1 &" &>> "${eus_dir}/logs/starting-unifi-database.log"; then
   #if sudo -u unifi "$(which mongod)" --dbpath "${unifi_database_location}" --port 27117 --bind_ip 127.0.0.1 --logpath "${unifi_logs_location}/eus-run-mongod-import.log" --logappend & &>/dev/null; then
     sleep 6
@@ -4547,7 +4549,7 @@ if "$(which dpkg)" -l "${mongodb_org_server_package}" 2> /dev/null | awk '{print
     mongodb_package_libssl="mongodb-org-shell"
     mongodb_package_version_libssl="${mongodb_org_version}"
     libssl_installation_check
-    multiple_attempt_to_install_package_log="unifi_easy_update_script_required"
+    multiple_attempt_to_install_package_log="unifi-easy-update-script-required"
     multiple_attempt_to_install_package_task="install"
     multiple_attempt_to_install_package_attempts_max="3"
     multiple_attempt_to_install_package_name="mongodb-org-shell"
@@ -4558,7 +4560,7 @@ fi
 if "$(which dpkg)" -l "${mongodb_org_server_package}" 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
   mongodb_org_version="$(dpkg-query --showformat='${Version}' --show "${mongodb_org_server_package}" | sed 's/.*://' | sed 's/-.*//g')"
   mongodb_org_version_no_dots="${mongodb_org_version//./}"
-  if [[ "${mongodb_org_version_no_dots::2}" -ge "70" ]]; then
+  if [[ "${mongodb_org_version_no_dots::1}" -ge "5" ]]; then
     mongodb_mongosh_libssl_version="$(apt-cache depends "${mongodb_org_server_package}"="${mongodb_org_version}" | sed -e 's/>//g' -e 's/<//g' | grep -io "libssl1.1$\\|libssl3$")"
     if [[ -z "${mongodb_mongosh_libssl_version}" ]]; then
       mongodb_mongosh_libssl_version="$(apt-cache depends "${mongodb_org_server_package}" | sed -e 's/>//g' -e 's/<//g' | grep -io "libssl1.1$\\|libssl3$")"
@@ -4574,7 +4576,7 @@ if "$(which dpkg)" -l "${mongodb_org_server_package}" 2> /dev/null | awk '{print
       echo -e "${WHITE_R}----${RESET}\\n"
       mongodb_package_libssl="${mongodb_mongosh_install_package_name}"
       libssl_installation_check
-      multiple_attempt_to_install_package_log="unifi_easy_update_script_required"
+      multiple_attempt_to_install_package_log="unifi-easy-update-script-required"
       multiple_attempt_to_install_package_task="install"
       multiple_attempt_to_install_package_attempts_max="3"
       multiple_attempt_to_install_package_name="${mongodb_mongosh_install_package_name}"
@@ -5493,7 +5495,7 @@ old_systemd_version_check() {
   if [[ "$(dpkg-query --showformat='${Version}' --show systemd | awk -F '[.-]' '{print $1}')" -lt "231" && "${old_systemd_unifi_check_passed}" == 'true' ]]; then
     old_systemd_version="true"
     if ! [[ -d "/etc/systemd/system/unifi.service.d/" ]]; then eus_directory_location="/etc/systemd/system"; eus_create_directories "unifi.service.d"; fi
-    unifi_helpers="$(grep "unifi-network-service-helper" /lib/systemd/system/unifi.service | grep "=+" | while read -r helper; do echo "${helper//+/}"; done)"
+    unifi_helpers="$(grep -s "unifi-network-service-helper" /lib/systemd/system/unifi.service | grep "=+" | while read -r helper; do echo "${helper//+/}"; done)"
     if echo -e "[Service]\nPermissionsStartOnly=true\nExecStartPre=/usr/sbin/unifi-network-service-helper create-dirs\n${unifi_helpers}" &> /etc/systemd/system/unifi.service.d/override.conf; then
       daemon_reexec
       systemctl daemon-reload &>> "${eus_dir}/logs/old-systemd.log"
@@ -8642,6 +8644,7 @@ mongodb_upgrade() {
       if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_downgrade_option[@]}" "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${mongodb_mongosh_install_package_name}" &>> "${eus_dir}/logs/mongodb_upgrade_${mongodb_upgrade_from_version::2}_to_${mongo_version_max}.log"; then
         echo -e "${GREEN}#${RESET} Successfully installed ${mongodb_mongosh_install_package_name}! \\n"
         if [[ "$(apt-cache policy "${mongodb_mongosh_libssl_version}" | tr '[:upper:]' '[:lower:]' | grep "installed:" | cut -d':' -f2 | sed 's/ //g')" != "$(apt-cache policy "${mongodb_mongosh_libssl_version}" | tr '[:upper:]' '[:lower:]' | grep "candidate:" | cut -d':' -f2 | sed 's/ //g')" ]]; then
+          echo -e "${WHITE_R}#${RESET} Updating ${mongodb_mongosh_libssl_version}..."
           check_dpkg_lock
           if DEBIAN_FRONTEND='noninteractive' apt-get -y -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' --only-upgrade install "${mongodb_mongosh_libssl_version}" &>> "${eus_dir}/logs/libssl.log"; then
             echo -e "${GREEN}#${RESET} Successfully updated ${mongodb_mongosh_libssl_version}! \\n"
@@ -8657,6 +8660,7 @@ mongodb_upgrade() {
         if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_downgrade_option[@]}" "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${mongodb_mongosh_install_package_name}" &>> "${eus_dir}/logs/mongodb_upgrade_${mongodb_upgrade_from_version::2}_to_${mongo_version_max}.log"; then
           echo -e "${GREEN}#${RESET} Successfully installed ${mongodb_mongosh_install_package_name}! \\n"
           if [[ "$(apt-cache policy "${mongodb_mongosh_libssl_version}" | tr '[:upper:]' '[:lower:]' | grep "installed:" | cut -d':' -f2 | sed 's/ //g')" != "$(apt-cache policy "${mongodb_mongosh_libssl_version}" | tr '[:upper:]' '[:lower:]' | grep "candidate:" | cut -d':' -f2 | sed 's/ //g')" ]]; then
+            echo -e "${WHITE_R}#${RESET} Updating ${mongodb_mongosh_libssl_version}..."
             check_dpkg_lock
             if DEBIAN_FRONTEND='noninteractive' apt-get -y -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' --only-upgrade install "${mongodb_mongosh_libssl_version}" &>> "${eus_dir}/logs/libssl.log"; then
               echo -e "${GREEN}#${RESET} Successfully updated ${mongodb_mongosh_libssl_version}! \\n"
@@ -8811,7 +8815,7 @@ mongodb_upgrade() {
       fi
       if sed -e 's/ //g' -e 's/"//g' /tmp/EUS/mongodb/setFeatureCompatibilityVersion.log | grep -iq "ok:1"; then
         if [[ "${mongo_setfeaturecompatibilityversion_message}" == 'true' ]]; then
-          echo -e "${YELLOW}#${RESET} MongoDB responded! The script will now continue with setting the featureCompatibilityVersionto ${FeatureCompatibilityVersion}! \\n"
+          echo -e "${YELLOW}#${RESET} MongoDB responded! The script will now continue with setting the featureCompatibilityVersion to ${FeatureCompatibilityVersion}! \\n"
           sleep 2
         fi
         echo -e "${GREEN}#${RESET} Successfully set featureCompatibilityVersion to ${FeatureCompatibilityVersion}! \\n"
@@ -9198,7 +9202,7 @@ while read -r mongodb_repo_version; do
   #
   if [[ "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/mongodb-release?version=${mongodb_repo_version}" 2> /dev/null | jq -r '.updated' 2> /dev/null)" -ge "$(jq -r '.database["mongodb-key-last-check"]' "${eus_dir}/db/db.json")" ]]; then
     if [[ "${expired_header}" != 'true' ]]; then if header; then expired_header="true"; fi; fi
-    if [[ "${expired_mongodb_check_message}" != 'true' ]]; then if echo -e "${WHITE_R}#${RESET} Checking for expired MongoDB repository keys..."; then expired_mongodb_check_message="true"; fi; fi
+    if [[ "${expired_mongodb_check_message}" != 'true' ]]; then if echo -e "${WHITE_R}#${RESET} Checking for expired MongoDB repository keys... \\n"; then expired_mongodb_check_message="true"; fi; fi
     if [[ "${expired_mongodb_check_message}" == 'true' ]]; then echo -e "${YELLOW}#${RESET} The script detected that the repository key for MongoDB version ${mongodb_repo_version} has been updated by MongoDB... \\n"; fi
     if [[ "${mongodb_repo_version//./}" =~ (30|32|34|36|40|42|44|50|60|70) ]]; then
       mongodb_key_update="true"
@@ -9211,7 +9215,7 @@ while read -r mongodb_repo_version; do
   while read -r repo_file; do
     if ! grep -ioq "trusted=yes" "${repo_file}" && [[ "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/mongodb-release?version=${mongodb_repo_version}" 2> /dev/null | jq -r '.expired' 2> /dev/null)" == 'true' ]]; then
       if [[ "${expired_header}" != 'true' ]]; then if header; then expired_header="true"; fi; fi
-      if [[ "${expired_mongodb_check_message}" != 'true' ]]; then if echo -e "${WHITE_R}#${RESET} Checking for expired MongoDB repository keys..."; then expired_mongodb_check_message="true"; fi; fi
+      if [[ "${expired_mongodb_check_message}" != 'true' ]]; then if echo -e "${WHITE_R}#${RESET} Checking for expired MongoDB repository keys... \\n"; then expired_mongodb_check_message="true"; fi; fi
       if [[ "${mongodb_repo_version//./}" =~ (30|32|34|36|40|42|44|50|60|70) ]]; then
         if [[ "${expired_mongodb_check_message}" == 'true' ]]; then echo -e "${YELLOW}#${RESET} The script will add a new repository entry for MongoDB version ${mongodb_repo_version}... \\n"; fi
         mongodb_key_update="true"
@@ -9220,7 +9224,7 @@ while read -r mongodb_repo_version; do
         add_mongodb_repo
       else
         eus_create_directories "repository/archived"
-        if [[ "${expired_mongodb_check_message}" == 'true' ]]; then echo -e "${WHITE_R}#${RESET} The repository for version ${mongodb_repo_version} will be moved to \"${eus_dir}/repository/archived/$(basename -- "${repo_file}")\"..."; fi
+        if [[ "${expired_mongodb_check_message}" == 'true' ]]; then echo -e "\\n${WHITE_R}#${RESET} The repository for version ${mongodb_repo_version} will be moved to \"${eus_dir}/repository/archived/$(basename -- "${repo_file}")\"..."; fi
         if mv "${repo_file}" "${eus_dir}/repository/archived/$(basename -- "${repo_file}")" &>> "${eus_dir}/logs/repository-archiving.log"; then echo -e "${GREEN}#${RESET} Successfully moved the repository list to \"${eus_dir}/repository/archived/$(basename -- "${repo_file}")\"! \\n"; else echo -e "${RED}#${RESET} Failed to move the repository list to \"${eus_dir}/repository/archived/$(basename -- "${repo_file}")\"... \\n"; fi
         mongodb_expired_archived="true"
       fi

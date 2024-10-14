@@ -11,6 +11,18 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 9.3.5
+  
+ - Fixed an issue where the script would only remove one of the duplicated default LAN networks when there were more than two.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 9.3.4
+  
+ - Fixed an issue where some text output is missing.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 9.3.3
   
  - Added ability to run the script in a non-interactive mode with --skip and --unifi-version [argument].

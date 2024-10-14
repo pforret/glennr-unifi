@@ -57,7 +57,7 @@
 ###################################################################################################################################################################################################
 
 # Script                | UniFi Network Easy Installation Script
-# Version               | 8.0.1
+# Version               | 8.0.4
 # Application version   | 8.5.6-1x29lm155t
 # Debian Repo version   | 8.5.6-27036-1
 # Author                | Glenn Rietveld
@@ -3166,7 +3166,7 @@ system_properties_free_memory_check() {
 
 unifi_folder_permission_check() {
   if grep -isoq "users=" /etc/systemd/system/unifi.service.d/override.conf; then unifi_systemd_file="/etc/systemd/system/unifi.service.d/override.conf"; else unifi_systemd_file="/lib/systemd/system/unifi.service"; fi
-  network_application_user="$(grep '^User=' "${unifi_systemd_file}" | awk -F= '{print $2}')"
+  network_application_user="$(grep -s '^User=' "${unifi_systemd_file}" | awk -F= '{print $2}')"
   if [[ -z "${network_application_user}" ]]; then network_application_user="unifi"; fi
   unifi_folder_permission_check_detected_files=()
   while read -r unifi_directory; do
@@ -3194,6 +3194,84 @@ unifi_folder_permission_check() {
         fi
       fi
     done
+  fi
+}
+
+shutdown_mongodb() {
+  echo -e "${WHITE_R}#${RESET} Shutting down the UniFi Network Application database..."
+  if "$(which mongod)" --dbpath "${unifi_database_location}" --port 27117 --shutdown --verbose &> "${eus_dir}/logs/run-mongod-shutdown.log"; then
+    echo -e "${GREEN}#${RESET} Successfully shutdown the UniFi Network Application database! \\n"
+  else
+    echo -e "${RED}#${RESET} Failed to shutdown the UniFi Network Application database... Trying to kill it...\\n"
+    if ps -p "${eus_mongodb_process}" > /dev/null; then
+      if kill -9 "${eus_mongodb_process}" &> "${eus_dir}/logs/run-mongod-pid-kill.log"; then
+        echo -e "${GREEN}#${RESET} Successfully killed PID ${eus_mongodb_process}! \\n"
+      else
+        abort_reason="Failed to kill PID ${eus_mongodb_process}."
+        abort
+      fi
+    else
+      echo -e "${RED}#${RESET} PID ${eus_mongodb_process} does not exist...\\n"
+    fi
+  fi
+}
+
+start_unifi_database() {
+  current_unifi_database_pid="$(pgrep -f "mongo.pid|mongod.pid")"
+  current_unifi_database_pid_stop_attempt="0"
+  current_unifi_database_pid_stop_attempt_round="0"
+  if [[ -n "${current_unifi_database_pid}" ]]; then
+    while [[ -n "$(ps -p "${current_unifi_database_pid}" -o pid=)" ]]; do
+      if [[ "${current_unifi_database_pid_message}" != 'true' ]]; then current_unifi_database_pid_message="true"; echo -e "${YELLOW}#${RESET} Another process is already using the UniFi Network Application database...\\n${YELLOW}#${RESET} Attempting to stop the other process..."; fi
+      if [[ "${current_unifi_database_pid_stop_attempt}" == "0" ]]; then systemctl stop unifi &>> "${eus_dir}/logs/shutting-down-unifi-database.log"; sleep 10; fi
+      if [[ "${current_unifi_database_pid_stop_attempt}" == "1" ]]; then "$(which mongod)" --dbpath "${unifi_database_location}" --port 27117 --shutdown 2>&1 | tee -a "${eus_dir}/logs/already-running-mongod-shutdown.log" >> "${eus_dir}/logs/shutting-down-unifi-database.log"; sleep 10; fi
+      ((current_unifi_database_pid_stop_attempt=current_unifi_database_pid_stop_attempt+1))
+      ((current_unifi_database_pid_stop_attempt_round=current_unifi_database_pid_stop_attempt_round+1))
+      if [[ "${current_unifi_database_pid_stop_attempt}" == "1" ]]; then current_unifi_database_pid_stop_attempt="0"; fi
+      if [[ "${current_unifi_database_pid_stop_attempt_round}" -ge "10" ]]; then abort_reason="Unable to shutdown the UniFi Network database used by another process... Please reach out to Glenn R."; abort; fi
+    done
+    echo -e "${GREEN}#${RESET} Successfully stopped the process that was using the UniFi Network Application database! \\n"
+    unset current_unifi_database_pid
+    unset current_unifi_database_pid_message
+  fi
+  start_unifi_database_attempts="0"
+  if [[ "${start_unifi_database_attempts}" -ge '1' ]]; then
+    echo -e "${WHITE_R}#${RESET} Attempting to start the UniFi Network Application database..."
+  else
+    echo -e "${WHITE_R}#${RESET} Starting the UniFi Network Application database..."
+  fi
+  if [[ -e "/tmp/mongodb-27117.sock" ]]; then rm --force "/tmp/mongodb-27117.sock" &> /dev/null; fi
+  if su -l "${unifi_database_location_user}" -s /bin/bash -c "$(which mongod) --dbpath '${unifi_database_location}' --port 27117 --bind_ip 127.0.0.1 --logpath '${unifi_logs_location}/eus-run-mongod-${start_unifi_database_task}.log' --logappend 2>&1 &" &>> "${eus_dir}/logs/starting-unifi-database.log"; then
+  #if sudo -u unifi "$(which mongod)" --dbpath "${unifi_database_location}" --port 27117 --bind_ip 127.0.0.1 --logpath "${unifi_logs_location}/eus-run-mongod-import.log" --logappend & &>/dev/null; then
+    sleep 6
+    mongo_wait_initilize="0"
+    until "${mongocommand}" --port 27117 --eval "print(\"waited for connection\")" &>> "${eus_dir}/logs/mongodb-initialize-waiting.log"; do
+      if [[ -e "${unifi_logs_location}/eus-run-mongod-${start_unifi_database_task}.log" ]]; then if tail -n10 "${unifi_logs_location}/eus-run-mongod-${start_unifi_database_task}.log" | grep -ioq "address already in use"; then break; fi; fi
+      ((mongo_wait_initilize=mongo_wait_initilize+1))
+      echo -ne "\\r${YELLOW}#${RESET} Waiting for MongoDB to initialize... ${mongo_wait_initilize}/20"
+      sleep 10
+      if [[ "${mongo_wait_initilize}" -ge '20' ]]; then abort_reason="MongoDB did not respond within the set time frame... Please reach out to Glenn R."; if [[ "${start_unifi_database_task}" == 'import' ]]; then shutdown_mongodb; fi; abort; fi
+    done
+    if [[ "${mongo_wait_initilize}" -gt '0' ]]; then echo -e ""; fi
+    echo -e "${GREEN}#${RESET} Successfully started the UniFi Network Application database! \\n"
+    sleep 3
+    while read -r pid; do
+      if ps -fp "${pid}" | grep -iq mongo; then
+        eus_mongodb_process="${pid}"
+      fi
+    done < <(ps aux | awk '{print$1,$2}' | grep -i "${unifi_database_location_user}" | awk '{print$2}')
+  else
+    echo -e "${RED}#${RESET} Failed to start the UniFi Network Application database... \\n"
+  fi
+  if [[ -z "${eus_mongodb_process}" ]]; then
+    ((start_unifi_database_attempts=start_unifi_database_attempts+1))
+    if [[ "${start_unifi_database_attempts}" -ge "2" ]]; then
+      abort_reason="variable start_unifi_database_attempts is great than 2 (${start_unifi_database_attempts})"
+      abort_function_skip_reason="true"
+      abort
+    else
+      start_unifi_database
+    fi
   fi
 }
 
@@ -3749,6 +3827,161 @@ unifi_required_packages_check() {
 }
 unifi_required_packages_check
 
+repackage_deb_file() {
+  repackage_deb_file_required_package
+  repackage_deb_file_temp_dir="$(mktemp -d "${repackage_deb_name}_XXXXX" --tmpdir=/tmp/EUS/downloads)"
+  cd "${repackage_deb_file_temp_dir}" || return
+  echo -e "${WHITE_R}#${RESET} Downloading ${repackage_deb_name}..."
+  if apt-get download "${repackage_deb_name}""${repackage_deb_version}" &>> "${eus_dir}/logs/repackage-deb-files-download.log"; then
+    echo -e "${GREEN}#${RESET} Successfully downloaded ${repackage_deb_name}! \\n"
+  else
+    abort_reason="Failed to download ${repackage_deb_name}."
+    abort
+  fi
+  repackage_deb_file_name="$(find "${repackage_deb_file_temp_dir}" -name "${repackage_deb_name}*" -type f | sed 's/\.deb//g')"
+  repackage_deb_file_name_message="$(basename "${repackage_deb_file_name}")"
+  echo -e "${WHITE_R}#${RESET} Unpacking ${repackage_deb_file_name_message}.deb..."
+  if ar x "${repackage_deb_file_name}.deb" &>> "${eus_dir}/logs/repackage-deb-files.log"; then
+    echo -e "${GREEN}#${RESET} Successfully unpacked ${repackage_deb_file_name_message}.deb! \\n"
+  else
+    abort_reason="Failed to unpack ${repackage_deb_file_name_message}.deb."
+    abort
+  fi
+  while read -r repackage_files; do
+    echo -e "${WHITE_R}#${RESET} Decompressing and recompressing $(basename "${repackage_files}")..."
+    if zstd -d < "${repackage_files}" | xz > "${repackage_files//zst/xz}"; then
+      echo -e "${GREEN}#${RESET} Successfully decompressed $(basename "${repackage_files}") and recompressed it to $(basename "${repackage_files}" | sed 's/zst/xz/g')! \\n"
+      rm --force "${repackage_files}" &> /dev/null
+    else
+      abort_reason="Failed to decompress $(basename "${repackage_files}") and recompress it to $(basename "${repackage_files}" | sed 's/zst/xz/g')."
+      abort
+    fi
+  done < <(find "${repackage_deb_file_temp_dir}" -name "*.zst" -type f)
+  echo -e "${WHITE_R}#${RESET} Repacking ${repackage_deb_file_name_message}.deb to ${repackage_deb_file_name_message}_repacked.deb..."
+  if ar -m -c -a sdsd "${repackage_deb_file_name}"_repacked.deb "$(find "${repackage_deb_file_temp_dir}" -type f -name "debian-binary")" "$(find "${repackage_deb_file_temp_dir}" -type f -name "control.*")" "$(find "${repackage_deb_file_temp_dir}" -type f -name "data.*")" &>> "${eus_dir}/logs/repackage-deb-files.log"; then
+    echo -e "${GREEN}#${RESET} Successfully repackaged ${repackage_deb_file_name_message}.deb to ${repackage_deb_file_name_message}_repacked.deb! \\n"
+  else
+    abort_reason="Failed to repackage ${repackage_deb_file_name_message}.deb to ${repackage_deb_file_name_message}_repacked.deb."
+    abort
+  fi
+  while read -r cleanup_files; do
+    rm --force "${cleanup_files}" &> /dev/null
+  done < <(find "${repackage_deb_file_temp_dir}" -not -name "${repackage_deb_file_name_message}_repacked.deb" -type f)
+  repackage_deb_file_location="$(find "${repackage_deb_file_temp_dir}" -name "${repackage_deb_file_name_message}_repacked.deb" -type f)"
+  unset repackage_deb_name
+  unset repackage_deb_version
+}
+
+multiple_attempt_to_install_package() {
+  check_add_mongodb_repo_variable
+  if [[ "${multiple_attempt_to_install_package_task}" == 'install' ]] || [[ -z "${multiple_attempt_to_install_package_task}" ]]; then
+    multiple_attempt_to_install_package_message_1="Installing"
+    multiple_attempt_to_install_package_message_2="Installed"
+    multiple_attempt_to_install_package_message_3="Install"
+  elif [[ "${multiple_attempt_to_install_package_task}" == 'downgrade' ]]; then
+    multiple_attempt_to_install_package_message_1="Downgrading"
+    multiple_attempt_to_install_package_message_2="Downgraded"
+    multiple_attempt_to_install_package_message_3="Downgrade"
+  fi
+  attempt_to_install_package_attempts="0"
+  if [[ -z "${multiple_attempt_to_install_package_attempts_max}" ]]; then multiple_attempt_to_install_package_attempts_max="4"; fi
+  while [[ "${attempt_to_install_package_attempts}" -le "${multiple_attempt_to_install_package_attempts_max}" ]]; do
+    if [[ "${attempt_to_install_package_attempts}" == '1' ]]; then
+      attempt_message="second"
+      #short_attempt_message="2nd"
+    elif [[ "${attempt_to_install_package_attempts}" == '2' ]]; then
+      check_unmet_dependencies
+      broken_packages_check
+      attempt_recover_broken_packages
+      add_apt_option_no_install_recommends="true"; get_apt_options
+      attempt_message="third"
+      #short_attempt_message="3rd"
+    elif [[ "${attempt_to_install_package_attempts}" == '3' ]]; then
+      attempt_message="fourth"
+      #short_attempt_message="4th"
+    elif [[ "${attempt_to_install_package_attempts}" == '4' ]]; then
+      attempt_message="fifth"
+      #short_attempt_message="5th"
+    fi
+    if [[ "${multiple_attempt_to_install_package_name}" =~ (mongodb-mongosh-shared-openssl11|mongodb-mongosh-shared-openssl3|mongodb-org-shell|mongodb-org-tools) ]]; then
+      if [[ "${attempt_to_install_package_attempts}" == '1' ]]; then
+        try_different_mongodb_repo="true"
+      elif [[ "${attempt_to_install_package_attempts}" == '2' ]]; then
+        try_http_mongodb_repo="true"
+      fi
+      if [[ "${ran_remove_older_mongodb_repositories}" != 'true' ]]; then ran_remove_older_mongodb_repositories="true"; remove_older_mongodb_repositories; fi
+      add_mongodb_repo
+      mongodb_package_libssl="${multiple_attempt_to_install_package_name}"
+      mongodb_package_version_libssl="${multiple_attempt_to_install_package_version_with_equal_sign//=/}"
+      libssl_installation_check
+    fi
+    check_dpkg_lock
+    if [[ "${attempt_to_install_package_attempts}" -ge '1' ]]; then
+      attempt_message_1="for the ${attempt_message} time"
+      attempt_message_2="in the ${attempt_message} run"
+      echo -e "${WHITE_R}#${RESET} Attempting to $(echo "${multiple_attempt_to_install_package_message_3}"| tr '[:upper:]' '[:lower:]') ${multiple_attempt_to_install_package_name} ${attempt_message_1}..."
+    else
+      echo -e "${WHITE_R}#${RESET} ${multiple_attempt_to_install_package_message_1} ${multiple_attempt_to_install_package_name}..."
+    fi
+    if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_downgrade_option[@]}" "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${multiple_attempt_to_install_package_name}""${multiple_attempt_to_install_package_version_with_equal_sign}" &>> "${eus_dir}/logs/${multiple_attempt_to_install_package_log}.log"; then
+      if tail -n20 "${eus_dir}/logs/unifi-easy-update-script-required.log" | grep -iq "uses unknown compression for member .*zst"; then
+        if [[ "${attempt_to_install_package_attempts}" -ge '1' ]]; then
+          echo -e "${RED}#${RESET} Failed to $(echo "${multiple_attempt_to_install_package_message_3}"| tr '[:upper:]' '[:lower:]') ${multiple_attempt_to_install_package_name} ${attempt_message_2}...\\n"
+        else
+          echo -e "${RED}#${RESET} Failed to $(echo "${multiple_attempt_to_install_package_message_3}"| tr '[:upper:]' '[:lower:]') ${multiple_attempt_to_install_package_name}...\\n"
+        fi
+        repackage_deb_name="${multiple_attempt_to_install_package_name}"
+        repackage_deb_version="${multiple_attempt_to_install_package_version_with_equal_sign}"
+        repackage_deb_file
+        check_dpkg_lock
+        if [[ "${attempt_to_install_package_attempts}" -ge '1' ]]; then
+          echo -e "${WHITE_R}#${RESET} Attempting to $(echo "${multiple_attempt_to_install_package_message_3}"| tr '[:upper:]' '[:lower:]') ${multiple_attempt_to_install_package_name} ${attempt_message_1}..."
+        else
+          echo -e "${WHITE_R}#${RESET} ${multiple_attempt_to_install_package_message_1} ${multiple_attempt_to_install_package_name}..."
+        fi
+        if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_downgrade_option[@]}" "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${repackage_deb_file_location}" &>> "${eus_dir}/logs/${multiple_attempt_to_install_package_log}.log"; then
+          if [[ "${attempt_to_install_package_attempts}" -ge '1' ]]; then
+            echo -e "${RED}#${RESET} Failed to $(echo "${multiple_attempt_to_install_package_message_3}"| tr '[:upper:]' '[:lower:]') ${multiple_attempt_to_install_package_name} ${attempt_message_2}...\\n"
+          else
+            echo -e "${RED}#${RESET} Failed to $(echo "${multiple_attempt_to_install_package_message_3}"| tr '[:upper:]' '[:lower:]') ${multiple_attempt_to_install_package_name}...\\n"
+          fi
+        else
+          if [[ "${attempt_to_install_package_attempts}" -ge '1' ]]; then
+            echo -e "${GREEN}#${RESET} Successfully $(echo "${multiple_attempt_to_install_package_message_2}"| tr '[:upper:]' '[:lower:]') ${multiple_attempt_to_install_package_name} ${attempt_message_2}! \\n"
+          else
+            echo -e "${GREEN}#${RESET} Successfully $(echo "${multiple_attempt_to_install_package_message_2}"| tr '[:upper:]' '[:lower:]') ${multiple_attempt_to_install_package_name}! \\n"
+          fi
+        fi
+      else
+        if [[ "${attempt_to_install_package_attempts}" -ge '1' ]]; then
+          echo -e "${RED}#${RESET} Failed to $(echo "${multiple_attempt_to_install_package_message_3}"| tr '[:upper:]' '[:lower:]') ${multiple_attempt_to_install_package_name} ${attempt_message_2}...\\n"
+        else
+          echo -e "${RED}#${RESET} Failed to $(echo "${multiple_attempt_to_install_package_message_3}"| tr '[:upper:]' '[:lower:]') ${multiple_attempt_to_install_package_name}...\\n"
+        fi
+      fi
+    else
+      if [[ "${attempt_to_install_package_attempts}" -ge '1' ]]; then
+        echo -e "${GREEN}#${RESET} Successfully $(echo "${multiple_attempt_to_install_package_message_2}"| tr '[:upper:]' '[:lower:]') ${multiple_attempt_to_install_package_name} ${attempt_message_2}...\\n"
+      else
+        echo -e "${GREEN}#${RESET} Successfully $(echo "${multiple_attempt_to_install_package_message_2}"| tr '[:upper:]' '[:lower:]') ${multiple_attempt_to_install_package_name}...\\n"
+      fi
+      break
+    fi
+    abort_reason="Failed to $(echo "${multiple_attempt_to_install_package_message_3}"| tr '[:upper:]' '[:lower:]') ${multiple_attempt_to_install_package_name} ${attempt_message_2}."
+    abort_function_skip_reason="skip"
+    if [[ "${attempt_to_install_package_attempts}" -ge "${multiple_attempt_to_install_package_attempts_max}" ]]; then abort; fi
+    ((attempt_to_install_package_attempts=attempt_to_install_package_attempts+1))
+    sleep 2
+  done
+  unset multiple_attempt_to_install_package_log
+  unset multiple_attempt_to_install_package_task
+  unset multiple_attempt_to_install_package_attempts_max
+  unset multiple_attempt_to_install_package_name
+  unset multiple_attempt_to_install_package_version_with_equal_sign
+  reverse_check_add_mongodb_repo_variable
+  get_apt_options
+}
+
 ###################################################################################################################################################################################################
 #                                                                                                                                                                                                 #
 #                                                                                            Variables                                                                                            #
@@ -3841,7 +4074,7 @@ set_required_unifi_package_versions() {
   mongo_version_max_with_dot="3.6"
   unifi_mongo_version_max="36"
   add_mongodb_36_repo="true"
-  mongo_version_not_supported="4.0"
+  #mongo_version_not_supported="4.0"
   # MongoDB Version override
   if [[ "${first_digit_unifi}" -le '5' && "${second_digit_unifi}" -le '13' ]]; then
     mongo_version_max="34"
@@ -3849,14 +4082,14 @@ set_required_unifi_package_versions() {
     unifi_mongo_version_max="34"
     add_mongodb_34_repo="true"
     unset add_mongodb_36_repo
-    mongo_version_not_supported="3.6"
+    #mongo_version_not_supported="3.6"
   fi
   if [[ "${first_digit_unifi}" == '5' && "${second_digit_unifi}" == '13' && "${third_digit_unifi}" -gt '10' ]]; then
     mongo_version_max="36"
     mongo_version_max_with_dot="3.6"
     unifi_mongo_version_max="36"
     add_mongodb_36_repo="true"
-    mongo_version_not_supported="4.0"
+    #mongo_version_not_supported="4.0"
   fi
   # JAVA/MongoDB Version override
   if [[ "${first_digit_unifi}" -gt '8' ]] || [[ "${first_digit_unifi}" == '8' && "${second_digit_unifi}" -ge "1" ]]; then
@@ -3867,7 +4100,7 @@ set_required_unifi_package_versions() {
     unset add_mongodb_44_repo
     unset add_mongodb_36_repo
     unset add_mongodb_34_repo
-    mongo_version_not_supported="7.1"
+    #mongo_version_not_supported="7.1"
   elif [[ "${first_digit_unifi}" -gt '7' ]] || [[ "${first_digit_unifi}" == '7' && "${second_digit_unifi}" -ge "5" ]]; then
     mongo_version_max="44"
     mongo_version_max_with_dot="4.4"
@@ -3875,7 +4108,7 @@ set_required_unifi_package_versions() {
     add_mongodb_44_repo="true"
     unset add_mongodb_36_repo
     unset add_mongodb_34_repo
-    mongo_version_not_supported="4.5"
+    #mongo_version_not_supported="4.5"
   fi
 }
 set_required_unifi_package_versions
@@ -4258,7 +4491,7 @@ if [[ "${mongodb_version_installed_no_dots::2}" -gt "${mongo_version_max}" ]]; t
   apt-cache rdepends mongodb-* | sed "/mongo/d" | sed "/Reverse Depends/d" | awk '!a[$0]++' | sed 's/|//g' | sed 's/ //g' | sed -e 's/unifi-video//g' -e 's/unifi//g' -e 's/libstdc++6//g' -e '/^$/d' &> /tmp/EUS/mongodb/reverse_depends
   if [[ -s "/tmp/EUS/mongodb/reverse_depends" ]]; then mongodb_has_dependencies="true"; fi
   header_red
-  echo -e "${WHITE_R}#${RESET} UniFi Network Application ${unifi_clean} does not support MongoDB ${mongo_version_not_supported}..."
+  echo -e "${WHITE_R}#${RESET} UniFi Network Application ${unifi_clean} does not support MongoDB ${mongodb_version_installed}..."
   if [[ "${mongodb_has_dependencies}" == 'true' ]]; then
     echo -e "${WHITE_R}#${RESET} The following services depend on MongoDB..."
     while read -r service; do echo -e "${RED}-${RESET} ${service}"; done < /tmp/EUS/mongodb/reverse_depends
@@ -4277,6 +4510,89 @@ if [[ "${mongodb_version_installed_no_dots::2}" -gt "${mongo_version_max}" ]]; t
         header
         check_dpkg_lock
         echo -e "${WHITE_R}#${RESET} Preparing unsupported mongodb uninstall... \\n"
+        if [[ "$(grep -si is_default /usr/lib/unifi/data/system.properties | awk -F= '{print $2}')" == 'false' ]]; then
+          if "$(which dpkg)" -l "${gr_mongod_name}" 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then mongodb_org_server_package="${gr_mongod_name}"; else mongodb_org_server_package="mongodb-org-server"; fi
+          if "$(which dpkg)" -l "${mongodb_org_server_package}" 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+            mongodb_org_version="$(dpkg-query --showformat='${Version}' --show "${mongodb_org_server_package}" | sed 's/.*://' | sed 's/-.*//g')"
+            if ! "$(which dpkg)" -l mongodb-org-shell 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+        	  install_mongodb_org_shell="true"
+            else
+	          install_mongodb_org_shell="$(dpkg-query --showformat='${Version}' --show mongodb-org-shell | sed 's/.*://' | sed 's/-.*//g' | sed 's/\.//g')"
+              if [[ "${install_mongodb_org_shell}" != "${mongodb_org_version//./}" ]]; then install_mongodb_org_shell="true"; fi
+            fi
+            if [[ "${install_mongodb_org_shell}" == 'true' ]]; then
+              unset install_mongodb_org_shell
+              echo -e "${WHITE_R}----${RESET}\\n"
+              mongodb_package_libssl="mongodb-org-shell"
+              mongodb_package_version_libssl="${mongodb_org_version}"
+              libssl_installation_check
+              multiple_attempt_to_install_package_log="unifi-install-script-required"
+              multiple_attempt_to_install_package_task="install"
+              multiple_attempt_to_install_package_attempts_max="3"
+              multiple_attempt_to_install_package_name="mongodb-org-shell"
+              multiple_attempt_to_install_package_version_with_equal_sign="=${mongodb_org_version}"
+              multiple_attempt_to_install_package
+            fi
+          fi
+          if "$(which dpkg)" -l "${mongodb_org_server_package}" 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+            mongodb_org_version="$(dpkg-query --showformat='${Version}' --show "${mongodb_org_server_package}" | sed 's/.*://' | sed 's/-.*//g')"
+            mongodb_org_version_no_dots="${mongodb_org_version//./}"
+            if [[ "${mongodb_org_version_no_dots::1}" -ge "5" ]]; then
+              mongodb_mongosh_libssl_version="$(apt-cache depends "${mongodb_org_server_package}"="${mongodb_org_version}" | sed -e 's/>//g' -e 's/<//g' | grep -io "libssl1.1$\\|libssl3$")"
+              if [[ -z "${mongodb_mongosh_libssl_version}" ]]; then
+                mongodb_mongosh_libssl_version="$(apt-cache depends "${mongodb_org_server_package}" | sed -e 's/>//g' -e 's/<//g' | grep -io "libssl1.1$\\|libssl3$")"
+              fi
+              if [[ "${mongodb_mongosh_libssl_version}" == 'libssl3' ]]; then
+                mongodb_mongosh_install_package_name="mongodb-mongosh-shared-openssl3"
+              elif [[ "${mongodb_mongosh_libssl_version}" == 'libssl1.1' ]]; then
+                mongodb_mongosh_install_package_name="mongodb-mongosh-shared-openssl11"
+              else
+                mongodb_mongosh_install_package_name="mongodb-mongosh-shared-openssl11"
+              fi
+              if ! "$(which dpkg)" -l mongodb-mongosh-shared-openssl11 mongodb-mongosh-shared-openssl3 mongodb-mongosh mongosh 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+                echo -e "${WHITE_R}----${RESET}\\n"
+                mongodb_package_libssl="${mongodb_mongosh_install_package_name}"
+                libssl_installation_check
+                multiple_attempt_to_install_package_log="unifi-install-script-required"
+                multiple_attempt_to_install_package_task="install"
+                multiple_attempt_to_install_package_attempts_max="3"
+                multiple_attempt_to_install_package_name="${mongodb_mongosh_install_package_name}"
+                multiple_attempt_to_install_package
+              fi
+            fi
+          fi
+          mongo_command
+          unifi_database_location="$(readlink -f /usr/lib/unifi/data/db)"
+          unifi_database_location_user="$(stat -c "%U" "${unifi_database_location}")"
+          unifi_logs_location="$(readlink -f /usr/lib/unifi/logs)"
+          start_unifi_database_task="unsupported-mongodb-version"
+          start_unifi_database
+          FeatureCompatibilityVersion="${mongo_version_max_with_dot}"
+          echo -e "${WHITE_R}#${RESET} Setting featureCompatibilityVersion to version ${FeatureCompatibilityVersion}..."
+          echo -e "${WHITE_R}#${RESET} This process could take up to 60 seconds before timing out..."
+          check_count=0
+          while [[ "${check_count}" -lt '60' ]]; do
+            if [[ "${mongodb_version_installed_no_dots::2}" -ge "36" ]]; then
+              if grep -sioq "confirm: true" /tmp/EUS/mongodb/setFeatureCompatibilityVersion.log; then
+                "${mongocommand}" --quiet --port 27117 --eval 'db.adminCommand( { setFeatureCompatibilityVersion: "'"${FeatureCompatibilityVersion}"'", confirm: true } )' &> /tmp/EUS/mongodb/setFeatureCompatibilityVersion.log
+              else
+                "${mongocommand}" --quiet --port 27117 --eval 'db.adminCommand( { setFeatureCompatibilityVersion: "'"${FeatureCompatibilityVersion}"'" } )' &> /tmp/EUS/mongodb/setFeatureCompatibilityVersion.log
+             fi
+            fi
+            if sed -e 's/ //g' -e 's/"//g' /tmp/EUS/mongodb/setFeatureCompatibilityVersion.log | grep -iq "ok:1"; then
+              echo -e "${GREEN}#${RESET} Successfully set featureCompatibilityVersion to ${FeatureCompatibilityVersion}! \\n"
+              success_setfeaturecompatibilityversion="true"
+              break
+            else
+              ((check_count=check_count+1))
+              sleep 1
+            fi
+          done
+          if [[ "${success_setfeaturecompatibilityversion}" != 'true' ]]; then
+            echo -e "${RED}#${RESET} Failed to set featureCompatibilityVersion to ${FeatureCompatibilityVersion}! \\n${RED}#${RESET} We will keep featureCompatibilityVersion untouched! \\n"
+          fi
+          shutdown_mongodb
+        fi
         if "$(which dpkg)" -l | grep "unifi " | grep -q "^ii\\|^hi"; then
           echo -e "${WHITE_R}#${RESET} Removing the UniFi Network Application so that the files are kept on the system...\\n"
           if "$(which dpkg)" --remove --force-remove-reinstreq unifi &>> "${eus_dir}/logs/unsupported-mongodb-uninstall.log"; then
@@ -4298,25 +4614,29 @@ if [[ "${mongodb_version_installed_no_dots::2}" -gt "${mongo_version_max}" ]]; t
         remove_older_mongodb_repositories
         sleep 2
         while read -r mongodb_package_purge; do
-          check_dpkg_lock
-          echo -e "${WHITE_R}#${RESET} Purging package ${mongodb_package_purge}..."
-          if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' purge "${mongodb_package_purge}" &>> "${eus_dir}/logs/unsupported-mongodb-uninstall.log"; then
-            echo -e "${GREEN}#${RESET} Successfully purged ${mongodb_package_purge}! \\n"
-          else
-            echo -e "${RED}#${RESET} Failed to purge ${mongodb_package_purge}... \\n"
-            mongodb_package_purge_failed="true"
+          if "$(which dpkg)" -l | awk '{print$2}' | grep -iq "^${mongodb_package_purge}$"; then
+            check_dpkg_lock
+            echo -e "${WHITE_R}#${RESET} Purging package ${mongodb_package_purge}..."
+            if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' purge "${mongodb_package_purge}" &>> "${eus_dir}/logs/unsupported-mongodb-uninstall.log"; then
+              echo -e "${GREEN}#${RESET} Successfully purged ${mongodb_package_purge}! \\n"
+            else
+              echo -e "${RED}#${RESET} Failed to purge ${mongodb_package_purge}... \\n"
+              mongodb_package_purge_failed="true"
+            fi
           fi
         done < <("$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep -i "mongo" | awk '{print $2}')
         if [[ "${mongodb_package_purge_failed}" == 'true' ]]; then
           echo -e "${YELLOW}#${RESET} There was a failure during the purge process...\\n"
           echo -e "${WHITE_R}#${RESET} Uninstalling MongoDB with different actions...\\n"
           while read -r mongodb_package_remove; do
-            check_dpkg_lock
-            echo -e "${WHITE_R}#${RESET} Removing package ${mongodb_package_remove}..."
-            if DEBIAN_FRONTEND='noninteractive' "$(which dpkg)" --remove --force-remove-reinstreq "${mongodb_package_remove}" &>> "${eus_dir}/logs/unsupported-mongodb-uninstall.log"; then
-              echo -e "${GREEN}#${RESET} Successfully removed ${mongodb_package_remove}! \\n"
-            else
-              echo -e "${RED}#${RESET} Failed to remove ${mongodb_package_remove}... \\n"
+            if "$(which dpkg)" -l | awk '{print$2}' | grep -iq "^${mongodb_package_remove}$"; then
+              check_dpkg_lock
+              echo -e "${WHITE_R}#${RESET} Removing package ${mongodb_package_remove}..."
+              if DEBIAN_FRONTEND='noninteractive' "$(which dpkg)" --remove --force-remove-reinstreq "${mongodb_package_remove}" &>> "${eus_dir}/logs/unsupported-mongodb-uninstall.log"; then
+                echo -e "${GREEN}#${RESET} Successfully removed ${mongodb_package_remove}! \\n"
+              else
+                echo -e "${RED}#${RESET} Failed to remove ${mongodb_package_remove}... \\n"
+              fi
             fi
           done < <("$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep -i "mongo" | awk '{print $2}')
         fi
@@ -4544,7 +4864,7 @@ while read -r mongodb_repo_version; do
         add_mongodb_repo
       else
         eus_create_directories "repository/archived"
-        if [[ "${expired_mongodb_check_message}" == 'true' ]]; then echo -e "${WHITE_R}#${RESET} The repository for version ${mongodb_repo_version} will be moved to \"${eus_dir}/repository/archived/$(basename -- "${repo_file}")\"..."; fi
+        if [[ "${expired_mongodb_check_message}" == 'true' ]]; then echo -e "\\n${WHITE_R}#${RESET} The repository for version ${mongodb_repo_version} will be moved to \"${eus_dir}/repository/archived/$(basename -- "${repo_file}")\"..."; fi
         if mv "${repo_file}" "${eus_dir}/repository/archived/$(basename -- "${repo_file}")" &>> "${eus_dir}/logs/repository-archiving.log"; then echo -e "${GREEN}#${RESET} Successfully moved the repository list to \"${eus_dir}/repository/archived/$(basename -- "${repo_file}")\"! \\n"; else echo -e "${RED}#${RESET} Failed to move the repository list to \"${eus_dir}/repository/archived/$(basename -- "${repo_file}")\"... \\n"; fi
         mongodb_expired_archived="true"
       fi
@@ -5451,6 +5771,56 @@ mongodb_installation() {
       fi
     fi
   fi
+  if [[ "${install_mongod_version::1}" -ge "5" ]]; then
+    if ! "$(which dpkg)" -l mongodb-mongosh-shared-openssl11 mongodb-mongosh-shared-openssl3 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+      mongodb_mongosh_libssl_version="$(apt-cache depends "mongodb-org-server${install_mongodb_version_with_equality_sign}" | sed -e 's/>//g' -e 's/<//g' | grep -io "libssl1.1$\\|libssl3$")"
+      if [[ -z "${mongodb_mongosh_libssl_version}" ]]; then
+        mongodb_mongosh_libssl_version="$(apt-cache depends "mongodb-org-server" | sed -e 's/>//g' -e 's/<//g' | grep -io "libssl1.1$\\|libssl3$")"
+      fi
+      if [[ "${mongodb_mongosh_libssl_version}" == 'libssl3' ]]; then
+        mongodb_mongosh_install_package_name="mongodb-mongosh-shared-openssl3"
+      elif [[ "${mongodb_mongosh_libssl_version}" == 'libssl1.1' ]]; then
+        mongodb_mongosh_install_package_name="mongodb-mongosh-shared-openssl11"
+      else
+        mongodb_mongosh_install_package_name="mongodb-mongosh-shared-openssl11"
+      fi
+      check_dpkg_lock
+      echo -e "${WHITE_R}#${RESET} Installing ${mongodb_mongosh_install_package_name}..."
+      if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_downgrade_option[@]}" "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${mongodb_mongosh_install_package_name}" &>> "${eus_dir}/logs/mongodb-org-install.log"; then
+        echo -e "${GREEN}#${RESET} Successfully installed ${mongodb_mongosh_install_package_name}! \\n"
+        if [[ "$(apt-cache policy "${mongodb_mongosh_libssl_version}" | tr '[:upper:]' '[:lower:]' | grep "installed:" | cut -d':' -f2 | sed 's/ //g')" != "$(apt-cache policy "${mongodb_mongosh_libssl_version}" | tr '[:upper:]' '[:lower:]' | grep "candidate:" | cut -d':' -f2 | sed 's/ //g')" ]]; then
+          echo -e "${WHITE_R}#${RESET} Updating ${mongodb_mongosh_libssl_version}..."
+          check_dpkg_lock
+          if DEBIAN_FRONTEND='noninteractive' apt-get -y -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' --only-upgrade install "${mongodb_mongosh_libssl_version}" &>> "${eus_dir}/logs/libssl.log"; then
+            echo -e "${GREEN}#${RESET} Successfully updated ${mongodb_mongosh_libssl_version}! \\n"
+          else
+            echo -e "${RED}#${RESET} Failed to update ${mongodb_mongosh_libssl_version}...\\n"
+          fi
+        fi
+      else
+        check_unmet_dependencies
+        broken_packages_check
+        attempt_recover_broken_packages
+        add_apt_option_no_install_recommends="true"; get_apt_options
+        if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_downgrade_option[@]}" "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${mongodb_mongosh_install_package_name}" &>> "${eus_dir}/logs/mongodb-org-install.log"; then
+          echo -e "${GREEN}#${RESET} Successfully installed ${mongodb_mongosh_install_package_name}! \\n"
+          if [[ "$(apt-cache policy "${mongodb_mongosh_libssl_version}" | tr '[:upper:]' '[:lower:]' | grep "installed:" | cut -d':' -f2 | sed 's/ //g')" != "$(apt-cache policy "${mongodb_mongosh_libssl_version}" | tr '[:upper:]' '[:lower:]' | grep "candidate:" | cut -d':' -f2 | sed 's/ //g')" ]]; then
+            echo -e "${WHITE_R}#${RESET} Updating ${mongodb_mongosh_libssl_version}..."
+            check_dpkg_lock
+            if DEBIAN_FRONTEND='noninteractive' apt-get -y -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' --only-upgrade install "${mongodb_mongosh_libssl_version}" &>> "${eus_dir}/logs/libssl.log"; then
+              echo -e "${GREEN}#${RESET} Successfully updated ${mongodb_mongosh_libssl_version}! \\n"
+            else
+              echo -e "${RED}#${RESET} Failed to update ${mongodb_mongosh_libssl_version}...\\n"
+            fi
+          fi
+          get_apt_options
+        else
+          abort_reason="Failed to install ${mongodb_mongosh_install_package_name}."
+          abort
+        fi
+      fi
+    fi
+  fi
   if [[ "${architecture}" == "arm64" && "${mongodb_version_major_minor}" == "4.4" ]]; then
     eus_directory_location="/tmp/EUS"
     eus_create_directories "mongodb"
@@ -5647,59 +6017,59 @@ if [[ "${mongodb_installed}" != 'true' ]]; then
         done
         if [[ -z "${mongodb_server_installable_versions}" ]]; then
           add_mongodb_30_repo="true"
-          mongo_version_not_supported="4.0"
+          #mongo_version_not_supported="4.0"
           mongo_version_max="30"
           mongo_version_max_with_dot="3.0"
         fi
       elif [[ "${previous_mongodb_version::2}" == "30" ]]; then
         add_mongodb_30_repo="true"
-        mongo_version_not_supported="4.0"
+        #mongo_version_not_supported="4.0"
         mongo_version_max="30"
         mongo_version_max_with_dot="3.0"
       elif [[ "${previous_mongodb_version::2}" == "32" ]]; then
         add_mongodb_32_repo="true"
-        mongo_version_not_supported="4.0"
+        #mongo_version_not_supported="4.0"
         mongo_version_max="32"
         mongo_version_max_with_dot="3.2"
       elif [[ "${previous_mongodb_version::2}" == '34' ]]; then
         add_mongodb_34_repo="true"
-        mongo_version_not_supported="4.0"
+        #mongo_version_not_supported="4.0"
         mongo_version_max="34"
         mongo_version_max_with_dot="3.4"
       elif [[ "${previous_mongodb_version::2}" == '36' ]]; then
         add_mongodb_36_repo="true"
-        mongo_version_not_supported="4.0"
+        #mongo_version_not_supported="4.0"
         mongo_version_max="36"
         mongo_version_max_with_dot="3.6"
       elif [[ "${previous_mongodb_version::2}" == '40' ]]; then
         add_mongodb_40_repo="true"
-        mongo_version_not_supported="4.5"
+        #mongo_version_not_supported="4.5"
         mongo_version_max="40"
         mongo_version_max_with_dot="4.0"
       elif [[ "${previous_mongodb_version::2}" == '42' ]]; then
         add_mongodb_42_repo="true"
-        mongo_version_not_supported="4.5"
+        #mongo_version_not_supported="4.5"
         mongo_version_max="42"
         mongo_version_max_with_dot="4.2"
       elif [[ "${previous_mongodb_version::2}" == '44' ]]; then
         add_mongodb_44_repo="true"
-        mongo_version_not_supported="4.5"
+        #mongo_version_not_supported="4.5"
         mongo_version_max="44"
         mongo_version_max_with_dot="4.4"
         if ! (lscpu 2>/dev/null | grep -iq "avx") || ! grep -iq "avx" /proc/cpuinfo; then mongo_version_locked="4.4.18"; fi
       elif [[ "${previous_mongodb_version::2}" == '50' ]]; then
         add_mongodb_50_repo="true"
-        mongo_version_not_supported="5.1"
+        #mongo_version_not_supported="5.1"
         mongo_version_max="50"
         mongo_version_max_with_dot="5.0"
       elif [[ "${previous_mongodb_version::2}" == '60' ]]; then
         add_mongodb_60_repo="true"
-        mongo_version_not_supported="6.1"
+        #mongo_version_not_supported="6.1"
         mongo_version_max="60"
         mongo_version_max_with_dot="6.0"
       elif [[ "${previous_mongodb_version::2}" == '70' ]]; then
         add_mongodb_70_repo="true"
-        mongo_version_not_supported="7.1"
+        #mongo_version_not_supported="7.1"
         mongo_version_max="70"
         mongo_version_max_with_dot="7.0"
         if [[ "${broken_glennr_compiled_mongod}" == 'true' ]]; then

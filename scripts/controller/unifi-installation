@@ -11,6 +11,26 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 8.0.4
+ 
+ - Improved the MongoDB recovery process.
+ 
+ ####
+
+ |  UniFi Network Application Installation Script  |  Version 8.0.3
+ 
+ - Fixed an issue where MongoDB 4.4 or older installations could fails.
+ 
+ ####
+
+ |  UniFi Network Application Installation Script  |  Version 8.0.2
+ 
+ - Improved the unsupported MongoDB version removal/recovery process.
+ - Fixed the inability to start the UniFi Network Application when downgrading MongoDB 8.0 to 7.0.
+ - Fixed an issue where grep errors could be shown on fresh installations.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 8.0.1
  
  - Improved UniFi Network Application installation resiliency.
