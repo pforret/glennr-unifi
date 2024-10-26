@@ -11,6 +11,21 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 8.0.5
+ 
+ - Added cleanup for UniFi Legacy dummy packages, such as unifi-beta and unifi-rapid.
+ - Added support for Devuan Beowulf, Chimaera, Daedalus, Excalibur and Freia.
+ - Improved support file creation.
+ - Improved the MongoDB recovery process.
+ - Improved getting the last known good MongoDB version.
+ - Improved the package download progress.
+   - The script no longer uses /tmp for downloading packages.
+ - Improved locating the signed key information for old-releases.
+ - Fixed the inability to start the UniFi Network Application when downgrading MongoDB 8.0 to 7.0.
+ - Fixed an issue where the script would accept a unsupported MongoDB version (already installed by user) for CPU's without AVX, resulting in startup failures.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 8.0.4
  
  - Improved the MongoDB recovery process.

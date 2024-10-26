@@ -11,6 +11,14 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Encrypt Script  |  Version 3.1.9
+ 
+ - Added support for Devuan Beowulf, Chimaera, Daedalus, Excalibur and Freia.
+ - Improved locating the signed key information for old-releases.
+ - Improved support file creation.
+ 
+ ####
+
  |  UniFi Easy Encrypt Script  |  Version 3.1.8
  
  - Added recovery for apt MergeList issues.

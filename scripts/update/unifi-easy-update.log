@@ -11,6 +11,20 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 9.3.6
+  
+ - Added cleanup for UniFi Legacy dummy packages, such as unifi-beta and unifi-rapid.
+ - Added support for Devuan Beowulf, Chimaera, Daedalus, Excalibur and Freia.
+ - Improved support file creation.
+ - Improved getting the last known good MongoDB version.
+ - Improved the package download progress.
+   - The script no longer uses /tmp for downloading packages.
+ - Improved locating the signed key information for old-releases.
+ - Improved the UniFi Network Application upgrade process.
+ - Fixed an issue where the script allowed users to Upgrade MongoDB on setups where db.mongo.local is false.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 9.3.5
   
  - Fixed an issue where the script would only remove one of the duplicated default LAN networks when there were more than two.
