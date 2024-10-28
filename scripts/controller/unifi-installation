@@ -11,6 +11,12 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 8.0.6
+ 
+ - Fixed an issue where the script could fail to install mongodb-mongosh-shared-openssl when mongodb-mongosh is already installed.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 8.0.5
  
  - Added cleanup for UniFi Legacy dummy packages, such as unifi-beta and unifi-rapid.

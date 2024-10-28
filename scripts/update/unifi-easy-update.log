@@ -11,6 +11,12 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 9.3.7
+  
+ - Fixed an issue where the script could fail to install mongodb-mongosh-shared-openssl when mongodb-mongosh is already installed.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 9.3.6
   
  - Added cleanup for UniFi Legacy dummy packages, such as unifi-beta and unifi-rapid.
