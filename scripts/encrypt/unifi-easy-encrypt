@@ -11,6 +11,21 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Encrypt Script  |  Version 3.2.1
+ 
+ - Fixed typo in checking if option `--skip-required-service-check` was used.
+ 
+ ####
+
+ |  UniFi Easy Encrypt Script  |  Version 3.2.0
+ 
+ - Added the ability to bypass the required servies check with `--skip-required-service-check`.
+ - Improved EOL OS Release messaging.
+ - Improved cleaning up/pruning EUS logs.
+ - Fixed an issue where color codes weren't correct.
+ 
+ ####
+
  |  UniFi Easy Encrypt Script  |  Version 3.1.9
  
  - Added support for Devuan Beowulf, Chimaera, Daedalus, Excalibur and Freia.

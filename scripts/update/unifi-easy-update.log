@@ -11,6 +11,22 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 9.3.9
+  
+ - Fixed an issue where the script could fail to download packages since 9.3.8.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 9.3.8
+  
+ - Added logging to creating temp files for package downloading.
+ - Improved EOL OS Release messaging.
+ - Improved cleaning up/pruning EUS logs.
+ - Fixed an issue where color codes weren't correct.
+ - Fixed an issue where the script fails to purge mongodb-org-database-tools-extra while mongodb-org-database and/or mongodb-org-tools is installed but don't match the mongodb-org-server package version. 
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 9.3.7
   
  - Fixed an issue where the script could fail to install mongodb-mongosh-shared-openssl when mongodb-mongosh is already installed.

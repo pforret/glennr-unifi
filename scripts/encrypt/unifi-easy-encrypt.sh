@@ -2,7 +2,7 @@
 
 # UniFi Easy Encrypt script.
 # Script   | UniFi Network Easy Encrypt Script
-# Version  | 3.1.9
+# Version  | 3.2.1
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -18,7 +18,7 @@ YELLOW='\033[1;33m'
 #GRAY='\033[0;37m'
 #WHITE='\033[1;37m'
 GRAY_R='\033[39m'
-WHITE_R='\033[39m'
+GRAY_R='\033[39m'
 RED='\033[1;31m' # Light Red.
 GREEN='\033[1;32m' # Light Green.
 #BOLD='\e[1m'
@@ -51,10 +51,10 @@ fi
 # Check for root (SUDO).
 if [[ "$EUID" -ne 0 ]]; then
   header_red
-  echo -e "${WHITE_R}#${RESET} The script need to be run as root...\\n\\n"
-  echo -e "${WHITE_R}#${RESET} For Ubuntu based systems run the command below to login as root"
+  echo -e "${GRAY_R}#${RESET} The script need to be run as root...\\n\\n"
+  echo -e "${GRAY_R}#${RESET} For Ubuntu based systems run the command below to login as root"
   echo -e "${GREEN}#${RESET} sudo -i\\n"
-  echo -e "${WHITE_R}#${RESET} For Debian based systems run the command below to login as root"
+  echo -e "${GRAY_R}#${RESET} For Debian based systems run the command below to login as root"
   echo -e "${GREEN}#${RESET} su\\n\\n"
   exit 1
 fi
@@ -66,8 +66,8 @@ if [[ -n "${LESS}" ]]; then unset LESS; fi
 if ! grep -siq "udm" /usr/lib/version &> /dev/null; then
   if ! env | grep "LC_ALL\\|LANG" | grep -iq "en_US\\|C.UTF-8\\|en_GB.UTF-8"; then
     header
-    echo -e "${WHITE_R}#${RESET} Your language is not set to English ( en_US ), the script will temporarily set the language to English."
-    echo -e "${WHITE_R}#${RESET} Information: This is done to prevent issues in the script.."
+    echo -e "${GRAY_R}#${RESET} Your language is not set to English ( en_US ), the script will temporarily set the language to English."
+    echo -e "${GRAY_R}#${RESET} Information: This is done to prevent issues in the script.."
     original_lang="$LANG"
     original_lcall="$LC_ALL"
     if [[ -e "/etc/locale.gen" ]]; then
@@ -89,8 +89,8 @@ retry_script_option() {
     echo "$((number_of_aborts+1))" &> "${eus_dir}/retries_aborts"
   fi
   if [[ "${script_option_retry}" == 'true' && "${script_option_fqdn}" == 'true' ]]; then
-    echo -e "${WHITE_R}----${RESET}\\n"
-    echo -e "${WHITE_R}#${RESET} Scheduling retry scripts!\\n"
+    echo -e "${GRAY_R}----${RESET}\\n"
+    echo -e "${GRAY_R}#${RESET} Scheduling retry scripts!\\n"
     mkdir -p /root/EUS
     cp "${0}" /root/EUS/unifi-easy-encrypt.sh
     echo "0" &> "${eus_dir}/retries_aborts"
@@ -276,7 +276,7 @@ support_file() {
   get_timezone
   if [[ "${set_lc_all}" == 'true' ]]; then if [[ -n "${original_lang}" ]]; then export LANG="${original_lang}"; else unset LANG; fi; if [[ -n "${original_lcall}" ]]; then export LC_ALL="${original_lcall}"; else unset LC_ALL; fi; fi
   if [[ "${script_option_support_file}" == 'true' ]]; then header; abort_reason="Support File script option was issued"; fi
-  echo -e "${WHITE_R}#${RESET} Creating support file..."
+  echo -e "${GRAY_R}#${RESET} Creating support file..."
   eus_directory_location="/tmp/EUS"
   eus_create_directories "support"
   if "$(which dpkg)" -l lsb-release 2> /dev/null | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then lsb_release -a &> "/tmp/EUS/support/lsb-release"; else cat /etc/os-release &> "/tmp/EUS/support/os-release"; fi
@@ -531,7 +531,7 @@ support_file() {
     zip -r "${support_file}" "/tmp/EUS/" "${eus_dir}/" "/usr/lib/unifi/logs/" "/etc/apt/sources.list" "/etc/apt/sources.list.d/" "/etc/apt/preferences" "/etc/apt/keyrings" "/etc/apt/trusted.gpg.d/" "/etc/apt/preferences.d/" "/etc/default/unifi" "/etc/environment" "/var/log/dpkg.log"* "/etc/systemd/system/unifi.service.d/" "/lib/systemd/system/unifi.service" "/usr/lib/unifi/data/db/version" "/var/lib/apt/" -x "${eus_dir}/go.tar.gz" -x "${eus_dir}/unifi_db/*" -x "${eus_dir}/tmp" -x "/usr/lib/unifi/logs/remote" &> /dev/null
   fi
   if [[ -n "${support_file}" ]]; then
-    echo -e "${WHITE_R}#${RESET} Support file has been created here: ${support_file} \\n"
+    echo -e "${GRAY_R}#${RESET} Support file has been created here: ${support_file} \\n"
     if [[ -n "$(command -v jq)" && -f "${eus_dir}/db/db.json" && "${abort_skip_support_file_upload}" != 'true' ]]; then
       if [[ "$(jq -r '.database["support-file-upload"]' "${eus_dir}/db/db.json")" != 'true' ]]; then
         read -rp $'\033[39m#\033[0m Do you want to upload the support file so that Glenn R. can review it and improve the script? (Y/n) ' yes_no
@@ -573,8 +573,8 @@ abort() {
   if [[ "${set_lc_all}" == 'true' ]]; then if [[ -n "${original_lang}" ]]; then export LANG="${original_lang}"; else unset LANG; fi; if [[ -n "${original_lcall}" ]]; then export LC_ALL="${original_lcall}"; else unset LC_ALL; fi; fi
   if [[ "${stopped_unattended_upgrade}" == 'true' ]]; then systemctl start unattended-upgrades &>> "${eus_dir}/logs/unattended-upgrades.log"; unset stopped_unattended_upgrade; fi
   echo -e "\\n\\n${RED}#########################################################################${RESET}\\n"
-  echo -e "${WHITE_R}#${RESET} An error occurred. Aborting script..."
-  echo -e "${WHITE_R}#${RESET} Please contact Glenn R. (AmazedMender16) on the Community Forums!\\n"
+  echo -e "${GRAY_R}#${RESET} An error occurred. Aborting script..."
+  echo -e "${GRAY_R}#${RESET} Please contact Glenn R. (AmazedMender16) on the Community Forums!\\n"
   retry_script_option
   support_file
   update_eus_db
@@ -586,11 +586,11 @@ cancel_script() {
   if [[ "${set_lc_all}" == 'true' ]]; then if [[ -n "${original_lang}" ]]; then export LANG="${original_lang}"; else unset LANG; fi; if [[ -n "${original_lcall}" ]]; then export LC_ALL="${original_lcall}"; else unset LC_ALL; fi; fi
   if [[ "${stopped_unattended_upgrade}" == 'true' ]]; then systemctl start unattended-upgrades &>> "${eus_dir}/logs/unattended-upgrades.log"; unset stopped_unattended_upgrade; fi
   if [[ "${script_option_skip}" == 'true' ]]; then
-    echo -e "\\n${WHITE_R}#########################################################################${RESET}\\n"
+    echo -e "\\n${GRAY_R}#########################################################################${RESET}\\n"
   else
     header
   fi
-  echo -e "${WHITE_R}#${RESET} Cancelling the script!\\n\\n"
+  echo -e "${GRAY_R}#${RESET} Cancelling the script!\\n\\n"
   author
   update_eus_db
   cleanup_codename_mismatch_repos
@@ -599,20 +599,20 @@ cancel_script() {
 
 if uname -a | tr '[:upper:]' '[:lower:]' | grep -iq "cloudkey\\|uck\\|ubnt-mtk"; then
   eus_dir='/srv/EUS'
-  is_cloudkey=true
-  if grep -iq "UCKP" /usr/lib/version; then is_cloudkey_gen2_plus=true; fi
+  is_cloudkey="true"
+  if grep -iq "UCKP" /usr/lib/version; then is_cloudkey_gen2_plus="true"; fi
 elif grep -iq "UCKP\\|UCKG2\\|UCK" /usr/lib/version &> /dev/null; then
   eus_dir='/srv/EUS'
-  is_cloudkey=true
-  if grep -iq "UCKP" /usr/lib/version; then is_cloudkey_gen2_plus=true; fi
+  is_cloudkey="true"
+  if grep -iq "UCKP" /usr/lib/version; then is_cloudkey_gen2_plus="true"; fi
 elif "$(which dpkg)" -l unifi-core 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
   eus_dir='/srv/EUS'
-  is_cloudkey=false
-  is_cloudkey_gen2_plus=false
+  is_cloudkey="false"
+  is_cloudkey_gen2_plus="false"
 else
   eus_dir='/usr/lib/EUS'
-  is_cloudkey=false
-  is_cloudkey_gen2_plus=false
+  is_cloudkey="false"
+  is_cloudkey_gen2_plus="false"
 fi
 if [[ "${eus_dir}" == '/srv/EUS' ]]; then if findmnt -no OPTIONS "$(df --output=target /srv | tail -1)" | grep -ioq "ro"; then eus_dir='/usr/lib/EUS'; fi; fi
 
@@ -750,8 +750,8 @@ start_script() {
   header
   script_logo
   echo -e "    UniFi Easy Encrypt Script!"
-  echo -e "\\n${WHITE_R}#${RESET} Starting the UniFi Easy Encrypt Script..."
-  echo -e "${WHITE_R}#${RESET} Thank you for using my UniFi Easy Encrypt Script :-)\\n\\n"
+  echo -e "\\n${GRAY_R}#${RESET} Starting the UniFi Easy Encrypt Script..."
+  echo -e "${GRAY_R}#${RESET} Thank you for using my UniFi Easy Encrypt Script :-)\\n\\n"
   if [[ "${update_at_start_script}" != 'true' ]]; then update_at_start_script="true"; update_eus_db; fi
   if pgrep -f unattended-upgrade &> /dev/null; then if systemctl stop unattended-upgrades &>> "${eus_dir}/logs/unattended-upgrades.log"; then stopped_unattended_upgrade="true"; fi; fi
 }
@@ -761,7 +761,7 @@ check_apt_listbugs
 
 help_script() {
   check_apt_listbugs
-  if [[ "${script_option_help}" == 'true' ]]; then header; script_logo; else echo -e "${WHITE_R}----${RESET}\\n"; fi
+  if [[ "${script_option_help}" == 'true' ]]; then header; script_logo; else echo -e "${GRAY_R}----${RESET}\\n"; fi
   echo -e "    UniFi Easy Encrypt script assistance\\n"
   echo -e "
   Script usage:
@@ -771,6 +771,8 @@ help_script() {
     --skip                                  Skip any kind of manual input.
     --skip-network-application              Skip importing certificates into the Network application
                                             on a UniFi OS Console.
+    --skip-required-service-check           Skip checking if a required service is installed, for example when running
+                                            the Network Application within a docker container.
     --v6                                    Run the script in IPv6 mode instead of IPv4.
     --email [argument]                      Specify what email address you want to use
                                             for renewal notifications.
@@ -831,7 +833,7 @@ help_script() {
 
 rm --force /tmp/EUS/le_script_options &> /dev/null
 rm --force /tmp/EUS/script_options &> /dev/null
-script_option_list=(-skip --skip --skip-network-application --install-script --v6 --ipv6 --email --mail --fqdn --domain-name --server-ip --server-address --custom-acme-server --retry --external-dns --force-renew --renew --dns --dns-challenge --priv-key --private-key --signed-crt --signed-certificate --chain-crt --chain-certificate --intermediate-crt --intermediate-certificate --own-certificate --restore --prevent-modify-firewall --help --dns-provider-credentials --dns-provider)
+script_option_list=(-skip --skip --skip-network-application --skip-service-required-service-check --install-script --v6 --ipv6 --email --mail --fqdn --domain-name --server-ip --server-address --custom-acme-server --retry --external-dns --force-renew --renew --dns --dns-challenge --priv-key --private-key --signed-crt --signed-certificate --chain-crt --chain-certificate --intermediate-crt --intermediate-certificate --own-certificate --restore --prevent-modify-firewall --help --dns-provider-credentials --dns-provider)
 dns_provider_list=(cloudflare digitalocean dnsimple gehirn google linode luadns nsone ovh rfc2136 route53 sakuracloud)
 dns_multi_provider_list=(dnsmadeeasy akamaiedgedns alibabaclouddns allinkl amazonlightsail arvancloud auroradns autodns azuredns bindman bluecat brandit bunny checkdomain civo cloudru clouddns cloudns cloudxns conoha constellix derakcloud desecio designatednsaasforopenstack dnshomede domainoffensive domeneshop dreamhost duckdns dyn dynu easydns efficientip epik exoscale externalprogram freemyip gcore gandi gandilivedns glesys godaddy hetzner hostingde hosttech httprequest httpnet hurricaneelectricdns hyperone ibmcloud iijdnsplatformservice infoblox infomaniak internetinitiativejapan internetbs inwx ionos ipv64 iwantmyname joker joohoisacmedns liara liquidweb loopia metaname mydnsjp mythicbeasts namecom namecheap namesilo nearlyfreespeechnet netcup netlify nicmanager nifcloud njalla nodion opentelekomcloud oraclecloud pleskcom porkbun powerdns rackspace rcodezero regru rimuhosting scaleway selectel servercow simplycom sonic stackpath tencentclouddns transip ukfastsafedns ultradns variomedia vegadns vercel versionl versioeu versiouk vinyldns vkcloud vscale vultr webnames websupport wedos yandex360 yandexcloud yandexpdd zoneee zonomi)
 
@@ -839,43 +841,46 @@ while [ -n "$1" ]; do
   case "$1" in
   -skip | --skip)
        old_certificates=all
-       script_option_skip=true
+       script_option_skip="true"
        echo "--skip" &>> /tmp/EUS/script_options;;
   --skip-network-application)
        if dpkg -l unifi-core 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi"; then
-         script_option_skip_network_application=true
+         script_option_skip_network_application="true"
          echo "--skip-network-application" &>> /tmp/EUS/script_options
        fi;;
+  --skip-required-service-check)
+       skip_required_service_check="true"
+       echo "--skip" &>> /tmp/EUS/script_options;;
   --install-script)
-       install_script=true
+       install_script="true"
        echo "--install-script" &>> /tmp/EUS/script_options;;
   --v6 | --ipv6)
-       run_ipv6=true
+       run_ipv6="true"
        echo "--v6" &>> /tmp/EUS/script_options;;
   --email | --mail)
        for option in "${script_option_list[@]}"; do
-         if [[ "${2}" == "${option}" ]]; then header_red; echo -e "${WHITE_R}#${RESET} Option ${1} requires a command argument... \\n\\n"; help_script; fi
+         if [[ "${2}" == "${option}" ]]; then header_red; echo -e "${GRAY_R}#${RESET} Option ${1} requires a command argument... \\n\\n"; help_script; fi
        done
        le_user_mail="$2"
        email_reg='^(([A-Za-z0-9]+((\.|\-|\_|\+)?[A-Za-z0-9]?)*[A-Za-z0-9]+)|[A-Za-z0-9]+)@(([A-Za-z0-9]+)+((\.|\-|\_)?([A-Za-z0-9]+)+)*)+\.([A-Za-z]{2,})+$'
        if ! [[ "${le_user_mail}" =~ ${email_reg} ]]; then email="--register-unsafely-without-email"; else email="--email ${le_user_mail}"; fi
-       script_option_email=true
+       script_option_email="true"
        echo "--email ${2}" &>> /tmp/EUS/script_options
        shift;;
   --fqdn | --domain-name)
        for option in "${script_option_list[@]}"; do
-         if [[ "${2}" == "${option}" ]]; then header_red; echo -e "${WHITE_R}#${RESET} Option ${1} requires a command argument... \\n\\n"; help_script; fi
+         if [[ "${2}" == "${option}" ]]; then header_red; echo -e "${GRAY_R}#${RESET} Option ${1} requires a command argument... \\n\\n"; help_script; fi
        done
        echo "$2" &> "${eus_dir}/fqdn_option_le.tmp"
        sed $'s/:/\\\n/g' < "${eus_dir}/fqdn_option_le.tmp" &> "${eus_dir}/fqdn_option_le"
        rm --force "${eus_dir}/fqdn_option_le.tmp"
        awk '!a[$0]++' "${eus_dir}/fqdn_option_le" >> "${eus_dir}/fqdn_option_domains" && rm --force "${eus_dir}/fqdn_option_le"
-       script_option_fqdn=true
+       script_option_fqdn="true"
        echo "--fqdn ${2}" &>> /tmp/EUS/script_options
        shift;;
   --server-ip | --server-address)
        for option in "${script_option_list[@]}"; do
-         if [[ "${2}" == "${option}" ]]; then header_red; echo -e "${WHITE_R}#${RESET} Option ${1} requires a command argument... \\n\\n"; help_script; fi
+         if [[ "${2}" == "${option}" ]]; then header_red; echo -e "${GRAY_R}#${RESET} Option ${1} requires a command argument... \\n\\n"; help_script; fi
        done
        server_ip="$2"
        echo "${server_ip}" &> "${eus_dir}/server_ip"
@@ -884,7 +889,7 @@ while [ -n "$1" ]; do
        shift;;
   --custom-acme-server)
        for option in "${script_option_list[@]}"; do
-         if [[ "${2}" == "${option}" ]]; then header_red; echo -e "${WHITE_R}#${RESET} Option ${1} requires a command argument... \\n\\n"; help_script; fi
+         if [[ "${2}" == "${option}" ]]; then header_red; echo -e "${GRAY_R}#${RESET} Option ${1} requires a command argument... \\n\\n"; help_script; fi
        done
        custom_acme_server="$2"
        acme_server="--server ${2}"
@@ -893,67 +898,67 @@ while [ -n "$1" ]; do
        shift;;
   --retry)
        for option in "${script_option_list[@]}"; do
-         if [[ "${2}" == "${option}" ]]; then header_red; echo -e "${WHITE_R}#${RESET} Option ${1} requires a command argument... \\n\\n"; help_script; fi
+         if [[ "${2}" == "${option}" ]]; then header_red; echo -e "${GRAY_R}#${RESET} Option ${1} requires a command argument... \\n\\n"; help_script; fi
        done
-       if ! [[ "${2}" =~ ^[0-9]+$ ]]; then header_red; echo -e "${WHITE_R}#${RESET} '${2}' is not a valid command argument for ${1}... \\n\\n"; help_script; fi
+       if ! [[ "${2}" =~ ^[0-9]+$ ]]; then header_red; echo -e "${GRAY_R}#${RESET} '${2}' is not a valid command argument for ${1}... \\n\\n"; help_script; fi
        retries="$2"
        echo "${retries}" &> "${eus_dir}/retries"
        script_option_retry="true"
        echo "--retry ${2}" &>> /tmp/EUS/script_options
        shift;;
   --external-dns)
-       if [[ -n "${2}" ]]; then echo -ne "\\r${WHITE_R}#${RESET} Checking if ${2} is a valid DNS server...\\n"; if [[ "${2}" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then if [[ "$(echo "${2}" | cut -d'.' -f1)" -le '255' && "$(echo "${2}" | cut -d'.' -f2)" -le '255' && "$(echo "${2}" | cut -d'.' -f3)" -le '255' && "$(echo "${2}" | cut -d'.' -f4)" -le '255' ]]; then ip_valid=true; elif [[ "${run_ipv6}" == 'true' ]]; then external_dns_server='@2606:4700:4700::1111'; else external_dns_server='@1.1.1.1'; fi; fi; fi
-       if [[ "${ip_valid}" == 'true' ]]; then if ping -c 1 "${2}" > /dev/null; then ping_ok=true; external_dns_server="@${2}"; elif [[ "${run_ipv6}" == 'true' ]]; then external_dns_server='@2606:4700:4700::1111'; else external_dns_server='@1.1.1.1'; fi; fi
-       if [[ "${ping_ok}" == 'true' ]]; then check_dig_curl; if dig +short "${dig_option}" google.com "${external_dns_server}" &> /dev/null; then custom_external_dns_server_provided=true; elif [[ "${run_ipv6}" == 'true' ]]; then external_dns_server='@2606:4700:4700::1111'; else external_dns_server='@1.1.1.1'; fi; fi
+       if [[ -n "${2}" ]]; then echo -ne "\\r${GRAY_R}#${RESET} Checking if ${2} is a valid DNS server...\\n"; if [[ "${2}" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then if [[ "$(echo "${2}" | cut -d'.' -f1)" -le '255' && "$(echo "${2}" | cut -d'.' -f2)" -le '255' && "$(echo "${2}" | cut -d'.' -f3)" -le '255' && "$(echo "${2}" | cut -d'.' -f4)" -le '255' ]]; then ip_valid="true"; elif [[ "${run_ipv6}" == 'true' ]]; then external_dns_server='@2606:4700:4700::1111'; else external_dns_server='@1.1.1.1'; fi; fi; fi
+       if [[ "${ip_valid}" == 'true' ]]; then if ping -c 1 "${2}" > /dev/null; then ping_ok="true"; external_dns_server="@${2}"; elif [[ "${run_ipv6}" == 'true' ]]; then external_dns_server='@2606:4700:4700::1111'; else external_dns_server='@1.1.1.1'; fi; fi
+       if [[ "${ping_ok}" == 'true' ]]; then check_dig_curl; if dig +short "${dig_option}" google.com "${external_dns_server}" &> /dev/null; then custom_external_dns_server_provided="true"; elif [[ "${run_ipv6}" == 'true' ]]; then external_dns_server='@2606:4700:4700::1111'; else external_dns_server='@1.1.1.1'; fi; fi
        if [[ "${custom_external_dns_server_provided}" == 'true' ]]; then echo "--external-dns ${2}" &>> /tmp/EUS/script_options; echo -e "${GREEN}#${RESET} ${2} appears to be a valid DNS server! The script will use ${2} for DNS lookups! \\n"; sleep 2; else echo "--external-dns" &>> /tmp/EUS/script_options; if [[ -n "${2}" ]]; then echo -e "${RED}#${RESET} ${2} does not appear to be a valid DNS server, the script will use 1.1.1.1 for DNS lookups... \\n"; sleep 2; fi; if [[ "${run_ipv6}" == 'true' ]]; then external_dns_server='@2606:4700:4700::1111'; else external_dns_server='@1.1.1.1'; fi; fi;;
   --force-renew | --renew)
-       script_option_renew=true
-       run_force_renew=true
+       script_option_renew="true"
+       run_force_renew="true"
        echo "--force-renew" &>> /tmp/EUS/script_options;;
   --priv-key | --private-key)
        for option in "${script_option_list[@]}"; do
-         if [[ "${2}" == "${option}" ]]; then header_red; echo -e "${WHITE_R}#${RESET} Option ${1} requires a command argument... \\n\\n"; help_script; fi
+         if [[ "${2}" == "${option}" ]]; then header_red; echo -e "${GRAY_R}#${RESET} Option ${1} requires a command argument... \\n\\n"; help_script; fi
        done
-       if ! [[ -e "${2}" ]]; then header_red; echo -e "${WHITE_R}#${RESET} ${2} couldn't be found on your system... \\n\\n"; fi
+       if ! [[ -e "${2}" ]]; then header_red; echo -e "${GRAY_R}#${RESET} ${2} couldn't be found on your system... \\n\\n"; fi
        priv_key="$2"
        echo "--private-key ${2}" &>> /tmp/EUS/script_options
        shift;;
   --signed-crt | --signed-certificate)
        for option in "${script_option_list[@]}"; do
-         if [[ "${2}" == "${option}" ]]; then header_red; echo -e "${WHITE_R}#${RESET} Option ${1} requires a command argument... \\n\\n"; help_script; fi
+         if [[ "${2}" == "${option}" ]]; then header_red; echo -e "${GRAY_R}#${RESET} Option ${1} requires a command argument... \\n\\n"; help_script; fi
        done
-       if ! [[ -e "${2}" ]]; then header_red; echo -e "${WHITE_R}#${RESET} ${2} couldn't be found on your system... \\n\\n"; fi
+       if ! [[ -e "${2}" ]]; then header_red; echo -e "${GRAY_R}#${RESET} ${2} couldn't be found on your system... \\n\\n"; fi
        signed_crt="$2"
        echo "--signed-certificate ${2}" &>> /tmp/EUS/script_options
        shift;;
   --chain-crt | --chain-certificate)
        for option in "${script_option_list[@]}"; do
-         if [[ "${2}" == "${option}" ]]; then header_red; echo -e "${WHITE_R}#${RESET} Option ${1} requires a command argument... \\n\\n"; help_script; fi
+         if [[ "${2}" == "${option}" ]]; then header_red; echo -e "${GRAY_R}#${RESET} Option ${1} requires a command argument... \\n\\n"; help_script; fi
        done
-       if ! [[ -e "${2}" ]]; then header_red; echo -e "${WHITE_R}#${RESET} ${2} couldn't be found on your system... \\n\\n"; fi
+       if ! [[ -e "${2}" ]]; then header_red; echo -e "${GRAY_R}#${RESET} ${2} couldn't be found on your system... \\n\\n"; fi
        chain_crt="$2"
        echo "--chain-certificate ${2}" &>> /tmp/EUS/script_options
        shift;;
   --intermediate-crt | --intermediate-certificate)
        for option in "${script_option_list[@]}"; do
-         if [[ "${2}" == "${option}" ]]; then header_red; echo -e "${WHITE_R}#${RESET} Option ${1} requires a command argument... \\n\\n"; help_script; fi
+         if [[ "${2}" == "${option}" ]]; then header_red; echo -e "${GRAY_R}#${RESET} Option ${1} requires a command argument... \\n\\n"; help_script; fi
        done
-       if ! [[ -e "${2}" ]]; then header_red; echo -e "${WHITE_R}#${RESET} ${2} couldn't be found on your system... \\n\\n"; fi
+       if ! [[ -e "${2}" ]]; then header_red; echo -e "${GRAY_R}#${RESET} ${2} couldn't be found on your system... \\n\\n"; fi
        intermediate_crt="$2"
        echo "--intermediate-certificate ${2}" &>> /tmp/EUS/script_options
        shift;;
   --dns | --dns-challenge)
        unset old_certificates
-       prefer_dns_challenge=true
+       prefer_dns_challenge="true"
        if [[ -z "${dns_manual_flag}" ]]; then dns_manual_flag="--manual"; fi
        echo "--dns" &>> /tmp/EUS/script_options;;
   --dns-provider)
        for option in "${script_option_list[@]}"; do
-         if [[ "${2}" == "${option}" ]]; then header_red; echo -e "${WHITE_R}#${RESET} Option ${1} requires a command argument... \\n\\n"; help_script; fi
+         if [[ "${2}" == "${option}" ]]; then header_red; echo -e "${GRAY_R}#${RESET} Option ${1} requires a command argument... \\n\\n"; help_script; fi
        done
        for dns_provider_check in "${dns_provider_list[@]}"; do if [[ "${dns_provider_check}" == "$2" ]]; then supported_provider="true"; certbot_native_plugin="true"; break; fi; done
        for dns_provider_check in "${dns_multi_provider_list[@]}"; do if [[ "${dns_provider_check}" == "$2" ]] && ! dpkg -l unifi-core 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi"; then supported_provider="true"; certbot_multi_plugin="true"; break; fi; done
-       if [[ "${supported_provider}" != 'true' ]]; then header_red; echo -e "${WHITE_R}#${RESET} DNS Provider ${2} is not supported... \\n\\n"; help_script; fi
+       if [[ "${supported_provider}" != 'true' ]]; then header_red; echo -e "${GRAY_R}#${RESET} DNS Provider ${2} is not supported... \\n\\n"; help_script; fi
        unset old_certificates
        unset dns_manual_flag
        dns_manual_flag="--non-interactive"
@@ -964,22 +969,22 @@ while [ -n "$1" ]; do
        echo "--dns-provider ${2}" &>> /tmp/EUS/script_options;;
   --dns-provider-credentials)
        for option in "${script_option_list[@]}"; do
-         if [[ "${2}" == "${option}" ]]; then header_red; echo -e "${WHITE_R}#${RESET} Option ${1} requires a command argument... \\n\\n"; help_script; fi
+         if [[ "${2}" == "${option}" ]]; then header_red; echo -e "${GRAY_R}#${RESET} Option ${1} requires a command argument... \\n\\n"; help_script; fi
        done
        unset old_certificates
        auto_dns_challenge_credentials_file="${2}"
        echo "--dns-provider-credentials ${2}" &>> /tmp/EUS/script_options;;
   --own-certificate)
-       own_certificate=true
+       own_certificate="true"
        echo "--own-certificate" &>> /tmp/EUS/script_options;;
   --prevent-modify-firewall)
-       script_option_prevent_modify_firewall=true
+       script_option_prevent_modify_firewall="true"
        echo "--prevent-modify-firewall" &>> /tmp/EUS/script_options;;
   --restore)
-       script_option_skip=false
+       script_option_skip="false"
        echo "--restore" &>> /tmp/EUS/script_options;;
   --help)
-       script_option_help=true
+       script_option_help="true"
        help_script;;
   --debug)
        script_option_debug="true";;
@@ -1102,22 +1107,20 @@ if [[ -n "${auto_dns_challenge_arguments}" ]] || [[ "${certbot_multi_plugin}" ==
     fi
     if [[ "${prefer_dns_challenge}" != 'true' ]]; then prefer_dns_challenge="true"; echo "--dns" &>> /tmp/EUS/script_options; fi
   else
-    header_red; echo -e "${WHITE_R}#${RESET} Option \"--dns-provider-credentials\" doesn't appear to be set... \\n\\n"; help_script
+    header_red; echo -e "${GRAY_R}#${RESET} Option \"--dns-provider-credentials\" doesn't appear to be set... \\n\\n"; help_script
   fi
 fi
 
 # Cleanup EUS logs
-find "${eus_dir}/logs/" -printf "%f\\n" | grep '.*.log' | awk '!a[$0]++' &> /tmp/EUS/log_files
 while read -r log_file; do
-  if [[ -f "${eus_dir}/logs/${log_file}" ]]; then
-    log_file_size=$(stat -c%s "${eus_dir}/logs/${log_file}")
+  if [[ -f "${log_file}" ]]; then
+    log_file_size="$(stat -c%s "${log_file}")"
     if [[ "${log_file_size}" -gt "10485760" ]]; then
-      tail -n1000 "${eus_dir}/logs/${log_file}" &> "${log_file}.tmp"
-      mv "${eus_dir}/logs/${log_file}.tmp" "${eus_dir}/logs/${log_file}"
+      tail -n1000 "${log_file}" &> "${log_file}.tmp"
+      mv "${log_file}.tmp" "${log_file}"
     fi
   fi
-done < /tmp/EUS/log_files
-rm --force /tmp/EUS/log_files
+done < <(find "${eus_dir}/logs/" -type f 2> /dev/null)
 
 # Cleanup lets encrypt challenge logs ( keep last 5 )
 # shellcheck disable=SC2010
@@ -1144,32 +1147,32 @@ christmass_new_year() {
   date_d=$(date '+%d' | sed "s/^0*//g; s/\.0*/./g")
   date_m=$(date '+%m' | sed "s/^0*//g; s/\.0*/./g")
   if [[ "${date_m}" == '12' && "${date_d}" -ge '18' && "${date_d}" -lt '26' ]]; then
-    echo -e "\\n${WHITE_R}----${RESET}\\n"
-    echo -e "${WHITE_R}#${RESET} GlennR wishes you a Merry Christmas! May you be blessed with health and happiness!"
-    christmas_message=true
+    echo -e "\\n${GRAY_R}----${RESET}\\n"
+    echo -e "${GRAY_R}#${RESET} GlennR wishes you a Merry Christmas! May you be blessed with health and happiness!"
+    christmas_message="true"
   fi
   if [[ "${date_m}" == '12' && "${date_d}" -ge '24' && "${date_d}" -le '30' ]]; then
-    if [[ "${christmas_message}" != 'true' ]]; then echo -e "\\n${WHITE_R}----${RESET}\\n"; fi
+    if [[ "${christmas_message}" != 'true' ]]; then echo -e "\\n${GRAY_R}----${RESET}\\n"; fi
     if [[ "${christmas_message}" == 'true' ]]; then echo -e ""; fi
     date_y=$(date -d "+1 year" +"%Y")
-    echo -e "${WHITE_R}#${RESET} HAPPY NEW YEAR ${date_y}"
-    echo -e "${WHITE_R}#${RESET} May the new year turn all your dreams into reality and all your efforts into great achievements!"
-    new_year_message=true
+    echo -e "${GRAY_R}#${RESET} HAPPY NEW YEAR ${date_y}"
+    echo -e "${GRAY_R}#${RESET} May the new year turn all your dreams into reality and all your efforts into great achievements!"
+    new_year_message="true"
   elif [[ "${date_m}" == '12' && "${date_d}" == '31' ]]; then
-    if [[ "${christmas_message}" != 'true' ]]; then echo -e "\\n${WHITE_R}----${RESET}\\n"; fi
+    if [[ "${christmas_message}" != 'true' ]]; then echo -e "\\n${GRAY_R}----${RESET}\\n"; fi
     if [[ "${christmas_message}" == 'true' ]]; then echo -e ""; fi
     date_y=$(date -d "+1 year" +"%Y")
-    echo -e "${WHITE_R}#${RESET} HAPPY NEW YEAR ${date_y}"
-    echo -e "${WHITE_R}#${RESET} Tomorrow, is the first blank page of a 365 page book. Write a good one!"
-    new_year_message=true
+    echo -e "${GRAY_R}#${RESET} HAPPY NEW YEAR ${date_y}"
+    echo -e "${GRAY_R}#${RESET} Tomorrow, is the first blank page of a 365 page book. Write a good one!"
+    new_year_message="true"
   fi
   if [[ "${date_m}" == '1' && "${date_d}" -le '5' ]]; then
-    if [[ "${christmas_message}" != 'true' ]]; then echo -e "\\n${WHITE_R}----${RESET}\\n"; fi
+    if [[ "${christmas_message}" != 'true' ]]; then echo -e "\\n${GRAY_R}----${RESET}\\n"; fi
     if [[ "${christmas_message}" == 'true' ]]; then echo -e ""; fi
     date_y=$(date '+%Y')
-    echo -e "${WHITE_R}#${RESET} HAPPY NEW YEAR ${date_y}"
-    echo -e "${WHITE_R}#${RESET} May this new year all your dreams turn into reality and all your efforts into great achievements"
-    new_year_message=true
+    echo -e "${GRAY_R}#${RESET} HAPPY NEW YEAR ${date_y}"
+    echo -e "${GRAY_R}#${RESET} May this new year all your dreams turn into reality and all your efforts into great achievements"
+    new_year_message="true"
   fi
 }
 
@@ -1188,8 +1191,8 @@ cleanup_unifi_native_system() {
   if [[ "${openjdk_native_installed}" == 'true' ]]; then
     header
     check_dpkg_lock
-    echo -e "${WHITE_R}#${RESET} The script installed ${openjdk_native_installed_package}, we do not need this anymore.\\n"
-    echo -e "${WHITE_R}#${RESET} Purging package ${openjdk_native_installed_package}..."
+    echo -e "${GRAY_R}#${RESET} The script installed ${openjdk_native_installed_package}, we do not need this anymore.\\n"
+    echo -e "${GRAY_R}#${RESET} Purging package ${openjdk_native_installed_package}..."
     if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' purge "${openjdk_native_installed_package}" &>> "${eus_dir}/logs/uninstall-${openjdk_native_installed_package}.log"; then
       echo -e "${GREEN}#${RESET} Successfully purged ${openjdk_native_installed_package}! \\n"
     else
@@ -1206,15 +1209,15 @@ author() {
   cleanup_codename_mismatch_repos
   cleanup_unifi_native_system
   header
-  echo -e "${WHITE_R}#${RESET} The script successfully ended, enjoy your secure setup!\\n"
+  echo -e "${GRAY_R}#${RESET} The script successfully ended, enjoy your secure setup!\\n"
   christmass_new_year
-  if [[ "${new_year_message}" == 'true' || "${christmas_message}" == 'true' ]]; then echo -e "\\n${WHITE_R}----${RESET}\\n"; fi
-  if [[ "${archived_repo}" == 'true' && "${unifi_core_system}" != 'true' ]]; then echo -e "\\n${WHITE_R}----${RESET}\\n\\n${RED}# Looks like you're using a EOL/unsupported OS Release (${os_codename})\\n${RED}# Please update to a supported release...\\n"; fi
-  if [[ "${archived_repo}" == 'true' && "${unifi_core_system}" == 'true' ]]; then echo -e "\\n${WHITE_R}----${RESET}\\n\\n${RED}# Please update to the latest UniFi OS Release!\\n"; fi
+  if [[ "${new_year_message}" == 'true' || "${christmas_message}" == 'true' ]]; then echo -e "\\n${GRAY_R}----${RESET}\\n"; fi
+  if [[ "${archived_repo}" == 'true' && "${unifi_core_system}" != 'true' ]]; then echo -e "\\n${WHITE_R}----${RESET}\\n\\n${RED}# ${RESET}System Notice: ${WHITE_R}Unsupported OS Version Detected${RESET}! \\n${RED}# ${RESET}Your operating system release (${WHITE_R}${os_codename}${RESET}) has reached End of Life (EOL) and is no longer supported by its creators.\\n${RED}# ${RESET}To ensure security and compatibility, please update to a more current release...\\n"; fi
+  if [[ "${archived_repo}" == 'true' && "${unifi_core_system}" == 'true' ]]; then echo -e "\\n${GRAY_R}----${RESET}\\n\\n${RED}# Please update to the latest UniFi OS Release!\\n"; fi
   if [[ "${stopped_unattended_upgrade}" == 'true' ]]; then systemctl start unattended-upgrades &>> "${eus_dir}/logs/unattended-upgrades.log"; unset stopped_unattended_upgrade; fi
-  echo -e "${WHITE_R}#${RESET} ${GRAY_R}Author   |  ${WHITE_R}Glenn R.${RESET}"
-  echo -e "${WHITE_R}#${RESET} ${GRAY_R}Email    |  ${WHITE_R}glennrietveld8@hotmail.nl${RESET}"
-  echo -e "${WHITE_R}#${RESET} ${GRAY_R}Website  |  ${WHITE_R}https://GlennR.nl${RESET}\\n\\n"
+  echo -e "${GRAY_R}#${RESET} ${GRAY_R}Author   |  ${WHITE_R}Glenn R.${RESET}"
+  echo -e "${GRAY_R}#${RESET} ${GRAY_R}Email    |  ${WHITE_R}glennrietveld8@hotmail.nl${RESET}"
+  echo -e "${GRAY_R}#${RESET} ${GRAY_R}Website  |  ${WHITE_R}https://GlennR.nl${RESET}\\n\\n"
 }
 
 # Set architecture
@@ -1537,7 +1540,7 @@ attempt_recover_broken_packages() {
       broken_package="$(echo "${broken_package}" | xargs)"
       if ! dpkg -l | awk '{print $2}' | grep -iq "^${broken_package}$"; then continue; fi
       echo -e "\\n------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/attempt-recover-broken-packages.log"
-      echo -e "${WHITE_R}#${RESET} Attempting to recover broken packages..."
+      echo -e "${GRAY_R}#${RESET} Attempting to recover broken packages..."
       check_dpkg_lock
       if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_downgrade_option[@]}" "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install -f &>> "${eus_dir}/logs/attempt-recover-broken-packages.log"; then
         echo -e "${GREEN}#${RESET} Successfully attempted to recover broken packages! \\n"
@@ -1550,7 +1553,7 @@ attempt_recover_broken_packages() {
       fi
       check_dpkg_lock
       if ! dpkg --get-selections | grep -q "^${broken_package}\s*hold$"; then
-        echo -e "${WHITE_R}#${RESET} Attempting to prevent ${broken_package} from screwing over apt..."
+        echo -e "${GRAY_R}#${RESET} Attempting to prevent ${broken_package} from screwing over apt..."
         check_dpkg_lock
         if echo "${broken_package} hold" | "$(which dpkg)" --set-selections &>> "${eus_dir}/logs/attempt-recover-broken-packages.log"; then
           echo -e "${GREEN}#${RESET} Successfully prevented ${broken_package} from screwing over apt! \\n"
@@ -1562,7 +1565,7 @@ attempt_recover_broken_packages() {
       if [[ "${dpkg_interrupted_attempt_recover_broken_check}" != 'true' ]]; then check_dpkg_interrupted; fi
       if [[ "${attempt_recover_broken_packages_remove}" != 'true' ]]; then attempt_recover_broken_packages_removal_question; fi
       if [[ "${failed_attempt_recover_broken_packages}" == 'true' && "${vars[$broken_package_key]}" == 'true' && "${attempt_recover_broken_packages_remove}" == 'true' ]] && apt-mark showmanual | grep -ioq "^$broken_package$"; then
-        echo -e "\\n${WHITE_R}#${RESET} Removing the ${broken_package} package so that the files are kept on the system..."
+        echo -e "\\n${GRAY_R}#${RESET} Removing the ${broken_package} package so that the files are kept on the system..."
         check_dpkg_lock
         if "$(which dpkg)" --remove --force-remove-reinstreq "${broken_package}" &>> "${eus_dir}/logs/attempt-recover-broken-packages.log"; then
           echo -e "${GREEN}#${RESET} Successfully removed the ${broken_package} package! \\n"
@@ -1629,7 +1632,7 @@ check_unmet_dependencies() {
         fi
       done < <(grep "Depends:" "${log_file}" | sed 's/.*Depends: //' | sed 's/).*//' | sort | uniq)
       while read -r breaking_package; do
-        echo -e "${WHITE_R}#${RESET} Attempting to prevent ${breaking_package} from screwing over apt..."
+        echo -e "${GRAY_R}#${RESET} Attempting to prevent ${breaking_package} from screwing over apt..."
         if echo "${breaking_package} hold" | "$(which dpkg)" --set-selections &>> "${eus_dir}/logs/unmet-dependency-break.log"; then
           echo -e "${GREEN}#${RESET} Successfully prevented ${breaking_package} from screwing over apt! \\n"
           sed -i "s/Breaks: ${breaking_package}/Breaks (completed): ${breaking_package}/g" "${log_file}" 2>> "${eus_dir}/logs/unmet-dependency-break-sed.log"
@@ -1644,7 +1647,7 @@ check_unmet_dependencies() {
 check_dpkg_interrupted() {
   if [[ "${force_dpkg_configure}" == 'true' ]] || [[ -e "/var/lib/dpkg/info/*.status" ]] || tail -n5 "${eus_dir}/logs/"* | grep -iq "you must manually run 'sudo dpkg --configure -a' to correct the problem\\|you must manually run 'dpkg --configure -a' to correct the problem"; then
     echo -e "\\n------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/dpkg-interrupted.log"
-    echo -e "${WHITE_R}#${RESET} Looks like dpkg was interrupted... running \"dpkg --configure -a\"..." | tee -a "${eus_dir}/logs/dpkg-interrupted.log"
+    echo -e "${GRAY_R}#${RESET} Looks like dpkg was interrupted... running \"dpkg --configure -a\"..." | tee -a "${eus_dir}/logs/dpkg-interrupted.log"
     if DEBIAN_FRONTEND=noninteractive "$(which dpkg)" --configure -a &>> "${eus_dir}/logs/dpkg-interrupted.log"; then
       echo -e "${GREEN}#${RESET} Successfully ran \"dpkg --configure -a\"! \\n"
       unset failed_attempt_recover_broken_packages
@@ -1669,7 +1672,7 @@ check_dpkg_lock() {
       lock_owner="$(fuser "${lock_file}" 2>/dev/null)"
     fi
     if [[ -n "${lock_owner}" ]]; then
-      echo -e "${WHITE_R}#${RESET} $(echo "${lock_file}" | cut -d'/' -f4) is currently locked by process ${lock_owner}... We'll give it 2 minutes to finish." | tee -a "${eus_dir}/logs/dpkg-lock.log"
+      echo -e "${GRAY_R}#${RESET} $(echo "${lock_file}" | cut -d'/' -f4) is currently locked by process ${lock_owner}... We'll give it 2 minutes to finish." | tee -a "${eus_dir}/logs/dpkg-lock.log"
       local timeout="120"
       local start_time
       start_time="$(date +%s)"
@@ -1739,8 +1742,8 @@ script_version_check() {
   if [[ "${local_version_adjusted}" -lt "${online_version_adjusted}" ]]; then
     check_apt_listbugs
     header_red
-    echo -e "${WHITE_R}#${RESET} You're currently running script version ${local_version} while ${online_version} is the latest!"
-    echo -e "${WHITE_R}#${RESET} Downloading and executing version ${online_version} of the script...\\n\\n"
+    echo -e "${GRAY_R}#${RESET} You're currently running script version ${local_version} while ${online_version} is the latest!"
+    echo -e "${GRAY_R}#${RESET} Downloading and executing version ${online_version} of the script...\\n\\n"
     sleep 3
     rm --force "${script_location}" 2> /dev/null
     rm --force unifi-update.sh 2> /dev/null
@@ -1759,15 +1762,15 @@ if ! [[ "${os_codename}" =~ (precise|maya|trusty|qiana|rebecca|rafaela|rosa|xeni
   if [[ "${script_option_debug}" != 'true' ]]; then clear; fi
   header_red
   if [[ "${distro_support_missing_report}" == "OK" ]]; then
-    echo -e "${WHITE_R}#${RESET} The script does not (yet) support ${os_id} ${os_codename}, and Glenn R. has been informed about it..."
+    echo -e "${GRAY_R}#${RESET} The script does not (yet) support ${os_id} ${os_codename}, and Glenn R. has been informed about it..."
   else
     if [[ "${non_apt_based_linux}" != 'true' ]]; then
-      echo -e "${WHITE_R}#${RESET} The script does not yet support ${os_id} ${os_codename}..."
+      echo -e "${GRAY_R}#${RESET} The script does not yet support ${os_id} ${os_codename}..."
     else
-      echo -e "${WHITE_R}#${RESET} It looks like you're a using a linux distribution (${os_id} ${os_codename}) that doesn't use the APT package manager. \\n${WHITE_R}#${RESET} the script is only made for distros based on the APT package manager..."
+      echo -e "${GRAY_R}#${RESET} It looks like you're a using a linux distribution (${os_id} ${os_codename}) that doesn't use the APT package manager. \\n${GRAY_R}#${RESET} the script is only made for distros based on the APT package manager..."
     fi
   fi
-  echo -e "${WHITE_R}#${RESET} Feel free to contact Glenn R. (AmazedMender16) on the UI Community if you need help with installing your UniFi Network Application.\\n\\n"
+  echo -e "${GRAY_R}#${RESET} Feel free to contact Glenn R. (AmazedMender16) on the UI Community if you need help with installing your UniFi Network Application.\\n\\n"
   author
   exit 1
 fi
@@ -1859,7 +1862,7 @@ cleanup_malformed_repositories() {
   if ls /tmp/EUS/apt/*.log 1> /dev/null 2>&1; then
     while IFS= read -r line; do
       if [[ "${cleanup_malformed_repositories_found_message}" != 'true' ]]; then
-        echo -e "${WHITE_R}#${RESET} There appear to be malformed repositories..."
+        echo -e "${GRAY_R}#${RESET} There appear to be malformed repositories..."
         cleanup_malformed_repositories_found_message="true"
       fi
       cleanup_malformed_repositories_file_path="$(echo "${line}" | sed -n 's/.*\(in sources file \|in source file \|in source list \|in list file \)\([^ ]*\).*/\2/p')"
@@ -1895,7 +1898,7 @@ cleanup_duplicated_repositories() {
   if ls /tmp/EUS/apt/*.log 1> /dev/null 2>&1; then
     while IFS= read -r line; do
       if [[ "${cleanup_duplicated_repositories_found_message}" != 'true' ]]; then
-        echo -e "${WHITE_R}#${RESET} There appear to be duplicated repositories..."
+        echo -e "${GRAY_R}#${RESET} There appear to be duplicated repositories..."
         cleanup_duplicated_repositories_found_message="true"
       fi
       cleanup_duplicated_repositories_file_path="$(echo "${line}" | cut -d':' -f1)"
@@ -1931,7 +1934,7 @@ cleanup_unavailable_repositories() {
     while read -r domain; do
       if ! grep -sq "^#.*${domain}" /etc/apt/sources.list /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources 2> /dev/null; then
         if [[ "${cleanup_unavailable_repositories_found_message}" != 'true' ]]; then
-          echo -e "${WHITE_R}#${RESET} There are repositories that are causing issues..."
+          echo -e "${GRAY_R}#${RESET} There are repositories that are causing issues..."
           cleanup_unavailable_repositories_found_message="true"
         fi
         for file in /etc/apt/sources.list.d/*.sources; do
@@ -1964,7 +1967,7 @@ cleanup_conflicting_repositories() {
       while IFS= read -r line; do
         if [[ ${line} == *"Conflicting values set for option Trusted regarding source"* ]]; then
           if [[ "${cleanup_conflicting_repositories_found_message_1}" != 'true' ]]; then
-            echo -e "${WHITE_R}#${RESET} There appear to be repositories with conflicting details..."
+            echo -e "${GRAY_R}#${RESET} There appear to be repositories with conflicting details..."
             cleanup_conflicting_repositories_found_message_1="true"
           fi
           # Extract the conflicting source URL and remove trailing slash
@@ -2001,7 +2004,7 @@ cleanup_conflicting_repositories() {
           break
         elif [[ ${line} == *"Conflicting values set for option Signed-By regarding source"* ]]; then
           if [[ "${cleanup_conflicting_repositories_found_message_2}" != 'true' ]]; then
-            echo -e "${WHITE_R}#${RESET} There appear to be repositories with conflicting details..."
+            echo -e "${GRAY_R}#${RESET} There appear to be repositories with conflicting details..."
             cleanup_conflicting_repositories_found_message_2="true"
           fi
           # Extract the conflicting source URL and keys
@@ -2049,7 +2052,7 @@ run_apt_get_update() {
   eus_directory_location="/tmp/EUS"
   eus_create_directories "apt"
   if [[ "${run_with_apt_fix_missing}" == 'true' ]] || [[ -z "${afm_first_run}" ]]; then apt_fix_missing_option="--fix-missing"; afm_first_run="1"; unset run_with_apt_fix_missing; IFS=' ' read -r -a apt_fix_missing <<< "${apt_fix_missing_option}"; fi
-  if [[ "${silent_run_apt_get_update}" != "true" ]]; then echo -e "${WHITE_R}#${RESET} Running apt-get update..."; fi
+  if [[ "${silent_run_apt_get_update}" != "true" ]]; then echo -e "${GRAY_R}#${RESET} Running apt-get update..."; fi
   if apt-get update "${apt_fix_missing[@]}" 2>&1 | tee -a "${eus_dir}/logs/apt-update.log" > /tmp/EUS/apt/apt-update.log; then
     if [[ "${PIPESTATUS[0]}" -eq "0" ]]; then
       if [[ "${silent_run_apt_get_update}" != "true" ]]; then echo -e "${GREEN}#${RESET} Successfully ran apt-get update! \\n"; fi
@@ -2067,7 +2070,7 @@ run_apt_get_update() {
   if [[ -s /tmp/EUS/apt/missing_keys ]]; then
     if "$(which dpkg)" -l dirmngr 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
       while read -r key; do
-        if [[ "${silent_run_apt_get_update}" != "true" ]]; then echo -e "${WHITE_R}#${RESET} Key ${key} is missing.. adding!"; fi
+        if [[ "${silent_run_apt_get_update}" != "true" ]]; then echo -e "${GRAY_R}#${RESET} Key ${key} is missing.. adding!"; fi
         locate_http_proxy
         if [[ -n "$http_proxy" ]]; then
           if apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --keyserver-options http-proxy="${http_proxy}" --recv-keys "$key" &>> "${eus_dir}/logs/key-recovery.log"; then
@@ -2091,7 +2094,7 @@ run_apt_get_update() {
         fi
         if [[ "${fail_key}" == 'true' ]]; then
           if [[ "${silent_run_apt_get_update}" != "true" ]]; then echo -e "${RED}#${RESET} Failed to add key ${key}... \\n"; fi
-          if [[ "${silent_run_apt_get_update}" != "true" ]]; then echo -e "${WHITE_R}#${RESET} Trying different method to get key: ${key}"; fi
+          if [[ "${silent_run_apt_get_update}" != "true" ]]; then echo -e "${GRAY_R}#${RESET} Trying different method to get key: ${key}"; fi
           gpg -vvv --debug-all --keyserver keyserver.ubuntu.com --recv-keys "${key}" &> /tmp/EUS/apt/failed_key
           debug_key="$(grep "KS_GET" /tmp/EUS/apt/failed_key | grep -io "0x.*")"
           if curl "${curl_argument[@]}" "https://keyserver.ubuntu.com/pks/lookup?op=get&search=${debug_key}" | gpg -o "/tmp/EUS/apt/EUS-${key}.gpg" --dearmor --yes &> /dev/null; then
@@ -2112,7 +2115,7 @@ run_apt_get_update() {
         sleep 1
       done < /tmp/EUS/apt/missing_keys
     else
-      if [[ "${silent_run_apt_get_update}" != "true" ]]; then echo -e "${WHITE_R}#${RESET} Keys appear to be missing..."; fi; sleep 1
+      if [[ "${silent_run_apt_get_update}" != "true" ]]; then echo -e "${GRAY_R}#${RESET} Keys appear to be missing..."; fi; sleep 1
       if [[ "${silent_run_apt_get_update}" != "true" ]]; then echo -e "${YELLOW}#${RESET} Required package dirmngr is missing... cannot recover keys... \\n"; fi
     fi
     apt-get update &> /tmp/EUS/apt/apt-update.log
@@ -2130,17 +2133,16 @@ run_apt_get_update() {
   unset silent_run_apt_get_update
 }
 
-required_service=no
-if [[ "${is_cloudkey}" == 'true' ]]; then required_service=yes; fi
-if dpkg -l unifi 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi"; then required_service=yes; fi
-if dpkg -l unifi-video 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi"; then required_service=yes; fi
-if dpkg -l unifi-talk 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi"; then required_service=yes; fi
-if dpkg -l unifi-led 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi"; then required_service=yes; fi
-if dpkg -l uas-led 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi"; then required_service=yes; fi
-if dpkg -l unifi-core 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi"; then required_service=yes; fi
-if dpkg -l | grep -iq "\\bUAS\\b\\|UniFi Application Server"; then required_service=yes; fi
-if dpkg -l | awk '{print $2}' | grep -iq "^docker.io\\|^docker-ce"; then if docker ps -a | grep -iq 'ubnt/eot'; then required_service=yes; fi; fi
-if [[ "${required_service}" == 'no' ]]; then
+if [[ "${is_cloudkey}" == 'true' ]]; then required_service="true"; fi
+if dpkg -l unifi 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi"; then required_service="true"; fi
+if dpkg -l unifi-video 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi"; then required_service="true"; fi
+if dpkg -l unifi-talk 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi"; then required_service="true"; fi
+if dpkg -l unifi-led 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi"; then required_service="true"; fi
+if dpkg -l uas-led 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi"; then required_service="true"; fi
+if dpkg -l unifi-core 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi"; then required_service="true"; fi
+if dpkg -l | grep -iq "\\bUAS\\b\\|UniFi Application Server"; then required_service="true"; fi
+if dpkg -l | awk '{print $2}' | grep -iq "^docker.io\\|^docker-ce"; then if docker ps -a | grep -iq 'ubnt/eot'; then required_service="true"; fi; fi
+if [[ "${required_service}" != 'true' && "${skip_required_service_check}" != "true" ]]; then
   echo -e "${RED}#${RESET} Please install one of the following controllers/applications first, then retry this script again!"
   echo -e "${RED}-${RESET} UniFi Network Application"
   echo -e "${RED}-${RESET} UniFi Video NVR"
@@ -2153,7 +2155,7 @@ unifi_status="$(systemctl status unifi | grep -i 'Active:' | awk '{print $2}')"
 if dpkg -l unifi 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi"; then
   if [[ "${unifi_status}" == 'inactive' ]]; then
     header
-    echo -e "${WHITE_R}#${RESET} UniFi is not active ( running ), starting the application now."
+    echo -e "${GRAY_R}#${RESET} UniFi is not active ( running ), starting the application now."
     systemctl start unifi
     unifi_status="$(systemctl status unifi | grep -i 'Active:' | awk '{print $2}')"
     if [[ "${unifi_status}" == 'active' ]]; then
@@ -2189,7 +2191,7 @@ download_certbot_auto() {
   fi
   chown root "${eus_dir}/certbot-auto"
   chmod 0755 "${eus_dir}/certbot-auto"
-  downloaded_certbot=true
+  downloaded_certbot="true"
   certbot_auto_permission_check
   if [[ ! -f "${eus_dir}/certbot-auto" || ! -s "${eus_dir}/certbot-auto" ]]; then abort_reason="Failed to download certbot auto."; abort; fi
 }
@@ -2253,7 +2255,7 @@ install_required_packages() {
   sleep 2
   installing_required_package="yes"
   header
-  echo -e "${WHITE_R}#${RESET} Installing required packages for the script..\\n"
+  echo -e "${GRAY_R}#${RESET} Installing required packages for the script..\\n"
   run_apt_get_update
   sleep 2
 }
@@ -2262,7 +2264,7 @@ apt_get_install_package() {
   run_apt_get_update
   check_dpkg_lock
   echo -e "\\n------- ${required_package} installation ------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/apt.log"
-  echo -e "${WHITE_R}#${RESET} Trying to ${apt_get_install_package_variable} ${required_package}..."
+  echo -e "${GRAY_R}#${RESET} Trying to ${apt_get_install_package_variable} ${required_package}..."
   if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${required_package}" 2>&1 | tee -a "${eus_dir}/logs/apt.log" > /tmp/EUS/apt/apt.log; then
     if [[ "${PIPESTATUS[0]}" -eq "0" ]]; then
       echo -e "${GREEN}#${RESET} Successfully ${apt_get_install_package_variable_2} ${required_package}! \\n"; sleep 2
@@ -2272,7 +2274,7 @@ apt_get_install_package() {
       broken_packages_check
       attempt_recover_broken_packages
       add_apt_option_no_install_recommends="true"; get_apt_options
-      echo -e "${WHITE_R}#${RESET} Trying to ${apt_get_install_package_variable} ${required_package}..."
+      echo -e "${GRAY_R}#${RESET} Trying to ${apt_get_install_package_variable} ${required_package}..."
       if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${required_package}" 2>&1 | tee -a "${eus_dir}/logs/apt.log" > /tmp/EUS/apt/apt.log; then
         if [[ "${PIPESTATUS[0]}" -eq "0" ]]; then
           echo -e "${GREEN}#${RESET} Successfully ${apt_get_install_package_variable_2} ${required_package}! \\n"; sleep 2
@@ -2306,25 +2308,25 @@ certbot_install_function() {
           fi
           check_snapd_running
           echo -e "\\n------- update ------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/snapd.log"
-          echo -e "${WHITE_R}#${RESET} Updating snapd..."
+          echo -e "${GRAY_R}#${RESET} Updating snapd..."
           if snap install core &>> "${eus_dir}/logs/snapd.log"; snap refresh core &>> "${eus_dir}/logs/snapd.log"; then
             echo -e "${GREEN}#${RESET} Successfully updated snapd! \\n" && sleep 2
             echo -e "\\n------- certbot installation ------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/snapd.log"
-            echo -e "${WHITE_R}#${RESET} Installing certbot via snapd..."
+            echo -e "${GRAY_R}#${RESET} Installing certbot via snapd..."
             if snap install --classic certbot &>> "${eus_dir}/logs/snapd.log"; then
               echo -e "${GREEN}#${RESET} Successfully installed certbot via snapd! \\n" && sleep 2
               if ! [[ -L "/usr/bin/certbot" ]]; then
-                echo -e "${WHITE_R}#${RESET} Creating symlink for certbot..."
+                echo -e "${GRAY_R}#${RESET} Creating symlink for certbot..."
                 if ln -s /snap/bin/certbot /usr/bin/certbot &>> "${eus_dir}/logs/certbot-symlink.log"; then echo -e "${GREEN}#${RESET} Successfully created symlink for certbot! \\n"; else abort_reason="Failed to create symlink for certbot."; abort; fi
               fi
 	        else
               echo -e "${RED}#${RESET} Failed to install certbot via snapd... \\n"
-              echo -e "${WHITE_R}#${RESET} Trying to remove cerbot snapd..."
+              echo -e "${GRAY_R}#${RESET} Trying to remove cerbot snapd..."
               echo -e "\\n------- certbot removal ------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/snapd.log"
               if snap remove certbot &>> "${eus_dir}/logs/snapd.log"; then
                 echo -e "${GREEN}#${RESET} Successfully removed certbot! \\n"
-                echo -e "${WHITE_R}#${RESET} Trying the classic way of using certbot..."
-                try_snapd=false
+                echo -e "${GRAY_R}#${RESET} Trying the classic way of using certbot..."
+                try_snapd="false"
                 certbot_install_function
               fi
             fi
@@ -2335,7 +2337,7 @@ certbot_install_function() {
         else
           if [[ "${installing_required_package}" != 'yes' ]]; then install_required_packages; fi
           echo -e "\\n------- certbot installation ------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/required.log"
-          echo -e "${WHITE_R}#${RESET} Installing certbot..."
+          echo -e "${GRAY_R}#${RESET} Installing certbot..."
           if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install certbot &>> "${eus_dir}/logs/required.log"; then
             echo -e "${GREEN}#${RESET} Successfully installed certbot! \\n" && sleep 2
 	      else
@@ -2379,7 +2381,7 @@ check_certbot_version() {
   certbot_version_2="$(dpkg -l | grep ^"ii" | awk '{print $2,$3}' | grep "^certbot\\b" | awk '{print $2}' | cut -d'.' -f2)"
   if [[ -n "${certbot_version_2}" ]] && [[ "${certbot_version_1}" -le '0' ]] && [[ "${certbot_version_2}" -lt '27' ]]; then
     header
-    echo -e "${WHITE_R}#${RESET} Making sure your certbot version is on the latest release.\\n\\n"
+    echo -e "${GRAY_R}#${RESET} Making sure your certbot version is on the latest release.\\n\\n"
     certbot_repositories
     certbot_version_1="$(dpkg -l | grep ^"ii" | awk '{print $2,$3}' | grep "^certbot\\b" | awk '{print $2}' | cut -d'.' -f1)"
     certbot_version_2="$(dpkg -l | grep ^"ii" | awk '{print $2,$3}' | grep "^certbot\\b" | awk '{print $2}' | cut -d'.' -f2)"
@@ -2396,7 +2398,7 @@ if ! dpkg -l dnsutils 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi"; th
   if [[ "${installing_required_package}" != 'yes' ]]; then
     install_required_packages
   fi
-  echo -e "${WHITE_R}#${RESET} Installing dnsutils..."
+  echo -e "${GRAY_R}#${RESET} Installing dnsutils..."
   if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install dnsutils &>> "${eus_dir}/logs/required.log"; then
     echo -e "${RED}#${RESET} Failed to install dnsutils in the first run...\\n"
     if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic) ]]; then
@@ -2417,7 +2419,7 @@ fi
 if ! "$(which dpkg)" -l gnupg 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
   if [[ "${installing_required_package}" != 'yes' ]]; then install_required_packages; fi
   check_dpkg_lock
-  echo -e "${WHITE_R}#${RESET} Installing gnupg..."
+  echo -e "${GRAY_R}#${RESET} Installing gnupg..."
   if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install gnupg &>> "${eus_dir}/logs/required.log"; then
     echo -e "${RED}#${RESET} Failed to install gnupg in the first run...\\n"
     if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then
@@ -2446,7 +2448,7 @@ if ! "$(which dpkg)" -l jq 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi
     install_required_packages
   fi
   check_dpkg_lock
-  echo -e "${WHITE_R}#${RESET} Installing jq..."
+  echo -e "${GRAY_R}#${RESET} Installing jq..."
   if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install jq &>> "${eus_dir}/logs/required.log"; then
     echo -e "${RED}#${RESET} Failed to install jq in the first run...\\n"
     if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then
@@ -2471,7 +2473,7 @@ if ! dpkg -l net-tools 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi"; t
   if [[ "${installing_required_package}" != 'yes' ]]; then
     install_required_packages
   fi
-  echo -e "${WHITE_R}#${RESET} Installing net-tools..."
+  echo -e "${GRAY_R}#${RESET} Installing net-tools..."
   if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install net-tools &>> "${eus_dir}/logs/required.log"; then
     echo -e "${RED}#${RESET} Failed to install net-tools in the first run...\\n"
     repo_component="main"
@@ -2487,7 +2489,7 @@ if ! dpkg -l curl 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi"; then
   if [[ "${installing_required_package}" != 'yes' ]]; then
     install_required_packages
   fi
-  echo -e "${WHITE_R}#${RESET} Installing curl..."
+  echo -e "${GRAY_R}#${RESET} Installing curl..."
   if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install curl &>> "${eus_dir}/logs/required.log"; then
     echo -e "${RED}#${RESET} Failed to install curl in the first run...\\n"
     if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic) ]]; then
@@ -2515,7 +2517,7 @@ if [[ -n "${auto_dns_challenge_provider}" ]]; then
       if [[ "${installing_required_package}" != 'yes' ]]; then
         install_required_packages
       fi
-      echo -e "${WHITE_R}#${RESET} Installing python3-certbot-dns-${auto_dns_challenge_provider}..."
+      echo -e "${GRAY_R}#${RESET} Installing python3-certbot-dns-${auto_dns_challenge_provider}..."
       if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "python3-certbot-dns-${auto_dns_challenge_provider}" &>> "${eus_dir}/logs/required.log"; then
         echo -e "${RED}#${RESET} Failed to install python3-certbot-dns-${auto_dns_challenge_provider} in the first run...\\n"
         if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then
@@ -2538,7 +2540,7 @@ if [[ -n "${auto_dns_challenge_provider}" ]]; then
       if [[ "${installing_required_package}" != 'yes' ]]; then
         install_required_packages
       fi
-      echo -e "${WHITE_R}#${RESET} Installing python3-certbot..."
+      echo -e "${GRAY_R}#${RESET} Installing python3-certbot..."
       if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install python3-certbot &>> "${eus_dir}/logs/required.log"; then
         echo -e "${RED}#${RESET} Failed to install python3-certbot in the first run...\\n"
         if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then
@@ -2563,7 +2565,7 @@ if [[ -n "${auto_dns_challenge_provider}" ]]; then
         if [[ "${installing_required_package}" != 'yes' ]]; then
           install_required_packages
         fi
-        echo -e "${WHITE_R}#${RESET} Installing ${package}..."
+        echo -e "${GRAY_R}#${RESET} Installing ${package}..."
         if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${package}" &>> "${eus_dir}/logs/required.log"; then
           echo -e "${RED}#${RESET} Failed to install ${package} in the first run...\\n"
           if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then
@@ -2583,7 +2585,7 @@ if [[ -n "${auto_dns_challenge_provider}" ]]; then
       fi
     done < <(printf '%s\n' "${certbot_required_packages[@]}")
     # Setup virtual environment for certbot
-    echo -e "${WHITE_R}#${RESET} Installing certbot and it's required packages..."
+    echo -e "${GRAY_R}#${RESET} Installing certbot and it's required packages..."
     if ! python3 -m venv /opt/certbot/ &>> "${eus_dir}/logs/python-certbot.log"; then
       abort_reason="Failed to setup a virtual environment for certbot."; abort
     fi
@@ -2626,7 +2628,7 @@ fi
 check_snapd_running() {
   if [[ "${os_codename}" =~ (precise|maya|trusty|qiana|rebecca|rafaela|rosa) ]]; then
     if ! systemctl status snapd | grep -iq running; then
-      echo -e "${WHITE_R}#${RESET} snapd doesn't appear to be running... Trying to start it..."
+      echo -e "${GRAY_R}#${RESET} snapd doesn't appear to be running... Trying to start it..."
       if systemctl start snapd &> /dev/null; then echo -e "${GREEN}#${RESET} Successfully started snapd!"; sleep 3; fi
       if ! systemctl status snapd | grep -iq running; then
         abort_reason="snapd isn't running"
@@ -2636,7 +2638,7 @@ check_snapd_running() {
   else
     if ! systemctl is-active -q snapd; then
       if [[ "${installing_required_package}" != 'yes' ]]; then echo -e "\\n${GREEN}---${RESET}\\n"; else header; fi
-      echo -e "${WHITE_R}#${RESET} snapd doesn't appear to be running... Trying to start it..."
+      echo -e "${GRAY_R}#${RESET} snapd doesn't appear to be running... Trying to start it..."
       if systemctl start snapd &> /dev/null; then echo -e "${GREEN}#${RESET} Successfully started snapd!"; sleep 3; fi
       if ! systemctl is-active -q snapd; then
         abort_reason="snapd isn't running"
@@ -2683,7 +2685,7 @@ support_file_upload_opt_in() {
     else
       if [[ "${script_option_skip}" != 'true' ]]; then header; fi
     fi
-    if [[ "${script_option_skip}" != 'true' ]]; then echo -e "${WHITE_R}#${RESET} The script generates support files when failures are detected, these can help Glenn R. to"; echo -e "${WHITE_R}#${RESET} improve the script quality for the Community and resolve your issues in future versions of the script.\\n"; read -rp $'\033[39m#\033[0m Do you want to automatically upload the support files? (Y/n) ' yes_no; fi
+    if [[ "${script_option_skip}" != 'true' ]]; then echo -e "${GRAY_R}#${RESET} The script generates support files when failures are detected, these can help Glenn R. to"; echo -e "${GRAY_R}#${RESET} improve the script quality for the Community and resolve your issues in future versions of the script.\\n"; read -rp $'\033[39m#\033[0m Do you want to automatically upload the support files? (Y/n) ' yes_no; fi
     case "$yes_no" in
         [Yy]*|"") upload_support_files="true";;
         [Nn]*) upload_support_files="false";;
@@ -2707,16 +2709,16 @@ support_file_requests_opt_in
 
 certbot_auto_install_run() {
   header
-  echo -e "${WHITE_R}#${RESET} Running script in certbot-auto mode, installing more required packages..."
-  echo -e "${WHITE_R}#${RESET} This may take a while, depending on the device."
-  echo -e "${WHITE_R}#${RESET} certbot-auto verbose log is saved here: ${eus_dir}/logs/certbot_auto_install.log\\n\\n${WHITE_R}----${RESET}\\n"
+  echo -e "${GRAY_R}#${RESET} Running script in certbot-auto mode, installing more required packages..."
+  echo -e "${GRAY_R}#${RESET} This may take a while, depending on the device."
+  echo -e "${GRAY_R}#${RESET} certbot-auto verbose log is saved here: ${eus_dir}/logs/certbot_auto_install.log\\n\\n${GRAY_R}----${RESET}\\n"
   sleep 2
   if [[ "${os_codename}" =~ (wheezy|jessie) ]]; then
     if ! dpkg -l | awk '{print$2}' | grep -iq "libssl-dev"; then
       echo deb http://archive.debian.org/debian jessie-backports main >>/etc/apt/sources.list.d/glennr-install-script.list
-      echo -e "${WHITE_R}#${RESET} Running apt-get update..."
+      echo -e "${GRAY_R}#${RESET} Running apt-get update..."
       if apt-get update -o Acquire::Check-Valid-Until=false &>> "${eus_dir}/logs/required.log"; then echo -e "${GREEN}#${RESET} Successfully ran apt-get update! \\n"; else echo -e "${YELLOW}#${RESET} Something went wrong during apt-get update...\\n"; fi
-      echo -e "${WHITE_R}#${RESET} Installing a required package..."
+      echo -e "${GRAY_R}#${RESET} Installing a required package..."
       if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install -t jessie-backports libssl-dev -y &>> "${eus_dir}/logs/required.log"; then echo -e "${GREEN}#${RESET} Successfully installed the required package! \\n"; else abort_reason="Failed to install required package."; abort; fi
       sed -i '/jessie-backports/d' /etc/apt/sources.list.d/glennr-install-script.list
     fi
@@ -2728,7 +2730,7 @@ certbot_auto_install_run() {
       echo -e "${YELLOW}#${RESET} certbot-auto no longer supports your system..."
       echo -e "${YELLOW}#${RESET} We will try an older version of the certbot-auto script..."
       sleep 5
-      use_older_certbot_auto_script=true
+      use_older_certbot_auto_script="true"
       download_certbot_auto
       certbot_auto_flags="--no-self-upgrade"
       certbot_auto_install_run
@@ -2747,7 +2749,7 @@ certbot_auto_install_run() {
 
 if [[ "${os_codename}" =~ (wheezy|jessie) || "${downloaded_certbot}" == 'true' ]]; then
   certbot="${eus_dir}/certbot-auto"
-  certbot_auto=true
+  certbot_auto="true"
 elif [[ "${certbot_multi_plugin}" == 'true' ]]; then
   if [[ -e "/usr/bin/certbot" ]]; then mv /usr/bin/certbot /usr/bin/certbot.eus_org &>> "${eus_dir}/logs/certbot-multi-dns-symlink.log"; fi
   ln -sf /opt/certbot/bin/certbot /usr/bin/certbot &>> "${eus_dir}/logs/certbot-multi-dns-symlink.log"
@@ -2789,7 +2791,7 @@ fqdn_option() {
   fi
   while read -r line; do
     if [[ "${manual_server_ip}" == 'true' ]]; then server_ip="$(head -n1 "${eus_dir}/server_ip")"; else server_ip="$(curl "${curl_argument[@]}" "${curl_option}" https://api.glennr.nl/api/geo 2> /dev/null | jq -r '."address"' 2> /dev/null)"; fi
-    echo -e "${WHITE_R}#${RESET} Checking if '${line}' resolves to '${server_ip}'" | tee -a "${eus_dir}/logs/unattended.log"
+    echo -e "${GRAY_R}#${RESET} Checking if '${line}' resolves to '${server_ip}'" | tee -a "${eus_dir}/logs/unattended.log"
     domain_record="$(dig +short "${dig_option}" "${line}" "${external_dns_server}" &>> "${eus_dir}/domain_records")"
     if grep -xq "${server_ip}" "${eus_dir}/domain_records"; then domain_record="${server_ip}"; fi
     if grep -xq "connection timed out" "${eus_dir}/domain_records"; then echo -e "${RED}#${RESET} Timed out when reaching DNS server... \\n${RED}#${RESET} Please confirm that the system can reach the specified DNS server. \\n" | tee -a "${eus_dir}/logs/unattended.log"; abort_reason="Timed out when reaching DNS server."; abort; fi
@@ -2813,10 +2815,10 @@ fqdn_option() {
 
 delete_certs_question() {
   header
-  echo -e "${WHITE_R}#${RESET} What would you like to do with the old certificates?\\n\\n"
-  echo -e " [   ${WHITE_R}1${RESET}   ]  |  Keep all certificates. ( default )"
-  echo -e " [   ${WHITE_R}2${RESET}   ]  |  Keep last 3 certificates."
-  echo -e " [   ${WHITE_R}3${RESET}   ]  |  Cancel script."
+  echo -e "${GRAY_R}#${RESET} What would you like to do with the old certificates?\\n\\n"
+  echo -e " [   ${GRAY_R}1${RESET}   ]  |  Keep all certificates. ( default )"
+  echo -e " [   ${GRAY_R}2${RESET}   ]  |  Keep last 3 certificates."
+  echo -e " [   ${GRAY_R}3${RESET}   ]  |  Cancel script."
   echo -e "\\n"
   read -rp $'Your choice | \033[39m' choice
   case "$choice" in
@@ -2825,7 +2827,7 @@ delete_certs_question() {
      3) cancel_script;;
 	 *) 
         header_red
-        echo -e "${WHITE_R}#${RESET} '${choice}' is not a valid option..." && sleep 2
+        echo -e "${GRAY_R}#${RESET} '${choice}' is not a valid option..." && sleep 2
         delete_certs_question;;
   esac
 }
@@ -2840,13 +2842,13 @@ timezone() {
       time_zone="$(timedatectl | grep -i "time zone" | awk '{print $3}')"
     fi
     header
-    echo -e "${WHITE_R}#${RESET} Your timezone is set to ${time_zone}."
+    echo -e "${GRAY_R}#${RESET} Your timezone is set to ${time_zone}."
     read -rp $'\033[39m#\033[0m Is your timezone correct? (Y/n) ' yes_no
     case "${yes_no}" in
        [Yy]*|"") touch "${eus_dir}/timezone_correct";;
        [Nn]*|*)
           header
-          echo -e "${WHITE_R}#${RESET} Let's change your timezone!" && sleep 3; mkdir -p /tmp/EUS/
+          echo -e "${GRAY_R}#${RESET} Let's change your timezone!" && sleep 3; mkdir -p /tmp/EUS/
           dpkg-reconfigure tzdata && clear
           if [[ -f /etc/timezone && -s /etc/timezone ]]; then
             time_zone="$(awk '{print $1}' /etc/timezone)"
@@ -2879,7 +2881,7 @@ domain_name() {
     current_server_fqdn="$server_fqdn"
   fi
   header
-  echo -e "${WHITE_R}#${RESET} Your FQDN is set to '${server_fqdn}'"
+  echo -e "${GRAY_R}#${RESET} Your FQDN is set to '${server_fqdn}'"
   read -rp $'\033[39m#\033[0m Is the domain name/FQDN above correct? (Y/n) ' yes_no
   case "${yes_no}" in
      [Yy]*|"") le_resolve;;
@@ -2890,7 +2892,7 @@ domain_name() {
 multiple_fqdn_resolve() {
   header
   other_fqdn="$(echo "${other_fqdn}" | tr '[:upper:]' '[:lower:]')"
-  echo -e "${WHITE_R}#${RESET} Trying to resolve '${other_fqdn}'"
+  echo -e "${GRAY_R}#${RESET} Trying to resolve '${other_fqdn}'"
   other_domain_records="$(dig +short "${dig_option}" "${other_fqdn}" "${external_dns_server}" &>> "${eus_dir}/other_domain_records_tmp")"
   if grep -xq "${server_ip}" "${eus_dir}/other_domain_records_tmp"; then other_domain_records="${server_ip}"; fi
   if grep -xq "connection timed out" "${eus_dir}/other_domain_records_tmp"; then echo -e "${RED}#${RESET} Timed out when reaching DNS server... \\n${RED}#${RESET} Please confirm that the system can reach the specified DNS server. \\n"; abort_reason="Timed out when reaching the DNS server."; abort; fi
@@ -2899,14 +2901,14 @@ multiple_fqdn_resolve() {
   sleep 3
   if [[ "${server_ip}" != "${other_domain_records}" ]]; then
     header
-    echo -e "${WHITE_R}#${RESET} '${other_fqdn}' does not resolve to '${server_ip}', it resolves to '${resolved_ip}' instead... \\n"
-    echo -e "${WHITE_R}#${RESET} Please make an A record pointing to your server's ip."
-    echo -e "${WHITE_R}#${RESET} If you are using Cloudflare, please disable the orange cloud.\\n"
+    echo -e "${GRAY_R}#${RESET} '${other_fqdn}' does not resolve to '${server_ip}', it resolves to '${resolved_ip}' instead... \\n"
+    echo -e "${GRAY_R}#${RESET} Please make an A record pointing to your server's ip."
+    echo -e "${GRAY_R}#${RESET} If you are using Cloudflare, please disable the orange cloud.\\n"
     echo -e "${GREEN}---${RESET}\\n"
-    echo -e "${WHITE_R}#${RESET} Please take an option below.\\n"
-    echo -e " [   ${WHITE_R}1${RESET}   ]  |  Skip and continue script. ( default )"
-    echo -e " [   ${WHITE_R}2${RESET}   ]  |  Try a different FQDN."
-    echo -e " [   ${WHITE_R}3${RESET}   ]  |  Cancel Script."
+    echo -e "${GRAY_R}#${RESET} Please take an option below.\\n"
+    echo -e " [   ${GRAY_R}1${RESET}   ]  |  Skip and continue script. ( default )"
+    echo -e " [   ${GRAY_R}2${RESET}   ]  |  Try a different FQDN."
+    echo -e " [   ${GRAY_R}3${RESET}   ]  |  Cancel Script."
     echo -e "\\n\\n"
     read -rp $'Your choice | \033[39m' le_resolve_question
     case "${le_resolve_question}" in
@@ -2917,7 +2919,7 @@ multiple_fqdn_resolve() {
     esac
   elif [[ "${server_fqdn}" == "${other_fqdn}" ]]; then
     header
-    echo -e "${WHITE_R}#${RESET} '${other_fqdn}' is the same as '${server_fqdn}' and already entered..."
+    echo -e "${GRAY_R}#${RESET} '${other_fqdn}' is the same as '${server_fqdn}' and already entered..."
     read -rp $'\033[39m#\033[0m Do you want to add another FQDN? (Y/n) ' yes_no
     case "$yes_no" in
        [Yy]*|"") multiple_fqdn;;
@@ -2925,16 +2927,16 @@ multiple_fqdn_resolve() {
     esac
   elif grep -ixq "${other_fqdn}" "${eus_dir}/other_domain_records" &> /dev/null; then
     header
-    echo -e "${WHITE_R}#${RESET} '${other_fqdn}' was already entered..."
+    echo -e "${GRAY_R}#${RESET} '${other_fqdn}' was already entered..."
     read -rp $'\033[39m#\033[0m Do you want to add another FQDN? (Y/n) ' yes_no
     case "$yes_no" in
        [Yy]*|"") multiple_fqdn;;
        [Nn]*) ;;
     esac
   else
-    multiple_fqdn_resolved=true
+    multiple_fqdn_resolved="true"
     echo "${other_fqdn}" | tr '[:upper:]' '[:lower:]' &>> "${eus_dir}/other_domain_records"
-    echo -e "${WHITE_R}#${RESET} '${other_fqdn}' resolved correctly!"
+    echo -e "${GRAY_R}#${RESET} '${other_fqdn}' resolved correctly!"
     echo -e "\\n${GREEN}---${RESET}\\n"
     read -rp $'\033[39m#\033[0m Do you want to add more FQDNs? (Y/n) ' yes_no
     case "$yes_no" in
@@ -2946,7 +2948,7 @@ multiple_fqdn_resolve() {
 
 multiple_fqdn() {
   header
-  echo -e "${WHITE_R}#${RESET} Please enter the other FQDN of your setup below."
+  echo -e "${GRAY_R}#${RESET} Please enter the other FQDN of your setup below."
   read -rp $'\033[39m#\033[0m ' other_fqdn
   multiple_fqdn_resolve
 }
@@ -2954,7 +2956,7 @@ multiple_fqdn() {
 le_resolve() {
   header
   server_fqdn="$(echo "${server_fqdn}" | tr '[:upper:]' '[:lower:]')"
-  echo -e "${WHITE_R}#${RESET} Trying to resolve '${server_fqdn}'"
+  echo -e "${GRAY_R}#${RESET} Trying to resolve '${server_fqdn}'"
   if [[ "${manual_server_ip}" == 'true' ]]; then
     server_ip="$(head -n1 "${eus_dir}/server_ip")"
   else
@@ -2968,19 +2970,19 @@ le_resolve() {
   sleep 3
   if [[ "${server_ip}" != "${domain_record}" ]]; then
     header
-    echo -e "${WHITE_R}#${RESET} '${server_fqdn}' does not resolve to '${server_ip}'"
-    echo -e "${WHITE_R}#${RESET} Please make an A record pointing to your server's ip."
-    echo -e "${WHITE_R}#${RESET} If you are using Cloudflare, please disable the orange cloud."
-    echo -e "\\n${GREEN}---${RESET}\\n\\n${WHITE_R}#${RESET} Please take an option below.\\n"
-    echo -e " [   ${WHITE_R}1${RESET}   ]  |  Try to resolve your FQDN again. ( default )"
-    echo -e " [   ${WHITE_R}2${RESET}   ]  |  Resolve with a external DNS server."
+    echo -e "${GRAY_R}#${RESET} '${server_fqdn}' does not resolve to '${server_ip}'"
+    echo -e "${GRAY_R}#${RESET} Please make an A record pointing to your server's ip."
+    echo -e "${GRAY_R}#${RESET} If you are using Cloudflare, please disable the orange cloud."
+    echo -e "\\n${GREEN}---${RESET}\\n\\n${GRAY_R}#${RESET} Please take an option below.\\n"
+    echo -e " [   ${GRAY_R}1${RESET}   ]  |  Try to resolve your FQDN again. ( default )"
+    echo -e " [   ${GRAY_R}2${RESET}   ]  |  Resolve with a external DNS server."
     if [[ "${manual_server_ip}" == 'true' ]]; then
-      echo -e " [   ${WHITE_R}3${RESET}   ]  |  Manually set the server IP. ( for users with multiple IP addresses )"
-      echo -e " [   ${WHITE_R}4${RESET}   ]  |  Automatically get server IP."
-      echo -e " [   ${WHITE_R}5${RESET}   ]  |  Cancel Script."
+      echo -e " [   ${GRAY_R}3${RESET}   ]  |  Manually set the server IP. ( for users with multiple IP addresses )"
+      echo -e " [   ${GRAY_R}4${RESET}   ]  |  Automatically get server IP."
+      echo -e " [   ${GRAY_R}5${RESET}   ]  |  Cancel Script."
     else
-      echo -e " [   ${WHITE_R}3${RESET}   ]  |  Manually set the server IP. ( for users with multiple IP addresses )"
-      echo -e " [   ${WHITE_R}4${RESET}   ]  |  Cancel Script."
+      echo -e " [   ${GRAY_R}3${RESET}   ]  |  Manually set the server IP. ( for users with multiple IP addresses )"
+      echo -e " [   ${GRAY_R}4${RESET}   ]  |  Cancel Script."
     fi
     echo ""
     echo ""
@@ -2990,25 +2992,25 @@ le_resolve() {
        1*|"") le_manual_fqdn;;
        2*) 
           header
-          echo -e "${WHITE_R}#${RESET} What external DNS server would you like to use?"
+          echo -e "${GRAY_R}#${RESET} What external DNS server would you like to use?"
           echo ""
           if [[ "${run_ipv6}" == 'true' ]]; then
-            echo -e " [   ${WHITE_R}1${RESET}   ]  |  Google          ( 2001:4860:4860::8888 )"
-            echo -e " [   ${WHITE_R}2${RESET}   ]  |  Google          ( 2001:4860:4860::8844 )"
-            echo -e " [   ${WHITE_R}3${RESET}   ]  |  Cloudflare      ( 2606:4700:4700::1111 )"
-            echo -e " [   ${WHITE_R}4${RESET}   ]  |  Cloudflare      ( 2606:4700:4700::1001 )"
-            echo -e " [   ${WHITE_R}5${RESET}   ]  |  Cisco Umbrella  ( 2620:119:35::35 )"
-            echo -e " [   ${WHITE_R}6${RESET}   ]  |  Cisco Umbrella  ( 2620:119:53::53 )"
+            echo -e " [   ${GRAY_R}1${RESET}   ]  |  Google          ( 2001:4860:4860::8888 )"
+            echo -e " [   ${GRAY_R}2${RESET}   ]  |  Google          ( 2001:4860:4860::8844 )"
+            echo -e " [   ${GRAY_R}3${RESET}   ]  |  Cloudflare      ( 2606:4700:4700::1111 )"
+            echo -e " [   ${GRAY_R}4${RESET}   ]  |  Cloudflare      ( 2606:4700:4700::1001 )"
+            echo -e " [   ${GRAY_R}5${RESET}   ]  |  Cisco Umbrella  ( 2620:119:35::35 )"
+            echo -e " [   ${GRAY_R}6${RESET}   ]  |  Cisco Umbrella  ( 2620:119:53::53 )"
           else
-            echo -e " [   ${WHITE_R}1${RESET}   ]  |  Google          ( 8.8.8.8 )"
-            echo -e " [   ${WHITE_R}2${RESET}   ]  |  Google          ( 8.8.4.4 )"
-            echo -e " [   ${WHITE_R}3${RESET}   ]  |  Cloudflare      ( 1.1.1.1 )"
-            echo -e " [   ${WHITE_R}4${RESET}   ]  |  Cloudflare      ( 1.0.0.1 )"
-            echo -e " [   ${WHITE_R}5${RESET}   ]  |  Cisco Umbrella  ( 208.67.222.222 )"
-            echo -e " [   ${WHITE_R}6${RESET}   ]  |  Cisco Umbrella  ( 208.67.220.220 )"
+            echo -e " [   ${GRAY_R}1${RESET}   ]  |  Google          ( 8.8.8.8 )"
+            echo -e " [   ${GRAY_R}2${RESET}   ]  |  Google          ( 8.8.4.4 )"
+            echo -e " [   ${GRAY_R}3${RESET}   ]  |  Cloudflare      ( 1.1.1.1 )"
+            echo -e " [   ${GRAY_R}4${RESET}   ]  |  Cloudflare      ( 1.0.0.1 )"
+            echo -e " [   ${GRAY_R}5${RESET}   ]  |  Cisco Umbrella  ( 208.67.222.222 )"
+            echo -e " [   ${GRAY_R}6${RESET}   ]  |  Cisco Umbrella  ( 208.67.220.220 )"
           fi
-          echo -e " [   ${WHITE_R}7${RESET}   ]  |  Don't use external DNS servers."
-          echo -e " [   ${WHITE_R}8${RESET}   ]  |  Cancel script"
+          echo -e " [   ${GRAY_R}7${RESET}   ]  |  Don't use external DNS servers."
+          echo -e " [   ${GRAY_R}8${RESET}   ]  |  Cancel script"
           echo ""
           echo ""
           echo ""
@@ -3025,12 +3027,12 @@ le_resolve() {
              *) unknown_option;;
           esac;;
        3*) le_manual_server_ip;;
-       4*) if [[ "${manual_server_ip}" == 'true' ]]; then rm --force "${eus_dir}/server_fqdn" &> /dev/null; manual_server_ip=false; le_resolve; else cancel_script; fi;;
+       4*) if [[ "${manual_server_ip}" == 'true' ]]; then rm --force "${eus_dir}/server_fqdn" &> /dev/null; manual_server_ip="false"; le_resolve; else cancel_script; fi;;
        5*) if [[ "${manual_server_ip}" == 'true' ]]; then cancel_script; else unknown_option; fi;;
        *) unknown_option;;
     esac
   else
-    echo -e "${WHITE_R}#${RESET} '${server_fqdn}' resolved correctly!"
+    echo -e "${GRAY_R}#${RESET} '${server_fqdn}' resolved correctly!"
     if [[ "${install_script}" == 'true' ]]; then echo "${server_fqdn}" &> "${eus_dir}/server_fqdn_install"; fi
     echo -e "\\n${GREEN}---${RESET}\\n"
     read -rp $'\033[39m#\033[0m Do you want to add more FQDNs? (Y/n) ' yes_no
@@ -3044,8 +3046,8 @@ le_resolve() {
 change_application_hostname() {
   if [[ "${manual_fqdn}" == 'true' && "${run_ipv6}" != 'true' ]] && dpkg -l unifi 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi"; then
     header
-    echo -e "${WHITE_R}#${RESET} Your current UniFi Network Application FQDN is set to '${current_server_fqdn}' in the settings..."
-    echo -e "${WHITE_R}#${RESET} Would you like to change it to '${server_fqdn}'?"
+    echo -e "${GRAY_R}#${RESET} Your current UniFi Network Application FQDN is set to '${current_server_fqdn}' in the settings..."
+    echo -e "${GRAY_R}#${RESET} Would you like to change it to '${server_fqdn}'?"
     echo ""
     echo ""
     read -rp $'\033[39m#\033[0m Would you like to apply the change? (Y/n) ' yes_no
@@ -3065,14 +3067,14 @@ change_application_hostname() {
 
 unknown_option() {
   header_red
-  echo -e "${WHITE_R}#${RESET} '${le_resolve_question}' is not a valid option..." && sleep 2
+  echo -e "${GRAY_R}#${RESET} '${le_resolve_question}' is not a valid option..." && sleep 2
   le_resolve
 }
 
 le_manual_server_ip() {
-  manual_server_ip=true
+  manual_server_ip="true"
   header
-  echo -e "${WHITE_R}#${RESET} Please enter your Server/WAN IP below."
+  echo -e "${GRAY_R}#${RESET} Please enter your Server/WAN IP below."
   read -rp $'\033[39m#\033[0m ' server_ip
   if [[ -f "${eus_dir}/server_ip" ]]; then rm --force "${eus_dir}/server_ip" &> /dev/null; fi
   echo "$server_ip" >> "${eus_dir}/server_ip"
@@ -3080,9 +3082,9 @@ le_manual_server_ip() {
 }
 
 le_manual_fqdn() {
-  manual_fqdn=true
+  manual_fqdn="true"
   header
-  echo -e "${WHITE_R}#${RESET} Please enter the FQDN of your setup below."
+  echo -e "${GRAY_R}#${RESET} Please enter the FQDN of your setup below."
   read -rp $'\033[39m#\033[0m ' server_fqdn
   if [[ "${no_unifi}" == 'yes' ]]; then
     if [[ -f "${eus_dir}/server_fqdn" ]]; then rm --force "${eus_dir}/server_fqdn" &> /dev/null; fi
@@ -3100,7 +3102,7 @@ le_email() {
   case "$yes_no" in
      [Yy]*|"")
         header
-        echo -e "${WHITE_R}#${RESET} Please enter the email address below."
+        echo -e "${GRAY_R}#${RESET} Please enter the email address below."
         read -rp $'\033[39m#\033[0m ' le_user_mail
         if ! [[ "${le_user_mail}" =~ ${email_reg} ]]; then
           header_red
@@ -3135,7 +3137,7 @@ if [[ -d "${eus_dir}/logs" ]]; then mkdir -p "${eus_dir}/logs"; fi
 if [[ -d "${eus_dir}/checksum" ]]; then mkdir -p "${eus_dir}/checksum"; fi
 if [[ \${log_date} != 'true' ]]; then
   echo -e "\\n------- \$(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/http_service.log"
-  log_date=true
+  log_date="true"
 fi
 netstat -tulpn | grep ":80 " | awk '{print \$7}' | sed 's/[0-9]*\///' | sed 's/://' &>> "${eus_dir}/le_http_service_temp"
 awk '!a[\$0]++' "${eus_dir}/le_http_service_temp" >> "${eus_dir}/le_http_service" && rm --force "${eus_dir}/le_http_service_temp"
@@ -3285,7 +3287,7 @@ if [[ -f "/etc/letsencrypt/live/${server_fqdn}\${le_var}/privkey.pem" && -f "/et
     md5sum "/etc/letsencrypt/live/${server_fqdn}\${le_var}/fullchain.pem" 2> /dev/null | awk '{print \$1}' &> "${eus_dir}/checksum/fullchain.md5sum" && echo "Successfully updated md5sum" &>> "${eus_dir}/logs/lets_encrypt_import.log"
     if dpkg -l unifi-core 2> /dev/null | awk '{print \$1}' | grep -iq "^ii\\|^hi"; then
       if grep -sq unifi-native /mnt/.rofs/var/lib/dpkg/status; then unifi_native_system="true"; fi
-      if grep -ioq "udm" /usr/lib/version; then udm_device=true; fi
+      if grep -ioq "udm" /usr/lib/version; then udm_device="true"; fi
       unifi_core_version="\$(dpkg-query --showformat='\${Version}' --show unifi-core)"
       if [[ -f /usr/lib/version ]]; then unifi_core_device_version=\$(grep -ioE "v[0-9]{1,9}.[0-9]{1,9}.[0-9]{1,9}" /usr/lib/version | sed 's/v//g'); fi
       if [[ "$(echo "\${unifi_core_device_version}" | cut -d'.' -f1)" == "1" ]]; then debbox="false"; else debbox="true"; fi
@@ -3334,10 +3336,10 @@ SSL
         if [[ "\${debbox}" == 'true' ]]; then
           # shellcheck disable=SC2010
           if [[ -d "/data/udapi-config/raddb/certs/" ]]; then
-            if ls -la /data/udapi-config/raddb/certs/ | grep -iq "server.pem\\|server-key.pem" && [[ -f "${eus_dir}/radius/true" ]]; then radius_certs_available=true; fi
+            if ls -la /data/udapi-config/raddb/certs/ | grep -iq "server.pem\\|server-key.pem" && [[ -f "${eus_dir}/radius/true" ]]; then radius_certs_available="true"; fi
           fi
         else
-          if ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -ql root 127.0.0.1 "ls -la /mnt/data/udapi-config/raddb/certs/" | grep -iq "server.pem\\|server-key.pem" && [[ -f "${eus_dir}/radius/true" ]]; then radius_certs_available=true; fi
+          if ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -ql root 127.0.0.1 "ls -la /mnt/data/udapi-config/raddb/certs/" | grep -iq "server.pem\\|server-key.pem" && [[ -f "${eus_dir}/radius/true" ]]; then radius_certs_available="true"; fi
         fi
         if [[ "\${radius_certs_available}" == 'true' ]]; then
           if ! [[ -d "/data/eus_certificates/raddb" ]]; then mkdir -p /data/eus_certificates/raddb &> /dev/null; fi
@@ -3514,12 +3516,12 @@ le_import_failed() {
   fi
   if [[ -f "${eus_dir}/logs/lets_encrypt_${time_date}.log" ]]; then
     if grep -iq 'timeout during connect' "${eus_dir}/logs/lets_encrypt_${time_date}.log"; then
-      script_timeout_http=true
+      script_timeout_http="true"
       echo -e "\\n${RED}---${RESET}\\n\\n${RED}#${RESET} Timed out..."
       echo -e "${RED}#${RESET} Your Firewall or ISP does not allow port 80, please verify that your Firewall/Port Fordwarding settings are correct.\\n\\n${RED}---${RESET}"
     fi
     if grep -iq 'timeout after connect' "${eus_dir}/logs/lets_encrypt_${time_date}.log"; then
-      script_timeout_http=true
+      script_timeout_http="true"
       echo -e "\\n${RED}---${RESET}\\n\\n${RED}#${RESET} Timed out... Your server may be slow or overloaded"
       echo -e "${RED}#${RESET} Please try to run the script again and make sure there is no firewall blocking port 80.\\n\\n${RED}---${RESET}"
     fi
@@ -3573,7 +3575,7 @@ le_import_failed() {
 cloudkey_management_ui() {
   # shellcheck disable=SC2012
   mkdir -p "${eus_dir}/cloudkey/certs_backups" && touch "${eus_dir}/cloudkey/cloudkey_management_ui"
-  echo -e "\\n${WHITE_R}#${RESET} Importing the SSL certificates into the Cloudkey User Interface..."
+  echo -e "\\n${GRAY_R}#${RESET} Importing the SSL certificates into the Cloudkey User Interface..."
   # shellcheck disable=SC2012
   if [[ "${old_certificates}" == 'last_three' ]]; then ls -t "${eus_dir}/cloudkey/certs_backups/cloudkey.crt_*" 2> /dev/null | awk 'NR>3' | xargs rm -f 2> /dev/null; fi
   # shellcheck disable=SC2012
@@ -3603,7 +3605,7 @@ cloudkey_management_ui() {
   if dpkg -l unifi-protect 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi"; then
     unifi_protect_status=$(systemctl status unifi-protect | grep -i 'Active:' | awk '{print $2}')
     if [[ "${unifi_protect_status}" == 'active' ]]; then
-      echo -e "\\n${WHITE_R}#${RESET} Importing the SSL certificates into UniFi-Protect..."
+      echo -e "\\n${GRAY_R}#${RESET} Importing the SSL certificates into UniFi-Protect..."
       if systemctl restart unifi-protect; then echo -e "${GREEN}#${RESET} Successfully imported the SSL certificates into UniFi-Protect!"; else echo -e "${RED}#${RESET} Failed to import the SSL certificates into UniFi-Protect... \\n"; sleep 2; fi
     fi
   fi
@@ -3611,14 +3613,14 @@ cloudkey_management_ui() {
 
 cloudkey_unifi_led() {
   mkdir -p "${eus_dir}/cloudkey/" && touch "${eus_dir}/cloudkey/cloudkey_unifi_led"
-  echo -e "\\n${WHITE_R}#${RESET} Importing the SSL certificates into UniFi-LED..."
+  echo -e "\\n${GRAY_R}#${RESET} Importing the SSL certificates into UniFi-LED..."
   if systemctl restart unifi-led; then echo -e "${GREEN}#${RESET} Successfully imported the SSL certificates into UniFi-LED!"; else echo -e "${RED}#${RESET} Failed to import the SSL certificates into UniFi-LED... \\n"; sleep 2; fi
 }
 
 cloudkey_unifi_talk() {
   # shellcheck disable=SC2012
   mkdir -p "${eus_dir}/cloudkey/" && touch "${eus_dir}/cloudkey/cloudkey_unifi_talk"
-  echo -e "\\n${WHITE_R}#${RESET} Importing the SSL certificates into UniFi-Talk..."
+  echo -e "\\n${GRAY_R}#${RESET} Importing the SSL certificates into UniFi-Talk..."
   # shellcheck disable=SC2012
   if [[ "${old_certificates}" == 'last_three' ]]; then ls -t "${eus_dir}/talk/certs_backups/server.pem_*" 2> /dev/null | awk 'NR>3' | xargs rm -f 2> /dev/null; fi
   mkdir -p "${eus_dir}/talk/certs_backups" && cp /usr/share/unifi-talk/app/certs/server.pem "${eus_dir}/talk/certs_backups/server.pem_$(date +%Y%m%d_%H%M)"
@@ -3632,7 +3634,7 @@ cloudkey_unifi_talk() {
 
 unifi_core() {
   # shellcheck disable=SC2012
-  echo -e "\\n${WHITE_R}#${RESET} Importing the SSL certificates into the ${unifi_core_device} running UniFi OS..."
+  echo -e "\\n${GRAY_R}#${RESET} Importing the SSL certificates into the ${unifi_core_device} running UniFi OS..."
   if [[ ! -d /data/eus_certificates/ ]]; then mkdir -p /data/eus_certificates/; fi
   if [[ "${paid_cert}" == "true" ]]; then
     if [[ -f "${eus_dir}/paid-certificates/eus_crt_file.crt" ]]; then
@@ -3693,10 +3695,10 @@ SSL
     if [[ "${debbox}" == 'true' ]]; then
       # shellcheck disable=SC2010
       if [[ -d "/data/udapi-config/raddb/certs/" ]]; then
-        if ls -la /data/udapi-config/raddb/certs/ | grep -iq "server.pem\\|server-key.pem" && [[ "${script_option_skip}" != 'true' ]]; then radius_certs_available=true; fi
+        if ls -la /data/udapi-config/raddb/certs/ | grep -iq "server.pem\\|server-key.pem" && [[ "${script_option_skip}" != 'true' ]]; then radius_certs_available="true"; fi
       fi
     else
-      if ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -ql root 127.0.0.1 "ls -la /mnt/data/udapi-config/raddb/certs/" | grep -iq "server.pem\\|server-key.pem" && [[ "${script_option_skip}" != 'true' ]]; then radius_certs_available=true; fi
+      if ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -ql root 127.0.0.1 "ls -la /mnt/data/udapi-config/raddb/certs/" | grep -iq "server.pem\\|server-key.pem" && [[ "${script_option_skip}" != 'true' ]]; then radius_certs_available="true"; fi
     fi
     if [[ "${radius_certs_available}" == 'true' ]]; then
       echo -e "\\n${YELLOW}#${RESET} ATTENTION, please backup your system before continuing!!"
@@ -3705,19 +3707,19 @@ SSL
       case "$yes_no" in
           [Yy]*)
               mkdir -p /data/eus_certificates/raddb
-              echo -e "\\n${WHITE_R}#${RESET} Backing up original server.pem certificate..."
+              echo -e "\\n${GRAY_R}#${RESET} Backing up original server.pem certificate..."
               if [[ "${debbox}" == 'true' ]]; then
                 if cp "/data/udapi-config/raddb/certs/server.pem" "/data/eus_certificates/raddb/original_server_${time_date}.pem" &>> "${eus_dir}/logs/radius.log"; then echo -e "${GREEN}#${RESET} Successfully backed up server.pem ( RADIUS certificate )! \\n"; else echo -e "${RED}#${RESET} Failed to backup RADIUS certificate... \\n"; sleep 5; return; fi
               else
                 if ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -ql root 127.0.0.1 "cp /mnt/data/udapi-config/raddb/certs/server.pem /data/eus_certificates/raddb/original_server_${time_date}.pem" &>> "${eus_dir}/logs/radius.log"; then echo -e "${GREEN}#${RESET} Successfully backed up server.pem ( RADIUS certificate )! \\n"; else echo -e "${RED}#${RESET} Failed to backup RADIUS certificate... \\n"; sleep 5; return; fi
               fi
-              echo -e "${WHITE_R}#${RESET} Backing up original server-key.pem certificate..."
+              echo -e "${GRAY_R}#${RESET} Backing up original server-key.pem certificate..."
               if [[ "${debbox}" == 'true' ]]; then
                 if cp "/data/udapi-config/raddb/certs/server-key.pem" "/data/eus_certificates/raddb/original_server-key_${time_date}.pem" &>> "${eus_dir}/logs/radius.log"; then echo -e "${GREEN}#${RESET} Successfully backed up server-key.pem ( RADIUS certificate )! \\n"; else echo -e "${RED}#${RESET} Failed to backup RADIUS certificate... \\n"; sleep 5; return; fi
               else
                 if ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -ql root 127.0.0.1 "cp /mnt/data/udapi-config/raddb/certs/server-key.pem /data/eus_certificates/raddb/original_server-key_${time_date}.pem" &>> "${eus_dir}/logs/radius.log"; then echo -e "${GREEN}#${RESET} Successfully backed up server-key.pem ( RADIUS certificate )! \\n"; else echo -e "${RED}#${RESET} Failed to backup RADIUS certificate... \\n"; sleep 5; return; fi
               fi
-              echo -e "${WHITE_R}#${RESET} Applying new server.pem certificate..."
+              echo -e "${GRAY_R}#${RESET} Applying new server.pem certificate..."
               if [[ -f "/data/eus_certificates/unifi-os.crt" ]]; then
                 raddb_cert_file="/data/eus_certificates/unifi-os.crt"
               else
@@ -3729,7 +3731,7 @@ SSL
               else
                 if ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -ql root 127.0.0.1 "cp ${raddb_cert_file} /mnt/data/udapi-config/raddb/certs/server.pem" &>> "${eus_dir}/logs/radius.log"; then echo -e "${GREEN}#${RESET} Successfully applied the new server.pem ( RADIUS certificate )! \\n"; else echo -e "${RED}#${RESET} Failed to apply the new RADIUS certificate... \\n"; sleep 5; return; fi
               fi
-              echo -e "${WHITE_R}#${RESET} Applying new server-key.pem certificate..."
+              echo -e "${GRAY_R}#${RESET} Applying new server-key.pem certificate..."
               if [[ -f "/data/eus_certificates/unifi-os.key" ]]; then
                 raddb_key_file="/data/eus_certificates/unifi-os.key"
               else
@@ -3741,7 +3743,7 @@ SSL
               else
                 if ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -ql root 127.0.0.1 "cp ${raddb_key_file} /mnt/data/udapi-config/raddb/certs/server-key.pem" &>> "${eus_dir}/logs/radius.log"; then echo -e "${GREEN}#${RESET} Successfully applied the new server-key.pem ( RADIUS certificate )! \\n"; else echo -e "${RED}#${RESET} Failed to apply the new RADIUS certificate... \\n"; sleep 5; return; fi
               fi
-              echo -e "${WHITE_R}#${RESET} Restarting udapi-server..."
+              echo -e "${GRAY_R}#${RESET} Restarting udapi-server..."
               if [[ "${debbox}" == 'true' ]]; then
                 if systemctl restart udapi-server &>> "${eus_dir}/logs/radius.log"; then echo -e "${GREEN}#${RESET} Successfully restarted udapi-server! \\n"; else echo -e "${RED}#${RESET} Failed to restart udapi-server... \\n${RED}#${RESET} Please reboot your UDM ASAP!\\n"; abort_reason="Failed to restart udapi-server."; abort; fi
               else
@@ -3757,7 +3759,7 @@ SSL
 uas_management_ui() {
   # shellcheck disable=SC2012
   mkdir -p "${eus_dir}/uas/certs_backups/" && touch "${eus_dir}/uas/uas_management_ui"
-  echo -e "\\n${WHITE_R}#${RESET} Importing the SSL certificates into the UniFi Application Server User Interface..."
+  echo -e "\\n${GRAY_R}#${RESET} Importing the SSL certificates into the UniFi Application Server User Interface..."
   # shellcheck disable=SC2012
   if [[ "${old_certificates}" == 'last_three' ]]; then ls -t "${eus_dir}/uas/certs_backups/uas.crt_*" 2> /dev/null | awk 'NR>3' | xargs rm -f 2> /dev/null; fi
   # shellcheck disable=SC2012
@@ -3790,7 +3792,7 @@ uas_management_ui() {
 uas_unifi_led() {
   # shellcheck disable=SC2012
   mkdir -p "${eus_dir}/eot/certs_backups" && touch "${eus_dir}/eot/uas_unifi_led"
-  if dpkg -l | grep -iq "\\bUAS\\b\\|UniFi Application Server"; then echo -e "\\n${WHITE_R}#${RESET} Importing the SSL certificates into UniFi-LED on your UniFi Application Server..."; else echo -e "\\n${WHITE_R}#${RESET} Importing the SSL certificates into UniFi-LED..."; fi
+  if dpkg -l | grep -iq "\\bUAS\\b\\|UniFi Application Server"; then echo -e "\\n${GRAY_R}#${RESET} Importing the SSL certificates into UniFi-LED on your UniFi Application Server..."; else echo -e "\\n${GRAY_R}#${RESET} Importing the SSL certificates into UniFi-LED..."; fi
   # shellcheck disable=SC2012
   if [[ "${old_certificates}" == 'last_three' ]]; then ls -t "${eus_dir}/eot/certs_backups/server.pem_*" 2> /dev/null | awk 'NR>3' | xargs rm -f 2> /dev/null; fi
   cat "/etc/letsencrypt/live/${server_fqdn}${le_var}/privkey.pem" "/etc/letsencrypt/live/${server_fqdn}${le_var}/fullchain.pem" > "${eus_dir}/eot/eot_docker_container.pem"
@@ -3813,7 +3815,7 @@ uas_unifi_led() {
 unifi_video() {
   # shellcheck disable=SC2012
   mkdir -p "${eus_dir}/video/keystore_backups" && touch "${eus_dir}/video/unifi_video"
-  echo -e "\\n${WHITE_R}#${RESET} Importing the SSL certificates into UniFi-Video..."
+  echo -e "\\n${GRAY_R}#${RESET} Importing the SSL certificates into UniFi-Video..."
   mkdir -p /usr/lib/unifi-video/data/certificates
   mkdir -p /var/lib/unifi-video/certificates
   # shellcheck disable=SC2012
@@ -3844,7 +3846,7 @@ unifi_network_application() {
     apt_get_install_package
     openjdk_native_installed="true"
   fi
-  if [[ "${unifi_core_system}" == 'true' ]]; then echo -e "\\n${WHITE_R}#${RESET} Importing the SSL certificates into the UniFi Network Application running on your ${unifi_core_device}..."; else echo -e "\\n${WHITE_R}#${RESET} Importing the SSL certificates into the UniFi Network Application..."; fi
+  if [[ "${unifi_core_system}" == 'true' ]]; then echo -e "\\n${GRAY_R}#${RESET} Importing the SSL certificates into the UniFi Network Application running on your ${unifi_core_device}..."; else echo -e "\\n${GRAY_R}#${RESET} Importing the SSL certificates into the UniFi Network Application..."; fi
   echo -e "\\n------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/lets_encrypt_import.log"
   if sha256sum "/etc/letsencrypt/live/${server_fqdn}${le_var}/fullchain.pem" 2> /dev/null | awk '{print $1}' &> "${eus_dir}/checksum/fullchain.sha256sum"; then echo "Successfully updated sha256sum" &>> "${eus_dir}/logs/lets_encrypt_import.log"; fi
   if md5sum "/etc/letsencrypt/live/${server_fqdn}${le_var}/fullchain.pem" 2> /dev/null | awk '{print $1}' &> "${eus_dir}/checksum/fullchain.md5sum"; then echo "Successfully updated md5sum" &>> "${eus_dir}/logs/lets_encrypt_import.log"; fi
@@ -3895,62 +3897,62 @@ unifi_network_application() {
 import_ssl_certificates() {
   header
   if [[ "${prefer_dns_challenge}" == 'true' ]]; then
-    echo -e "${WHITE_R}#${RESET} Performing the DNS challenge!"
+    echo -e "${GRAY_R}#${RESET} Performing the DNS challenge!"
     if [[ "${certbot_auto}" == 'true' ]]; then
       if [[ "${dns_manual_flag}" == '--manual' ]]; then
         echo ""
         # shellcheck disable=SC2090,SC2086
-        ${certbot} certonly ${dns_manual_flag} --agree-tos --preferred-challenges dns ${auto_dns_challenge_arguments} ${server_fqdn_le} ${email} ${renewal_option} ${acme_server} ${key_type_option} "${certbot_auto_flags}" 2>&1 | tee -a "${eus_dir}/logs/lets_encrypt_${time_date}.log" && dns_manual_certbot_success=true
+        ${certbot} certonly ${dns_manual_flag} --agree-tos --preferred-challenges dns ${auto_dns_challenge_arguments} ${server_fqdn_le} ${email} ${renewal_option} ${acme_server} ${key_type_option} "${certbot_auto_flags}" 2>&1 | tee -a "${eus_dir}/logs/lets_encrypt_${time_date}.log" && dns_manual_certbot_success="true"
       else
         if [[ "${certbot_native_plugin}" == 'true' ]]; then
           # shellcheck disable=SC2090,SC2086
-          ${certbot} certonly ${dns_manual_flag} --agree-tos --preferred-challenges dns --post-hook "/etc/letsencrypt/renewal-hooks/post/EUS_${server_fqdn}.sh" ${auto_dns_challenge_arguments} ${server_fqdn_le} ${email} ${renewal_option} ${acme_server} ${key_type_option} "${certbot_auto_flags}" &> "${eus_dir}/logs/lets_encrypt_${time_date}.log" && dns_certbot_success=true
+          ${certbot} certonly ${dns_manual_flag} --agree-tos --preferred-challenges dns --post-hook "/etc/letsencrypt/renewal-hooks/post/EUS_${server_fqdn}.sh" ${auto_dns_challenge_arguments} ${server_fqdn_le} ${email} ${renewal_option} ${acme_server} ${key_type_option} "${certbot_auto_flags}" &> "${eus_dir}/logs/lets_encrypt_${time_date}.log" && dns_certbot_success="true"
         elif [[ "${certbot_multi_plugin}" == 'true' ]]; then
           # shellcheck disable=SC2090,SC2086
-          ${certbot} certonly ${auto_dns_challenge_arguments} ${dns_manual_flag} --agree-tos --preferred-challenges dns --post-hook "/etc/letsencrypt/renewal-hooks/post/EUS_${server_fqdn}.sh" ${server_fqdn_le} ${email} ${renewal_option} ${acme_server} ${key_type_option} "${certbot_auto_flags}" &> "${eus_dir}/logs/lets_encrypt_${time_date}.log" && dns_certbot_success=true
+          ${certbot} certonly ${auto_dns_challenge_arguments} ${dns_manual_flag} --agree-tos --preferred-challenges dns --post-hook "/etc/letsencrypt/renewal-hooks/post/EUS_${server_fqdn}.sh" ${server_fqdn_le} ${email} ${renewal_option} ${acme_server} ${key_type_option} "${certbot_auto_flags}" &> "${eus_dir}/logs/lets_encrypt_${time_date}.log" && dns_certbot_success="true"
         fi
       fi
     else
       if [[ "${dns_manual_flag}" == '--manual' ]]; then
         echo ""
         # shellcheck disable=SC2090,SC2086
-        ${certbot} certonly ${dns_manual_flag} --agree-tos --preferred-challenges dns ${auto_dns_challenge_arguments} ${server_fqdn_le} ${email} ${renewal_option} ${acme_server} ${key_type_option} 2>&1 | tee -a "${eus_dir}/logs/lets_encrypt_${time_date}.log" && dns_manual_certbot_success=true
+        ${certbot} certonly ${dns_manual_flag} --agree-tos --preferred-challenges dns ${auto_dns_challenge_arguments} ${server_fqdn_le} ${email} ${renewal_option} ${acme_server} ${key_type_option} 2>&1 | tee -a "${eus_dir}/logs/lets_encrypt_${time_date}.log" && dns_manual_certbot_success="true"
       else
         if [[ "${certbot_native_plugin}" == 'true' ]]; then
           # shellcheck disable=SC2090,SC2086
-          ${certbot} certonly ${dns_manual_flag} --agree-tos --preferred-challenges dns --post-hook "/etc/letsencrypt/renewal-hooks/post/EUS_${server_fqdn}.sh" ${auto_dns_challenge_arguments} ${server_fqdn_le} ${email} ${renewal_option} ${acme_server} ${key_type_option} &> "${eus_dir}/logs/lets_encrypt_${time_date}.log" && dns_certbot_success=true
+          ${certbot} certonly ${dns_manual_flag} --agree-tos --preferred-challenges dns --post-hook "/etc/letsencrypt/renewal-hooks/post/EUS_${server_fqdn}.sh" ${auto_dns_challenge_arguments} ${server_fqdn_le} ${email} ${renewal_option} ${acme_server} ${key_type_option} &> "${eus_dir}/logs/lets_encrypt_${time_date}.log" && dns_certbot_success="true"
         elif [[ "${certbot_multi_plugin}" == 'true' ]]; then
           # shellcheck disable=SC2090,SC2086
-          ${certbot} certonly ${auto_dns_challenge_arguments} ${dns_manual_flag} --agree-tos --preferred-challenges dns --post-hook "/etc/letsencrypt/renewal-hooks/post/EUS_${server_fqdn}.sh" ${server_fqdn_le} ${email} ${renewal_option} ${acme_server} ${key_type_option} &> "${eus_dir}/logs/lets_encrypt_${time_date}.log" && dns_certbot_success=true
+          ${certbot} certonly ${auto_dns_challenge_arguments} ${dns_manual_flag} --agree-tos --preferred-challenges dns --post-hook "/etc/letsencrypt/renewal-hooks/post/EUS_${server_fqdn}.sh" ${server_fqdn_le} ${email} ${renewal_option} ${acme_server} ${key_type_option} &> "${eus_dir}/logs/lets_encrypt_${time_date}.log" && dns_certbot_success="true"
         fi
       fi
     fi
   else
     if dpkg -l unifi-core 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi"; then
       if [[ "${renewal_option}" == "--force-renewal" ]]; then
-        echo -e "${WHITE_R}#${RESET} Force renewing the SSL certificates and importing them into UniFi OS running on your ${unifi_core_device}..."
+        echo -e "${GRAY_R}#${RESET} Force renewing the SSL certificates and importing them into UniFi OS running on your ${unifi_core_device}..."
       else
-        echo -e "${WHITE_R}#${RESET} Importing the SSL certificates into UniFi OS running on your ${unifi_core_device}..."
+        echo -e "${GRAY_R}#${RESET} Importing the SSL certificates into UniFi OS running on your ${unifi_core_device}..."
       fi
     elif dpkg -l unifi 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi"; then
       if [[ "${renewal_option}" == "--force-renewal" ]]; then
-        echo -e "${WHITE_R}#${RESET} Force renewing the SSL certificates and importing them into the UniFi Network Application..."
+        echo -e "${GRAY_R}#${RESET} Force renewing the SSL certificates and importing them into the UniFi Network Application..."
       else
-        echo -e "${WHITE_R}#${RESET} Importing the SSL certificates into the UniFi Network Application..."
+        echo -e "${GRAY_R}#${RESET} Importing the SSL certificates into the UniFi Network Application..."
       fi
     else
       if [[ "${renewal_option}" == "--force-renewal" ]]; then
-        echo -e "${WHITE_R}#${RESET} Force renewing the SSL certificates"
+        echo -e "${GRAY_R}#${RESET} Force renewing the SSL certificates"
       else
-        echo -e "${WHITE_R}#${RESET} Creating the certificates!"
+        echo -e "${GRAY_R}#${RESET} Creating the certificates!"
       fi
     fi
     if [[ "${certbot_auto}" == 'true' ]]; then
       # shellcheck disable=2086
-      ${certbot} certonly --standalone --agree-tos --preferred-challenges http --pre-hook "/etc/letsencrypt/renewal-hooks/pre/EUS_${server_fqdn}.sh" --post-hook "/etc/letsencrypt/renewal-hooks/post/EUS_${server_fqdn}.sh" ${server_fqdn_le} ${email} ${renewal_option} ${acme_server} ${key_type_option} --non-interactive "${certbot_auto_flags}" &> "${eus_dir}/logs/lets_encrypt_${time_date}.log" && certbot_success=true
+      ${certbot} certonly --standalone --agree-tos --preferred-challenges http --pre-hook "/etc/letsencrypt/renewal-hooks/pre/EUS_${server_fqdn}.sh" --post-hook "/etc/letsencrypt/renewal-hooks/post/EUS_${server_fqdn}.sh" ${server_fqdn_le} ${email} ${renewal_option} ${acme_server} ${key_type_option} --non-interactive "${certbot_auto_flags}" &> "${eus_dir}/logs/lets_encrypt_${time_date}.log" && certbot_success="true"
     else
       # shellcheck disable=2086
-      ${certbot} certonly --standalone --agree-tos --preferred-challenges http --pre-hook "/etc/letsencrypt/renewal-hooks/pre/EUS_${server_fqdn}.sh" --post-hook "/etc/letsencrypt/renewal-hooks/post/EUS_${server_fqdn}.sh" ${server_fqdn_le} ${email} ${renewal_option} ${acme_server} ${key_type_option} --non-interactive &> "${eus_dir}/logs/lets_encrypt_${time_date}.log" && certbot_success=true
+      ${certbot} certonly --standalone --agree-tos --preferred-challenges http --pre-hook "/etc/letsencrypt/renewal-hooks/pre/EUS_${server_fqdn}.sh" --post-hook "/etc/letsencrypt/renewal-hooks/post/EUS_${server_fqdn}.sh" ${server_fqdn_le} ${email} ${renewal_option} ${acme_server} ${key_type_option} --non-interactive &> "${eus_dir}/logs/lets_encrypt_${time_date}.log" && certbot_success="true"
     fi
   fi
   if [[ "${certbot_success}" == 'true' ]] || [[ "${dns_certbot_success}" == 'true' ]] || [[ "${dns_manual_certbot_success}" == 'true' ]]; then
@@ -4004,7 +4006,7 @@ import_ssl_certificates() {
         abort
       else
         if [[ "${auto_certbot_success_check}" == 'true' ]]; then if dpkg -l unifi-core 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi"; then echo -e "${GREEN}#${RESET} Successfully imported the SSL certificates into UniFi OS! \\n"; sleep 5; else echo -e "${GREEN}#${RESET} Successfully imported the SSL certificates into the UniFi Network Application! \\n"; sleep 2; fi; fi
-        if [[ "${is_cloudkey}" == 'true' ]]; then run_uck_scripts=true; fi
+        if [[ "${is_cloudkey}" == 'true' ]]; then run_uck_scripts="true"; fi
       fi
       if ls "${eus_dir}/logs/lets_encrypt_[0-9]*.log" &>/dev/null; then
         le_var=$(grep -i "/etc/letsencrypt/live/${server_fqdn}" "${eus_dir}/logs/lets_encrypt_${time_date}.log" | awk '{print $1}' | head -n1 | grep -io "${server_fqdn}.*" | cut -d'/' -f1 | sed "s/${server_fqdn}//g")
@@ -4024,30 +4026,30 @@ import_ssl_certificates() {
       fullchain_pem=$(grep -i "Certificate Path" "${eus_dir}/certificates" | grep -i "${le_fqdn}" | awk '{print $3}' | sed 's/.pem//g' | tail -n1)
       priv_key_pem=$(grep -i "Private Key Path" "${eus_dir}/certificates" | grep -i "${le_fqdn}" | awk '{print $4}' | sed 's/.pem//g' | tail -n1)
       if [[ "${unifi_core_system}" == 'true' ]]; then
-        echo -e "\\n${WHITE_R}----${RESET}\\n"
-        echo -e "${WHITE_R}#${RESET} UniFi OS on your ${unifi_core_device} has been detected!"
+        echo -e "\\n${GRAY_R}----${RESET}\\n"
+        echo -e "${GRAY_R}#${RESET} UniFi OS on your ${unifi_core_device} has been detected!"
         if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Would you like to apply the certificates to UniFi OS? (Y/n) ' yes_no; fi
         case "$yes_no" in
            [Yy]*|"")
               unifi_core
-              if [[ "${is_cloudkey}" == 'true' ]]; then run_uck_scripts=true; fi;;
+              if [[ "${is_cloudkey}" == 'true' ]]; then run_uck_scripts="true"; fi;;
            [Nn]*) ;;
         esac
       elif dpkg -l unifi 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi" && [[ "${unifi_core_system}" != 'true' ]]; then
-        echo -e "\\n${WHITE_R}----${RESET}\\n"
-        echo -e "${WHITE_R}#${RESET} UniFi Network Application has been detected!"
+        echo -e "\\n${GRAY_R}----${RESET}\\n"
+        echo -e "${GRAY_R}#${RESET} UniFi Network Application has been detected!"
         if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Would you like to apply the certificates to the UniFi Network Application? (Y/n) ' yes_no; fi
         case "$yes_no" in
            [Yy]*|"")
               unifi_network_application
-              if [[ "${is_cloudkey}" == 'true' ]]; then run_uck_scripts=true; fi;;
+              if [[ "${is_cloudkey}" == 'true' ]]; then run_uck_scripts="true"; fi;;
            [Nn]*) ;;
         esac
       fi
     fi
     if [[ "${is_cloudkey}" == 'true' ]] && [[ "${unifi_core_system}" != 'true' ]]; then
-      echo -e "\\n${WHITE_R}----${RESET}\\n"
-      echo -e "${WHITE_R}#${RESET} You seem to have a Cloud Key!"
+      echo -e "\\n${GRAY_R}----${RESET}\\n"
+      echo -e "${GRAY_R}#${RESET} You seem to have a Cloud Key!"
       if [[ "${is_cloudkey_gen2_plus}" == 'true' ]] && dpkg -l unifi-protect 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi"; then
         if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Would you like to apply the certificates to the UniFi Cloudkey User Interface and UniFi-Protect? (Y/n) ' yes_no; fi
       else
@@ -4056,35 +4058,35 @@ import_ssl_certificates() {
       case "$yes_no" in
          [Yy]*|"")
             cloudkey_management_ui
-            run_uck_scripts=true;;
+            run_uck_scripts="true";;
          [Nn]*) ;;
       esac
       if dpkg -l unifi-led 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi" && [[ "${unifi_core_system}" != 'true' ]]; then
-        echo -e "\\n${WHITE_R}----${RESET}\\n"
-        echo -e "${WHITE_R}#${RESET} UniFi-LED has been detected!"
+        echo -e "\\n${GRAY_R}----${RESET}\\n"
+        echo -e "${GRAY_R}#${RESET} UniFi-LED has been detected!"
         if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Would you like to apply the certificates to UniFi-LED? (Y/n) ' yes_no; fi
         case "$yes_no" in
            [Yy]*|"")
             cloudkey_unifi_led
-            run_uck_scripts=true;;
+            run_uck_scripts="true";;
            [Nn]*) ;;
         esac
       fi
       if dpkg -l unifi-talk 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi" && [[ "${unifi_core_system}" != 'true' ]]; then
-        echo -e "\\n${WHITE_R}----${RESET}\\n"
-        echo -e "${WHITE_R}#${RESET} UniFi-Talk has been detected!"
+        echo -e "\\n${GRAY_R}----${RESET}\\n"
+        echo -e "${GRAY_R}#${RESET} UniFi-Talk has been detected!"
         if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Would you like to apply the certificates to UniFi-Talk? (Y/n) ' yes_no; fi
         case "$yes_no" in
            [Yy]*|"")
             cloudkey_unifi_talk
-            run_uck_scripts=true;;
+            run_uck_scripts="true";;
            [Nn]*) ;;
         esac
       fi
     fi
     if dpkg -l | grep -iq "\\bUAS\\b\\|UniFi Application Server" && [[ "${unifi_core_system}" != 'true' ]]; then
-      echo -e "\\n${WHITE_R}----${RESET}\\n"
-      echo -e "${WHITE_R}#${RESET} You seem to have a UniFi Application Server!"
+      echo -e "\\n${GRAY_R}----${RESET}\\n"
+      echo -e "${GRAY_R}#${RESET} You seem to have a UniFi Application Server!"
       if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Would you like to apply the certificates to the UniFi Application Server User Interface? (Y/n) ' yes_no; fi
       case "$yes_no" in
          [Yy]*|"") uas_management_ui;;
@@ -4093,8 +4095,8 @@ import_ssl_certificates() {
       if dpkg -l uas-led 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi" && [[ "${unifi_core_system}" != 'true' ]]; then
         if dpkg -l | awk '{print $2}' | grep -iq "^docker.io\\|^docker-ce"; then
           if docker ps -a | grep -iq 'ubnt/eot'; then
-            echo -e "\\n${WHITE_R}----${RESET}\\n"
-            echo -e "${WHITE_R}#${RESET} UniFi-LED has been detected!"
+            echo -e "\\n${GRAY_R}----${RESET}\\n"
+            echo -e "${GRAY_R}#${RESET} UniFi-LED has been detected!"
             if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Would you like to apply the certificates to UniFi-LED? (Y/n) ' yes_no; fi
             case "$yes_no" in
                 [Yy]*|"") uas_unifi_led;;
@@ -4105,8 +4107,8 @@ import_ssl_certificates() {
       fi
     fi
     if dpkg -l unifi-video 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi" && [[ "${unifi_core_system}" != 'true' ]]; then
-      echo -e "\\n${WHITE_R}----${RESET}\\n"
-      echo -e "${WHITE_R}#${RESET} UniFi-Video has been detected!"
+      echo -e "\\n${GRAY_R}----${RESET}\\n"
+      echo -e "${GRAY_R}#${RESET} UniFi-Video has been detected!"
       if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Would you like to apply the certificates to UniFi-Video? (Y/n) ' yes_no; fi
       case "$yes_no" in
          [Yy]*|"") unifi_video;;
@@ -4115,8 +4117,8 @@ import_ssl_certificates() {
     fi
     if dpkg -l | awk '{print $2}' | grep -iq "^docker.io\\|^docker-ce" && [[ "${unifi_core_system}" != 'true' ]]; then
       if docker ps -a | grep -iq 'ubnt/eot'; then
-        echo -e "\\n${WHITE_R}----${RESET}\\n"
-        echo -e "${WHITE_R}#${RESET} UniFi-LED has been detected!"
+        echo -e "\\n${GRAY_R}----${RESET}\\n"
+        echo -e "${GRAY_R}#${RESET} UniFi-LED has been detected!"
         if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Would you like to apply the certificates to UniFi-LED? (Y/n) ' yes_no; fi
         case "$yes_no" in
            [Yy]*|"") uas_unifi_led;;
@@ -4135,8 +4137,8 @@ import_ssl_certificates() {
       rm --force "${eus_dir}/expire_date" &> /dev/null
       if [[ -n "${expire_date}" ]]; then
          echo -e "\\n${GREEN}---${RESET}\\n"
-         echo -e "${WHITE_R}#${RESET} Your SSL certificates will expire at '${expire_date}'"
-         echo -e "${WHITE_R}#${RESET} Please run this script again before '${expire_date}' to renew your certificates"
+         echo -e "${GRAY_R}#${RESET} Your SSL certificates will expire at '${expire_date}'"
+         echo -e "${GRAY_R}#${RESET} Please run this script again before '${expire_date}' to renew your certificates"
       fi
     fi
   else
@@ -4148,30 +4150,30 @@ import_existing_ssl_certificates() {
   case "$yes_no" in
      [Yy]*|"")
         if [[ "${unifi_core_system}" == 'true' ]]; then
-          echo -e "\\n${WHITE_R}----${RESET}\\n"
-          echo -e "${WHITE_R}#${RESET} UniFi OS on your ${unifi_core_device} has been detected!"
+          echo -e "\\n${GRAY_R}----${RESET}\\n"
+          echo -e "${GRAY_R}#${RESET} UniFi OS on your ${unifi_core_device} has been detected!"
           if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Would you like to apply the certificates to UniFi OS? (Y/n) ' yes_no; fi
           case "$yes_no" in
              [Yy]*|"")
                 unifi_core
-                if [[ "${is_cloudkey}" == 'true' ]]; then run_uck_scripts=true; fi;;
+                if [[ "${is_cloudkey}" == 'true' ]]; then run_uck_scripts="true"; fi;;
              [Nn]*) ;;
           esac
         fi
         if dpkg -l unifi 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi" && [[ "${unifi_core_system}" != 'true' ]]; then
-          echo -e "\\n${WHITE_R}----${RESET}\\n"
-          echo -e "${WHITE_R}#${RESET} UniFi Network Application has been detected!"
+          echo -e "\\n${GRAY_R}----${RESET}\\n"
+          echo -e "${GRAY_R}#${RESET} UniFi Network Application has been detected!"
           if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Would you like to apply the certificates to the UniFi Network Application? (Y/n) ' yes_no; fi
           case "$yes_no" in
              [Yy]*|"")
                 unifi_network_application
-                if [[ "${is_cloudkey}" == 'true' ]]; then run_uck_scripts=true; fi;;
+                if [[ "${is_cloudkey}" == 'true' ]]; then run_uck_scripts="true"; fi;;
              [Nn]*) ;;
           esac
         fi
         if [[ "${is_cloudkey}" == 'true' ]] && [[ "${unifi_core_system}" != 'true' ]]; then
-          echo -e "\\n${WHITE_R}----${RESET}\\n"
-          echo -e "${WHITE_R}#${RESET} You seem to have a Cloud Key!"
+          echo -e "\\n${GRAY_R}----${RESET}\\n"
+          echo -e "${GRAY_R}#${RESET} You seem to have a Cloud Key!"
           if [[ "${is_cloudkey_gen2_plus}" == 'true' ]] && dpkg -l unifi-protect 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi" && [[ "${unifi_core_system}" != 'true' ]]; then
             if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Would you like to apply the certificates to the UniFi Cloudkey User Interface and UniFi-Protect? (Y/n) ' yes_no; fi
           else
@@ -4180,35 +4182,35 @@ import_existing_ssl_certificates() {
           case "$yes_no" in
              [Yy]*|"")
                   cloudkey_management_ui
-                  run_uck_scripts=true;;
+                  run_uck_scripts="true";;
              [Nn]*) ;;
           esac
           if dpkg -l unifi-led 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi" && [[ "${unifi_core_system}" != 'true' ]]; then
-            echo -e "\\n${WHITE_R}----${RESET}\\n"
-            echo -e "${WHITE_R}#${RESET} UniFi-LED has been detected!"
+            echo -e "\\n${GRAY_R}----${RESET}\\n"
+            echo -e "${GRAY_R}#${RESET} UniFi-LED has been detected!"
             if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Would you like to apply the certificates to UniFi-LED? (Y/n) ' yes_no; fi
             case "$yes_no" in
                [Yy]*|"")
                   cloudkey_unifi_led
-                  run_uck_scripts=true;;
+                  run_uck_scripts="true";;
                [Nn]*) ;;
             esac
           fi
           if dpkg -l unifi-talk 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi" && [[ "${unifi_core_system}" != 'true' ]]; then
-            echo -e "\\n${WHITE_R}----${RESET}\\n"
-            echo -e "${WHITE_R}#${RESET} UniFi-Talk has been detected!"
+            echo -e "\\n${GRAY_R}----${RESET}\\n"
+            echo -e "${GRAY_R}#${RESET} UniFi-Talk has been detected!"
             if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Would you like to apply the certificates to UniFi-Talk? (Y/n) ' yes_no; fi
             case "$yes_no" in
                [Yy]*|"")
                   cloudkey_unifi_talk
-                  run_uck_scripts=true;;
+                  run_uck_scripts="true";;
                [Nn]*) ;;
             esac
           fi
         fi
         if dpkg -l | grep -iq "\\bUAS\\b\\|UniFi Application Server" && [[ "${unifi_core_system}" != 'true' ]]; then
-          echo -e "\\n${WHITE_R}----${RESET}\\n"
-          echo -e "${WHITE_R}#${RESET} You seem to have a UniFi Application Server!"
+          echo -e "\\n${GRAY_R}----${RESET}\\n"
+          echo -e "${GRAY_R}#${RESET} You seem to have a UniFi Application Server!"
           if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Would you like to apply the certificates to the UniFi Application Server User Interface? (Y/n) ' yes_no; fi
           case "$yes_no" in
              [Yy]*|"") uas_management_ui;;
@@ -4217,8 +4219,8 @@ import_existing_ssl_certificates() {
           if dpkg -l uas-led 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi" && [[ "${unifi_core_system}" != 'true' ]]; then
             if dpkg -l | awk '{print $2}' | grep -iq "^docker.io\\|^docker-ce"; then
               if docker ps -a | grep -iq 'ubnt/eot'; then
-                echo -e "\\n${WHITE_R}----${RESET}\\n"
-                echo -e "${WHITE_R}#${RESET} UniFi-LED has been detected!"
+                echo -e "\\n${GRAY_R}----${RESET}\\n"
+                echo -e "${GRAY_R}#${RESET} UniFi-LED has been detected!"
                 if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Would you like to apply the certificates to UniFi-LED? (Y/n) ' yes_no; fi
                 case "$yes_no" in
                     [Yy]*|"") uas_unifi_led;;
@@ -4229,8 +4231,8 @@ import_existing_ssl_certificates() {
           fi
         fi
         if dpkg -l unifi-video 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi" && [[ "${unifi_core_system}" != 'true' ]]; then
-          echo -e "\\n${WHITE_R}----${RESET}\\n"
-          echo -e "${WHITE_R}#${RESET} UniFi-Video has been detected!"
+          echo -e "\\n${GRAY_R}----${RESET}\\n"
+          echo -e "${GRAY_R}#${RESET} UniFi-Video has been detected!"
           if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Would you like to apply the certificates to UniFi-Video? (Y/n) ' yes_no; fi
           case "$yes_no" in
              [Yy]*|"") unifi_video;;
@@ -4239,8 +4241,8 @@ import_existing_ssl_certificates() {
         fi
         if dpkg -l | awk '{print $2}' | grep -iq "^docker.io\\|^docker-ce" && [[ "${unifi_core_system}" != 'true' ]]; then
           if docker ps -a | grep -iq 'ubnt/eot'; then
-            echo -e "\\n${WHITE_R}----${RESET}\\n"
-            echo -e "${WHITE_R}#${RESET} UniFi-LED has been detected!"
+            echo -e "\\n${GRAY_R}----${RESET}\\n"
+            echo -e "${GRAY_R}#${RESET} UniFi-LED has been detected!"
             if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Would you like to apply the certificates to UniFi-LED? (Y/n) ' yes_no; fi
             case "$yes_no" in
                [Yy]*|"") uas_unifi_led;;
@@ -4259,8 +4261,8 @@ restore_previous_certs() {
           # shellcheck disable=SC2012
           if [[ -d "${eus_dir}/unifi-os/config_backups/" ]]; then unifi_os_previous_config=$(ls -t "${eus_dir}/unifi-os/config_backups/" | awk '{print$1}' | head -n1); fi
           if [[ -n "${unifi_os_previous_config}" ]]; then
-            echo -e "\\n${WHITE_R}----${RESET}\\n"
-            echo -e "${WHITE_R}#${RESET} UniFi OS on your ${unifi_core_device} has been detected!"
+            echo -e "\\n${GRAY_R}----${RESET}\\n"
+            echo -e "${GRAY_R}#${RESET} UniFi OS on your ${unifi_core_device} has been detected!"
             if [[ "${restore_original_state}" == 'true' ]]; then
               read -rp $'\033[39m#\033[0m Do you want to restore the certificates to original state? (Y/n) ' yes_no
             else
@@ -4270,11 +4272,11 @@ restore_previous_certs() {
                [Yy]*|"")
                   restore_done=yes
                   if [[ "${restore_original_state}" == 'true' ]]; then
-                    echo -e "\\n${WHITE_R}#${RESET} Restoring UniFi OS certificates to original state..."
+                    echo -e "\\n${GRAY_R}#${RESET} Restoring UniFi OS certificates to original state..."
                     if [[ "${unifi_core_certificate_copy}" == 'true' ]]; then
                       if rm --force /data/unifi-core/config/unifi-core.key /data/unifi-core/config/unifi-core.crt &> /dev/null; then
                         echo -e "${GREEN}#${RESET} Successfully restored UniFi OS certificates to original state! \\n"
-                        echo -e "${WHITE_R}#${RESET} Restarting UniFi OS..."
+                        echo -e "${GRAY_R}#${RESET} Restarting UniFi OS..."
                         if systemctl restart unifi-core; then
                           echo -e "${GREEN}#${RESET} Successfully restarted UniFi OS! \\n"
                         else
@@ -4286,7 +4288,7 @@ restore_previous_certs() {
                         if sed -i -e "/File created by EUS/d" -e "/ssl:/d" -e "/crt:/d" -e "/key:/d" "${unifi_core_config_path}" &>> "${eus_dir}/logs/restore.log"; then
                           if ! [[ -s "${unifi_core_config_path}" ]]; then rm --force "${unifi_core_config_path}" &> /dev/null; fi
                           echo -e "${GREEN}#${RESET} Successfully restored UniFi OS certificates to original state! \\n"
-                          echo -e "${WHITE_R}#${RESET} Restarting UniFi OS..."
+                          echo -e "${GRAY_R}#${RESET} Restarting UniFi OS..."
                           if systemctl restart unifi-core; then
                             echo -e "${GREEN}#${RESET} Successfully restarted UniFi OS! \\n"
                           else
@@ -4300,10 +4302,10 @@ restore_previous_certs() {
                       fi
                     fi
                   else
-                    echo -e "\\n${WHITE_R}#${RESET} Restoring \"${eus_dir}/unifi-os/config_backups/${unifi_os_previous_config}\"..."
+                    echo -e "\\n${GRAY_R}#${RESET} Restoring \"${eus_dir}/unifi-os/config_backups/${unifi_os_previous_config}\"..."
                     if cp "${eus_dir}/unifi-os/config_backups/${unifi_os_previous_config}" "${unifi_core_config_path}" &>> "${eus_dir}/logs/restore.log"; then
                       echo -e "${GREEN}#${RESET} Successfully restored \"${eus_dir}/unifi-os/config_backups/${unifi_os_previous_config}\"! \\n"
-                      echo -e "${WHITE_R}#${RESET} Restarting UniFi OS..."
+                      echo -e "${GRAY_R}#${RESET} Restarting UniFi OS..."
                       if systemctl restart unifi-core; then
                         echo -e "${GREEN}#${RESET} Successfully restarted UniFi OS! \\n"
                       else
@@ -4317,17 +4319,17 @@ restore_previous_certs() {
             esac
           else
             if [[ -f "${unifi_core_config_path}" ]]; then
-              echo -e "\\n${WHITE_R}----${RESET}\\n"
-              echo -e "${WHITE_R}#${RESET} UniFi OS on your ${unifi_core_device} has been detected!"
+              echo -e "\\n${GRAY_R}----${RESET}\\n"
+              echo -e "${GRAY_R}#${RESET} UniFi OS on your ${unifi_core_device} has been detected!"
               read -rp $'\033[39m#\033[0m Do you want to restore to the default UniFi OS certificates? (Y/n) ' yes_no
               case "$yes_no" in
                  [Yy]*|"")
                     restore_done=yes
-                    echo -e "\\n${WHITE_R}#${RESET} Restoring to default UniFi OS certificates..."
+                    echo -e "\\n${GRAY_R}#${RESET} Restoring to default UniFi OS certificates..."
                     if [[ "${unifi_core_certificate_copy}" == 'true' ]]; then
                       if rm --force /data/unifi-core/config/unifi-core.key /data/unifi-core/config/unifi-core.crt &> /dev/null; then
                         echo -e "${GREEN}#${RESET} Successfully restored UniFi OS certificates to original state! \\n"
-                        echo -e "${WHITE_R}#${RESET} Restarting UniFi OS..."
+                        echo -e "${GRAY_R}#${RESET} Restarting UniFi OS..."
                         if systemctl restart unifi-core; then
                           echo -e "${GREEN}#${RESET} Successfully restarted UniFi OS! \\n"
                         else
@@ -4337,7 +4339,7 @@ restore_previous_certs() {
                     else
                       if rm --force "${unifi_core_config_path}" &>> "${eus_dir}/logs/restore.log"; then
                         echo -e "${GREEN}#${RESET} Successfully restored default UniFi OS certificates! \\n"
-                        echo -e "${WHITE_R}#${RESET} Restarting UniFi OS..."
+                        echo -e "${GRAY_R}#${RESET} Restarting UniFi OS..."
                         if systemctl restart unifi-core; then
                           echo -e "${GREEN}#${RESET} Successfully restarted UniFi OS! \\n"
                         else
@@ -4354,8 +4356,8 @@ restore_previous_certs() {
           # shellcheck disable=SC2012
           if [[ -d "/data/eus_certificates/raddb/" ]]; then radius_previous_crt=$(ls -t /data/eus_certificates/raddb/ | awk '{print$1}' | grep ".*server_.*.pem" | head -n1); radius_previous_key=$(ls -t /data/eus_certificates/raddb/ | awk '{print$1}' | grep ".*server-key_.*.pem" | head -n1); fi
           if [[ -n "${radius_previous_key}" && -n "${radius_previous_crt}" ]]; then
-            echo -e "\\n${WHITE_R}----${RESET}\\n"
-            echo -e "${WHITE_R}#${RESET} You seem to have replaced the default RADIUS certificates on your ${unifi_core_device}!"
+            echo -e "\\n${GRAY_R}----${RESET}\\n"
+            echo -e "${GRAY_R}#${RESET} You seem to have replaced the default RADIUS certificates on your ${unifi_core_device}!"
             if [[ "${restore_original_state}" == 'true' ]]; then
               read -rp $'\033[39m#\033[0m Do you want to restore to the default certificates? (Y/n) ' yes_no
             else
@@ -4365,38 +4367,38 @@ restore_previous_certs() {
                [Yy]*|"")
                     restore_done=yes
                     if [[ "${restore_original_state}" == 'true' ]]; then
-                      echo -e "\\n${WHITE_R}#${RESET} Restoring to the default RADIUS certificates..."
+                      echo -e "\\n${GRAY_R}#${RESET} Restoring to the default RADIUS certificates..."
                       if [[ "${debbox}" == 'true' ]]; then
-                        if rm "/data/udapi-config/raddb/certs/server.pem" &>> "${eus_dir}/logs/restore.log" && rm "/data/udapi-config/raddb/certs/server-key.pem" &>> "${eus_dir}/logs/restore.log"; then radius_certs_remove_success=true; fi
+                        if rm "/data/udapi-config/raddb/certs/server.pem" &>> "${eus_dir}/logs/restore.log" && rm "/data/udapi-config/raddb/certs/server-key.pem" &>> "${eus_dir}/logs/restore.log"; then radius_certs_remove_success="true"; fi
                       else
-                        if ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -ql root 127.0.0.1 "rm /mnt/data/udapi-config/raddb/certs/server.pem" &>> "${eus_dir}/logs/restore.log" && ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -ql root 127.0.0.1 "rm /mnt/data/udapi-config/raddb/certs/server-key.pem" &>> "${eus_dir}/logs/restore.log"; then radius_certs_remove_success=true; fi
+                        if ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -ql root 127.0.0.1 "rm /mnt/data/udapi-config/raddb/certs/server.pem" &>> "${eus_dir}/logs/restore.log" && ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -ql root 127.0.0.1 "rm /mnt/data/udapi-config/raddb/certs/server-key.pem" &>> "${eus_dir}/logs/restore.log"; then radius_certs_remove_success="true"; fi
                       fi
                       if [[ "${radius_certs_remove_success}" == 'true' ]]; then
                         echo -e "${GREEN}#${RESET} Successfully restored to the default RADIUS certificates! \\n"
-                        echo -e "${WHITE_R}#${RESET} Restarting udapi-server..."
+                        echo -e "${GRAY_R}#${RESET} Restarting udapi-server..."
                         if [[ "${debbox}" == 'true' ]]; then
-                          if systemctl restart udapi-server &>> "${eus_dir}/logs/restore.log"; then udapi_restart_success=true; fi
+                          if systemctl restart udapi-server &>> "${eus_dir}/logs/restore.log"; then udapi_restart_success="true"; fi
                         else
-                          if ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -ql root 127.0.0.1 "/etc/init.d/S45ubios-udapi-server restart" &>> "${eus_dir}/logs/restore.log"; then udapi_restart_success=true; fi
+                          if ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -ql root 127.0.0.1 "/etc/init.d/S45ubios-udapi-server restart" &>> "${eus_dir}/logs/restore.log"; then udapi_restart_success="true"; fi
                         fi
                         if [[ "${udapi_restart_success}" == 'true' ]]; then echo -e "${GREEN}#${RESET} Successfully restarted udapi-server! \\n"; else echo -e "${RED}#${RESET} Failed to restart udapi-server... \\n${RED}#${RESET} Please reboot your UDM ASAP!\\n"; abort_reason="Failed to restart udapi-server."; abort; fi
                       else
                         abort_reason="Failed to restore to the default RADIUS certificates."; abort
                       fi
                     else
-                      echo -e "\\n${WHITE_R}#${RESET} Restoring \"/data/eus_certificates/raddb/${radius_previous_crt}\" and \"/data/eus_certificates/raddb/${radius_previous_key}\"..."
+                      echo -e "\\n${GRAY_R}#${RESET} Restoring \"/data/eus_certificates/raddb/${radius_previous_crt}\" and \"/data/eus_certificates/raddb/${radius_previous_key}\"..."
                       if [[ "${debbox}" == 'true' ]]; then
-                        if cp "/data/eus_certificates/raddb/${radius_previous_crt}" "/data/udapi-config/raddb/certs/server.pem" &>> "${eus_dir}/logs/restore.log" && cp "/data/eus_certificates/raddb/${radius_previous_key}" "/mnt/data/udapi-config/raddb/certs/server-key.pem" &>> "${eus_dir}/logs/restore.log"; then radius_certs_restore_success=true; fi
+                        if cp "/data/eus_certificates/raddb/${radius_previous_crt}" "/data/udapi-config/raddb/certs/server.pem" &>> "${eus_dir}/logs/restore.log" && cp "/data/eus_certificates/raddb/${radius_previous_key}" "/mnt/data/udapi-config/raddb/certs/server-key.pem" &>> "${eus_dir}/logs/restore.log"; then radius_certs_restore_success="true"; fi
                       else
-                        if ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -ql root 127.0.0.1 "cp /data/eus_certificates/raddb/${radius_previous_crt} /mnt/data/udapi-config/raddb/certs/server.pem" &>> "${eus_dir}/logs/restore.log" && ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -ql root 127.0.0.1 "cp /data/eus_certificates/raddb/${radius_previous_key} /mnt/data/udapi-config/raddb/certs/server-key.pem" &>> "${eus_dir}/logs/restore.log"; then radius_certs_restore_success=true; fi
+                        if ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -ql root 127.0.0.1 "cp /data/eus_certificates/raddb/${radius_previous_crt} /mnt/data/udapi-config/raddb/certs/server.pem" &>> "${eus_dir}/logs/restore.log" && ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -ql root 127.0.0.1 "cp /data/eus_certificates/raddb/${radius_previous_key} /mnt/data/udapi-config/raddb/certs/server-key.pem" &>> "${eus_dir}/logs/restore.log"; then radius_certs_restore_success="true"; fi
                       fi
                       if [[ "${radius_certs_restore_success}" == 'true' ]]; then
                         echo -e "${GREEN}#${RESET} Successfully restored \"/data/eus_certificates/raddb/${radius_previous_crt}\" and \"/data/eus_certificates/raddb/${radius_previous_key}\"! \\n"
-                        echo -e "${WHITE_R}#${RESET} Restarting udapi-server..."
+                        echo -e "${GRAY_R}#${RESET} Restarting udapi-server..."
                         if [[ "${debbox}" == 'true' ]]; then
-                          if systemctl restart udapi-server &>> "${eus_dir}/logs/restore.log"; then udapi_restart_success=true; fi
+                          if systemctl restart udapi-server &>> "${eus_dir}/logs/restore.log"; then udapi_restart_success="true"; fi
                         else
-                          if ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -ql root 127.0.0.1 "/etc/init.d/S45ubios-udapi-server restart" &>> "${eus_dir}/logs/restore.log"; then udapi_restart_success=true; fi
+                          if ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -ql root 127.0.0.1 "/etc/init.d/S45ubios-udapi-server restart" &>> "${eus_dir}/logs/restore.log"; then udapi_restart_success="true"; fi
                         fi
                         if [[ "${udapi_restart_success}" == 'true' ]]; then echo -e "${GREEN}#${RESET} Successfully restarted udapi-server! \\n"; else echo -e "${RED}#${RESET} Failed to restart udapi-server... \\n${RED}#${RESET} Please reboot your UDM ASAP!\\n"; abort_reason="Failed to restart udapi-server."; abort; fi
                       else
@@ -4411,8 +4413,8 @@ restore_previous_certs() {
           # shellcheck disable=SC2012
           if [[ -d "${eus_dir}/network/keystore_backups/" ]]; then unifi_network_previous_keystore=$(ls -t "${eus_dir}/network/keystore_backups/" | awk '{print$1}' | head -n1); fi
           if [[ -n "${unifi_network_previous_keystore}" ]]; then
-            echo -e "\\n${WHITE_R}----${RESET}\\n"
-            echo -e "${WHITE_R}#${RESET} UniFi Network Application has been detected!"
+            echo -e "\\n${GRAY_R}----${RESET}\\n"
+            echo -e "${GRAY_R}#${RESET} UniFi Network Application has been detected!"
             if [[ "${restore_original_state}" == 'true' ]]; then
               read -rp $'\033[39m#\033[0m Do you want to restore to default keystore? (Y/n) ' yes_no
             else
@@ -4422,10 +4424,10 @@ restore_previous_certs() {
                [Yy]*|"")
                   restore_done=yes
                   if [[ "${restore_original_state}" == 'true' ]]; then
-                    echo -e "\\n${WHITE_R}#${RESET} Restoring UniFi Network Application to default keystore..."
+                    echo -e "\\n${GRAY_R}#${RESET} Restoring UniFi Network Application to default keystore..."
                     if rm --force /usr/lib/unifi/data/keystore &>> "${eus_dir}/logs/restore.log"; then
                       echo -e "${GREEN}#${RESET} Successfully restored UniFi Network Application to default keystore! \\n"
-                      echo -e "${WHITE_R}#${RESET} Restarting the UniFi Network Application..."
+                      echo -e "${GRAY_R}#${RESET} Restarting the UniFi Network Application..."
                       if systemctl restart unifi &>> "${eus_dir}/logs/easy-encrypt-service-restart.log"; then
                         echo -e "${GREEN}#${RESET} Successfully restarted the UniFi Network Application! \\n"
                       else
@@ -4435,10 +4437,10 @@ restore_previous_certs() {
                       abort_reason="Failed to restore UniFi Network Application to default keystore"; abort
                     fi
                   else
-                    echo -e "\\n${WHITE_R}#${RESET} Restoring \"${eus_dir}/network/keystore_backups/${unifi_network_previous_keystore}\"..."
+                    echo -e "\\n${GRAY_R}#${RESET} Restoring \"${eus_dir}/network/keystore_backups/${unifi_network_previous_keystore}\"..."
                     if cp "${eus_dir}/network/keystore_backups/${unifi_network_previous_keystore}" /usr/lib/unifi/data/keystore &>> "${eus_dir}/logs/restore.log"; then
                       echo -e "${GREEN}#${RESET} Successfully restored \"${eus_dir}/network/keystore_backups/${unifi_network_previous_keystore}\"! \\n"
-                      echo -e "${WHITE_R}#${RESET} Restarting the UniFi Network Application..."
+                      echo -e "${GRAY_R}#${RESET} Restarting the UniFi Network Application..."
                       if systemctl restart unifi &>> "${eus_dir}/logs/easy-encrypt-service-restart.log"; then
                         echo -e "${GREEN}#${RESET} Successfully restarted the UniFi Network Application! \\n"
                       else
@@ -4456,8 +4458,8 @@ restore_previous_certs() {
           # shellcheck disable=SC2012
           if [[ -d "${eus_dir}/cloudkey/certs_backups/" ]]; then cloudkey_previous_crt=$(ls -t "${eus_dir}/cloudkey/certs_backups/" | awk '{print$1}' | grep "cloudkey.crt" | head -n1); cloudkey_previous_key=$(ls -t "${eus_dir}/cloudkey/certs_backups/" | awk '{print$1}' | grep "cloudkey.key" | head -n1); fi
           if [[ -n "${cloudkey_previous_crt}" && -n "${cloudkey_previous_key}" ]]; then
-            echo -e "\\n${WHITE_R}----${RESET}\\n"
-            echo -e "${WHITE_R}#${RESET} You seem to have a Cloud Key!"
+            echo -e "\\n${GRAY_R}----${RESET}\\n"
+            echo -e "${GRAY_R}#${RESET} You seem to have a Cloud Key!"
             if [[ "${restore_original_state}" == 'true' ]]; then
               read -rp $'\033[39m#\033[0m Do you want to restore to the default certificates? (Y/n) ' yes_no
             else
@@ -4467,10 +4469,10 @@ restore_previous_certs() {
                [Yy]*|"")
                     restore_done=yes
                     if [[ "${restore_original_state}" == 'true' ]]; then
-                      echo -e "\\n${WHITE_R}#${RESET} Restoring Cloudkey Web Interface to default certificates..."
+                      echo -e "\\n${GRAY_R}#${RESET} Restoring Cloudkey Web Interface to default certificates..."
                       if rm --force /etc/ssl/private/cloudkey.crt &>> "${eus_dir}/logs/restore.log" && rm --force /etc/ssl/private/cloudkey.key &>> "${eus_dir}/logs/restore.log" && rm --force /etc/ssl/private/unifi.keystore.jks &>> "${eus_dir}/logs/restore.log"; then
                         echo -e "${GREEN}#${RESET} Successfully restored Cloudkey Web Interface to default certificates! \\n"
-                        echo -e "${WHITE_R}#${RESET} Restarting the Cloudkey Web Interface..."
+                        echo -e "${GRAY_R}#${RESET} Restarting the Cloudkey Web Interface..."
                         if systemctl restart ubnt-unifi-setup nginx &>> "${eus_dir}/logs/easy-encrypt-service-restart.log"; then
                           echo -e "${GREEN}#${RESET} Successfully restarted Cloudkey Web Interface! \\n"
                         else
@@ -4479,7 +4481,7 @@ restore_previous_certs() {
                         if dpkg -l unifi-protect 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi"; then
                           unifi_protect_status=$(systemctl status unifi-protect | grep -i 'Active:' | awk '{print $2}')
                           if [[ "${unifi_protect_status}" == 'active' ]]; then
-                            echo -e "${WHITE_R}#${RESET} Restarting UniFi Protect..."
+                            echo -e "${GRAY_R}#${RESET} Restarting UniFi Protect..."
                              if systemctl restart unifi-protect &>> "${eus_dir}/logs/easy-encrypt-service-restart.log"; then
                               echo -e "${GREEN}#${RESET} Successfully restarted UniFi Protect! \\n"
                             else
@@ -4490,7 +4492,7 @@ restore_previous_certs() {
                         if dpkg -l unifi-led 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi"; then
                           unifi_protect_status=$(systemctl status unifi-led | grep -i 'Active:' | awk '{print $2}')
                           if [[ "${unifi_protect_status}" == 'active' ]]; then
-                            echo -e "${WHITE_R}#${RESET} Restarting UniFi LED..."
+                            echo -e "${GRAY_R}#${RESET} Restarting UniFi LED..."
                             if systemctl restart unifi-led &>> "${eus_dir}/logs/easy-encrypt-service-restart.log"; then
                               echo -e "${GREEN}#${RESET} Successfully restarted UniFi LED! \\n"
                             else
@@ -4502,10 +4504,10 @@ restore_previous_certs() {
                         abort_reason="Failed to restore Cloudkey Web Interface to default certificates."; abort
                       fi
                     else
-                      echo -e "\\n${WHITE_R}#${RESET} Restoring \"${eus_dir}/cloudkey/certs_backups/${cloudkey_previous_crt}\" and \"${eus_dir}/cloudkey/certs_backups/${cloudkey_previous_key}\"..."
+                      echo -e "\\n${GRAY_R}#${RESET} Restoring \"${eus_dir}/cloudkey/certs_backups/${cloudkey_previous_crt}\" and \"${eus_dir}/cloudkey/certs_backups/${cloudkey_previous_key}\"..."
                       if cp "${eus_dir}/cloudkey/certs_backups/${cloudkey_previous_crt}" /etc/ssl/private/cloudkey.crt &>> "${eus_dir}/logs/restore.log" && cp "${eus_dir}/cloudkey/certs_backups/${cloudkey_previous_key}" /etc/ssl/private/cloudkey.key &>> "${eus_dir}/logs/restore.log"; then
                         echo -e "${GREEN}#${RESET} Successfully restored \"${eus_dir}/cloudkey/certs_backups/${cloudkey_previous_crt}\" and \"${eus_dir}/cloudkey/certs_backups/${cloudkey_previous_key}\"! \\n"
-                        echo -e "${WHITE_R}#${RESET} Restarting the Cloudkey Web Interface..."
+                        echo -e "${GRAY_R}#${RESET} Restarting the Cloudkey Web Interface..."
                         if systemctl restart nginx &>> "${eus_dir}/logs/easy-encrypt-service-restart.log"; then
                           echo -e "${GREEN}#${RESET} Successfully restarted Cloudkey Web Interface! \\n"
                         else
@@ -4514,7 +4516,7 @@ restore_previous_certs() {
                         if dpkg -l unifi-protect 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi"; then
                           unifi_protect_status=$(systemctl status unifi-protect | grep -i 'Active:' | awk '{print $2}')
                           if [[ "${unifi_protect_status}" == 'active' ]]; then
-                            echo -e "${WHITE_R}#${RESET} Restarting UniFi Protect..."
+                            echo -e "${GRAY_R}#${RESET} Restarting UniFi Protect..."
                              if systemctl restart unifi-protect &>> "${eus_dir}/logs/easy-encrypt-service-restart.log"; then
                               echo -e "${GREEN}#${RESET} Successfully restarted UniFi Protect! \\n"
                             else
@@ -4525,7 +4527,7 @@ restore_previous_certs() {
                         if dpkg -l unifi-led 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi"; then
                           unifi_protect_status=$(systemctl status unifi-led | grep -i 'Active:' | awk '{print $2}')
                           if [[ "${unifi_protect_status}" == 'active' ]]; then
-                            echo -e "${WHITE_R}#${RESET} Restarting UniFi LED..."
+                            echo -e "${GRAY_R}#${RESET} Restarting UniFi LED..."
                             if systemctl restart unifi-led &>> "${eus_dir}/logs/easy-encrypt-service-restart.log"; then
                               echo -e "${GREEN}#${RESET} Successfully restarted UniFi LED! \\n"
                             else
@@ -4543,16 +4545,16 @@ restore_previous_certs() {
               # shellcheck disable=SC2012
               if [[ -d "${eus_dir}/talk/certs_backups/" ]]; then cloudkey_talk_previous_server_pem=$(ls -t "${eus_dir}/talk/certs_backups/" | awk '{print$1}' | grep "server.pem" | head -n1); fi
               if [[ -n "${cloudkey_talk_previous_server_pem}" ]]; then
-                echo -e "\\n${WHITE_R}----${RESET}\\n"
-                echo -e "${WHITE_R}#${RESET} UniFi-Talk has been detected!"
+                echo -e "\\n${GRAY_R}----${RESET}\\n"
+                echo -e "${GRAY_R}#${RESET} UniFi-Talk has been detected!"
                 read -rp $'\033[39m#\033[0m Do you want to restore the previous SSL certificate? (Y/n) ' yes_no
                 case "$yes_no" in
                    [Yy]*|"")
                       restore_done=yes
-                      echo -e "\\n${WHITE_R}#${RESET} Restoring \"${eus_dir}/talk/certs_backups/${cloudkey_talk_previous_server_pem}\"..."
+                      echo -e "\\n${GRAY_R}#${RESET} Restoring \"${eus_dir}/talk/certs_backups/${cloudkey_talk_previous_server_pem}\"..."
                       if cp "${eus_dir}/talk/certs_backups/${cloudkey_talk_previous_server_pem}" /usr/share/unifi-talk/app/certs/server.pem &>> "${eus_dir}/logs/restore.log"; then
                         echo -e "${GREEN}#${RESET} Successfully restored \"${eus_dir}/talk/certs_backups/${cloudkey_talk_previous_server_pem}\"! \\n"
-                        echo -e "${WHITE_R}#${RESET} Restarting UniFi Talk..."
+                        echo -e "${GRAY_R}#${RESET} Restarting UniFi Talk..."
                         if systemctl restart unifi-talk &>> "${eus_dir}/logs/easy-encrypt-service-restart.log"; then
                           echo -e "${GREEN}#${RESET} Successfully restarted UniFi Talk! \\n"
                         else
@@ -4571,16 +4573,16 @@ restore_previous_certs() {
           # shellcheck disable=SC2012
           if [[ -d "${eus_dir}/uas/certs_backups/" ]]; then uas_previous_crt=$(ls -t "${eus_dir}/uas/certs_backups/" | awk '{print$1}' | grep "uas.crt" | head -n1); uas_previous_key=$(ls -t "${eus_dir}/uas/certs_backups/" | awk '{print$1}' | grep "uas.key" | head -n1); fi
           if [[ -n "${uas_previous_crt}" && -n "${uas_previous_key}" ]]; then
-            echo -e "\\n${WHITE_R}----${RESET}\\n"
-            echo -e "${WHITE_R}#${RESET} You seem to have a UniFi Application Server!"
+            echo -e "\\n${GRAY_R}----${RESET}\\n"
+            echo -e "${GRAY_R}#${RESET} You seem to have a UniFi Application Server!"
             read -rp $'\033[39m#\033[0m Do you want to restore the previous SSL certificates? (Y/n) ' yes_no
             case "$yes_no" in
                [Yy]*|"")
                   restore_done=yes
-                  echo -e "\\n${WHITE_R}#${RESET} Restoring \"${eus_dir}/uas/certs_backups/${uas_previous_crt}\" and \"${eus_dir}/uas/certs_backups/${uas_previous_key}\"..."
+                  echo -e "\\n${GRAY_R}#${RESET} Restoring \"${eus_dir}/uas/certs_backups/${uas_previous_crt}\" and \"${eus_dir}/uas/certs_backups/${uas_previous_key}\"..."
                   if cp "${eus_dir}/uas/certs_backups/${uas_previous_crt}" /etc/uas/uas.crt &>> "${eus_dir}/logs/restore.log" && cp "${eus_dir}/uas/certs_backups/${uas_previous_key}" /etc/uas/uas.key &>> "${eus_dir}/logs/restore.log"; then
                     echo -e "${GREEN}#${RESET} Successfully restored \"${eus_dir}/uas/certs_backups/${uas_previous_crt}\" and \"${eus_dir}/uas/certs_backups/${uas_previous_key}\"! \\n"
-                    echo -e "${WHITE_R}#${RESET} Restarting the UAS Web Interface..."
+                    echo -e "${GRAY_R}#${RESET} Restarting the UAS Web Interface..."
                     if systemctl restart uas &>> "${eus_dir}/logs/easy-encrypt-service-restart.log"; then
                       echo -e "${GREEN}#${RESET} Successfully restarted UAS Web Interface! \\n"
                     else
@@ -4597,8 +4599,8 @@ restore_previous_certs() {
               if [[ -n "${uas_led_previous_server_pem}" ]]; then
                 if dpkg -l | awk '{print $2}' | grep -iq "^docker.io\\|^docker-ce"; then
                   if docker ps -a | grep -iq 'ubnt/eot'; then
-                    echo -e "\\n${WHITE_R}----${RESET}\\n"
-                    echo -e "${WHITE_R}#${RESET} UniFi-LED has been detected!"
+                    echo -e "\\n${GRAY_R}----${RESET}\\n"
+                    echo -e "${GRAY_R}#${RESET} UniFi-LED has been detected!"
                     read -rp $'\033[39m#\033[0m Do you want to restore the previous SSL certificates? (Y/n) ' yes_no
                     case "$yes_no" in
                         [Yy]*|"")
@@ -4606,10 +4608,10 @@ restore_previous_certs() {
                            eot_container=$(docker ps -a | grep -i "ubnt/eot" | awk '{print $1}')
                            eot_container_name="ueot"
                            if [[ -n "${eot_container}" ]]; then
-                             echo -e "\\n${WHITE_R}#${RESET} Restoring \"${eus_dir}/eot/certs_backups/${uas_led_previous_server_pem}\"..."
+                             echo -e "\\n${GRAY_R}#${RESET} Restoring \"${eus_dir}/eot/certs_backups/${uas_led_previous_server_pem}\"..."
                              if docker cp "${eus_dir}/eot/certs_backups/${uas_led_previous_server_pem}" "${eot_container}:/app/certs/server.pem" &>> "${eus_dir}/logs/restore.log"; then
                                echo -e "${GREEN}#${RESET} Successfully restored \"${eus_dir}/eot/certs_backups/${uas_led_previous_server_pem}\"! \\n"
-                               echo -e "${WHITE_R}#${RESET} Restarting the UniFi LED container..."
+                               echo -e "${GRAY_R}#${RESET} Restarting the UniFi LED container..."
                                if docker restart "${eot_container_name}" &>> "${eus_dir}/eot/ueot_container_restart"; then
                                  echo -e "${GREEN}#${RESET} Successfully restarted the UniFi LED container! \\n"
                                else
@@ -4633,16 +4635,16 @@ restore_previous_certs() {
           # shellcheck disable=SC2012
           if [[ -d "${eus_dir}/video/keystore_backups/" ]]; then unifi_video_previous_cert=$(ls -t "${eus_dir}/video/keystore_backups/" | awk '{print$1}' | grep "keystore" | head -n1); unifi_video_previous_key=$(ls -t "${eus_dir}/video/keystore_backups/" | awk '{print$1}' | grep "ufv-truststore" | head -n1); fi
           if [[ -n "${unifi_video_previous_cert}" && -n "${unifi_video_previous_key}" && "${restore_original_state}" != 'true' ]]; then
-            echo -e "\\n${WHITE_R}----${RESET}\\n"
-            echo -e "${WHITE_R}#${RESET} UniFi-Video has been detected!"
+            echo -e "\\n${GRAY_R}----${RESET}\\n"
+            echo -e "${GRAY_R}#${RESET} UniFi-Video has been detected!"
             read -rp $'\033[39m#\033[0m Do you want to restore the previous SSL certificates? (Y/n) ' yes_no
             case "$yes_no" in
                [Yy]*|"")
                   restore_done=yes
-                  echo -e "\\n${WHITE_R}#${RESET} Restoring \"${eus_dir}/video/keystore_backups/${unifi_video_previous_cert}\" and \"${eus_dir}/video/keystore_backups/${unifi_video_previous_key}\"..."
+                  echo -e "\\n${GRAY_R}#${RESET} Restoring \"${eus_dir}/video/keystore_backups/${unifi_video_previous_cert}\" and \"${eus_dir}/video/keystore_backups/${unifi_video_previous_key}\"..."
                   if cp "${eus_dir}/video/keystore_backups/${unifi_video_previous_cert}" /usr/lib/unifi-video/data/certificates/ufv-server.cert.der &>> "${eus_dir}/logs/restore.log" && cp "${eus_dir}/video/keystore_backups/${unifi_video_previous_key}" /usr/lib/unifi-video/data/certificates/ufv-server.key.der &>> "${eus_dir}/logs/restore.log"; then
                     echo -e "${GREEN}#${RESET} Successfully restored \"${eus_dir}/video/keystore_backups/${unifi_video_previous_cert}\" and \"${eus_dir}/video/keystore_backups/${unifi_video_previous_key}\"! \\n"
-                    echo -e "${WHITE_R}#${RESET} Restarting UniFi video..."
+                    echo -e "${GRAY_R}#${RESET} Restarting UniFi video..."
                     if systemctl restart uas &>> "${eus_dir}/logs/easy-encrypt-service-restart.log"; then
                       echo -e "${GREEN}#${RESET} Successfully restarted UniFi video! \\n"
                     else
@@ -4655,16 +4657,16 @@ restore_previous_certs() {
             esac
           else
             if grep -iq "^ufv.custom.certs.enable=true" /usr/lib/unifi-video/data/system.properties; then
-              echo -e "\\n${WHITE_R}----${RESET}\\n"
-              echo -e "${WHITE_R}#${RESET} UniFi-Video has been detected!"
+              echo -e "\\n${GRAY_R}----${RESET}\\n"
+              echo -e "${GRAY_R}#${RESET} UniFi-Video has been detected!"
               read -rp $'\033[39m#\033[0m Do you want to restore to the default SSL certificates? (Y/n) ' yes_no
               case "$yes_no" in
                  [Yy]*|"")
                     restore_done=yes
-                    echo -e "\\n${WHITE_R}#${RESET} Restoring to default UniFi Video certificates..."
+                    echo -e "\\n${GRAY_R}#${RESET} Restoring to default UniFi Video certificates..."
                     if sed -i "s/ufv.custom.certs.enable=true/ufv.custom.certs.enable=false/g" /usr/lib/unifi-video/data/system.properties &>> "${eus_dir}/logs/restore.log"; then
                       echo -e "${GREEN}#${RESET} Successfully set custom certificates for UniFi Video to false! \\n"
-                      echo -e "${WHITE_R}#${RESET} Restarting UniFi Video..."
+                      echo -e "${GRAY_R}#${RESET} Restarting UniFi Video..."
                       if systemctl restart unifi-video &>> "${eus_dir}/logs/easy-encrypt-service-restart.log"; then
                         echo -e "${GREEN}#${RESET} Successfully restarted UniFi Video! \\n"
                       else
@@ -4684,8 +4686,8 @@ restore_previous_certs() {
           if [[ -n "${uas_led_previous_server_pem}" ]]; then
             if dpkg -l | awk '{print $2}' | grep -iq "^docker.io\\|^docker-ce"; then
               if docker ps -a | grep -iq 'ubnt/eot'; then
-                echo -e "\\n${WHITE_R}----${RESET}\\n"
-                echo -e "${WHITE_R}#${RESET} UniFi-LED has been detected!"
+                echo -e "\\n${GRAY_R}----${RESET}\\n"
+                echo -e "${GRAY_R}#${RESET} UniFi-LED has been detected!"
                 read -rp $'\033[39m#\033[0m Do you want to restore the previous SSL certificates? (Y/n) ' yes_no
                 case "$yes_no" in
                     [Yy]*|"")
@@ -4693,10 +4695,10 @@ restore_previous_certs() {
                        eot_container=$(docker ps -a | grep -i "ubnt/eot" | awk '{print $1}')
                        eot_container_name="ueot"
                        if [[ -n "${eot_container}" ]]; then
-                         echo -e "\\n${WHITE_R}#${RESET} Restoring \"${eus_dir}/eot/certs_backups/${uas_led_previous_server_pem}\"..."
+                         echo -e "\\n${GRAY_R}#${RESET} Restoring \"${eus_dir}/eot/certs_backups/${uas_led_previous_server_pem}\"..."
                          if docker cp "${eus_dir}/eot/certs_backups/${uas_led_previous_server_pem}" "${eot_container}:/app/certs/server.pem" &>> "${eus_dir}/logs/restore.log"; then
                            echo -e "${GREEN}#${RESET} Successfully restored \"${eus_dir}/eot/certs_backups/${uas_led_previous_server_pem}\"! \\n"
-                           echo -e "${WHITE_R}#${RESET} Restarting the UniFi LED container..."
+                           echo -e "${GRAY_R}#${RESET} Restarting the UniFi LED container..."
                            if docker restart "${eot_container_name}" &>> "${eus_dir}/eot/ueot_container_restart"; then
                              echo -e "${GREEN}#${RESET} Successfully restarted the UniFi LED container! \\n"
                            else
@@ -4716,7 +4718,7 @@ restore_previous_certs() {
         fi;;
      [Nn]*|"")
         header
-        echo -e "${WHITE_R}#${RESET} Canceling restore certificates... \\n"
+        echo -e "${GRAY_R}#${RESET} Canceling restore certificates... \\n"
         author
         exit 0;;
   esac
@@ -4842,8 +4844,8 @@ EOF
 
 if dpkg -l unifi-core 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi"; then
   if grep -sq unifi-native /mnt/.rofs/var/lib/dpkg/status; then unifi_native_system="true"; fi
-  unifi_core_system=true
-  if grep -ioq "udm" /usr/lib/version; then udm_device=true; fi
+  unifi_core_system="true"
+  if grep -ioq "udm" /usr/lib/version; then udm_device="true"; fi
   if dpkg -l uid-agent 2> /dev/null | grep -iq "^ii\\|^hi"; then uid_agent=$(curl -s http://localhost:11081/api/controllers | jq '.[] | select(.name == "uid-agent").isConfigured'); fi
   if [[ -f /usr/lib/version ]]; then unifi_core_device_version=$(grep -ioE "v[0-9]{1,9}.[0-9]{1,9}.[0-9]{1,9}" /usr/lib/version | sed 's/v//g'); fi
   if [[ "$(echo "${unifi_core_device_version}" | cut -d'.' -f1)" == "1" ]]; then debbox="false"; else debbox="true"; fi
@@ -4863,45 +4865,45 @@ remove_old_post_pre_hook() {
     if ! [[ -d /tmp/EUS/hook/ ]]; then mkdir -p /tmp/EUS/hook/ &> /dev/null; fi
     find /etc/letsencrypt/renewal-hooks/post/ /etc/letsencrypt/renewal-hooks/pre/ -printf "%f\\n" | sed -e '/post/d' -e '/pre/d' -e "/EUS_${server_fqdn}.sh/d" | awk '!NF || !seen[$0]++' | grep -io "EUS.*.sh" &> /tmp/EUS/hook/list
     header
-    echo -e "${WHITE_R}#${RESET} You seem to have multiple post/pre hook scripts for multiple domains."
-    echo -e "${WHITE_R}#${RESET} Having multiple post/pre hook scripts can result in older domain/certificates being used. \\n"
-    echo -e "${WHITE_R}#${RESET} post/pre scripts:"
-    while read -r script_file_name; do echo -e "${WHITE_R}-${RESET} \"${script_file_name}\""; done < /tmp/EUS/hook/list
-    echo -e "\\n\\n${WHITE_R}#${RESET} What would you like to do with those scripts?\\n"
-    echo -e " [   ${WHITE_R}1${RESET}   ]  |  Remove them"
-    echo -e " [   ${WHITE_R}2${RESET}   ]  |  Let me choose which to remove"
-    echo -e " [   ${WHITE_R}3${RESET}   ]  |  Do nothing\\n\\n"
+    echo -e "${GRAY_R}#${RESET} You seem to have multiple post/pre hook scripts for multiple domains."
+    echo -e "${GRAY_R}#${RESET} Having multiple post/pre hook scripts can result in older domain/certificates being used. \\n"
+    echo -e "${GRAY_R}#${RESET} post/pre scripts:"
+    while read -r script_file_name; do echo -e "${GRAY_R}-${RESET} \"${script_file_name}\""; done < /tmp/EUS/hook/list
+    echo -e "\\n\\n${GRAY_R}#${RESET} What would you like to do with those scripts?\\n"
+    echo -e " [   ${GRAY_R}1${RESET}   ]  |  Remove them"
+    echo -e " [   ${GRAY_R}2${RESET}   ]  |  Let me choose which to remove"
+    echo -e " [   ${GRAY_R}3${RESET}   ]  |  Do nothing\\n\\n"
     read -rp $'Your choice | \033[39m' choice
     case "$choice" in
         1*|"")
-          echo -e "\\n${WHITE_R}----${RESET}\\n\\n${WHITE_R}#${RESET} Removing the post/pre hook scripts... \\n\\n${WHITE_R}----${RESET}\\n"
+          echo -e "\\n${GRAY_R}----${RESET}\\n\\n${GRAY_R}#${RESET} Removing the post/pre hook scripts... \\n\\n${GRAY_R}----${RESET}\\n"
           while read -r script; do
             if [[ -f "/etc/letsencrypt/renewal-hooks/post/${script}" ]]; then
-              echo -e "${WHITE_R}#${RESET} Removing \"/etc/letsencrypt/renewal-hooks/post/${script}\"..."
+              echo -e "${GRAY_R}#${RESET} Removing \"/etc/letsencrypt/renewal-hooks/post/${script}\"..."
               if rm --force "/etc/letsencrypt/renewal-hooks/post/${script}"; then echo -e "${GREEN}#${RESET} Successfully removed \"/etc/letsencrypt/renewal-hooks/post/${script}\"! \\n"; else echo -e "${RED}#${RESET} Failed to remove \"/etc/letsencrypt/renewal-hooks/post/${script}\"... \\n"; fi
             elif [[ -f "/etc/letsencrypt/renewal-hooks/pre/${script}" ]]; then
-              echo -e "${WHITE_R}#${RESET} Removing \"/etc/letsencrypt/renewal-hooks/pre/${script}\"..."
+              echo -e "${GRAY_R}#${RESET} Removing \"/etc/letsencrypt/renewal-hooks/pre/${script}\"..."
               if rm --force "/etc/letsencrypt/renewal-hooks/pre/${script}"; then echo -e "${GREEN}#${RESET} Successfully removed \"/etc/letsencrypt/renewal-hooks/pre/${script}\"! \\n"; else echo -e "${RED}#${RESET} Failed to remove \"/etc/letsencrypt/renewal-hooks/pre/${script}\"... \\n"; fi
             fi
           done < /tmp/EUS/hook/list;;
         2*)
           header
-          echo -e "${WHITE_R}#${RESET} Please enter the name of the script ( FQDN ) that you want to remove below.\\n${WHITE_R}#${RESET} That is without \"EUS_\" and \".sh\"\\n\\n${WHITE_R}#${RESET} Examples:"
-          while read -r script_file_name; do script_file_name=$(echo "${script_file_name}" | sed -e 's/EUS_//g' -e 's/.sh//g'); echo -e "${WHITE_R}-${RESET} \"${script_file_name}\""; done < /tmp/EUS/hook/list
+          echo -e "${GRAY_R}#${RESET} Please enter the name of the script ( FQDN ) that you want to remove below.\\n${GRAY_R}#${RESET} That is without \"EUS_\" and \".sh\"\\n\\n${GRAY_R}#${RESET} Examples:"
+          while read -r script_file_name; do script_file_name=$(echo "${script_file_name}" | sed -e 's/EUS_//g' -e 's/.sh//g'); echo -e "${GRAY_R}-${RESET} \"${script_file_name}\""; done < /tmp/EUS/hook/list
           echo ""
           read -rp $'Script Name | \033[39m' script_file_name_remove
-          echo -e "\\n${WHITE_R}----${RESET}\\n"
+          echo -e "\\n${GRAY_R}----${RESET}\\n"
 		  read -rp $'\033[39m#\033[0m You want to remove script: '"EUS_${script_file_name_remove}.sh"', is that correct? (Y/n) ' yes_no
           case "$yes_no" in
              [Yy]*|"") 
                 if grep -iq "EUS_${script_file_name_remove}.sh" /tmp/EUS/hook/list; then
-                  echo -e "\\n${WHITE_R}----${RESET}\\n\\n${WHITE_R}#${RESET} Removing post/pre hook script \"EUS_${script_file_name_remove}.sh\"... \\n\\n${WHITE_R}----${RESET}\\n"
+                  echo -e "\\n${GRAY_R}----${RESET}\\n\\n${GRAY_R}#${RESET} Removing post/pre hook script \"EUS_${script_file_name_remove}.sh\"... \\n\\n${GRAY_R}----${RESET}\\n"
                   while read -r script; do
                     if [[ -f "/etc/letsencrypt/renewal-hooks/post/EUS_${script_file_name_remove}.sh" ]]; then
-                      echo -e "${WHITE_R}#${RESET} Removing \"/etc/letsencrypt/renewal-hooks/post/EUS_${script_file_name_remove}.sh\"..."
+                      echo -e "${GRAY_R}#${RESET} Removing \"/etc/letsencrypt/renewal-hooks/post/EUS_${script_file_name_remove}.sh\"..."
                       if rm --force "/etc/letsencrypt/renewal-hooks/post/EUS_${script_file_name_remove}.sh"; then echo -e "${GREEN}#${RESET} Successfully removed \"/etc/letsencrypt/renewal-hooks/post/EUS_${script_file_name_remove}.sh\"! \\n"; else echo -e "${RED}#${RESET} Failed to remove \"/etc/letsencrypt/renewal-hooks/post/EUS_${script_file_name_remove}.sh\"... \\n"; fi
                     elif [[ -f "/etc/letsencrypt/renewal-hooks/pre/EUS_${script_file_name_remove}.sh" ]]; then
-                      echo -e "${WHITE_R}#${RESET} Removing \"/etc/letsencrypt/renewal-hooks/pre/EUS_${script_file_name_remove}.sh\"..."
+                      echo -e "${GRAY_R}#${RESET} Removing \"/etc/letsencrypt/renewal-hooks/pre/EUS_${script_file_name_remove}.sh\"..."
                       if rm --force "/etc/letsencrypt/renewal-hooks/pre/EUS_${script_file_name_remove}.sh"; then echo -e "${GREEN}#${RESET} Successfully removed \"/etc/letsencrypt/renewal-hooks/pre/EUS_${script_file_name_remove}.sh\"! \\n"; else echo -e "${RED}#${RESET} Failed to remove \"/etc/letsencrypt/renewal-hooks/pre/EUS_${script_file_name_remove}.sh\"... \\n"; fi
                     else
                       echo -e "${YELLOW}#${RESET} Script \"EUS_${script_file_name_remove}.sh\" does not exist..."
@@ -4926,7 +4928,7 @@ remove_old_post_pre_hook() {
 }
 
 lets_encrypt() {
-  if [[ "${script_option_skip}" != 'true' ]]; then header; echo -e "${WHITE_R}#${RESET} Heck yeah! I want to secure my setup with a SSL certificate!"; sleep 3; fi
+  if [[ "${script_option_skip}" != 'true' ]]; then header; echo -e "${GRAY_R}#${RESET} Heck yeah! I want to secure my setup with a SSL certificate!"; sleep 3; fi
   if [[ "${script_option_fqdn}" == 'true' ]]; then fqdn_option; fi
   # shellcheck disable=SC2012
   ls -t "${eus_dir}/logs/lets_encrypt_*.log" 2> /dev/null | awk 'NR>2' | xargs rm -f &> /dev/null
@@ -4940,10 +4942,10 @@ lets_encrypt() {
     if [[ "${debbox}" == 'true' ]]; then
       # shellcheck disable=SC2010
       if [[ -d "/data/udapi-config/raddb/certs/" ]]; then
-        if ls -la /data/udapi-config/raddb/certs/ | grep -iq "server.pem\\|server-key.pem" && [[ "${script_option_skip}" != 'true' ]]; then radius_certs_available=true; fi
+        if ls -la /data/udapi-config/raddb/certs/ | grep -iq "server.pem\\|server-key.pem" && [[ "${script_option_skip}" != 'true' ]]; then radius_certs_available="true"; fi
       fi
     else
-      if ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -ql root 127.0.0.1 "ls -la /mnt/data/udapi-config/raddb/certs/" | grep -iq "server.pem\\|server-key.pem" && [[ "${script_option_skip}" != 'true' ]]; then radius_certs_available=true; fi
+      if ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -ql root 127.0.0.1 "ls -la /mnt/data/udapi-config/raddb/certs/" | grep -iq "server.pem\\|server-key.pem" && [[ "${script_option_skip}" != 'true' ]]; then radius_certs_available="true"; fi
     fi
     if [[ "${radius_certs_available}" == 'true' ]]; then
       header
@@ -4959,7 +4961,7 @@ lets_encrypt() {
   le_post_hook
   le_pre_hook
   header
-  echo -e "${WHITE_R}#${RESET} Checking for existing certificates and preparing for the challenge..."
+  echo -e "${GRAY_R}#${RESET} Checking for existing certificates and preparing for the challenge..."
   sleep 3
   echo "-d ${server_fqdn}" &>> "${eus_dir}/le_domain_list"
   if [[ "${multiple_fqdn_resolved}" == 'true' ]]; then while read -r domain; do echo "--domain ${domain}" >> "${eus_dir}/le_domain_list"; done < "${eus_dir}/other_domain_records"; fi
@@ -4997,8 +4999,8 @@ lets_encrypt() {
     expire_date=$(grep -i "Expiry Date:" "${eus_dir}/certificates" | grep -i "${le_fqdn}" | awk '{print $3}' | tail -n1)
     if [[ "${run_force_renew}" == 'true' ]] || [[ "${valid_days}" == 'EXPIRED' ]] || [[ "${valid_days}" -lt '30' ]]; then
       echo -e "\\n${GREEN}----${RESET}\\n"
-      if [[ "${valid_days}" == 'EXPIRED' ]]; then echo -e "${WHITE_R}#${RESET} Your certificates for '${server_fqdn}' are already EXPIRED!"; else echo -e "${WHITE_R}#${RESET} Your certificates for '${server_fqdn}' expire in ${valid_days} days..."; fi
-      if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Do you want to force renew the certficiates? (Y/n) ' yes_no; elif [[ "${script_option_renew}" != 'true' ]]; then echo -e "${WHITE_R}#${RESET} No... I don't want to force renew my certificates"; else echo -e "${WHITE_R}#${RESET} Yes, I want to force renew the certificates!"; fi
+      if [[ "${valid_days}" == 'EXPIRED' ]]; then echo -e "${GRAY_R}#${RESET} Your certificates for '${server_fqdn}' are already EXPIRED!"; else echo -e "${GRAY_R}#${RESET} Your certificates for '${server_fqdn}' expire in ${valid_days} days..."; fi
+      if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Do you want to force renew the certficiates? (Y/n) ' yes_no; elif [[ "${script_option_renew}" != 'true' ]]; then echo -e "${GRAY_R}#${RESET} No... I don't want to force renew my certificates"; else echo -e "${GRAY_R}#${RESET} Yes, I want to force renew the certificates!"; fi
       case "$yes_no" in
           [Yy]*|"")
               renewal_option="--force-renewal"
@@ -5009,7 +5011,7 @@ lets_encrypt() {
       esac
     elif [[ "${valid_days}" -ge '30' ]]; then
       echo -e "\\n${GREEN}----${RESET}\\n"
-      echo -e "${WHITE_R}#${RESET} You already seem to have certificates for '${server_fqdn}', those expire in ${valid_days} days..."
+      echo -e "${GRAY_R}#${RESET} You already seem to have certificates for '${server_fqdn}', those expire in ${valid_days} days..."
       if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Would you like to import the existing certificates? (Y/n) ' yes_no; fi
       case "$yes_no" in
            [Yy]*|"")
@@ -5172,7 +5174,7 @@ add_repositories() {
 
 while [ -n "\$1" ]; do
   case "\$1" in
-  --force-dpkg) script_option_force_dpkg=true;;
+  --force-dpkg) script_option_force_dpkg="true";;
   esac
   shift
 done
@@ -5304,8 +5306,8 @@ EOF
   fi
   if [[ "${run_uck_scripts}" == 'true' ]]; then
     if [[ "${is_cloudkey}" == 'true' ]]; then
-      echo -e "\\n${WHITE_R}----${RESET}\\n"
-      echo -e "${WHITE_R}#${RESET} Creating required scripts and adding them as cronjobs!"
+      echo -e "\\n${GRAY_R}----${RESET}\\n"
+      echo -e "${GRAY_R}#${RESET} Creating required scripts and adding them as cronjobs!"
       mkdir -p /srv/EUS/cronjob
       if dpkg --print-architecture | grep -iq 'armhf'; then
         touch /usr/lib/eus &>/dev/null
@@ -5399,8 +5401,8 @@ EOF
   echo ""
   echo ""
   if [[ "${script_timeout_http}" == 'true' ]]; then
-    echo -e "${WHITE_R}#${RESET} A DNS challenge requires you to add a TXT record to your domain register. ( NO AUTO RENEWING )"
-    echo -e "${WHITE_R}#${RESET} The DNS challenge is only recommend for users where the ISP blocks port 80. ( rare occasions )"
+    echo -e "${GRAY_R}#${RESET} A DNS challenge requires you to add a TXT record to your domain register. ( NO AUTO RENEWING )"
+    echo -e "${GRAY_R}#${RESET} The DNS challenge is only recommend for users where the ISP blocks port 80. ( rare occasions )"
     echo ""
     read -rp $'\033[39m#\033[0m Would you like to use the DNS challenge? (Y/n) ' yes_no
     case "$yes_no" in
@@ -5425,8 +5427,8 @@ EOF
 
 # shellcheck disable=SC2120
 paid_certificate_uc_ck() {
-  echo -e "\\n${WHITE_R}----${RESET}\\n"
-  echo -e "${WHITE_R}#${RESET} Creating required scripts and adding them as cronjobs!"
+  echo -e "\\n${GRAY_R}----${RESET}\\n"
+  echo -e "${GRAY_R}#${RESET} Creating required scripts and adding them as cronjobs!"
   if ! [[ -d "/srv/EUS/cronjob" ]]; then mkdir -p /srv/EUS/cronjob; fi
   if ! [[ -f "/usr/lib/eus" ]]; then touch /usr/lib/eus &>/dev/null; fi
   cat /usr/lib/version &> /srv/EUS/cloudkey/version
@@ -5511,21 +5513,21 @@ backup_paid_certificate() {
   if [[ "$(find "${eus_dir}/paid-certificates/" -maxdepth 1 -not -type d | wc -l)" -ge '1' ]]; then header; fi
   while read -r cert_file; do
     if ! [[ -d "${eus_dir}/paid-certificates/backup_${time_date}/" ]]; then mkdir -p "${eus_dir}/paid-certificates/backup_${time_date}/"; fi
-    echo -e "${WHITE_R}#${RESET} Backing up \"${cert_file}\"..."
+    echo -e "${GRAY_R}#${RESET} Backing up \"${cert_file}\"..."
     if mv "${cert_file}" "${eus_dir}/paid-certificates/backup_${time_date}/${cert_file##*/}"; then echo -e "${GREEN}#${RESET} Successfully backed up \"${cert_file}\"! \\n"; else abort_reason="Failed to back up ${cert_file}."; abort; fi
   done < <(find "${eus_dir}/paid-certificates/" -maxdepth 1 -type f)
   amount_backup_folders=$(find "${eus_dir}/paid-certificates/" -maxdepth 1 -type d | grep -ci "backup_.*")
   if [[ "${amount_backup_folders}" -gt 10 ]]; then
-    echo -e "\\n${WHITE_R}----${RESET}\\n"
-    echo -e "${WHITE_R}#${RESET} You seem to have more then 10 paid-certificate backups..."
-    echo -e "${WHITE_R}#${RESET} In those backups you can find the certificates that were used on your setup ( imported )."
+    echo -e "\\n${GRAY_R}----${RESET}\\n"
+    echo -e "${GRAY_R}#${RESET} You seem to have more then 10 paid-certificate backups..."
+    echo -e "${GRAY_R}#${RESET} In those backups you can find the certificates that were used on your setup ( imported )."
     if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Do you want to remove older backup folders and keep the last 3? (Y/n) ' yes_no; fi
     case "$yes_no" in
         [Yy]*|"")
            # shellcheck disable=SC2012
            find "${eus_dir}/paid-certificates/" -type d -exec stat -c '%X %n' {} \; | sort -nr | grep -i "${eus_dir}/paid-certificates/backup_.*" | awk 'NR>3 {print $2}' &> "${eus_dir}/paid-certificates/list.tmp"
            while read -r folder; do
-             echo -e "${WHITE_R}#${RESET} Removing \"${folder}\"..."
+             echo -e "${GRAY_R}#${RESET} Removing \"${folder}\"..."
              if rm -r "${folder}" &> /dev/null; then echo -e "${GREEN}#${RESET} Successfully removed \"${folder}\"! \\n"; else abort_reason="Failed to remove ${folder}."; abort; fi
            done < "${eus_dir}/paid-certificates/list.tmp"
            rm --force "${eus_dir}/paid-certificates/list.tmp" &> /dev/null;;
@@ -5536,73 +5538,73 @@ backup_paid_certificate() {
 
 paid_certificate() {
   if ! [[ -d "${eus_dir}/paid-certificates" ]]; then mkdir -p "${eus_dir}/paid-certificates" &> /dev/null; fi
-  if [[ "${is_cloudkey}" == 'true' ]] && [[ "${unifi_core_system}" != 'true' ]] && dpkg -l unifi-talk 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi"; then create_eus_certificates_file=true; fi
-  if dpkg -l uas-led 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi" && [[ "${unifi_core_system}" != 'true' ]]; then if dpkg -l | awk '{print $2}' | grep -iq "^docker.io\\|^docker-ce"; then if docker ps -a | grep -iq 'ubnt/eot'; then create_eus_certificates_file=true; fi; fi; fi
-  if [[ "${is_cloudkey}" == 'true' ]] && [[ "${unifi_core_system}" != 'true' ]]; then create_eus_crt_file=true; create_eus_key_file=true; fi
-  if [[ "${unifi_core_system}" == 'true' ]]; then create_eus_crt_file=true; create_eus_key_file=true; fi
-  if dpkg -l | grep -iq "\\bUAS\\b\\|UniFi Application Server" && [[ "${unifi_core_system}" != 'true' ]]; then create_eus_crt_file=true; create_eus_key_file=true; fi
-  if dpkg -l unifi-video 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi" && [[ "${unifi_core_system}" != 'true' ]]; then create_ufv_crts=true; fi
+  if [[ "${is_cloudkey}" == 'true' ]] && [[ "${unifi_core_system}" != 'true' ]] && dpkg -l unifi-talk 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi"; then create_eus_certificates_file="true"; fi
+  if dpkg -l uas-led 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi" && [[ "${unifi_core_system}" != 'true' ]]; then if dpkg -l | awk '{print $2}' | grep -iq "^docker.io\\|^docker-ce"; then if docker ps -a | grep -iq 'ubnt/eot'; then create_eus_certificates_file="true"; fi; fi; fi
+  if [[ "${is_cloudkey}" == 'true' ]] && [[ "${unifi_core_system}" != 'true' ]]; then create_eus_crt_file="true"; create_eus_key_file="true"; fi
+  if [[ "${unifi_core_system}" == 'true' ]]; then create_eus_crt_file="true"; create_eus_key_file="true"; fi
+  if dpkg -l | grep -iq "\\bUAS\\b\\|UniFi Application Server" && [[ "${unifi_core_system}" != 'true' ]]; then create_eus_crt_file="true"; create_eus_key_file="true"; fi
+  if dpkg -l unifi-video 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi" && [[ "${unifi_core_system}" != 'true' ]]; then create_ufv_crts="true"; fi
   backup_paid_certificate
   header
-  paid_cert=true
+  paid_cert="true"
   if [[ -f "${chain_crt}" ]]; then
     echo -e "\\n------- Creating \"${eus_dir}/paid-certificates/eus_unifi.p12\" ------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/paid_certificate.log"
-    echo -e "${WHITE_R}#${RESET} Creating \"${eus_dir}/paid-certificates/eus_unifi.p12\"..."
+    echo -e "${GRAY_R}#${RESET} Creating \"${eus_dir}/paid-certificates/eus_unifi.p12\"..."
     # shellcheck disable=SC2086
     if openssl pkcs12 -export -inkey "${priv_key}" -in "${signed_crt}" -in "${chain_crt}" -out "${eus_dir}/paid-certificates/eus_unifi.p12" -name unifi -password pass:aircontrolenterprise ${openssl_legacy_flag} &>> "${eus_dir}/logs/paid_certificate.log"; then echo -e "${GREEN}#${RESET} Successfully created \"${eus_dir}/paid-certificates/eus_unifi.p12\"! \\n"; else abort_reason="Failed to create ${eus_dir}/paid-certificates/eus_unifi.p12."; abort; fi
     if [[ "${create_ufv_crts}" == 'true' ]]; then
       echo -e "\\n------- Creating \"${eus_dir}/paid-certificates/ufv-server.cert.der\" ------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/paid_certificate.log"
-      echo -e "${WHITE_R}#${RESET} Creating \"${eus_dir}/paid-certificates/ufv-server.cert.der\"..."
+      echo -e "${GRAY_R}#${RESET} Creating \"${eus_dir}/paid-certificates/ufv-server.cert.der\"..."
       if openssl x509 -outform der -in "${signed_crt}" -in "${chain_crt}" -out "${eus_dir}/paid-certificates/ufv-server.cert.der" &>> "${eus_dir}/logs/paid_certificate.log"; then echo -e "${GREEN}#${RESET} Successfully created \"${eus_dir}/paid-certificates/ufv-server.cert.der\"!"; else abort_reason="Failed to create ${eus_dir}/paid-certificates/ufv-server.cert.der."; abort; fi
     fi
   elif [[ -f "${intermediate_crt}" ]]; then
     echo -e "\\n------- Creating \"${eus_dir}/paid-certificates/eus_unifi.p12\" ------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/paid_certificate.log"
-    echo -e "${WHITE_R}#${RESET} Creating \"${eus_dir}/paid-certificates/eus_unifi.p12\"..."
+    echo -e "${GRAY_R}#${RESET} Creating \"${eus_dir}/paid-certificates/eus_unifi.p12\"..."
     # shellcheck disable=SC2086
     if openssl pkcs12 -export -inkey "${priv_key}" -in "${signed_crt}" -certfile "${intermediate_crt}" -out "${eus_dir}/paid-certificates/eus_unifi.p12" -name unifi -password pass:aircontrolenterprise ${openssl_legacy_flag} &>> "${eus_dir}/logs/paid_certificate.log"; then echo -e "${GREEN}#${RESET} Successfully created \"${eus_dir}/paid-certificates/eus_unifi.p12\"!"; else abort_reason="Failed to create ${eus_dir}/paid-certificates/eus_unifi.p12."; abort; fi
     if [[ "${create_ufv_crts}" == 'true' ]]; then
       echo -e "\\n------- Creating \"${eus_dir}/paid-certificates/ufv-server.cert.der\" ------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/paid_certificate.log"
-      echo -e "${WHITE_R}#${RESET} Creating \"${eus_dir}/paid-certificates/ufv-server.cert.der\"..."
+      echo -e "${GRAY_R}#${RESET} Creating \"${eus_dir}/paid-certificates/ufv-server.cert.der\"..."
       if openssl x509 -outform der -in "${signed_crt}" -out "${eus_dir}/paid-certificates/ufv-server.cert.der" &>> "${eus_dir}/logs/paid_certificate.log"; then echo -e "${GREEN}#${RESET} Successfully created \"${eus_dir}/paid-certificates/ufv-server.cert.der\"!"; else abort_reason="Failed to create ${eus_dir}/paid-certificates/ufv-server.cert.der."; abort; fi
     fi
   else
     echo -e "\\n------- Creating \"${eus_dir}/paid-certificates/eus_unifi.p12\" ------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/paid_certificate.log"
-    echo -e "${WHITE_R}#${RESET} Creating \"${eus_dir}/paid-certificates/eus_unifi.p12\"..."
+    echo -e "${GRAY_R}#${RESET} Creating \"${eus_dir}/paid-certificates/eus_unifi.p12\"..."
     # shellcheck disable=SC2086
     if openssl pkcs12 -export -inkey "${priv_key}" -in "${signed_crt}" -out "${eus_dir}/paid-certificates/eus_unifi.p12" -name unifi -password pass:aircontrolenterprise ${openssl_legacy_flag} &>> "${eus_dir}/logs/paid_certificate.log"; then echo -e "${GREEN}#${RESET} Successfully created \"${eus_dir}/paid-certificates/eus_unifi.p12\"!"; else abort_reason="Failed to create ${eus_dir}/paid-certificates/eus_unifi.p12."; abort; fi
     if [[ "${create_ufv_crts}" == 'true' ]]; then
       echo -e "\\n------- Creating \"${eus_dir}/paid-certificates/ufv-server.cert.der\" ------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/paid_certificate.log"
-      echo -e "${WHITE_R}#${RESET} Creating \"${eus_dir}/paid-certificates/ufv-server.cert.der\"..."
+      echo -e "${GRAY_R}#${RESET} Creating \"${eus_dir}/paid-certificates/ufv-server.cert.der\"..."
       if openssl x509 -outform der -in "${signed_crt}" -out "${eus_dir}/paid-certificates/ufv-server.cert.der" &>> "${eus_dir}/logs/paid_certificate.log"; then echo -e "${GREEN}#${RESET} Successfully created \"${eus_dir}/paid-certificates/ufv-server.cert.der\"!"; else abort_reason="Failed to create ${eus_dir}/paid-certificates/ufv-server.cert.der."; abort; fi
     fi
   fi
   if [[ "${create_ufv_crts}" == 'true' ]]; then
     echo -e "\\n------- Creating \"${eus_dir}/paid-certificates/ufv-server.key.der\" ------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/paid_certificate.log"
-    echo -e "${WHITE_R}#${RESET} Creating \"${eus_dir}/paid-certificates/ufv-server.key.der\"..."
+    echo -e "${GRAY_R}#${RESET} Creating \"${eus_dir}/paid-certificates/ufv-server.key.der\"..."
     if openssl pkcs8 -topk8 -nocrypt -in "${priv_key}" -outform DER -out "${eus_dir}/paid-certificates/ufv-server.key.der" &>> "${eus_dir}/logs/paid_certificate.log"; then echo -e "${GREEN}#${RESET} Successfully created \"${eus_dir}/paid-certificates/ufv-server.key.der\"!"; else abort_reason="Failed to create ${eus_dir}/paid-certificates/ufv-server.key.der."; abort; fi
   fi
   if [[ "${create_eus_key_file}" == 'true' ]]; then
     echo -e "\\n------- Creating \"${eus_dir}/paid-certificates/eus_key_file.key\" from \"${eus_dir}/paid-certificates/eus_unifi.p12\" ------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/paid_certificate.log"
-    echo -e "${WHITE_R}#${RESET} Creating \"${eus_dir}/paid-certificates/eus_key_file.key\" from \"${eus_dir}/paid-certificates/eus_unifi.p12\"..."
+    echo -e "${GRAY_R}#${RESET} Creating \"${eus_dir}/paid-certificates/eus_key_file.key\" from \"${eus_dir}/paid-certificates/eus_unifi.p12\"..."
     # shellcheck disable=SC2086
     if openssl pkcs12 -in "${eus_dir}/paid-certificates/eus_unifi.p12" -nodes -nocerts -out "${eus_dir}/paid-certificates/eus_key_file.key" -password pass:aircontrolenterprise ${openssl_legacy_flag} &>> "${eus_dir}/logs/paid_certificate.log"; then echo -e "${GREEN}#${RESET} Successfully created \"${eus_dir}/paid-certificates/eus_key_file.key\" from \"${eus_dir}/paid-certificates/eus_unifi.p12\"!"; else abort_reason="Failed to create ${eus_dir}/paid-certificates/eus_key_file.key from ${eus_dir}/paid-certificates/eus_unifi.p12."; abort; fi
   fi
   if [[ "${create_eus_crt_file}" == 'true' ]]; then
     echo -e "\\n------- Creating \"${eus_dir}/paid-certificates/eus_crt_file.crt\" from \"${eus_dir}/paid-certificates/eus_unifi.p12\" ------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/paid_certificate.log"
-    echo -e "${WHITE_R}#${RESET} Creating \"${eus_dir}/paid-certificates/eus_crt_file.crt\" from \"${eus_dir}/paid-certificates/eus_unifi.p12\"..."
+    echo -e "${GRAY_R}#${RESET} Creating \"${eus_dir}/paid-certificates/eus_crt_file.crt\" from \"${eus_dir}/paid-certificates/eus_unifi.p12\"..."
     # shellcheck disable=SC2086
     if openssl pkcs12 -in "${eus_dir}/paid-certificates/eus_unifi.p12" -clcerts -nokeys -out "${eus_dir}/paid-certificates/eus_crt_file.crt" -password pass:aircontrolenterprise ${openssl_legacy_flag} &>> "${eus_dir}/logs/paid_certificate.log"; then echo -e "${GREEN}#${RESET} Successfully created \"${eus_dir}/paid-certificates/eus_crt_file.crt\" from \"${eus_dir}/paid-certificates/eus_unifi.p12\"!"; else abort_reason="Failed to create ${eus_dir}/paid-certificates/eus_crt_file.crt from ${eus_dir}/paid-certificates/eus_unifi.p12."; abort; fi
   fi
   if [[ "${create_eus_certificates_file}" == 'true' ]]; then
     echo -e "\\n------- Creating \"${eus_dir}/paid-certificates/eus_certificates_file.pem\" from \"${eus_dir}/paid-certificates/eus_unifi.p12\" ------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/paid_certificate.log"
-    echo -e "${WHITE_R}#${RESET} Creating \"${eus_dir}/paid-certificates/eus_certificates_file.pem\" from \"${eus_dir}/paid-certificates/eus_unifi.p12\"..."
+    echo -e "${GRAY_R}#${RESET} Creating \"${eus_dir}/paid-certificates/eus_certificates_file.pem\" from \"${eus_dir}/paid-certificates/eus_unifi.p12\"..."
     # shellcheck disable=SC2086
     if openssl pkcs12 -in "${eus_dir}/paid-certificates/eus_unifi.p12" -nodes -out "${eus_dir}/paid-certificates/eus_certificates_file.pem" -password pass:aircontrolenterprise ${openssl_legacy_flag} &>> "${eus_dir}/logs/paid_certificate.log"; then echo -e "${GREEN}#${RESET} Successfully created \"${eus_dir}/paid-certificates/eus_certificates_file.pem\" from \"${eus_dir}/paid-certificates/eus_unifi.p12\"!"; else abort_reason="Failed to create ${eus_dir}/paid-certificates/eus_certificates_file.pem from ${eus_dir}/paid-certificates/eus_unifi.p12."; abort; fi
   fi
   if [[ "${unifi_core_system}" == 'true' ]]; then
     # shellcheck disable=SC2086
     if openssl pkcs12 -in "${eus_dir}/paid-certificates/eus_unifi.p12" -password pass:aircontrolenterprise -nokeys ${openssl_legacy_flag} | openssl x509 -text -noout | grep -i "signature algorithm" | grep -iq ecdsa &> /dev/null; then
-      echo -e "${WHITE_R}#${RESET} UniFi OS doesn't support ECDSA certificates, cancelling script..."
+      echo -e "${GRAY_R}#${RESET} UniFi OS doesn't support ECDSA certificates, cancelling script..."
       sleep 6
       cancel_script
     fi
@@ -5624,18 +5626,18 @@ paid_certificate() {
 if [[ "${script_option_skip}" != 'true' ]]; then
   header
   echo -e "  What do you want to do?\\n\\n"
-  echo -e " [   ${WHITE_R}1${RESET}   ]  |  Apply Let's Encrypt Certificates (recommended)"
-  echo -e " [   ${WHITE_R}2${RESET}   ]  |  Apply Paid Certificates (advanced)"
-  echo -e " [   ${WHITE_R}3${RESET}   ]  |  Restore previous certificates"
-  echo -e " [   ${WHITE_R}4${RESET}   ]  |  Restore certificates to original state"
-  echo -e " [   ${WHITE_R}5${RESET}   ]  |  Cancel\\n\\n"
+  echo -e " [   ${GRAY_R}1${RESET}   ]  |  Apply Let's Encrypt Certificates (recommended)"
+  echo -e " [   ${GRAY_R}2${RESET}   ]  |  Apply Paid Certificates (advanced)"
+  echo -e " [   ${GRAY_R}3${RESET}   ]  |  Restore previous certificates"
+  echo -e " [   ${GRAY_R}4${RESET}   ]  |  Restore certificates to original state"
+  echo -e " [   ${GRAY_R}5${RESET}   ]  |  Cancel\\n\\n"
   read -rp $'Your choice | \033[39m' unifi_easy_encrypt
   case "$unifi_easy_encrypt" in
       1) certbot_install_function; lets_encrypt;;
       2)
-        if [[ ! -f "${priv_key}" ]] || [[ ! -f "${signed_crt}" ]]; then cert_missing=true; fi
-        if [[ ! -f "${chain_crt}" ]] && [[ -f "${intermediate_crt}" ]]; then cert_missing=false; fi
-        if [[ ! -f "${intermediate_crt}" ]] && [[ -f "${chain_crt}" ]]; then cert_missing=false; fi
+        if [[ ! -f "${priv_key}" ]] || [[ ! -f "${signed_crt}" ]]; then cert_missing="true"; fi
+        if [[ ! -f "${chain_crt}" ]] && [[ -f "${intermediate_crt}" ]]; then cert_missing="false"; fi
+        if [[ ! -f "${intermediate_crt}" ]] && [[ -f "${chain_crt}" ]]; then cert_missing="false"; fi
         if [[ "${cert_missing}" == 'true' ]]; then
           header_red
           echo -e "${RED}#${RESET} Missing one or more required certificate files..."
@@ -5650,21 +5652,21 @@ if [[ "${script_option_skip}" != 'true' ]]; then
         fi;;
       3)
         header
-        echo -e "${WHITE_R}#${RESET} Restoring certificates may result in browser errors due to invalid certificates."
+        echo -e "${GRAY_R}#${RESET} Restoring certificates may result in browser errors due to invalid certificates."
         read -rp $'\033[39m#\033[0m Do you want to proceed with restoring previous certificates? (y/N) ' yes_no
         restore_previous_certs;;
       4)
         header
         read -rp $'\033[39m#\033[0m Do you want to proceed with restoring to original state? (y/N) ' yes_no
-        restore_original_state=true
+        restore_original_state="true"
         restore_previous_certs;;
       5*|"") cancel_script;;
   esac
 else
   if [[ "${own_certificate}" == 'true' ]]; then
-    if [[ ! -f "${priv_key}" ]] || [[ ! -f "${signed_crt}" ]]; then cert_missing=true; fi
-    if [[ ! -f "${chain_crt}" ]] && [[ -f "${intermediate_crt}" ]]; then cert_missing=false; fi
-    if [[ ! -f "${intermediate_crt}" ]] && [[ -f "${chain_crt}" ]]; then cert_missing=false; fi
+    if [[ ! -f "${priv_key}" ]] || [[ ! -f "${signed_crt}" ]]; then cert_missing="true"; fi
+    if [[ ! -f "${chain_crt}" ]] && [[ -f "${intermediate_crt}" ]]; then cert_missing="false"; fi
+    if [[ ! -f "${intermediate_crt}" ]] && [[ -f "${chain_crt}" ]]; then cert_missing="false"; fi
     if [[ "${cert_missing}" == 'true' ]]; then
       header_red
       echo -e "${RED}#${RESET} Missing one or more required certificate files..."

@@ -11,6 +11,21 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 8.0.8
+ 
+ - Fixed an issue where the script could fail to download packages since 8.0.7.
+ 
+ ####
+
+ |  UniFi Network Application Installation Script  |  Version 8.0.7
+ 
+ - Added logging to creating temp files for package downloading.
+ - Improved EOL OS Release messaging.
+ - Improved cleaning up/pruning EUS logs.
+ - Fixed an issue where color codes weren't correct.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 8.0.6
  
  - Fixed an issue where the script could fail to install mongodb-mongosh-shared-openssl when mongodb-mongosh is already installed.
