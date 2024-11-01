@@ -58,7 +58,7 @@
 ###################################################################################################################################################################################################
 
 # Script                | UniFi Network Easy Installation Script
-# Version               | 8.0.8
+# Version               | 8.0.9
 # Application version   | 8.5.6-1x29lm155t
 # Debian Repo version   | 8.5.6-27036-1
 # Author                | Glenn Rietveld
@@ -73,13 +73,10 @@
 
 RESET='\033[0m'
 YELLOW='\033[1;33m'
-#GRAY='\033[0;37m'
-#WHITE='\033[1;37m'
+WHITE_R='\033[1;37m'
 GRAY_R='\033[39m'
-GRAY_R='\033[1;37m'
 RED='\033[1;31m' # Light Red.
 GREEN='\033[1;32m' # Light Green.
-#BOLD='\e[1m'
 
 ###################################################################################################################################################################################################
 #                                                                                                                                                                                                 #
@@ -3739,27 +3736,6 @@ if "$(which dpkg)" -l apt 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\
     fi
   fi
 fi
-if ! "$(which dpkg)" -l software-properties-common 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
-  if [[ "${installing_required_package}" != 'yes' ]]; then install_required_packages; fi
-  check_dpkg_lock
-  echo -e "${GRAY_R}#${RESET} Installing software-properties-common..."
-  if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install software-properties-common &>> "${eus_dir}/logs/required.log"; then
-    echo -e "${RED}#${RESET} Failed to install software-properties-common in the first run...\\n"
-    if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then
-      if [[ "${repo_codename}" =~ (precise) ]]; then repo_codename_argument="-security"; repo_component="main"; fi
-      if [[ "${repo_codename}" =~ (trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then repo_component="main"; fi
-    elif [[ "${repo_codename}" =~ (wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
-      if [[ "${repo_codename}" =~ (wheezy|jessie) ]]; then repo_url_arguments="-security/"; repo_codename_argument="/updates"; repo_component="main"; fi
-      if [[ "${repo_codename}" =~ (stretch|buster|bullseye|bookworm|trixie|forky) ]]; then repo_component="main"; fi
-    fi
-    add_repositories
-    if [[ "${repo_codename}" =~ (stretch) ]]; then repo_url_arguments="-security/"; repo_codename_argument="/updates"; repo_component="main"; add_repositories; fi
-    required_package="software-properties-common"
-    apt_get_install_package
-  else
-    echo -e "${GREEN}#${RESET} Successfully installed software-properties-common! \\n" && sleep 2
-  fi
-fi
 if ! "$(which dpkg)" -l dirmngr 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
   if [[ "${installing_required_package}" != 'yes' ]]; then install_required_packages; fi
   check_dpkg_lock
@@ -4659,7 +4635,6 @@ if [[ "${mongodb_version_installed_no_dots::2}" -gt "${mongo_version_max}" ]]; t
             mongodb_downgrade_process="true"
           fi
         fi
-        #if [[ "$(grep -si is_default /usr/lib/unifi/data/system.properties | awk -F= '{print $2}')" != 'true' ]] && grep -sEioaq "db version v${first_digit_mongodb_version_installed}.${second_digit_mongodb_version_installed}.[0-9]{1,2}|buildInfo\":{\"version\":\"${first_digit_mongodb_version_installed}.${second_digit_mongodb_version_installed}.[0-9]{1,2}\"" "/usr/lib/unifi/logs/mongod.log"; then
         if [[ "$(grep -si is_default /usr/lib/unifi/data/system.properties | awk -F= '{print $2}')" != 'true' && "${installed_and_previous_mongodb_match}" == 'true' ]]; then
           if "$(which dpkg)" -l "${gr_mongod_name}" 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then mongodb_org_server_package="${gr_mongod_name}"; else mongodb_org_server_package="mongodb-org-server"; fi
           if "$(which dpkg)" -l "${mongodb_org_server_package}" 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
@@ -6153,8 +6128,8 @@ if [[ "${mongodb_installed}" != 'true' ]]; then
         eus_directory_location="/tmp/EUS"
         eus_create_directories "mongodb"
         apt-cache policy mongodb-server &> /tmp/EUS/mongodb/apt-cache-policy-mongodb-server
-        mongodb_server_installable_versions="$(apt-cache policy mongodb-server | grep -i "2.6\\|3.0" | grep -i Candidate | sed -e 's/1://g' -e 's/ //g' -e 's/*//g' | cut -d':' -f2 | cut -d'-' -f1 | sed -e 's/\.//g' | uniq)"
-        if [[ -z "${mongodb_server_installable_versions}" ]]; then mongodb_server_installable_versions="$(apt-cache policy mongodb-server | grep -i "2.6\\|3.0" | sed -e 's/500//g' -e 's/-1//g' -e 's/100//g' -e 's/ //g' -e '/http/d' -e 's/*//g' -e 's/^[^:]*://' -e 's/^[0-9]*://' | cut -d'-' -f1 | uniq | sed -e 's/\.//g')"; fi
+        mongodb_server_installable_versions="$(apt-cache policy mongodb-server | grep -i "\<2\.6\>\|\<3\.0\>" | grep -i Candidate | sed -e 's/1://g' -e 's/ //g' -e 's/*//g' | cut -d':' -f2 | cut -d'-' -f1 | sed -e 's/\.//g' | uniq)"
+        if [[ -z "${mongodb_server_installable_versions}" ]]; then mongodb_server_installable_versions="$(apt-cache policy mongodb-server | grep -i "\<2\.6\>\|\<3\.0\>" | sed -e 's/500//g' -e 's/-1//g' -e 's/100//g' -e 's/ //g' -e '/http/d' -e 's/*//g' -e 's/^[^:]*://' -e 's/^[0-9]*://' | cut -d'-' -f1 | uniq | sed -e 's/\.//g')"; fi
         IFS=' ' read -r -a version_array <<< "$mongodb_server_installable_versions"
         for version in "${version_array[@]}"; do
           if [[ "${version::2}" =~ (26|30) ]]; then

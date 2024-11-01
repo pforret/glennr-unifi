@@ -11,6 +11,14 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 8.0.9
+ 
+ - Improved installation recovery if MongoDB 3.6 is installable but 2.6 was previously installed version.
+ - Removed software-properties-common as required package.
+ - Fixed incorrect color codes.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 8.0.8
  
  - Fixed an issue where the script could fail to download packages since 8.0.7.

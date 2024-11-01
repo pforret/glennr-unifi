@@ -11,6 +11,13 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Encrypt Script  |  Version 3.2.2
+ 
+ - Added more logging for support files for unexpected certbot exits.
+ - Fixed incorrect color codes.
+ 
+ ####
+
  |  UniFi Easy Encrypt Script  |  Version 3.2.1
  
  - Fixed typo in checking if option `--skip-required-service-check` was used.
