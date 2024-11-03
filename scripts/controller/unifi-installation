@@ -11,6 +11,30 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 8.1.2
+ 
+ - Improved the unsupported MongoDB Upgrade process.
+ - Fixed an issue where the script might forget to add the Glenn R. APT repository when the CPU doesn't report AVX support.
+ 
+ ####
+
+ |  UniFi Network Application Installation Script  |  Version 8.1.1
+ 
+ - Improved installation recovery for users with mongodb-org-server 4.4.19 or newer without AVX support on their CPU.
+ 
+ ####
+
+ |  UniFi Network Application Installation Script  |  Version 8.1.0
+ 
+ - Improved logging for creating tmp directories.
+ - Improved the repository key recovery process.
+ - Improved to package installation processes.
+ - Improved the unmet dependecy recovery process.
+ - Improved the MongoDB recovery process when needing to recover mongodb-server and mongodb-client 2.6.10.
+ - Improved handling large mongod.log files by limiting required matches to find the last known good MongoDB release.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 8.0.9
  
  - Improved installation recovery if MongoDB 3.6 is installable but 2.6 was previously installed version.

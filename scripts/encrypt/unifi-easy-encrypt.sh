@@ -2,7 +2,7 @@
 
 # UniFi Easy Encrypt script.
 # Script   | UniFi Network Easy Encrypt Script
-# Version  | 3.2.2
+# Version  | 3.2.3
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -1627,7 +1627,7 @@ check_unmet_dependencies() {
             if [[ -e "/etc/apt/sources.list.d/glennr-install-script-unmet.${source_file_format}" ]]; then rm --force "/etc/apt/sources.list.d/glennr-install-script-unmet.${source_file_format}" &> /dev/null; fi
           fi
         fi
-      done < <(grep "Depends:" "${log_file}" | sed 's/.*Depends: //' | sed 's/).*//' | sort | uniq)
+      done < <(grep "Depends:" "${log_file}" | sed 's/.*Depends: //' | sed -e 's/ but it is not going to be installed//' -e 's/).*//' | sort | uniq)
       while read -r breaking_package; do
         echo -e "${GRAY_R}#${RESET} Attempting to prevent ${breaking_package} from screwing over apt..."
         if echo "${breaking_package} hold" | "$(which dpkg)" --set-selections &>> "${eus_dir}/logs/unmet-dependency-break.log"; then
@@ -2067,11 +2067,13 @@ run_apt_get_update() {
   if [[ -s /tmp/EUS/apt/missing_keys ]]; then
     if "$(which dpkg)" -l dirmngr 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
       while read -r key; do
+        if [[ -z "${key}" ]]; then continue; fi
         if [[ "${silent_run_apt_get_update}" != "true" ]]; then echo -e "${GRAY_R}#${RESET} Key ${key} is missing.. adding!"; fi
         locate_http_proxy
         if [[ -n "$http_proxy" ]]; then
           if apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --keyserver-options http-proxy="${http_proxy}" --recv-keys "$key" &>> "${eus_dir}/logs/key-recovery.log"; then
             echo "${key}" &>> /tmp/EUS/apt/missing_keys_done
+            unset fail_key
             if [[ "${silent_run_apt_get_update}" != "true" ]]; then echo -e "${GREEN}#${RESET} Successfully added key ${key}!\\n"; fi
           else
             fail_key="true"
@@ -2081,6 +2083,7 @@ run_apt_get_update() {
           if [[ -n "${apt_http_proxy}" ]]; then
             if apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --keyserver-options http-proxy="${apt_http_proxy}" --recv-keys "$key" &>> "${eus_dir}/logs/key-recovery.log"; then
               echo "${key}" &>> /tmp/EUS/apt/missing_keys_done
+              unset fail_key
               if [[ "${silent_run_apt_get_update}" != "true" ]]; then echo -e "${GREEN}#${RESET} Successfully added key ${key}!\\n"; fi
             else
               fail_key="true"
@@ -2108,6 +2111,7 @@ run_apt_get_update() {
             if [[ "${silent_run_apt_get_update}" != "true" ]]; then echo -e "${RED}#${RESET} Failed to add key ${key}... \\n"; fi
             echo "${key}" &>> /tmp/EUS/apt/missing_keys_failed
           fi
+          unset fail_key
         fi
         sleep 1
       done < /tmp/EUS/apt/missing_keys

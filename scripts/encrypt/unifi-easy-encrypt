@@ -11,6 +11,14 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Encrypt Script  |  Version 3.2.3
+ 
+ - Improved the repository key recovery process.
+ - Improved to package installation processes.
+ - Improved the unmet dependecy recovery process.
+ 
+ ####
+
  |  UniFi Easy Encrypt Script  |  Version 3.2.2
  
  - Added more logging for support files for unexpected certbot exits.

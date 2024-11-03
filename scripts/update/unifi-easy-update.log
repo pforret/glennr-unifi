@@ -11,6 +11,31 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 9.4.3
+  
+ - Improved the unsupported MongoDB Upgrade process.
+ - Fixed an issue where the script might forget to add the Glenn R. APT repository when the CPU doesn't report AVX support.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 9.4.2
+  
+ - Improved installation recovery for users with mongodb-org-server 4.4.19 or newer without AVX support on their CPU.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 9.4.1
+  
+ - Added a fallback to get the UniFi Network Application database size when first method fails.
+ - Improved logging for creating tmp directories.
+ - Improved the repository key recovery process.
+ - Improved to package installation processes.
+ - Improved the unmet dependecy recovery process.
+ - Improved handling large mongod.log files by limiting required matches to find the last known good MongoDB release.
+ - Fixed a dead end when user tries to update the UniFi Network Application with a MongoDB version thats not supported by the wanted version.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 9.4.0
   
  - Fixed incorrect color codes.
