@@ -2,7 +2,7 @@
 
 # UniFi Network Application Easy Update Script.
 # Script   | UniFi Network Easy Update Script
-# Version  | 9.4.5
+# Version  | 9.4.6
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -1698,17 +1698,259 @@ mongo_command() {
   fi
 }
 
+cleanup_multiple_default_lan_networks_js_script() {
+  if [[ "${mongo_command_server_version::2}" -ge "40" ]]; then documents_variable="countDocuments"; else documents_variable="count"; fi
+  tee "${eus_tmp_directory_location}/${mongo_oldIdStr}.js" &>/dev/null <<EOF
+// Define the old and new IDs
+const oldIdStr = "${mongo_oldIdStr}"; // Old ID to replace
+const newIdStr = "${mongo_newIdStr}"; // New ID to use
+
+// Function to update a collection for fields only if they exist with verification
+function updateFieldIfExists(collectionName, field, oldValue, newValue) {
+    let collection = db.getCollection(collectionName);
+
+    // Check for documents with the old value for the specified field
+    let filterCondition = { [field]: oldValue };
+
+    print(\`Checking for documents in \${collectionName} matching: \${JSON.stringify(filterCondition)}\`);
+
+    // Perform the update for the specified field only if it exists
+    let result = collection.updateMany(
+        filterCondition,
+        { \$set: { [field]: newValue } }
+    );
+
+    // Print the result of the update operation
+    print(\`Updated \${result.modifiedCount} documents in \${collectionName} for field \${field}.\`);
+
+    // Verify that the old ID has been removed
+    let verificationCountOld = collection.${documents_variable}({ [field]: oldValue });
+    let verificationCountNew = collection.${documents_variable}({ [field]: newValue });
+    print(\`Verification in \${collectionName} for field \${field}: Found \${verificationCountOld} documents with old ID and \${verificationCountNew} documents with new ID.\`);
+}
+
+// Function to update nested fields within port_overrides with verification
+function updateNestedFieldInPortOverrides(collectionName, field, oldValue, newValue) {
+    let collection = db.getCollection(collectionName);
+
+    // Only update if port_overrides exists and the field matches the old ID
+    let result = collection.updateMany(
+        {
+            "port_overrides": { \$exists: true, \$ne: [] },
+            [\`port_overrides.\${field}\`]: oldValue
+        },
+        { \$set: { [\`port_overrides.\$[elem].\${field}\`]: newValue } },
+        { arrayFilters: [{ "elem.native_networkconf_id": oldIdStr }] } // Ensure it targets the correct elements
+    );
+
+    print(\`Updated \${field} in port_overrides of \${collectionName}: \${result.modifiedCount} documents modified.\`);
+
+    // Verification step
+    let verificationCountOld = collection.${documents_variable}({
+        "port_overrides": { \$exists: true, \$ne: [] },
+        [\`port_overrides.\${field}\`]: oldValue
+    });
+    let verificationCountNew = collection.${documents_variable}({
+        "port_overrides": { \$exists: true, \$ne: [] },
+        [\`port_overrides.\${field}\`]: newValue
+    });
+    print(\`Verification in \${collectionName} for port_overrides.\${field}: Found \${verificationCountOld} documents with old ID and \${verificationCountNew} documents with new ID.\`);
+}
+
+// Update the 'portconf' collection for native_networkconf_id
+function updatePortconfNativeId() {
+    let collection = db.portconf; // Access the 'portconf' collection
+    updateFieldIfExists('portconf', 'native_networkconf_id', oldIdStr, newIdStr);
+}
+
+// Update portconf
+updatePortconfNativeId();
+
+// Update the 'device' collection for specific fields with verification
+updateFieldIfExists("device", "last_connection_network_id", oldIdStr, newIdStr);
+updateFieldIfExists("device", "mgmt_network_id", oldIdStr, newIdStr); // Ensure mgmt_network_id is updated if it exists
+
+// Update native_networkconf_id within port_overrides in 'device'
+updateNestedFieldInPortOverrides("device", "native_networkconf_id", oldIdStr, newIdStr);
+
+// Function to update excluded_networkconf_ids in the specified collection with verification
+function updateExcludedIds(collectionName) {
+    let collection = db.getCollection(collectionName);
+
+    // First, remove the old ID from excluded_networkconf_ids if it exists
+    let pullResult = collection.updateMany(
+        { "excluded_networkconf_ids": oldIdStr },
+        { \$pull: { excluded_networkconf_ids: oldIdStr } }
+    );
+    print(\`Removed old network ID from excluded_networkconf_ids in \${collectionName}: \${pullResult.modifiedCount} documents modified.\`);
+
+    // Now, update the old ID to the new ID if it exists
+    let updateResult = collection.updateMany(
+        { "excluded_networkconf_ids": { \$exists: true, \$ne: [] } },
+        { \$set: { "excluded_networkconf_ids.\$[elem]": newIdStr } },
+        { arrayFilters: [{ "elem": oldIdStr }] } // Only target elements that are the old ID
+    );
+    print(\`Updated old network ID to new ID in excluded_networkconf_ids in \${collectionName}: \${updateResult.modifiedCount} documents modified.\`);
+
+    // Verification step
+    let verificationCountOld = collection.${documents_variable}({ "excluded_networkconf_ids": oldIdStr });
+    let verificationCountNew = collection.${documents_variable}({ "excluded_networkconf_ids": newIdStr });
+    print(\`Verification in \${collectionName} for excluded_networkconf_ids: Found \${verificationCountOld} documents with old ID and \${verificationCountNew} documents with new ID.\`);
+}
+
+// Update excluded_networkconf_ids in the 'setting' collection
+updateExcludedIds("setting");
+
+// Update excluded_networkconf_ids in the 'portconf' collection
+updateExcludedIds("portconf");
+
+// Handle excluded_networkconf_ids within port_overrides in the 'device' collection with verification
+function updateExcludedIdsInDevice() {
+    let collection = db.getCollection("device");
+
+    // Only attempt to remove the old ID if it exists in port_overrides
+    let pullResult = collection.updateMany(
+        {
+            "port_overrides": { \$exists: true, \$ne: [] },
+            "port_overrides.excluded_networkconf_ids": oldIdStr
+        },
+        { \$pull: { "port_overrides.\$[].excluded_networkconf_ids": oldIdStr } }
+    );
+    print(\`Removed old network ID from port_overrides.excluded_networkconf_ids in device collection: \${pullResult.modifiedCount} documents modified.\`);
+
+    // Check for existence of excluded_networkconf_ids and update if the old ID was removed successfully
+    let checkResult = collection.findOne(
+        {
+            "port_overrides": { \$exists: true, \$ne: [] },
+            "port_overrides.excluded_networkconf_ids": { \$exists: true, \$ne: [] }
+        }
+    );
+
+    if (checkResult) {
+        // Now, update the old ID to the new ID in port_overrides if it exists
+        let updateResult = collection.updateMany(
+            {
+                "port_overrides.excluded_networkconf_ids": oldIdStr
+            },
+            { \$set: { "port_overrides.\$[].excluded_networkconf_ids.\$[elem]": newIdStr } },
+            { arrayFilters: [{ "elem": oldIdStr }] } // Only target elements that are the old ID
+        );
+        print(\`Updated old network ID to new ID in port_overrides.excluded_networkconf_ids in device collection: \${updateResult.modifiedCount} documents modified.\`);
+
+        // Verification step
+        let verificationCountOld = collection.${documents_variable}({
+            "port_overrides": { \$exists: true, \$ne: [] },
+            "port_overrides.excluded_networkconf_ids": oldIdStr
+        });
+        let verificationCountNew = collection.${documents_variable}({
+            "port_overrides": { \$exists: true, \$ne: [] },
+            "port_overrides.excluded_networkconf_ids": newIdStr
+        });
+        print(\`Verification in device collection for port_overrides.excluded_networkconf_ids: Found \${verificationCountOld} documents with old ID and \${verificationCountNew} documents with new ID.\`);
+    } else {
+        print(\`No documents found with excluded_networkconf_ids in port_overrides for device collection.\`);
+    }
+}
+
+// Call the function to update excluded_networkconf_ids in the device collection
+updateExcludedIdsInDevice();
+
+// Function to remove dns_filters entries for a specific network_id with verification
+function removeDnsFiltersByNetworkId() {
+    let collection = db.getCollection("setting");
+
+    // Remove entries from dns_filters where network_id matches oldIdStr
+    let result = collection.updateMany(
+        {},
+        { \$pull: { dns_filters: { network_id: oldIdStr } } }
+    );
+
+    print(\`Removed dns_filters entries with network_id \${oldIdStr} in setting: \${result.modifiedCount} documents modified.\`);
+
+    // Verification step
+    let verificationCount = collection.${documents_variable}({ "dns_filters.network_id": oldIdStr });
+    print(\`Verification in setting: Found \${verificationCount} documents still containing the old network_id.\`);
+}
+
+// Call the function to remove dns_filters entries
+removeDnsFiltersByNetworkId();
+
+// Function to remove newIdStr from excluded_networkconf_ids only if it's also native
+function removeNewIdFromExcludedIdsIfNative() {
+    let collection = db.getCollection("device");
+
+    // Log documents that currently have newIdStr in excluded_networkconf_ids and matching native_networkconf_id
+    let documentsBefore = collection.find({
+        "port_overrides": { \$exists: true, \$ne: [] },
+        "port_overrides.excluded_networkconf_ids": newIdStr,
+        "port_overrides.native_networkconf_id": newIdStr
+    }).toArray();
+
+    print(\`Documents before removal containing newIdStr and native: \${documentsBefore.length}\`);
+    documentsBefore.forEach(doc => {
+        print(\`Document ID: \${doc._id}, Excluded IDs: \${JSON.stringify(doc.port_overrides)}\`);
+    });
+
+    // Remove newIdStr from excluded_networkconf_ids where it appears and matches the native_networkconf_id
+    let result = collection.updateMany(
+        {
+            "port_overrides": { \$exists: true, \$ne: [] },
+            "port_overrides.excluded_networkconf_ids": newIdStr,
+            "port_overrides.native_networkconf_id": newIdStr
+        },
+        {
+            \$pull: { "port_overrides.\$[].excluded_networkconf_ids": newIdStr }
+        }
+    );
+
+    print(\`Removed new network ID from excluded_networkconf_ids in port_overrides of device collection: \${result.modifiedCount} documents modified.\`);
+
+    // Verification step
+    let verificationCountOld = collection.${documents_variable}({
+        "port_overrides": { \$exists: true, \$ne: [] },
+        "port_overrides.excluded_networkconf_ids": newIdStr,
+        "port_overrides.native_networkconf_id": newIdStr
+    });
+
+    print(\`Verification in device collection for port_overrides.excluded_networkconf_ids: Found \${verificationCountOld} documents still containing newIdStr with native match.\`);
+
+    // Log remaining documents
+    let documentsAfter = collection.find({
+        "port_overrides": { \$exists: true, \$ne: [] },
+        "port_overrides.excluded_networkconf_ids": newIdStr,
+        "port_overrides.native_networkconf_id": newIdStr
+    }).toArray();
+
+    print(\`Documents after removal containing newIdStr with native match: \${documentsAfter.length}\`);
+    documentsAfter.forEach(doc => {
+        print(\`Document ID: \${doc._id}, Excluded IDs: \${JSON.stringify(doc.port_overrides)}\`);
+    });
+}
+
+// Call the revised function
+removeNewIdFromExcludedIdsIfNative();
+EOF
+}
+
 cleanup_multiple_default_lan_networks() {
   mongo_command
   get_unifi_api_ports
   get_unifi_application_status
   if [[ "${application_up}" != "true" ]]; then return; fi
   remove_duplicated_networkconf_id() { # Log removed network data and remove the ID from the UniFi Network Application database.
+    if [[ "${cleanup_multiple_default_lan_networks_site_desc}" != "${previous_cleanup_multiple_default_lan_networks_site_desc}" ]]; then
+      echo -e "${GRAY_R}#${RESET} Cleaning up multiple default networks on site ${cleanup_multiple_default_lan_networks_site_desc}..."
+      previous_cleanup_multiple_default_lan_networks_site_desc="${cleanup_multiple_default_lan_networks_site_desc}"
+      cleanup_multiple_default_lan_networks_site_desc_message_printed="true"
+    fi
     removed_networkconf_data="$("${mongocommand}" --quiet --port 27117 ace --eval "${mongoprefix}db.getCollection('networkconf').find({ _id: ObjectId('${networkconf_id_remove}') })${mongosuffix}")"
     removed_networkconf_info="$("${mongocommand}" --quiet --port 27117 ace --eval "db.getCollection('networkconf').deleteMany({ _id: ObjectId('${networkconf_id_remove}') })")"
     echo -e "$(date +%F-%R) | networkconf data for ${networkconf_id_remove}: ${removed_networkconf_data}" &>> "${eus_dir}/logs/cleanup-multiple-default-lan-networks.log"
     echo -e "$(date +%F-%R) | networkconf ${networkconf_id_remove} removal results: ${removed_networkconf_info}" &>> "${eus_dir}/logs/cleanup-multiple-default-lan-networks.log"
-    echo -e "${GREEN}#${RESET} Successfully cleaned up multiple default LAN networks for site ${cleanup_multiple_default_lan_networks_site_desc}! \\n"
+    if [[ "${cleanup_multiple_default_lan_networks_site_desc_message_printed}" == 'true' ]]; then
+      echo -e "${GREEN}#${RESET} Successfully cleaned up multiple default LAN networks for site ${cleanup_multiple_default_lan_networks_site_desc}! \\n"
+      unset cleanup_multiple_default_lan_networks_site_desc_message_printed
+    fi
   }
   check_fields() { # Check if any ID's match criteria
     local id="$1"
@@ -1758,17 +2000,19 @@ cleanup_multiple_default_lan_networks() {
       fi
     done
     if [[ -n "${timestamp_map[$max_timestamp]}" ]]; then
+      echo -e "${GREEN}#${RESET} Successfully found some duplicated default LAN networks for site ${cleanup_multiple_default_lan_networks_site_desc}! \\n"
       networkconf_ids_with_max_time="${timestamp_map[$max_timestamp]}"
       id_count="$(echo "$networkconf_ids_with_max_time" | wc -w)"
+      networkconf_id_removed=()
       if [[ "${id_count}" -gt "1" ]]; then
         echo -e "$(date +%F-%R) | Multiple networkconf IDs found with the same timestamp (${max_timestamp}): ${networkconf_ids_with_max_time}" &>> "${eus_dir}/logs/cleanup-multiple-default-lan-networks.log"
         matching_ids=()
-        any_match=false
+        any_match="false"
         for networkconf_id in $networkconf_ids_with_max_time; do
           if check_fields "${networkconf_id}"; then
             echo -e "$(date +%F-%R) | networkconf ID ${networkconf_id} matches the criteria." &>> "${eus_dir}/logs/cleanup-multiple-default-lan-networks.log"
             matching_ids+=("${networkconf_id}")
-            any_match=true
+            any_match="true"
           fi
         done
         if [[ "${any_match}" == "true" ]]; then
@@ -1776,21 +2020,47 @@ cleanup_multiple_default_lan_networks() {
             networkconf_id_remove="${matching_id//[[:space:]]/}"
             echo -e "$(date +%F-%R) | Processing networkconf ID ${networkconf_id_remove} for removal." &>> "${eus_dir}/logs/cleanup-multiple-default-lan-networks.log"
             remove_duplicated_networkconf_id "${networkconf_id_remove}"
+            networkconf_id_removed+=("${networkconf_id_remove}")
           done
         else
           last_id="$(echo "$networkconf_ids_with_max_time" | awk '{print $NF}' | sed 's/[[:space:]]//g')"
           networkconf_id_remove="${last_id}"
           echo -e "$(date +%F-%R) | No networkconf IDs matched the criteria. Processing networkconf ID ${networkconf_id_remove} for removal." &>> "${eus_dir}/logs/cleanup-multiple-default-lan-networks.log"
           remove_duplicated_networkconf_id "${networkconf_id_remove}"
+          networkconf_id_removed+=("${networkconf_id_remove}")
         fi
       else
         networkconf_id_remove="${networkconf_ids_with_max_time//[[:space:]]/}"
         echo -e "$(date +%F-%R) | Single networkconf ID returned, processing ${networkconf_id_remove} for removal" &>> "${eus_dir}/logs/cleanup-multiple-default-lan-networks.log"
         remove_duplicated_networkconf_id "${networkconf_id_remove}"
+        networkconf_id_removed+=("${networkconf_id_remove}")
       fi
+    else
+      echo -e "${YELLOW}#${RESET} The script didn't detect and duplicated default LAN networks for site ${cleanup_multiple_default_lan_networks_site_desc}! \\n"
     fi
     ((duplicate_resolve_cycles=duplicate_resolve_cycles+1))
   done
+  removed_ids="$(printf "%s\n" "${networkconf_id_removed[@]}")"
+  all_ids="$(jq -r '.[].duplicate_ids[]' "${eus_dir}/data/multiple-default-lan-networks/${cleanup_epoch}-data.json")"
+  left_over_id="$(grep -Fxv -f <(echo "${removed_ids}") <(echo "${all_ids}"))"
+  for removed_id in "${networkconf_id_removed[@]}"; do
+    echo -e "${GREEN}#${RESET} Updating references of ID ${removed_id} to ID ${left_over_id} on site ${cleanup_multiple_default_lan_networks_site_desc}..."
+    mongo_oldIdStr="${removed_id}"
+    mongo_newIdStr="${left_over_id}"
+    cleanup_multiple_default_lan_networks_js_script
+    echo -e "\\n\\n------- $(date +%F-%R) -------\\n\\n" &>> "${eus_dir}/logs/${mongo_oldIdStr}.js.log"
+    if "${mongocommand}" --quiet --port 27117 ace < "${eus_tmp_directory_location}/${mongo_oldIdStr}.js" &>> "${eus_dir}/logs/${mongo_oldIdStr}.js.log"; then
+      echo -e "${GREEN}#${RESET} Successfully updated references of ID ${removed_id} to ID ${left_over_id} on site ${cleanup_multiple_default_lan_networks_site_desc}! \\n"
+    else
+      echo -e "${RED}#${RESET} Failed to update references of ID ${removed_id} to ID ${left_over_id} on site ${cleanup_multiple_default_lan_networks_site_desc}... \\n"
+    fi
+  done
+  echo -e "${GRAY_R}#${RESET} Restarting the UniFi Network Application..."
+  if [[ "${limited_functionality}" == 'true' ]]; then
+    if service unifi restart &>> "${eus_dir}/logs/cleanup-multiple-default-lan-networks.log"; then echo -e "${GREEN}#${RESET} Successfully restarted the UniFi Network Application! \\n"; else echo -e "${RED}#${RESET} Failed to restart the UniFi Network Application... \\n"; fi
+  else
+    if systemctl restart unifi &>> "${eus_dir}/logs/cleanup-multiple-default-lan-networks.log"; then echo -e "${GREEN}#${RESET} Successfully restarted the UniFi Network Application! \\n"; else echo -e "${RED}#${RESET} Failed to restart the UniFi Network Application... \\n"; fi
+  fi
   if [[ "$(dpkg-query --showformat='${Version}' --show jq | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
     jq '.scripts."'"${script_name}"'" |= . + {"tasks": (.tasks + {"cleanup-multiple-default-lan-networks ('"${cleanup_epoch}"')":[{"check-completed":"true", "affected-sites":"'"${affected_sites_count}"'"}]})}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
   else
@@ -3630,7 +3900,15 @@ multiple_attempt_to_install_package() {
 ##########################################################################################################################################################################
 
 java_required_variables() {
-  if [[ "${first_digit_unifi}" -gt '7' ]] || [[ "${first_digit_unifi}" == '7' && "${second_digit_unifi}" -ge "5" ]]; then
+  if [[ "${first_digit_unifi}" -gt '9' ]] || [[ "${first_digit_unifi}" == '9' && "${second_digit_unifi}" -ge "0" ]]; then
+    if apt-cache search --names-only "openjdk-21-jre-headless|temurin-21-jre" | awk '{print $1}' | grep -ioq "openjdk-21-jre-headless\\|temurin-21-jre"; then
+      required_java_version="openjdk-21"
+      required_java_version_short="21"
+    else
+      required_java_version="openjdk-17"
+      required_java_version_short="17"
+    fi
+  elif [[ "${first_digit_unifi}" -gt '7' ]] || [[ "${first_digit_unifi}" == '7' && "${second_digit_unifi}" -ge "5" ]]; then
     required_java_version="openjdk-17"
     required_java_version_short="17"
   elif [[ "${first_digit_unifi}" == '7' && "${second_digit_unifi}" =~ (3|4) ]]; then

@@ -11,6 +11,13 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 9.4.6
+  
+ - Improved the duplicated default LAN networks cleanup process.
+   - It will now also update the database to update references of the old networkconf ID which could result in the inability to update switch port/device configurations.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 9.4.5
   
  - Fixed the inability to update to 8.6.9 while running 8.5.6.
