@@ -11,6 +11,15 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 9.4.7
+  
+ - Improved the unsupported MongoDB Upgrade process.
+ - Improved the apt recovery process.
+ - Improved the uninstallation process for mongodb-org-database-tools-extra due to dependecy issues.
+ - Improved logging for shutting down the UniFi Network Application database.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 9.4.6
   
  - Improved the duplicated default LAN networks cleanup process.

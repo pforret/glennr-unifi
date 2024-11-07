@@ -58,7 +58,7 @@
 ###################################################################################################################################################################################################
 
 # Script                | UniFi Network Easy Installation Script
-# Version               | 8.1.2
+# Version               | 8.1.3
 # Application version   | 5.12.35-635f5234a0
 # Debian Repo version   | 5.12.35-12979-1
 # Author                | Glenn Rietveld
@@ -1139,7 +1139,7 @@ done < <(find "${eus_dir}/logs/" -type f 2> /dev/null)
 
 check_package_cache_file_corruption() {
   if ls /tmp/EUS/apt/*.log 1> /dev/null 2>&1; then
-    if grep -ioqE '^E: The package cache file is corrupted\\|^E: Problem with MergeList\\|^E: Unable to parse package file' /tmp/EUS/apt/*.log; then
+    if grep -ioqE '^E: The package cache file is corrupted\\|^E: Problem with MergeList\\|^E: Unable to parse package file\\|Splitting up .* into data and signature failed' /tmp/EUS/apt/*.log; then
       rm -r /var/lib/apt/lists/* &> "${eus_dir}/logs/package-cache-corruption.log"
       mkdir /var/lib/apt/lists/partial &> "${eus_dir}/logs/package-cache-corruption.log"
       repository_changes_applied="true"
@@ -3016,7 +3016,7 @@ minimum_required_mongodb_version_check() {
 }
 
 unifi_package="$("$(which dpkg)" -l | grep "unifi " | awk '{print $1}' | tr '[:upper:]' '[:lower:]')"
-if [[ -z "${unifi_package}" ]]; then if [[ -e "/usr/lib/unifi/data/db/version" ]]; then recovery_required="true"; fi; fi
+if [[ -e "/usr/lib/unifi/data/db/version" ]]; then recovery_required="true"; fi
 if [[ -n "${unifi_package}" ]] || [[ "${recovery_required}" == 'true' ]]; then
   if ! [[ "${unifi_package}" =~ (hi|ii) ]] || [[ "${recovery_required}" == 'true' ]]; then
     check_mongodb_installed
@@ -3361,7 +3361,7 @@ start_unifi_database() {
     while [[ -n "$(ps -p "${current_unifi_database_pid}" -o pid=)" ]]; do
       if [[ "${current_unifi_database_pid_message}" != 'true' ]]; then current_unifi_database_pid_message="true"; echo -e "${YELLOW}#${RESET} Another process is already using the UniFi Network Application database...\\n${YELLOW}#${RESET} Attempting to stop the other process..."; fi
       if [[ "${current_unifi_database_pid_stop_attempt}" == "0" ]]; then systemctl stop unifi &>> "${eus_dir}/logs/shutting-down-unifi-database.log"; sleep 10; fi
-      if [[ "${current_unifi_database_pid_stop_attempt}" == "1" ]]; then "$(which mongod)" --dbpath "${unifi_database_location}" --port 27117 --shutdown 2>&1 | tee -a "${eus_dir}/logs/already-running-mongod-shutdown.log" >> "${eus_dir}/logs/shutting-down-unifi-database.log"; sleep 10; fi
+      if [[ "${current_unifi_database_pid_stop_attempt}" == "1" ]]; then "$(which mongod)" --dbpath "${unifi_database_location}" --port 27117 --shutdown &>> "${eus_dir}/logs/shutting-down-unifi-database.log"; sleep 10; fi
       ((current_unifi_database_pid_stop_attempt=current_unifi_database_pid_stop_attempt+1))
       ((current_unifi_database_pid_stop_attempt_round=current_unifi_database_pid_stop_attempt_round+1))
       if [[ "${current_unifi_database_pid_stop_attempt}" == "1" ]]; then current_unifi_database_pid_stop_attempt="0"; fi
@@ -4238,7 +4238,15 @@ set_required_unifi_package_versions() {
 set_required_unifi_package_versions
 
 java_required_variables() {
-  if [[ "${first_digit_unifi}" -gt '7' ]] || [[ "${first_digit_unifi}" == '7' && "${second_digit_unifi}" -ge "5" ]]; then
+  if [[ "${first_digit_unifi}" -gt '9' ]] || [[ "${first_digit_unifi}" == '9' && "${second_digit_unifi}" -ge "0" ]]; then
+    if apt-cache search --names-only "openjdk-21-jre-headless|temurin-21-jre" | awk '{print $1}' | grep -ioq "openjdk-21-jre-headless\\|temurin-21-jre"; then
+      required_java_version="openjdk-21"
+      required_java_version_short="21"
+    else
+      required_java_version="openjdk-17"
+      required_java_version_short="17"
+    fi
+  elif [[ "${first_digit_unifi}" -gt '7' ]] || [[ "${first_digit_unifi}" == '7' && "${second_digit_unifi}" -ge "5" ]]; then
     required_java_version="openjdk-17"
     required_java_version_short="17"
   elif [[ "${first_digit_unifi}" == '7' && "${second_digit_unifi}" =~ (3|4) ]]; then
@@ -6139,13 +6147,13 @@ if [[ "${mongodb_installed}" != 'true' ]]; then
         eus_create_directories "mongodb"
         apt-cache policy mongodb-server &> /tmp/EUS/mongodb/apt-cache-policy-mongodb-server
         mongodb_server_installable_versions="$(apt-cache policy mongodb-server | grep -i "\<2\.6\>\|\<3\.0\>" | grep -i Candidate | sed -e 's/1://g' -e 's/ //g' -e 's/*//g' | cut -d':' -f2 | cut -d'-' -f1 | sed -e 's/\.//g' | uniq)"
-        if [[ -z "${mongodb_server_installable_versions}" ]]; then mongodb_server_installable_versions="$(apt-cache policy mongodb-server | grep -i "\<2\.6\>\|\<3\.0\>" | sed -e 's/500//g' -e 's/-1//g' -e 's/100//g' -e 's/ //g' -e '/http/d' -e 's/*//g' -e 's/^[^:]*://' -e 's/^[0-9]*://' | cut -d'-' -f1 | uniq | sed -e 's/\.//g')"; fi
+        if [[ -z "${mongodb_server_installable_versions}" ]]; then mongodb_server_installable_versions="$(apt-cache policy mongodb-server | grep -v " \-1" | grep -i "\<2\.6\>\|\<3\.0\>" | sed -e 's/500//g' -e 's/-1//g' -e 's/100//g' -e 's/ //g' -e '/http/d' -e 's/*//g' -e 's/^[^:]*://' -e 's/^[0-9]*://' | cut -d'-' -f1 | uniq | sed -e 's/\.//g')"; fi
         IFS=' ' read -r -a version_array <<< "$mongodb_server_installable_versions"
         for version in "${version_array[@]}"; do
           if [[ "${version::2}" =~ (26|30) ]]; then
             broken_unifi_install_mongodb_server_clients="true"
             mongodb_server_installable_major_minor_version="${version:0:1}.${version:1:1}"
-            mongodb_server_clients_installation_recovery_version="$(apt-cache policy mongodb-server | grep -i "${mongodb_server_installable_major_minor_version}"  | sed -e 's/500//g' -e 's/-1//g' -e 's/100//g' -e 's/ //g' -e '/http/d' -e 's/*//g' -e 's/^[^:]*://' -e 's/^[0-9]*://' | cut -d'-' -f1 | uniq)"
+            mongodb_server_clients_installation_recovery_version="$(apt-cache policy mongodb-server | grep -i "${mongodb_server_installable_major_minor_version}" | grep -v " \-1" | sed -e 's/500//g' -e 's/-1//g' -e 's/100//g' -e 's/ //g' -e '/http/d' -e 's/*//g' -e 's/^[^:]*://' -e 's/^[0-9]*://' | cut -d'-' -f1 | uniq)"
             if [[ -n "${mongodb_server_clients_installation_recovery_version}" ]]; then mongodb_server_clients_installation_recovery_version="=${mongodb_server_clients_installation_recovery_version}"; fi
             mongodb_server_clients_installation
             break
@@ -6441,28 +6449,29 @@ if [[ "${mongo_version_locked}" == '4.4.18' ]] || [[ "${unsupported_database_ver
           if [[ "${mongo_last_attempt_install_success}" != 'true' ]]; then abort_reason="Failed to install mongodb-clients through mongo_last_attempt function during the MongoDB Downgrade process."; abort_function_skip_reason="true"; abort; fi
         fi
       else
-        check_dpkg_lock
         echo -e "${GRAY_R}#${RESET} Downgrading ${mongodb_package}..."
-        if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_downgrade_option[@]}" "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${mongodb_package}${install_mongodb_version_with_equality_sign}" &>> "${eus_dir}/logs/mongodb-unsupported-version-change.log"; then
+        if [[ "${mongodb_package}" =~ (mongod-arm64|mongod-amd64) ]]; then unset mongodb_version_with_equal; else mongodb_version_with_equal="${install_mongodb_version_with_equality_sign}"; fi
+        check_dpkg_lock
+        if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_downgrade_option[@]}" "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${mongodb_package}${mongodb_version_with_equal}" &>> "${eus_dir}/logs/mongodb-unsupported-version-change.log"; then
           echo -e "${GREEN}#${RESET} Successfully downgraded ${mongodb_package} to version ${install_mongodb_version}! \\n"
         else
           check_unmet_dependencies
           broken_packages_check
           attempt_recover_broken_packages
           add_apt_option_no_install_recommends="true"; get_apt_options
-          if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_downgrade_option[@]}" "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${mongodb_package}${install_mongodb_version_with_equality_sign}" &>> "${eus_dir}/logs/mongodb-unsupported-version-change.log"; then
+          if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_downgrade_option[@]}" "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${mongodb_package}${mongodb_version_with_equal}" &>> "${eus_dir}/logs/mongodb-unsupported-version-change.log"; then
             echo -e "${GREEN}#${RESET} Successfully downgraded ${mongodb_package} to version ${install_mongodb_version}! \\n"
           else
             try_different_mongodb_repo="true"
             skip_mongodb_org_v="true"
             add_mongodb_repo
-            if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_downgrade_option[@]}" "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${mongodb_package}${install_mongodb_version_with_equality_sign}" &>> "${eus_dir}/logs/mongodb-unsupported-version-change.log"; then
+            if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_downgrade_option[@]}" "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${mongodb_package}${mongodb_version_with_equal}" &>> "${eus_dir}/logs/mongodb-unsupported-version-change.log"; then
               echo -e "${GREEN}#${RESET} Successfully downgraded ${mongodb_package} to version ${install_mongodb_version}! \\n"
             else
               try_http_mongodb_repo="true"
               skip_mongodb_org_v="true"
               add_mongodb_repo
-              if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_downgrade_option[@]}" "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${mongodb_package}${install_mongodb_version_with_equality_sign}" &>> "${eus_dir}/logs/mongodb-unsupported-version-change.log"; then
+              if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_downgrade_option[@]}" "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${mongodb_package}${mongodb_version_with_equal}" &>> "${eus_dir}/logs/mongodb-unsupported-version-change.log"; then
                 echo -e "${GREEN}#${RESET} Successfully downgraded ${mongodb_package} to version ${install_mongodb_version}! \\n"
               else
                 abort_reason="Failed to downgrade ${mongodb_package} from version ${mongodb_org_version} to ${install_mongodb_version}."

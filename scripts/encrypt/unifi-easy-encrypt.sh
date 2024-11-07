@@ -2,7 +2,7 @@
 
 # UniFi Easy Encrypt script.
 # Script   | UniFi Network Easy Encrypt Script
-# Version  | 3.2.3
+# Version  | 3.2.4
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -1774,7 +1774,7 @@ fi
 
 check_package_cache_file_corruption() {
   if ls /tmp/EUS/apt/*.log 1> /dev/null 2>&1; then
-    if grep -ioqE '^E: The package cache file is corrupted\\|^E: Problem with MergeList\\|^E: Unable to parse package file' /tmp/EUS/apt/*.log; then
+    if grep -ioqE '^E: The package cache file is corrupted\\|^E: Problem with MergeList\\|^E: Unable to parse package file\\|Splitting up .* into data and signature failed' /tmp/EUS/apt/*.log; then
       rm -r /var/lib/apt/lists/* &> "${eus_dir}/logs/package-cache-corruption.log"
       mkdir /var/lib/apt/lists/partial &> "${eus_dir}/logs/package-cache-corruption.log"
       repository_changes_applied="true"

@@ -11,6 +11,16 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 8.1.3
+ 
+ - Improved the unsupported MongoDB Upgrade process.
+ - Improved the apt recovery process.
+ - Improved the UniFi Network Application recovery process if the last known MongoDB version was 2.6.10.
+ - Improved logging for shutting down the UniFi Network Application database.
+ - Improved detecting previous UniFi Network Application installations.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 8.1.2
  
  - Improved the unsupported MongoDB Upgrade process.
