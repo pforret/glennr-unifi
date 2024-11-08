@@ -58,7 +58,7 @@
 ###################################################################################################################################################################################################
 
 # Script                | UniFi Network Easy Installation Script
-# Version               | 8.1.3
+# Version               | 8.1.4
 # Application version   | 6.0.45-564eef1dda
 # Debian Repo version   | 6.0.45-14358-1
 # Author                | Glenn Rietveld
@@ -2585,6 +2585,37 @@ add_repositories() {
   fi
 }
 
+get_unifi_application_status() {
+  if [[ "${unifi_core_system}" == 'true' ]]; then
+    if [[ -n "$(command -v jq)" ]]; then
+      application_up="$(curl --silent --insecure "${status_api_protocol}://localhost:${dmport}/status" | jq -r '.meta.server_running' 2> /dev/null)"
+      if [[ -z "${application_up}" ]]; then application_up="$(curl "${noproxy_curl_argument[@]}" --silent --insecure --connect-timeout 1 "${status_api_protocol}://localhost:${dmport}/status" | jq -r '.meta.server_running' 2> /dev/null)"; fi
+    else
+      application_up="$(curl --silent --insecure --connect-timeout 1 "${status_api_protocol}://localhost:${dmport}/status" | grep -o '"server_running":[^,]*' | awk -F ':' '{print $2}')"
+      if [[ -z "${application_up}" ]]; then application_up="$(curl "${noproxy_curl_argument[@]}" --silent --insecure --connect-timeout 1 "${status_api_protocol}://localhost:${dmport}/status" | grep -o '"server_running":[^,]*' | awk -F ':' '{print $2}')"; fi
+    fi
+  else
+    if [[ -n "$(command -v jq)" ]]; then
+      application_up="$(curl --silent --insecure "${status_api_protocol}://localhost:${dmport}/status" | jq -r '.meta.up' 2> /dev/null)"
+      if [[ -z "${application_up}" ]]; then application_up="$(curl "${noproxy_curl_argument[@]}" --silent --insecure --connect-timeout 1 "${status_api_protocol}://localhost:${dmport}/status" | jq -r '.meta.up' 2> /dev/null)"; fi
+    else
+      application_up="$(curl --silent --insecure --connect-timeout 1 "${status_api_protocol}://localhost:${dmport}/status" | grep -o '"up":[^,]*' | awk -F ':' '{print $2}')"
+      if [[ -z "${application_up}" ]]; then application_up="$(curl "${noproxy_curl_argument[@]}" --silent --insecure --connect-timeout 1 "${status_api_protocol}://localhost:${dmport}/status" | grep -o '"up":[^,]*' | awk -F ':' '{print $2}')"; fi
+    fi
+  fi
+}
+
+get_unifi_api_ports() {
+  if [[ "${unifi_core_system}" == 'true' ]]; then
+    dmport="8081"
+    status_api_protocol="http"
+  else
+    if grep -sioq "^unifi.https.port" "/usr/lib/unifi/data/system.properties"; then dmport="$(awk '/^unifi.https.port/' /usr/lib/unifi/data/system.properties | cut -d'=' -f2)"; else dmport="8443"; fi
+    status_api_protocol="https"
+  fi
+}
+get_unifi_api_ports
+
 if ! grep -iq '^127.0.0.1.*localhost' /etc/hosts; then
   if [[ "${script_option_debug}" != 'true' ]]; then clear; fi
   header_red
@@ -2931,8 +2962,6 @@ check_dpkg_lock() {
 # Check if we should handle broken UniFi installation process if we found old database files. 
 if [[ -d "/usr/lib/unifi/logs/" ]]; then
   if [[ "$(command -v zgrep)" ]]; then grep_command="zgrep"; else grep_command="grep"; fi
-  get_unifi_api_ports
-  get_unifi_application_status
   if [[ "$(du -b "/usr/lib/unifi/logs/mongod.log" 2> /dev/null | awk '{print$1}')" -gt "5368709120 " ]]; then grep_matches="-m 10"; fi
   while read -r found_mongodb_version; do
     found_mongodb_version_fd="$(echo "${found_mongodb_version}" | cut -d'.' -f1)"
@@ -2951,14 +2980,8 @@ if [[ -d "/usr/lib/unifi/logs/" ]]; then
     if [[ -n "${last_known_good_mongodb_version}" ]]; then wait; break; fi
   done < <(find /usr/lib/unifi/logs/ -maxdepth 1 -type f -print0 | xargs -0 "${grep_command}" ${grep_matches:+${grep_matches}} -sEioa "db version v[0-9].[0-9].[0-9]{1,2}|buildInfo\":{\"version\":\"[0-9].[0-9].[0-9]{1,2}\"" | sed -e 's/^.*://' -e 's/db version v//g' -e 's/buildInfo":{"version":"//g' -e 's/"//g' | sort -rV | uniq)
   if [[ -z "${last_known_good_mongodb_version}" ]] && "$(which dpkg)" -l | grep "mongodb-server\\|mongodb-org-server\\|mongod-armv8\\|mongod-amd64" | grep -viq "^ii\\|^hi"; then
-    if grep -sioq "^unifi.https.port" "/usr/lib/unifi/data/system.properties"; then dmport="$(awk '/^unifi.https.port/' /usr/lib/unifi/data/system.properties | cut -d'=' -f2)"; else dmport="8443"; fi
-    if [[ -n "$(command -v jq)" ]]; then
-      application_up="$(curl --silent --insecure "https://localhost:${dmport}/status" | jq -r '.meta.up' 2> /dev/null)"
-      if [[ -z "${application_up}" ]]; then application_up="$(curl "${noproxy_curl_argument[@]}" --silent --insecure --connect-timeout 1 "https://localhost:${dmport}/status" | jq -r '.meta.up' 2> /dev/null)"; fi
-    else
-      application_up="$(curl --silent --insecure --connect-timeout 1 "https://localhost:${dmport}/status" | grep -o '"up":[^,]*' | awk -F ':' '{print $2}')"
-      if [[ -z "${application_up}" ]]; then application_up="$(curl "${noproxy_curl_argument[@]}" --silent --insecure --connect-timeout 1 "https://localhost:${dmport}/status" | grep -o '"up":[^,]*' | awk -F ':' '{print $2}')"; fi
-    fi
+    get_unifi_api_ports
+    get_unifi_application_status
     if [[ "${application_up}" != 'true' ]]; then
       if [[ "$(find /usr/lib/unifi/logs/ -maxdepth 1 -type f -print0 | wc -l)" == "0" ]] || [[ "$(find /usr/lib/unifi/logs/ -type f -name "mongod.log*" | wc -l)" == "0" ]]; then 
         last_known_installed_mongodb_version="$("$(which dpkg)" -l | grep "mongodb-server\\|mongodb-org-server\\|mongod-armv8\\|mongod-amd64" | grep -vi "^ii\\|^hi" | awk '{print $3}' | sed -e 's/.*://' -e 's/-.*//g' -e 's/+.*//g')"
@@ -3016,7 +3039,7 @@ minimum_required_mongodb_version_check() {
 }
 
 unifi_package="$("$(which dpkg)" -l | grep "unifi " | awk '{print $1}' | tr '[:upper:]' '[:lower:]')"
-if [[ -e "/usr/lib/unifi/data/db/version" ]]; then recovery_required="true"; fi
+if ! [[ "${unifi_package}" =~ (hi|ii) ]]; then if [[ -e "/usr/lib/unifi/data/db/version" ]]; then recovery_required="true"; fi; fi
 if [[ -n "${unifi_package}" ]] || [[ "${recovery_required}" == 'true' ]]; then
   if ! [[ "${unifi_package}" =~ (hi|ii) ]] || [[ "${recovery_required}" == 'true' ]]; then
     check_mongodb_installed
@@ -3549,9 +3572,9 @@ free_var_log_space_check() {
       echo -e "${YELLOW}#${RESET} You only have $(df -B1 /var/log | awk 'NR==2{print $4}' | awk '{ split( "B KB MB GB TB PB EB ZB YB" , v ); s=1; while( $1>1024 && s<9 ){ $1/=1024; s++ } printf "%.1f %s", $1, v[s] }') of disk space available on \"/var/log\"..."
       echo -e "${GRAY_R}#${RESET} How would you like to proceed?"
       echo -e "\\n${GRAY_R}---${RESET}\\n"
-      echo -e " [   ${GRAY_R}1 ${RESET}   ]  |  Let the script attempt to clean up log files."
-      echo -e " [   ${GRAY_R}2 ${RESET}   ]  |  Proceed with a higher failure risk."
-      echo -e " [   ${GRAY_R}3 ${RESET}   ]  |  I want to free up disk space before attempting again."
+      echo -e " [   ${WHITE_R}1 ${RESET}   ]  |  Let the script attempt to clean up log files."
+      echo -e " [   ${WHITE_R}2 ${RESET}   ]  |  Proceed with a higher failure risk."
+      echo -e " [   ${WHITE_R}3 ${RESET}   ]  |  I want to free up disk space before attempting again."
       echo -e "\\n"
       read -rp $'Your choice | \033[39m' choice
       case "$choice" in
