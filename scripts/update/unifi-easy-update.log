@@ -11,6 +11,13 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 9.4.9
+  
+ - Fixed menu numbering issues for those on 8.5.6.
+ - Improved the unsupported MongoDB Upgrade process.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 9.4.8
   
  - Added support for upgrading to 8.6.9 Stable/Official.

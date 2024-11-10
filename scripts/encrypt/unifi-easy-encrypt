@@ -11,6 +11,12 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Encrypt Script  |  Version 3.2.5
+ 
+ - Fixed an issue where broken package recovery process was missing.
+ 
+ ####
+
  |  UniFi Easy Encrypt Script  |  Version 3.2.4
  
  - Improved the apt recovery process.
