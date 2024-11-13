@@ -11,6 +11,12 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 9.5.0
+  
+ - Added ability to detect last known good MongoDB version from the dpkg logs.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 9.4.9
   
  - Fixed menu numbering issues for those on 8.5.6.

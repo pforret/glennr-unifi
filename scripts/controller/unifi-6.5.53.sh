@@ -58,7 +58,7 @@
 ###################################################################################################################################################################################################
 
 # Script                | UniFi Network Easy Installation Script
-# Version               | 8.1.5
+# Version               | 8.1.6
 # Application version   | 6.5.53-63fe9ffd32
 # Debian Repo version   | 6.5.53-16673-1
 # Author                | Glenn Rietveld
@@ -787,9 +787,9 @@ eus_directories() {
     is_cloudkey="false"
   fi
   if [[ "${eus_dir}" == '/srv/EUS' ]]; then if findmnt -no OPTIONS "$(df --output=target /srv | tail -1)" | grep -ioq "ro"; then eus_dir='/usr/lib/EUS'; fi; fi
+  eus_tmp_directories_cleanup
   eus_directory_location="${eus_dir}"
   eus_create_directories "logs" "tmp"
-  eus_tmp_directories_cleanup
   eus_tmp_directory_location="$(mktemp -d "$(date +%Y%m%d)_XXXXX" --tmpdir="${eus_dir}/tmp/" 2> "${eus_dir}/logs/create-tmp-dir-file.log")"
   if ! rm -rf /tmp/EUS &> /dev/null; then abort_reason="Failed to remove /tmp/EUS."; header_red; abort; fi
   eus_directory_location="/tmp/EUS"
@@ -2993,10 +2993,26 @@ if [[ -d "/usr/lib/unifi/logs/" ]]; then
     previous_mongodb_version_with_dot="${last_known_good_mongodb_version}"
   else
     last_known_good_mongodb_version_eus_db="$(jq -r '.scripts["UniFi Network Easy Update Script"].tasks | to_entries[] | select(.key | startswith("mongodb-upgrade")) | .value[] | select(.status == "success") | .to' "${eus_dir}/db/db.json" 2> /dev/null | sort -V | tail -n1)"
+    if [[ -z "${last_known_good_mongodb_version_eus_db}" ]]; then
+      if [[ -e "${eus_dir}/logs/mongodb-unsupported-version-change-locate.log" ]]; then
+        mapfile -t eus_marked_bad_versions < <("${grep_command}" -E '"[0-9]+\.[0-9]+\.[0-9]+" .* bad' "${eus_dir}/logs/mongodb-unsupported-version-change-locate.log" | sed -E 's/.*"([0-9]+\.[0-9]+\.[0-9]+)".*/\1/' | sort -rV | uniq)
+        mapfile -t dpkg_log_mongodb_server_versions < <(find /var/log/ -maxdepth 1 -type f -name "dpkg*" -print0 | xargs -0 "${grep_command}" ${grep_matches:+${grep_matches}} -sEia "upgrade mongodb-org-server|upgrade mongodb-server|upgrade mongod-armv8|upgrade mongod-amd64" | sed -E 's/.* ([0-9]+\.[0-9]+\.[0-9]+) [0-9]+\.[0-9]+\.[0-9]+/\1/' | sort -rV | uniq)
+        for version in "${dpkg_log_mongodb_server_versions[@]}"; do
+          if [[ ! " ${eus_marked_bad_versions[*]} " =~ ${version} ]]; then
+            dpkg_log_mongodb_server="${version}"
+            break
+          fi
+        done
+      fi
+    fi
     if [[ -n "${last_known_good_mongodb_version_eus_db}" ]]; then
       echo -e "$(date +%F-%R) | Using last known good MongoDB version \"${last_known_good_mongodb_version_eus_db}\" from the EUS database!" &>> "${eus_dir}/logs/mongodb-unsupported-version-change-locate.log"
       previous_mongodb_version="${previous_mongodb_version_with_dot//./}"
       previous_mongodb_version_with_dot="${last_known_good_mongodb_version_eus_db}"
+    elif [[ -n "${dpkg_log_mongodb_server}" ]]; then
+      echo -e "$(date +%F-%R) | Using last known good MongoDB version \"${dpkg_log_mongodb_server}\" from the dpkg logs!" &>> "${eus_dir}/logs/mongodb-unsupported-version-change-locate.log"
+      previous_mongodb_version="${dpkg_log_mongodb_server//./}"
+      previous_mongodb_version_with_dot="${dpkg_log_mongodb_server}"
     elif [[ -n "${last_known_installed_mongodb_version}" ]]; then
       previous_mongodb_version="${last_known_installed_mongodb_version//./}"
       previous_mongodb_version_with_dot="${last_known_installed_mongodb_version}"
