@@ -58,7 +58,7 @@
 ###################################################################################################################################################################################################
 
 # Script                | UniFi Network Easy Installation Script
-# Version               | 8.1.6
+# Version               | 8.1.7
 # Application version   | 6.0.13-49f6654778
 # Debian Repo version   | 6.0.13-14169-1
 # Author                | Glenn Rietveld
@@ -2310,6 +2310,8 @@ get_distro() {
       skip_use_lsb_release="true"
       get_distro
       return
+    elif [[ "${os_codename}" == 'lts' ]]; then
+      os_codename="$(grep -io "wheezy\\|jessie\\|stretch\\|buster\\|bullseye\\|bookworm\\|trixie\\|forky\\|precise\\|trusty\\|xenial\\|bionic\\|cosmic\\|disco\\|eoan\\|focal\\|groovy\\|hirsute\\|impish\\|jammy\\|kinetic\\|lunar\\|mantic\\|noble\\|oracular" /etc/os-release | tr '[:upper:]' '[:lower:]' | awk '!NF || !seen[$0]++' | head -n1)"
     fi
   fi
   if [[ "${unsupported_no_modify}" != 'true' ]]; then
@@ -3055,14 +3057,15 @@ minimum_required_mongodb_version_check() {
 }
 
 unifi_package="$("$(which dpkg)" -l | grep "unifi " | awk '{print $1}' | tr '[:upper:]' '[:lower:]')"
-if ! [[ "${unifi_package}" =~ (hi|ii) ]]; then if [[ -e "/usr/lib/unifi/data/db/version" ]]; then recovery_required="true"; fi; fi
+if ! [[ "${unifi_package}" =~ (hi|ii) ]]; then if [[ -e "/usr/lib/unifi/data/db/version" ]]; then recovery_required="true"; elif [[ -e "/var/lib/unifi/db/version" ]]; then recovery_required="true"; fi; fi
+if [[ -e "/usr/lib/unifi/data/db/version" ]]; then unifi_db_version_path="/usr/lib/unifi/data/db/version"; elif [[ -e "/var/lib/unifi/db/version" ]]; then unifi_db_version_path="/var/lib/unifi/db/version"; fi
 if [[ -n "${unifi_package}" ]] || [[ "${recovery_required}" == 'true' ]]; then
   if ! [[ "${unifi_package}" =~ (hi|ii) ]] || [[ "${recovery_required}" == 'true' ]]; then
     check_mongodb_installed
     broken_unifi_install="true"
     header_red
     echo -e "${RED}#${RESET} You have a broken UniFi Network Application installation...\\n"
-    if [[ -e "/usr/lib/unifi/data/db/version" ]]; then broken_unifi_install_version1="$(head -n1 /usr/lib/unifi/data/db/version)"; fi
+    if [[ -e "${unifi_db_version_path}" ]]; then broken_unifi_install_version1="$(head -n1 "${unifi_db_version_path}")"; fi
     broken_unifi_install_version2="$(grep -saEio "UniFi [0-9].[0-9].[0-9]{1,3}" /usr/lib/unifi/logs/server.log* | sed 's/UniFi //g' | sort -V | tail -n1 | sed 's/^.*://')"
     broken_unifi_install_version3="$("$(which dpkg)" -l unifi | tail -n1 | awk '{print $3}' | cut -d"-" -f1)"
     broken_unifi_install_versions=("${broken_unifi_install_version1}" "${broken_unifi_install_version2}" "${broken_unifi_install_version3}")
@@ -6537,7 +6540,7 @@ if [[ "${mongo_version_locked}" == '4.4.18' ]] || [[ "${unsupported_database_ver
       unset add_mongodb_44_repo
     fi
     if [[ "${reinstall_unifi}" == 'true' ]]; then
-      reinstall_unifi_version="$(head -n1 /usr/lib/unifi/data/db/version | sed 's/[^0-9.]//g' 2> /dev/null)"
+      reinstall_unifi_version="$(head -n1 "${unifi_db_version_path}" | sed 's/[^0-9.]//g' 2> /dev/null)"
       if [[ -z "${reinstall_unifi_version}" ]]; then reinstall_unifi_version="$(dpkg-query --showformat='${Version}' --show unifi | awk -F '[-]' '{print $1}')"; fi
       if [[ "$(curl "${curl_argument[@]}" https://api.glennr.nl/api/network-release?status 2> /dev/null | jq -r '.[]' 2> /dev/null)" == "OK" ]]; then
         fw_update_dl_link="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-release?version=${reinstall_unifi_version}" | jq -r '."download_link"' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
@@ -6587,6 +6590,7 @@ if [[ "${mongo_version_locked}" == '4.4.18' ]] || [[ "${unsupported_database_ver
         second_digit_unifi="$(echo "${reinstall_unifi_version}" | cut -d'.' -f2)"
         third_digit_unifi="$(echo "${reinstall_unifi_version}" | cut -d'.' -f3)"
         java_install_check
+        unifi_required_packages_check
         unifi_dependencies_check
         unifi_deb_package_modification
         unifi_version="${reinstall_unifi_version}"

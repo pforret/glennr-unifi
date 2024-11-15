@@ -2,7 +2,7 @@
 
 # UniFi Easy Encrypt script.
 # Script   | UniFi Network Easy Encrypt Script
-# Version  | 3.2.5
+# Version  | 3.2.6
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -719,9 +719,9 @@ create_remove_files() {
   rm --force "${eus_dir}/other_domain_records" &> /dev/null
   rm --force "${eus_dir}/le_domain_list" &> /dev/null
   rm --force "${eus_dir}/fqdn_option_domains" &> /dev/null
+  eus_tmp_directories_cleanup
   eus_directory_location="${eus_dir}"
   eus_create_directories "logs" "checksum" "tmp"
-  eus_tmp_directories_cleanup
   #eus_tmp_directory_location="$(mktemp -d "$(date +%Y%m%d)_XXXXX" --tmpdir="${eus_dir}/tmp/")"
   if ! [[ -d "/etc/apt/keyrings" ]]; then if ! install -m "0755" -d "/etc/apt/keyrings" &>> "${eus_dir}/logs/keyrings-directory-creation.log"; then if ! mkdir -p "/etc/apt/keyrings" &>> "${eus_dir}/logs/keyrings-directory-creation.log"; then abort_reason="Failed to create /etc/apt/keyrings."; abort; fi; fi; if ! [[ -s "${eus_dir}/logs/keyrings-directory-creation.log" ]]; then rm --force "${eus_dir}/logs/keyrings-directory-creation.log"; fi; fi
   mkdir -p /tmp/EUS/keys &> /dev/null
@@ -1243,6 +1243,8 @@ get_distro() {
       skip_use_lsb_release="true"
       get_distro
       return
+    elif [[ "${os_codename}" == 'lts' ]]; then
+      os_codename="$(grep -io "wheezy\\|jessie\\|stretch\\|buster\\|bullseye\\|bookworm\\|trixie\\|forky\\|precise\\|trusty\\|xenial\\|bionic\\|cosmic\\|disco\\|eoan\\|focal\\|groovy\\|hirsute\\|impish\\|jammy\\|kinetic\\|lunar\\|mantic\\|noble\\|oracular" /etc/os-release | tr '[:upper:]' '[:lower:]' | awk '!NF || !seen[$0]++' | head -n1)"
     fi
   fi
   if [[ "${unsupported_no_modify}" != 'true' ]]; then
@@ -5088,6 +5090,8 @@ get_distro() {
       skip_use_lsb_release="true"
       get_distro
       return
+    elif [[ "\${os_codename}" == 'lts' ]]; then
+      os_codename="$(grep -io "wheezy\\|jessie\\|stretch\\|buster\\|bullseye\\|bookworm\\|trixie\\|forky\\|precise\\|trusty\\|xenial\\|bionic\\|cosmic\\|disco\\|eoan\\|focal\\|groovy\\|hirsute\\|impish\\|jammy\\|kinetic\\|lunar\\|mantic\\|noble\\|oracular" /etc/os-release | tr '[:upper:]' '[:lower:]' | awk '!NF || !seen[\$0]++' | head -n1)"
     fi
   fi
   if [[ ! "${os_id}" =~ (ubuntu|debian) ]] && [[ -e "/etc/os-release" ]]; then os_id="\$(grep -io "debian\\|ubuntu" /etc/os-release | tr '[:upper:]' '[:lower:]' | head -n1)"; fi

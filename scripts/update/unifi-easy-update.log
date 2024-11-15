@@ -11,6 +11,12 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 9.5.1
+  
+ - Improved getting OS codename when it's LTS.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 9.5.0
   
  - Added ability to detect last known good MongoDB version from the dpkg logs.

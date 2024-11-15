@@ -11,6 +11,14 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 8.1.7
+ 
+ - Improved the unsupported MongoDB Upgrade process.
+ - Improved the broken UniFi Network Application installation recovery process.
+ - Improved getting OS codename when it's LTS.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 8.1.6
  
  - Added ability to detect last known good MongoDB version from the dpkg logs.

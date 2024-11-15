@@ -11,6 +11,12 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Encrypt Script  |  Version 3.2.6
+ 
+ - Improved getting OS codename when it's LTS.
+ 
+ ####
+
  |  UniFi Easy Encrypt Script  |  Version 3.2.5
  
  - Fixed an issue where broken package recovery process was missing.
