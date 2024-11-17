@@ -11,6 +11,12 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 9.5.2
+  
+ - Improved UniFi Network Application downloading logging.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 9.5.1
   
  - Improved getting OS codename when it's LTS.

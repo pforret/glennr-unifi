@@ -58,7 +58,7 @@
 ###################################################################################################################################################################################################
 
 # Script                | UniFi Network Easy Installation Script
-# Version               | 8.1.7
+# Version               | 8.1.8
 # Application version   | 5.7.23-10670
 # Debian Repo version   | 5.7.23-10670
 # Author                | Glenn Rietveld
@@ -790,7 +790,7 @@ eus_directories() {
   eus_tmp_directories_cleanup
   eus_directory_location="${eus_dir}"
   eus_create_directories "logs" "tmp"
-  eus_tmp_directory_location="$(mktemp -d "$(date +%Y%m%d)_XXXXX" --tmpdir="${eus_dir}/tmp/" 2> "${eus_dir}/logs/create-tmp-dir-file.log")"
+  eus_tmp_directory_location="$(mktemp -d "$(date +%Y%m%d)_XXXXX" --tmpdir="${eus_dir}/tmp/" 2>> "${eus_dir}/logs/create-tmp-dir-file.log")"
   if ! rm -rf /tmp/EUS &> /dev/null; then abort_reason="Failed to remove /tmp/EUS."; header_red; abort; fi
   eus_directory_location="/tmp/EUS"
   eus_create_directories "upgrade" "dpkg" "repository"
@@ -3099,7 +3099,7 @@ if [[ -n "${unifi_package}" ]] || [[ "${recovery_required}" == 'true' ]]; then
       fi
       if [[ -n "${unifi_download_link}" || -n "${unifi_gr_api_download_link}" || -n "${unifi_gr_download_link}" ]]; then
         echo -e "${GRAY_R}#${RESET} Checking if we need to change the version that the script will install..."
-        if [[ -z "${unifi_temp}" ]]; then unifi_temp="$(mktemp --tmpdir="${eus_tmp_directory_location}" "unifi_sysvinit_all_${broken_unifi_install_version}_XXXXX.deb" 2> "${eus_dir}/logs/create-tmp-dir-file.log")"; fi
+        if [[ -z "${unifi_temp}" ]]; then unifi_temp="$(mktemp --tmpdir="${eus_tmp_directory_location}" "unifi_sysvinit_all_${broken_unifi_install_version}_XXXXX.deb" 2>> "${eus_dir}/logs/create-tmp-dir-file.log")"; fi
         unifi_deb_dl_urls=("${unifi_download_link}" "${unifi_gr_api_download_link}" "${unifi_gr_download_link}")
         for unifi_download_link in "${unifi_deb_dl_urls[@]}"; do
           echo -e "$(date +%F-%R) | Downloading ${unifi_download_link} to ${unifi_temp}" &>> "${eus_dir}/logs/unifi-broken-install-download.log"
@@ -3468,7 +3468,7 @@ custom_url_upgrade_check() {
 }
 
 custom_url_download_check() {
-  if [[ -z "${unifi_temp}" ]]; then unifi_temp="$(mktemp --tmpdir="${eus_tmp_directory_location}" "unifi_sysvinit_all_XXXXX.deb" 2> "${eus_dir}/logs/create-tmp-dir-file.log")"; fi
+  if [[ -z "${unifi_temp}" ]]; then unifi_temp="$(mktemp --tmpdir="${eus_tmp_directory_location}" "unifi_sysvinit_all_XXXXX.deb" 2>> "${eus_dir}/logs/create-tmp-dir-file.log")"; fi
   header
   echo -e "${GRAY_R}#${RESET} Downloading the application release..."
   echo -e "$(date +%F-%R) | Downloading ${custom_download_url} to ${unifi_temp}" &>> "${eus_dir}/logs/unifi_custom_url_download.log"
@@ -5474,7 +5474,7 @@ unifi_deb_package_modification() {
       unifi_deb_package_modification_message_1="${non_default_java_package}"
     fi
     if [[ -n "${pre_build_fw_update_dl_link}" ]]; then
-      if [[ -z "${gr_unifi_temp}" ]]; then gr_unifi_temp="$(mktemp --tmpdir="${eus_tmp_directory_location}" "${unifi_deb_file_name}_${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi}_XXXXX.deb" 2> "${eus_dir}/logs/create-tmp-dir-file.log")"; fi
+      if [[ -z "${gr_unifi_temp}" ]]; then gr_unifi_temp="$(mktemp --tmpdir="${eus_tmp_directory_location}" "${unifi_deb_file_name}_${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi}_XXXXX.deb" 2>> "${eus_dir}/logs/create-tmp-dir-file.log")"; fi
       echo -e "$(date +%F-%R) | Downloading ${pre_build_fw_update_dl_link} to ${gr_unifi_temp}" &>> "${eus_dir}/logs/unifi-download.log"
       echo -e "${GRAY_R}#${RESET} Downloading UniFi Network Application version ${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi} built for ${unifi_deb_package_modification_message_1}..."
       if curl "${nos_curl_argument[@]}" --output "$gr_unifi_temp" "${pre_build_fw_update_dl_link}" &>> "${eus_dir}/logs/unifi-download.log"; then
@@ -6551,7 +6551,7 @@ if [[ "${mongo_version_locked}" == '4.4.18' ]] || [[ "${unsupported_database_ver
         fw_update_dl_link="$(curl "${curl_argument[@]}" --location --request GET "https://fw-update.ui.com/api/firmware-latest?filter=eq~~version_major~~$(awk -F'.' '{print $1}' <<< "${reinstall_unifi_version}")&filter=eq~~version_minor~~$(awk -F'.' '{print $2}' <<< "${reinstall_unifi_version}")&filter=eq~~version_patch~~$(awk -F'.' '{print $3}' <<< "${reinstall_unifi_version}")&filter=eq~~platform~~debian" 2> /dev/null | jq -r "._embedded.firmware[0]._links.data.href" 2> /dev/null | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
         fw_update_dl_link_sha256sum="$(curl "${curl_argument[@]}" --location --request GET "https://fw-update.ui.com/api/firmware-latest?filter=eq~~version_major~~$(awk -F'.' '{print $1}' <<< "${reinstall_unifi_version}")&filter=eq~~version_minor~~$(awk -F'.' '{print $2}' <<< "${reinstall_unifi_version}")&filter=eq~~version_patch~~$(awk -F'.' '{print $3}' <<< "${reinstall_unifi_version}")&filter=eq~~platform~~debian" 2> /dev/null | jq -r "._embedded.firmware[0].sha256_checksum" 2> /dev/null | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
       fi
-      if [[ -z "${unifi_temp}" ]]; then unifi_temp="$(mktemp --tmpdir="${eus_tmp_directory_location}" "${unifi_deb_file_name}_${reinstall_unifi_version}_XXXXX.deb" 2> "${eus_dir}/logs/create-tmp-dir-file.log")"; fi
+      if [[ -z "${unifi_temp}" ]]; then unifi_temp="$(mktemp --tmpdir="${eus_tmp_directory_location}" "${unifi_deb_file_name}_${reinstall_unifi_version}_XXXXX.deb" 2>> "${eus_dir}/logs/create-tmp-dir-file.log")"; fi
       if [[ -n "${fw_update_gr_dl_link}" ]]; then
         fw_update_dl_links=("${fw_update_dl_link}" "${fw_update_gr_dl_link}")
       else
@@ -6678,7 +6678,7 @@ header
 echo -e "${GRAY_R}#${RESET} Installing your UniFi Network Application ${GRAY_R}${unifi_clean}${RESET}...\\n"
 sleep 2
 if [[ "${unifi_network_application_downloaded}" != 'true' ]]; then
-  if [[ -z "${unifi_temp}" ]]; then unifi_temp="$(mktemp --tmpdir="${eus_tmp_directory_location}" "unifi_sysvinit_all_${unifi_clean}_XXX.deb" 2> "${eus_dir}/logs/create-tmp-dir-file.log")"; fi
+  if [[ -z "${unifi_temp}" ]]; then unifi_temp="$(mktemp --tmpdir="${eus_tmp_directory_location}" "unifi_sysvinit_all_${unifi_clean}_XXX.deb" 2>> "${eus_dir}/logs/create-tmp-dir-file.log")"; fi
   unifi_fwupdate="$(curl "${curl_argument[@]}" "https://fw-update.ui.com/api/firmware-latest?filter=eq~~version_major~~${first_digit_unifi}&filter=eq~~version_minor~~${second_digit_unifi}&filter=eq~~version_patch~~${third_digit_unifi}&filter=eq~~platform~~debian" 2> /dev/null | jq -r "._embedded.firmware[]._links.data.href" 2> /dev/null | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
   if [[ -z "${unifi_fwupdate}" ]]; then unifi_fwupdate="$(curl "${curl_argument[@]}" "http://fw-update.ui.com/api/firmware-latest?filter=eq~~version_major~~${first_digit_unifi}&filter=eq~~version_minor~~${second_digit_unifi}&filter=eq~~version_patch~~${third_digit_unifi}&filter=eq~~platform~~debian" 2> /dev/null | jq -r "._embedded.firmware[]._links.data.href" 2> /dev/null | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"; fi
   if [[ "$(curl "${curl_argument[@]}" https://api.glennr.nl/api/network-release?status 2> /dev/null | jq -r '.[]' 2> /dev/null)" == "OK" ]]; then
