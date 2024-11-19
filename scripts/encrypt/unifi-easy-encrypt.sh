@@ -2,7 +2,7 @@
 
 # UniFi Easy Encrypt script.
 # Script   | UniFi Network Easy Encrypt Script
-# Version  | 3.2.6
+# Version  | 3.2.8
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -59,6 +59,14 @@ fi
 # Unset environment variables.
 if [[ -n "${PAGER}" ]]; then unset PAGER; fi
 if [[ -n "${LESS}" ]]; then unset LESS; fi
+
+if [[ "$(ps -p 1 -o comm=)" != 'systemd' ]]; then
+  header_red
+  echo -e "${YELLOW}#${RESET} This setup appears to be using \"$(ps -p 1 -o comm=)\" instead of \"systemd\"..."
+  echo -e "${YELLOW}#${RESET} The script has limited functionality on \"$(ps -p 1 -o comm=)\" systems..."
+  limited_functionality="true"
+  sleep 10
+fi
 
 if ! grep -siq "udm" /usr/lib/version &> /dev/null; then
   if ! env | grep "LC_ALL\\|LANG" | grep -iq "en_US\\|C.UTF-8\\|en_GB.UTF-8"; then
@@ -2153,8 +2161,13 @@ run_apt_get_update() {
   unset silent_run_apt_get_update
 }
 
+if pgrep -f "supervise.*unifi" &> /dev/null; then
+  docker_unifi_network_application="true"
+fi
+
 if [[ "${is_cloudkey}" == 'true' ]]; then required_service="true"; fi
 if dpkg -l unifi 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi"; then required_service="true"; fi
+if pgrep -f "unifi.*ace.jar" > /dev/null && [[ -e "/usr/lib/unifi/data/keystore" ]]; then required_service="true"; fi
 if dpkg -l unifi-video 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi"; then required_service="true"; fi
 if dpkg -l unifi-talk 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi"; then required_service="true"; fi
 if dpkg -l unifi-led 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi"; then required_service="true"; fi
@@ -3397,7 +3410,7 @@ SSL
         fi
       fi
     fi
-    if dpkg -l unifi 2> /dev/null | awk '{print \$1}' | grep -iq "^ii\\|^hi" && [[ "\${skip_network_application}" != 'true' ]]; then
+    if dpkg -l unifi 2> /dev/null | awk '{print \$1}' | grep -iq "^ii\\|^hi" && [[ "\${skip_network_application}" != 'true' ]] || [[ -e "/usr/lib/unifi/data/keystore" && "\${skip_network_application}" != 'true' ]]; then
       if [[ "\${unifi_native_system}" == 'true' ]]; then
         openjdk_native_installed_package="\$(apt-cache search "jre-headless" | grep -Eio "openjdk-[0-9]{1,2}-jre-headless" | sort -V | tail -n1)"
         openjdk_native_installed="true"
@@ -3581,7 +3594,7 @@ le_import_failed() {
     if [[ -f "${eus_dir}/logs/lets_encrypt_import.log" ]] && grep -iq 'Keystore was tampered with, or password was incorrect' "${eus_dir}/logs/lets_encrypt_import.log"; then
       echo ""
       echo -e "${RED}#${RESET} Please clear your browser cache if you're seeing connection errors.\\n\\n${RED}---${RESET}\\n\\n${RED}#${RESET} Keystore was tampered with, or password was incorrect\\n\\n${RED}---${RESET}"
-      if dpkg -l unifi 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi"; then
+      if dpkg -l unifi 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi" || [[ -e "/usr/lib/unifi/data/keystore" ]]; then
         rm --force /usr/lib/unifi/data/keystore 2> /dev/null && systemctl restart unifi
       fi
     fi
@@ -3705,11 +3718,8 @@ SSL
     fi
   fi
   if systemctl restart unifi-core; then echo -e "${GREEN}#${RESET} Successfully imported the SSL certificates into UniFi OS running on your ${unifi_core_device}!"; else echo -e "${RED}#${RESET} Failed to import the SSL certificates into UniFi OS running on your ${unifi_core_device}..."; sleep 2; fi
-  if dpkg -l unifi 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi" && [[ "${script_option_skip_network_application}" != 'true' ]]; then
-    unifi_status=$(systemctl status unifi | grep -i 'Active:' | awk '{print $2}')
-    if [[ "${unifi_status}" == 'active' ]]; then
-      unifi_network_application
-    fi
+  if dpkg -l unifi 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi" && [[ "${script_option_skip_network_application}" != 'true' ]] || [[ -e "/usr/lib/unifi/data/keystore" && "${script_option_skip_network_application}" != 'true' ]]; then
+    unifi_network_application
   fi
   if [[ "${udm_device}" == 'true' && "${uid_agent}" != 'true' ]]; then
     if [[ "${debbox}" == 'true' ]]; then
@@ -3894,12 +3904,28 @@ unifi_network_application() {
     fi
   fi
   chown -R unifi:unifi /usr/lib/unifi/data/keystore &> /dev/null
-  if systemctl restart unifi; then
-    if [[ "${unifi_core_system}" == 'true' ]]; then echo -e "${GREEN}#${RESET} Successfully imported the SSL certificates into the UniFi Network Application running on your ${unifi_core_device}!"; else echo -e "${GREEN}#${RESET} Successfully imported the SSL certificates into the UniFi Network Application!"; fi
-    sleep 2
+  if [[ "${docker_unifi_network_application}" == 'true' ]]; then
+    if s6-svc -r /run/service/svc-unifi-network-application; then
+      echo -e "${GREEN}#${RESET} Successfully imported the SSL certificates into the UniFi Network Application!"; sleep 2
+    else
+      echo -e "${RED}#${RESET} Failed to import the SSL certificates into the UniFi Network Application..."; sleep 2
+    fi
   else
-    if [[ "${unifi_core_system}" == 'true' ]]; then echo -e "${RED}#${RESET} Failed to import the SSL certificates into the UniFi Network Application running on your ${unifi_core_device}..."; else echo -e "${RED}#${RESET} Failed to import the SSL certificates into the UniFi Network Application..."; fi
-    sleep 2
+    if [[ "${limited_functionality}" == 'true' ]]; then
+      if service unifi restart; then
+        echo -e "${GREEN}#${RESET} Successfully imported the SSL certificates into the UniFi Network Application!"; sleep 2
+      else
+        echo -e "${RED}#${RESET} Failed to import the SSL certificates into the UniFi Network Application..."; sleep 2
+      fi
+    else
+      if systemctl restart unifi; then
+        if [[ "${unifi_core_system}" == 'true' ]]; then echo -e "${GREEN}#${RESET} Successfully imported the SSL certificates into the UniFi Network Application running on your ${unifi_core_device}!"; else echo -e "${GREEN}#${RESET} Successfully imported the SSL certificates into the UniFi Network Application!"; fi
+        sleep 2
+      else
+        if [[ "${unifi_core_system}" == 'true' ]]; then echo -e "${RED}#${RESET} Failed to import the SSL certificates into the UniFi Network Application running on your ${unifi_core_device}..."; else echo -e "${RED}#${RESET} Failed to import the SSL certificates into the UniFi Network Application..."; fi
+        sleep 2
+      fi
+    fi
   fi
   if [[ -f "${eus_dir}/logs/lets_encrypt_import.log" ]] && grep -iq 'Keystore was tampered with, or password was incorrect' "${eus_dir}/logs/lets_encrypt_import.log"; then
     if ! [[ -f "${eus_dir}/network/failed" ]]; then
@@ -3954,7 +3980,7 @@ import_ssl_certificates() {
       else
         echo -e "${GRAY_R}#${RESET} Importing the SSL certificates into UniFi OS running on your ${unifi_core_device}..."
       fi
-    elif dpkg -l unifi 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi"; then
+    elif dpkg -l unifi 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi" || [[ -e "/usr/lib/unifi/data/keystore" ]]; then
       if [[ "${renewal_option}" == "--force-renewal" ]]; then
         echo -e "${GRAY_R}#${RESET} Force renewing the SSL certificates and importing them into the UniFi Network Application..."
       else
@@ -4055,7 +4081,7 @@ import_ssl_certificates() {
               if [[ "${is_cloudkey}" == 'true' ]]; then run_uck_scripts="true"; fi;;
            [Nn]*) ;;
         esac
-      elif dpkg -l unifi 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi" && [[ "${unifi_core_system}" != 'true' ]]; then
+      elif dpkg -l unifi 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi" && [[ "${unifi_core_system}" != 'true' ]] || [[ -e "/usr/lib/unifi/data/keystore" && "${unifi_core_system}" != 'true' ]]; then
         echo -e "\\n${GRAY_R}----${RESET}\\n"
         echo -e "${GRAY_R}#${RESET} UniFi Network Application has been detected!"
         if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Would you like to apply the certificates to the UniFi Network Application? (Y/n) ' yes_no; fi
@@ -4180,7 +4206,7 @@ import_existing_ssl_certificates() {
              [Nn]*) ;;
           esac
         fi
-        if dpkg -l unifi 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi" && [[ "${unifi_core_system}" != 'true' ]]; then
+        if dpkg -l unifi 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi" && [[ "${unifi_core_system}" != 'true' ]] || [[ -e "/usr/lib/unifi/data/keystore" && "${unifi_core_system}" != 'true' ]]; then
           echo -e "\\n${GRAY_R}----${RESET}\\n"
           echo -e "${GRAY_R}#${RESET} UniFi Network Application has been detected!"
           if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Would you like to apply the certificates to the UniFi Network Application? (Y/n) ' yes_no; fi
@@ -4429,7 +4455,7 @@ restore_previous_certs() {
             esac
           fi
         fi
-        if dpkg -l unifi 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi"; then
+        if dpkg -l unifi 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi" || [[ -e "/usr/lib/unifi/data/keystore" ]]; then
           # shellcheck disable=SC2012
           if [[ -d "${eus_dir}/network/keystore_backups/" ]]; then unifi_network_previous_keystore=$(ls -t "${eus_dir}/network/keystore_backups/" | awk '{print$1}' | head -n1); fi
           if [[ -n "${unifi_network_previous_keystore}" ]]; then

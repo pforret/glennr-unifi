@@ -11,6 +11,18 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Encrypt Script  |  Version 3.2.8
+ 
+ - Fixed the inability to restart UniFi Network Application docker containers.
+ 
+ ####
+
+ |  UniFi Easy Encrypt Script  |  Version 3.2.7
+ 
+ - Improved detecting the existance of non-default UniFi Network Application installations.
+ 
+ ####
+
  |  UniFi Easy Encrypt Script  |  Version 3.2.6
  
  - Improved getting OS codename when it's LTS.
