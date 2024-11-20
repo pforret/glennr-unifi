@@ -2,7 +2,7 @@
 
 # UniFi Network Application Easy Update Script.
 # Script   | UniFi Network Easy Update Script
-# Version  | 9.5.2
+# Version  | 9.5.3
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -1463,7 +1463,8 @@ add_repositories() {
 # Check if system runs Unifi OS
 if "$(which dpkg)" -l unifi-core 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
   unifi_core_system="true"
-  if grep -sq unifi-native /mnt/.rofs/var/lib/dpkg/status; then unifi_native_system="true"; fi
+  unifi_core_glennr_api="&host=uos&architecture=$("$(which dpkg)" --print-architecture)"
+  if grep -sq unifi-native /mnt/.rofs/var/lib/dpkg/status; then unifi_native_system="true"; unifi_core_glennr_api="&host=uos-native&architecture=$("$(which dpkg)" --print-architecture)"; fi
   if [[ -f /proc/ubnthal/system.info ]]; then if grep -iq "shortname" /proc/ubnthal/system.info; then unifi_core_device="$(grep "shortname" /proc/ubnthal/system.info | sed 's/shortname=//g')"; fi; fi
   if [[ -f /etc/motd && -s /etc/motd && -z "${unifi_core_device}" ]]; then unifi_core_device="$(grep -io "welcome.*" /etc/motd | sed -e 's/Welcome //g' -e 's/to //g' -e 's/the //g' -e 's/!//g')"; fi
   if [[ -f /usr/lib/version && -s /usr/lib/version && -z "${unifi_core_device}" ]]; then unifi_core_device="$(cut -d'.' -f1 /usr/lib/version)"; fi
@@ -5334,9 +5335,9 @@ if [[ "${mongo_version_locked}" == '4.4.18' ]] || [[ "${unsupported_database_ver
       reinstall_unifi_version="$(head -n1 /usr/lib/unifi/data/db/version | sed 's/[^0-9.]//g' 2> /dev/null)"
       if [[ -z "${reinstall_unifi_version}" ]]; then reinstall_unifi_version="$(dpkg-query --showformat='${Version}' --show unifi | awk -F '[-]' '{print $1}')"; fi
       if [[ "$(curl "${curl_argument[@]}" https://api.glennr.nl/api/network-release?status 2> /dev/null | jq -r '.[]' 2> /dev/null)" == "OK" ]]; then
-        fw_update_dl_link="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-release?version=${reinstall_unifi_version}" | jq -r '."download_link"' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
-        fw_update_gr_dl_link="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-release?version=${reinstall_unifi_version}&server=archive" | jq -r '."download_link"' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
-        fw_update_dl_link_sha256sum="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-release?version=${reinstall_unifi_version}" | jq -r '.sha256sum' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
+        fw_update_dl_link="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-release?version=${reinstall_unifi_version}${unifi_core_glennr_api}" | jq -r '."download_link"' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
+        fw_update_gr_dl_link="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-release?version=${reinstall_unifi_version}&server=archive${unifi_core_glennr_api}" | jq -r '."download_link"' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
+        fw_update_dl_link_sha256sum="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-release?version=${reinstall_unifi_version}${unifi_core_glennr_api}" | jq -r '.sha256sum' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
       fi
       if [[ -z "${fw_update_dl_link}" ]]; then
         fw_update_dl_link="$(curl "${curl_argument[@]}" --location --request GET "https://fw-update.ui.com/api/firmware-latest?filter=eq~~version_major~~$(awk -F'.' '{print $1}' <<< "${reinstall_unifi_version}")&filter=eq~~version_minor~~$(awk -F'.' '{print $2}' <<< "${reinstall_unifi_version}")&filter=eq~~version_patch~~$(awk -F'.' '{print $3}' <<< "${reinstall_unifi_version}")&filter=eq~~platform~~debian" 2> "${eus_dir}/logs/locate-download.log" | jq -r "._embedded.firmware[0]._links.data.href" 2> "${eus_dir}/logs/locate-download.log" | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
@@ -8867,10 +8868,10 @@ mongodb_upgrade() {
     fi
     if [[ "$(curl "${curl_argument[@]}" https://api.glennr.nl/api/network-release?status 2> /dev/null | jq -r '.[]' 2> /dev/null)" == "OK" ]]; then
       if [[ -z "${unifi_deb_dl}" ]]; then
-        unifi_deb_dl="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-release?version=${first_digit_current_unifi}.${second_digit_current_unifi}.${third_digit_current_unifi}" | jq -r '.download_link' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
-        unifi_deb_md5="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-release?version=${first_digit_current_unifi}.${second_digit_current_unifi}.${third_digit_current_unifi}" | jq -r '.md5sum' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
+        unifi_deb_dl="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-release?version=${first_digit_current_unifi}.${second_digit_current_unifi}.${third_digit_current_unifi}${unifi_core_glennr_api}" | jq -r '.download_link' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
+        unifi_deb_md5="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-release?version=${first_digit_current_unifi}.${second_digit_current_unifi}.${third_digit_current_unifi}${unifi_core_glennr_api}" | jq -r '.md5sum' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
       fi
-      unifi_deb_gr_dl="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-release?version=${first_digit_current_unifi}.${second_digit_current_unifi}.${third_digit_current_unifi}&server=archive" | jq -r '.download_link' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
+      unifi_deb_gr_dl="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-release?version=${first_digit_current_unifi}.${second_digit_current_unifi}.${third_digit_current_unifi}&server=archive${unifi_core_glennr_api}" | jq -r '.download_link' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
     fi
     if [[ -z "${unifi_deb_dl}" ]]; then
       unifi_deb_dl_failed="true"
@@ -10079,14 +10080,14 @@ application_upgrade_releases() {
   echo -e "${GRAY_R}#${RESET} Updating your UniFi Network Application version from ${unifi_current} to ${application_version_release}! \\n"
   echo -e "${GRAY_R}#${RESET} Downloading UniFi Network Application version ${application_version_release}..."
   if [[ "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/locate-network-release?status" 2> "${eus_dir}/logs/locate-download.log" | jq -r '.availability' 2> "${eus_dir}/logs/locate-download.log")" == "OK" ]]; then
-    fw_update_dl_link="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-release?version=${application_version_release}" | jq -r '.download_link' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
-    fw_update_gr_dl_link="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-release?version=${application_version_release}&server=archive" | jq -r '.download_link' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
+    fw_update_dl_link="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-release?version=${application_version_release}${unifi_core_glennr_api}" | jq -r '.download_link' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
+    fw_update_gr_dl_link="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-release?version=${application_version_release}&server=archive${unifi_core_glennr_api}" | jq -r '.download_link' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
   else
     fw_update_dl_link="$(curl "${curl_argument[@]}" "https://fw-update.ui.com/api/firmware-latest?filter=eq~~version_major~~${application_version_release_digit_1}&filter=eq~~version_minor~~${application_version_release_digit_2}&filter=eq~~version_patch~~${application_version_release_digit_3}&filter=eq~~platform~~debian" 2> "${eus_dir}/logs/locate-download.log" | jq -r "._embedded.firmware[]._links.data.href" 2> "${eus_dir}/logs/locate-download.log" | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
   fi
   if [[ "${unifi_deb_file_name}" == "unifi_sysvinit_all" ]]; then
     if [[ "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/locate-network-release?status" 2> "${eus_dir}/logs/locate-download.log" | jq -r '.availability' 2> "${eus_dir}/logs/locate-download.log")" == "OK" ]]; then
-      unifi_sha256sum="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-release?version=${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi}" | jq -r '."sha256sum"' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
+      unifi_sha256sum="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-release?version=${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi}${unifi_core_glennr_api}" | jq -r '."sha256sum"' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
     else
       unifi_sha256sum="$(curl "${curl_argument[@]}" "https://fw-update.ui.com/api/firmware-latest?filter=eq~~version_major~~${application_version_release_digit_1}&filter=eq~~version_minor~~${application_version_release_digit_2}&filter=eq~~version_patch~~${application_version_release_digit_3}&filter=eq~~platform~~debian" 2> "${eus_dir}/logs/locate-download.log" | jq -r "._embedded.firmware[].sha256_checksum" 2> "${eus_dir}/logs/locate-download.log" | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
     fi
