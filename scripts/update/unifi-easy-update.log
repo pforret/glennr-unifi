@@ -11,6 +11,12 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 9.5.4
+  
+ - Improved creating support files.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 9.5.3
   
  - Improved getting the correct downloads for UniFi OS Consoles.

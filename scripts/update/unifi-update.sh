@@ -2,7 +2,7 @@
 
 # UniFi Network Application Easy Update Script.
 # Script   | UniFi Network Easy Update Script
-# Version  | 9.5.3
+# Version  | 9.5.4
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -5569,6 +5569,11 @@ mongodb_avx_support_check() {
           mongo_version_locked="4.4.18"
         fi
       fi
+    fi
+    if [[ "$(dpkg-query --showformat='${Version}' --show jq | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
+      jq '.scripts["'"$script_name"'"].tasks += {"mongodb-avx-check ('"$(date +%s)"')": [.scripts["'"$script_name"'"].tasks["mongodb-avx-check ('"$(date +%s)"')"][0] + {"CPU":"'"${cpu_model_name}"'","add_mongodb_44_repo":"'"${add_mongodb_44_repo}"'","mongo_version_max":"'"${mongo_version_max}"'","mongo_version_max_with_dot":"'"${mongo_version_max_with_dot}"'","mongo_version_locked":"'"${mongo_version_locked}"'","Glenn R. MongoDB":"'"${glennr_compiled_mongod}"'"}]}' "${eus_dir}/db/db.json" > "/tmp/EUS/db-avx-debug.json"
+    else
+      jq --arg script_name "$script_name" --arg date_key "$(date +%s)" --arg cpu_model_name "${cpu_model_name}" --arg add_mongodb_44_repo "$add_mongodb_44_repo" --arg mongo_version_max "$mongo_version_max" --arg mongo_version_max_with_dot "$mongo_version_max_with_dot" --arg mongo_version_locked "$mongo_version_locked" --arg glennr_compiled_mongod "$glennr_compiled_mongod" '.scripts[$script_name].tasks = (.scripts[$script_name].tasks + {("mongodb-avx-check (" + $date_key + ")"): ((.scripts[$script_name].tasks["mongodb-avx-check (" + $date_key + ")"] // []) + [{"CPU": $cpu_model_name, "add_mongodb_44_repo": $add_mongodb_44_repo, "mongo_version_max": $mongo_version_max, "mongo_version_max_with_dot": $mongo_version_max_with_dot, "mongo_version_locked": $mongo_version_locked, "Glenn R. MongoDB": $glennr_compiled_mongod}] )})' "${eus_dir}/db/db.json" > "/tmp/EUS/db-avx-debug.json"
     fi
   fi
 }

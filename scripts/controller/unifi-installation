@@ -11,6 +11,12 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 8.2.0
+ 
+ - Improved creating support files.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 8.1.9
  
  - Improved getting the correct downloads for UniFi OS Consoles.

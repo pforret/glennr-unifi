@@ -58,7 +58,7 @@
 ###################################################################################################################################################################################################
 
 # Script                | UniFi Network Easy Installation Script
-# Version               | 8.1.9
+# Version               | 8.2.0
 # Application version   | 8.4.62-i3q2j125cz
 # Debian Repo version   | 8.4.62-26656-1
 # Author                | Glenn Rietveld
@@ -4380,6 +4380,11 @@ mongodb_avx_support_check() {
           mongo_version_locked="4.4.18"
         fi
       fi
+    fi
+    if [[ "$(dpkg-query --showformat='${Version}' --show jq | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
+      jq '.scripts["'"$script_name"'"].tasks += {"mongodb-avx-check ('"$(date +%s)"')": [.scripts["'"$script_name"'"].tasks["mongodb-avx-check ('"$(date +%s)"')"][0] + {"CPU":"'"${cpu_model_name}"'","add_mongodb_44_repo":"'"${add_mongodb_44_repo}"'","mongo_version_max":"'"${mongo_version_max}"'","mongo_version_max_with_dot":"'"${mongo_version_max_with_dot}"'","mongo_version_locked":"'"${mongo_version_locked}"'","Glenn R. MongoDB":"'"${glennr_compiled_mongod}"'","Broken Install Glenn R. MongoDB":"'"${broken_glennr_compiled_mongod}"'"}]}' "${eus_dir}/db/db.json" > "/tmp/EUS/db-avx-debug.json"
+    else
+      jq --arg script_name "$script_name" --arg date_key "$(date +%s)" --arg cpu_model_name "${cpu_model_name}" --arg add_mongodb_44_repo "$add_mongodb_44_repo" --arg mongo_version_max "$mongo_version_max" --arg mongo_version_max_with_dot "$mongo_version_max_with_dot" --arg mongo_version_locked "$mongo_version_locked" --arg glennr_compiled_mongod "$glennr_compiled_mongod" --arg broken_glennr_compiled_mongod "$broken_glennr_compiled_mongod" '.scripts[$script_name].tasks = (.scripts[$script_name].tasks + {("mongodb-avx-check (" + $date_key + ")"): ((.scripts[$script_name].tasks["mongodb-avx-check (" + $date_key + ")"] // []) + [{"CPU": $cpu_model_name, "add_mongodb_44_repo": $add_mongodb_44_repo, "mongo_version_max": $mongo_version_max, "mongo_version_max_with_dot": $mongo_version_max_with_dot, "mongo_version_locked": $mongo_version_locked, "Glenn R. MongoDB": $glennr_compiled_mongod, "Broken Install Glenn R. MongoDB": $broken_glennr_compiled_mongod}] )})' "${eus_dir}/db/db.json" > "/tmp/EUS/db-avx-debug.json"
     fi
   fi
 }
