@@ -11,6 +11,12 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 8.2.1
+ 
+ - Improved the MongoDB installation prcoess.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 8.2.0
  
  - Improved creating support files.

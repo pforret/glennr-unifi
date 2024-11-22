@@ -58,7 +58,7 @@
 ###################################################################################################################################################################################################
 
 # Script                | UniFi Network Easy Installation Script
-# Version               | 8.2.0
+# Version               | 8.2.1
 # Application version   | 7.1.68-124045abd4
 # Debian Repo version   | 7.1.68-17885-1
 # Author                | Glenn Rietveld
@@ -5897,6 +5897,22 @@ mongodb_installation() {
     mongodb_package_version_libssl="${install_mongodb_version}"
     libssl_installation_check
     mongodb_installation_server_package="mongodb-org-server${install_mongodb_version_with_equality_sign}"
+  fi
+  te_mongodb_org_server_version="${install_mongodb_version//./}"
+  if "$(which dpkg)" -l mongodb-org-database-tools-extra 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui" && [[ "${te_mongodb_org_server_version::2}" -lt "44" ]]; then
+    mongodb_tools_extra_dependencies=()
+    if "$(which dpkg)" -l | awk '{print $2}' | grep -ioq "mongodb-org-database$"; then tools_extra_dependency_1="mongodb-org-database"; mongodb_tools_extra_dependencies+=("mongodb-org-database"); fi
+    if "$(which dpkg)" -l | awk '{print $2}' | grep -ioq "mongodb-org-tools$"; then tools_extra_dependency_2="mongodb-org-tools"; mongodb_tools_extra_dependencies+=("mongodb-org-tools"); fi
+    if "$(which dpkg)" -l | awk '{print $2}' | grep -ioq "mongodb-org$"; then tools_extra_dependency_3="mongodb-org"; mongodb_tools_extra_dependencies+=("mongodb-org"); fi
+    if [[ "${#mongodb_tools_extra_dependencies[@]}" -gt 0 ]]; then tools_extra_dependency_extra_packages_message=", $(IFS=,; echo "${mongodb_tools_extra_dependencies[*]}" | sed 's/,/, /g; s/,\([^,]*\)$/ and\1/')"; fi
+    check_dpkg_lock
+    echo -e "${GRAY_R}#${RESET} Purging package mongodb-org-database-tools-extra${tools_extra_dependency_extra_packages_message}..."
+    if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' purge "mongodb-org-database-tools-extra" "${tools_extra_dependency_1}" "${tools_extra_dependency_2}" "${tools_extra_dependency_3}" &>> "${eus_dir}/logs/unifi-database-required.log"; then
+      echo -e "${GREEN}#${RESET} Successfully purged mongodb-org-database-tools-extra${tools_extra_dependency_extra_packages_message}! \\n"
+    else
+      echo -e "${RED}#${RESET} Failed to purge mongodb-org-database-tools-extra${tools_extra_dependency_extra_packages_message}...\\n"
+      abort_function_skip_reason="true"; abort_reason="Failed to purge mongodb-org-database-tools-extra${tools_extra_dependency_extra_packages_message}."; abort
+    fi
   fi
   if "$(which dpkg)" -l mongo-tools 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
     check_dpkg_lock
