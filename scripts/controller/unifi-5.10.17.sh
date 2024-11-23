@@ -38,7 +38,7 @@
 #                       | Linux Mint 19 ( Tara | Tessa | Tina | Tricia )
 #                       | Linux Mint 20 ( Ulyana | Ulyssa | Uma | Una )
 #                       | Linux Mint 21 ( Vanessa | Vera | Victoria | Virginia )
-#                       | Linux Mint 22 ( Wilma )
+#                       | Linux Mint 22 ( Wilma | Xia )
 #                       | Linux Mint 2 ( Betsy )
 #                       | Linux Mint 3 ( Cindy )
 #                       | Linux Mint 4 ( Debbie )
@@ -58,7 +58,7 @@
 ###################################################################################################################################################################################################
 
 # Script                | UniFi Network Easy Installation Script
-# Version               | 8.2.1
+# Version               | 8.2.2
 # Application version   | 5.10.17
 # Debian Repo version   | 5.10.17-11638-1
 # Author                | Glenn Rietveld
@@ -2323,7 +2323,7 @@ get_distro() {
     elif [[ "${os_codename}" =~ ^(bionic|tara|tessa|tina|tricia|hera|juno)$ ]]; then repo_codename="bionic"; os_codename="bionic"; os_id="ubuntu"
     elif [[ "${os_codename}" =~ ^(focal|ulyana|ulyssa|uma|una|odin|jolnir)$ ]]; then repo_codename="focal"; os_codename="focal"; os_id="ubuntu"
     elif [[ "${os_codename}" =~ ^(jammy|vanessa|vera|victoria|virginia|horus|cade)$ ]]; then repo_codename="jammy"; os_codename="jammy"; os_id="ubuntu"
-    elif [[ "${os_codename}" =~ ^(noble|wilma|scootski)$ ]]; then repo_codename="noble"; os_codename="noble"; os_id="ubuntu"
+    elif [[ "${os_codename}" =~ ^(noble|wilma|xia|scootski)$ ]]; then repo_codename="noble"; os_codename="noble"; os_id="ubuntu"
     elif [[ "${os_codename}" =~ ^(oracular)$ ]]; then repo_codename="oracular"; os_codename="oracular"; os_id="ubuntu"
     elif [[ "${os_codename}" =~ ^(jessie|betsy)$ ]]; then repo_codename="jessie"; os_codename="jessie"; os_id="debian"
     elif [[ "${os_codename}" =~ ^(stretch|continuum|helium|cindy)$ ]]; then repo_codename="stretch"; os_codename="stretch"; os_id="debian"

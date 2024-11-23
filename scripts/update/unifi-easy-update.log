@@ -11,6 +11,12 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 9.5.5
+  
+ - Added support for Linux Mint 22.1 Xia.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 9.5.4
   
  - Improved creating support files.
