@@ -11,6 +11,25 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 8.2.5
+ 
+ - Fixed command not found error when printing author details.
+ 
+ ####
+
+ |  UniFi Network Application Installation Script  |  Version 8.2.4
+ 
+ - Fixed an typo that could lead to Glenn R. MongoDB installation failures.
+ 
+ ####
+
+ |  UniFi Network Application Installation Script  |  Version 8.2.3
+ 
+ - Improved the Glenn R. MongoDB installation process.
+ - Improved the temporarily folder creation process.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 8.2.2
  
  - Added support for Linux Mint 22.1 Xia.

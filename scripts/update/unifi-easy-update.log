@@ -11,6 +11,25 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 9.5.8
+  
+ - Fixed command not found error when printing author details.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 9.5.7
+  
+ - Fixed an typo that could lead to Glenn R. MongoDB installation failures.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 9.5.6
+  
+ - Improved the Glenn R. MongoDB installation process.
+ - Improved the temporarily folder creation process.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 9.5.5
   
  - Added support for Linux Mint 22.1 Xia.
