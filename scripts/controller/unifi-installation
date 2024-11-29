@@ -11,6 +11,12 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 8.2.6
+ 
+ - Improved the UniFi Network Application download process.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 8.2.5
  
  - Fixed command not found error when printing author details.
