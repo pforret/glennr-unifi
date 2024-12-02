@@ -2,7 +2,7 @@
 
 # UniFi Network Application Easy Update Script.
 # Script   | UniFi Network Easy Update Script
-# Version  | 9.5.9
+# Version  | 9.6.0
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -2117,8 +2117,8 @@ attempt_recover_broken_packages() {
   while IFS= read -r log_file; do
     while IFS= read -r broken_package; do
       broken_package="$(echo "${broken_package}" | xargs)"
-      if ! dpkg -l | awk '{print $2}' | grep -iq "^${broken_package}$"; then continue; fi
       echo -e "\\n------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/attempt-recover-broken-packages.log"
+      if ! dpkg -l | awk '{print $2}' | grep -iq "${broken_package}"; then echo -e "Failed to locate ${broken_package} in dpkg list..." &>> "${eus_dir}/logs/attempt-recover-broken-packages.log"; continue; fi
       echo -e "${GRAY_R}#${RESET} Attempting to recover broken packages..."
       check_dpkg_lock
       if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_downgrade_option[@]}" "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install -f &>> "${eus_dir}/logs/attempt-recover-broken-packages.log"; then
@@ -9184,9 +9184,16 @@ mongodb_upgrade() {
   if "$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep -iq "${gr_mongod_name}"; then prevent_mongodb_org_server_install; fi
   if [[ "${mongo_version_max}" -ge '70' ]]; then
     if ! "$(which dpkg)" -l mongodb-mongosh-shared-openssl11 mongodb-mongosh-shared-openssl3 mongodb-mongosh mongosh 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
-      mongodb_mongosh_libssl_version="$(apt-cache depends "mongodb-org-server${install_mongodb_version_with_equality_sign}" | sed -e 's/>//g' -e 's/<//g' | grep -io "libssl1.1$\\|libssl3$")"
-      if [[ -z "${mongodb_mongosh_libssl_version}" ]]; then
-        mongodb_mongosh_libssl_version="$(apt-cache depends "mongodb-org-server" | sed -e 's/>//g' -e 's/<//g' | grep -io "libssl1.1$\\|libssl3$")"
+      if "$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep -iq "${gr_mongod_name}"; then
+        mongodb_mongosh_libssl_version="$(apt-cache depends "${gr_mongod_name}${install_mongod_version_with_equality_sign}" | sed -e 's/>//g' -e 's/<//g' | grep -io "libssl1.1$\\|libssl3$")"
+        if [[ -z "${mongodb_mongosh_libssl_version}" ]]; then
+          mongodb_mongosh_libssl_version="$(apt-cache depends "${gr_mongod_name}" | sed -e 's/>//g' -e 's/<//g' | grep -io "libssl1.1$\\|libssl3$")"
+        fi
+      else
+        mongodb_mongosh_libssl_version="$(apt-cache depends "mongodb-org-server${install_mongodb_version_with_equality_sign}" | sed -e 's/>//g' -e 's/<//g' | grep -io "libssl1.1$\\|libssl3$")"
+        if [[ -z "${mongodb_mongosh_libssl_version}" ]]; then
+          mongodb_mongosh_libssl_version="$(apt-cache depends "mongodb-org-server" | sed -e 's/>//g' -e 's/<//g' | grep -io "libssl1.1$\\|libssl3$")"
+        fi
       fi
       if [[ "${mongodb_mongosh_libssl_version}" == 'libssl3' ]]; then
         mongodb_mongosh_install_package_name="mongodb-mongosh-shared-openssl3"

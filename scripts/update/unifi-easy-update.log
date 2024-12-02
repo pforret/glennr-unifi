@@ -11,6 +11,13 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 9.6.0
+  
+ - Improved the broken packages recovery process.
+ - Improved the MongoDB mongosh installation process.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 9.5.9
   
  - Improved the UniFi Network Application download process.

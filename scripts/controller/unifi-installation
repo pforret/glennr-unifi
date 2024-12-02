@@ -11,6 +11,14 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 8.2.7
+ 
+ - Improved detection the currently installed MongoDB server version.
+ - Improved the broken packages recovery process.
+ - Improved the MongoDB mongosh installation process.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 8.2.6
  
  - Improved the UniFi Network Application download process.
