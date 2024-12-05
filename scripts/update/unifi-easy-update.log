@@ -11,6 +11,20 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 9.6.2
+  
+ - Fixed an issue where it printed debug messaging at start of the script.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 9.6.1
+  
+ - Improved the Glenn R. repository.
+   - It will update the release information if the repository is present and the latest check was before a set date.
+ - Improved checking if the host supports MongoDB compiled by Glenn R.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 9.6.0
   
  - Improved the broken packages recovery process.

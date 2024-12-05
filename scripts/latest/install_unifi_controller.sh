@@ -58,7 +58,7 @@
 ###################################################################################################################################################################################################
 
 # Script                | UniFi Network Easy Installation Script
-# Version               | 8.2.7
+# Version               | 8.2.9
 # Application version   | 8.5.6-1x29lm155t
 # Debian Repo version   | 8.5.6-27036-1
 # Author                | Glenn Rietveld
@@ -1120,6 +1120,38 @@ if [[ "$(find /etc/apt/ -name "*.list" -type f -print0 | xargs -0 cat | grep -c 
   rm --force /tmp/EUS/repository/dead_mongodb_repository
 fi
 
+# Original release of the Glenn R. APT Repository was /ubuntu and /debian, decided to get rid of that.
+glennr_mongod_original_check() {
+  while read -r glennr_repo_list; do
+    if grep -riIl "apt.glennr.nl/debian" "${glennr_repo_list}"; then
+      sed -i 's/\/debian/\/repo/g' "${glennr_repo_list}" &> /dev/null
+    elif grep -riIl "apt.glennr.nl/ubuntu" "${glennr_repo_list}"; then
+      sed -i 's/\/debian/\/repo/g' "${glennr_repo_list}" &> /dev/null
+    fi
+  done < <(grep -riIl "apt.glennr.nl/debian\\|apt.glennr.nl/ubuntu" /etc/apt/)
+}
+if grep -qriIl "apt.glennr.nl/debian\\|apt.glennr.nl/ubuntu" /etc/apt/; then glennr_mongod_original_check; fi
+
+# Glenn R. MongoDB repository changes
+glennr_mongod_repository_check() {
+  if [[ "$(jq -r '.database["glennr-mongod-repository-check"]' "${eus_dir}/db/db.json" 2> /dev/null)" -lt "1733356800" ]]; then
+    while read -r glennr_repo_list; do
+      apt-get update -o Dir::Etc::SourceList="${glennr_repo_list}" --allow-releaseinfo-change &> /dev/null
+    done < <(grep -riIl "apt.glennr.nl" /etc/apt/)
+    glennr_mongod_repository_check_time="$(date +%s)"
+    if [[ "$(dpkg-query --showformat='${Version}' --show jq | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
+      jq --arg glennr_mongod_repository_check_time "${glennr_mongod_repository_check_time}" '."database" += {"glennr-mongod-repository-check": "'"${glennr_mongod_repository_check_time}"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+    else
+      jq --arg glennr_mongod_repository_check_time "$glennr_mongod_repository_check_time" '.database += {"glennr-mongod-repository-check": $glennr_mongod_repository_check_time}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+    fi
+    eus_database_move
+  fi
+}
+if grep -qriIl "apt.glennr.nl" /etc/apt/; then glennr_mongod_repository_check; fi
+
+# Remove older mongodb-key-check-time value, now lives in db.json
+if [[ -e "${eus_dir}/data/mongodb-key-check-time" ]]; then rm --force "${eus_dir}/data/mongodb-key-check-time"; if [[ -d "${eus_dir}/data/" && -z "$(ls -A "${eus_dir}/data/")" ]]; then rmdir "${eus_dir}/data"; fi; fi
+
 # Check if DST_ROOT certificate exists
 if grep -siq "^mozilla/DST_Root" /etc/ca-certificates.conf; then
   echo -e "${GRAY_R}#${RESET} Detected DST_Root certificate..."
@@ -1829,7 +1861,7 @@ add_mongodb_repo() {
   fi
   if [[ "${mongodb_org_v::2}" == '44' ]] || [[ "${add_mongodb_44_repo}" == 'true' ]]; then
     mongodb_version_major_minor="4.4"
-    if ! (lscpu 2>/dev/null | grep -iq "avx") || ! grep -iq "avx" /proc/cpuinfo; then mongo_version_locked="4.4.18"; fi
+    if [[ "${glennr_mongod_compatible}" == "true" ]]; then mongo_version_locked="4.4.18"; fi
     if [[ "${try_different_mongodb_repo}" == 'true' ]] || [[ "${architecture}" != "amd64" ]]; then
       if [[ "${os_codename}" =~ (stretch|bionic|tara|tessa|tina|tricia|hera|juno) ]]; then
         mongodb_codename="ubuntu bionic"
@@ -2303,6 +2335,13 @@ if [[ -n "$(command -v jq)" && -e "${eus_dir}/db/db.json" ]]; then
     jq --arg architecture "$architecture" '.database.architecture = $architecture' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
   fi
   eus_database_move
+fi
+
+# Check AVX or not
+if [[ "${architecture}" != 'arm64' ]]; then
+  if ( ! (lscpu 2>/dev/null | grep -iq "avx") && (lscpu 2>/dev/null | grep -iq "sse4_2") ) || ( ! (grep -iq "avx" /proc/cpuinfo) && (grep -iq "sse4_2" /proc/cpuinfo) ); then glennr_mongod_compatible="true"; fi
+else  
+  if ! (lscpu 2>/dev/null | grep -iq "avx") || ! grep -iq "avx" /proc/cpuinfo; then glennr_mongod_compatible="true"; fi
 fi
 
 # Get distro.
@@ -4364,7 +4403,7 @@ mongodb_avx_support_check() {
         fi
       fi
     else
-      if ! (lscpu 2>/dev/null | grep -iq "avx") || ! grep -iq "avx" /proc/cpuinfo; then
+      if [[ "${glennr_mongod_compatible}" == "true" ]]; then
         if [[ "${mongo_version_max}" =~ (70|80) ]]; then
           if "$(which dpkg)" -l | grep "^ii\\|^hi" | grep -iq "mongod-amd64" || [[ "${script_option_skip}" == 'true' ]] || [[ "${glennr_compiled_mongod}" == 'true' ]]; then
             mongod_amd64_installed="true"
@@ -6315,7 +6354,7 @@ if [[ "${mongodb_installed}" != 'true' ]]; then
         #mongo_version_not_supported="4.5"
         mongo_version_max="44"
         mongo_version_max_with_dot="4.4"
-        if ! (lscpu 2>/dev/null | grep -iq "avx") || ! grep -iq "avx" /proc/cpuinfo; then mongo_version_locked="4.4.18"; fi
+        if [[ "${glennr_mongod_compatible}" == "true" ]]; then mongo_version_locked="4.4.18"; fi
       elif [[ "${previous_mongodb_version::2}" == '50' ]]; then
         add_mongodb_50_repo="true"
         #mongo_version_not_supported="5.1"
@@ -6334,7 +6373,7 @@ if [[ "${mongodb_installed}" != 'true' ]]; then
         if [[ "${broken_glennr_compiled_mongod}" == 'true' ]]; then
           add_mongod_70_repo="true"
           glennr_compiled_mongod="true"
-        elif ! (lscpu 2>/dev/null | grep -iq "avx") || ! grep -iq "avx" /proc/cpuinfo; then
+        elif [[ "${glennr_mongod_compatible}" == "true" ]]; then
           add_mongod_70_repo="true"
           glennr_compiled_mongod="true"
         fi
@@ -6346,7 +6385,7 @@ if [[ "${mongodb_installed}" != 'true' ]]; then
         if [[ "${broken_glennr_compiled_mongod}" == 'true' ]]; then
           add_mongod_80_repo="true"
           glennr_compiled_mongod="true"
-        elif ! (lscpu 2>/dev/null | grep -iq "avx") || ! grep -iq "avx" /proc/cpuinfo; then
+        elif [[ "${glennr_mongod_compatible}" == "true" ]]; then
           add_mongod_80_repo="true"
           glennr_compiled_mongod="true"
         fi
@@ -6387,13 +6426,13 @@ else
   if "$(which dpkg)" -l mongodb-org-server 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
     mongodb_org_version="$(dpkg-query --showformat='${Version}' --show mongodb-org-server | sed 's/.*://' | sed 's/-.*//g')"
     mongodb_org_version_no_dots="${mongodb_org_version//./}"
-    if [[ "${mongodb_org_version_no_dots::2}" -ge '44' && "$(dpkg-query --showformat='${Version}' --show mongodb-org-server | sed -e 's/.*://' -e 's/-.*//g' | awk -F. '{print $3}')" -ge "19" ]]; then if ! (lscpu 2>/dev/null | grep -iq "avx") || ! grep -iq "avx" /proc/cpuinfo; then unsupported_database_version_change="true"; fi; fi
-    if [[ "${mongodb_org_version_no_dots::2}" -gt '44' ]]; then if ! (lscpu 2>/dev/null | grep -iq "avx") || ! grep -iq "avx" /proc/cpuinfo; then unsupported_database_version_change="true"; fi; fi
+    if [[ "${mongodb_org_version_no_dots::2}" -ge '44' && "$(dpkg-query --showformat='${Version}' --show mongodb-org-server | sed -e 's/.*://' -e 's/-.*//g' | awk -F. '{print $3}')" -ge "19" ]]; then if [[ "${glennr_mongod_compatible}" == "true" ]]; then unsupported_database_version_change="true"; fi; fi
+    if [[ "${mongodb_org_version_no_dots::2}" -gt '44' ]]; then if [[ "${glennr_mongod_compatible}" == "true" ]]; then unsupported_database_version_change="true"; fi; fi
     if [[ -n "${previous_mongodb_version}" ]]; then if [[ "${mongodb_org_version_no_dots::2}" != "${previous_mongodb_version::2}" ]] && [[ "${previous_mongodb_version::2}" != "$((${mongodb_org_version_no_dots::2} - 2))" ]]; then unsupported_database_version_change="true"; fi; fi
   elif "$(which dpkg)" -l mongodb-server 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
     mongodb_version="$(dpkg-query --showformat='${Version}' --show mongodb-server | sed 's/.*://' | sed 's/-.*//g')"
     mongodb_version_no_dots="${mongodb_version//./}"
-    if [[ "${mongodb_version_no_dots::2}" -ge '44' && "$(dpkg-query --showformat='${Version}' --show mongodb-server | sed -e 's/.*://' -e 's/-.*//g' | awk -F. '{print $3}')" -ge "19" ]]; then if ! (lscpu 2>/dev/null | grep -iq "avx") || ! grep -iq "avx" /proc/cpuinfo; then unsupported_database_version_change="true"; fi; fi
+    if [[ "${mongodb_version_no_dots::2}" -ge '44' && "$(dpkg-query --showformat='${Version}' --show mongodb-server | sed -e 's/.*://' -e 's/-.*//g' | awk -F. '{print $3}')" -ge "19" ]]; then if [[ "${glennr_mongod_compatible}" == "true" ]]; then unsupported_database_version_change="true"; fi; fi
     if [[ -n "${previous_mongodb_version}" ]]; then if [[ "${mongodb_version_no_dots::2}" != "${previous_mongodb_version::2}" ]] && [[ "${previous_mongodb_version::2}" != "$((${mongodb_version_no_dots::2} - 2))" ]]; then unsupported_database_version_change="true"; fi; fi
   fi
   if "$(which dpkg)" -l mongodb-org-server 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui" && [[ "${glennr_compiled_mongod}" == 'true' && "${mongodb_version_installed_no_dots::2}" =~ (70|80) && "${unsupported_database_version_change}" != 'true' ]]; then
@@ -6482,7 +6521,7 @@ if [[ "${mongo_version_locked}" == '4.4.18' ]] || [[ "${unsupported_database_ver
     eus_directory_location="/tmp/EUS"
     eus_create_directories "mongodb"
     if "$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | awk '{print$2}' | grep -iq "mongodb-org-server$" && [[ "${previous_mongodb_version::2}" =~ (70|80) ]]; then
-      if ! (lscpu 2>/dev/null | grep -iq "avx") || ! grep -iq "avx" /proc/cpuinfo; then
+      if [[ "${glennr_mongod_compatible}" == "true" ]]; then
         glennr_compiled_mongod="true"
       fi
     fi
