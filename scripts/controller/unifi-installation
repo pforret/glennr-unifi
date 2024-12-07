@@ -11,6 +11,13 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 8.3.0
+ 
+ - Improved support files.
+ - Fixed an issue where the script would install an incompatible MongoDB versions.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 8.2.9
  
  - Fixed an issue where it printed debug messaging at start of the script.

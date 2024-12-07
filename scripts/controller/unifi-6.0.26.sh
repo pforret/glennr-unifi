@@ -58,7 +58,7 @@
 ###################################################################################################################################################################################################
 
 # Script                | UniFi Network Easy Installation Script
-# Version               | 8.2.9
+# Version               | 8.3.0
 # Application version   | 6.0.26-dfb550c0bf
 # Debian Repo version   | 6.0.26-14266-1
 # Author                | Glenn Rietveld
@@ -436,7 +436,7 @@ support_file() {
     echo -e "-----( readlink java )----- \n"; readlink -f /usr/bin/java 2> /dev/null
   } >> "/tmp/EUS/support/java-details.log"
   grep -is '^unifi:' /etc/passwd /etc/group &> "/tmp/EUS/support/unifi-user-group-results"
-  find /usr/sbin -name "unifi*" -type f -print0 | xargs -0 -I {} sh -c 'echo -e "\n------[ {} ]------\n"; cat "{}"; echo;' &> "/tmp/EUS/support/unifi-helper-results"
+  find /usr/sbin -name "unifi*" -type f -print0 | xargs -0 -I {} sh -c 'echo "\n------[ {} ]------\n"; cat "{}"; echo;' &> "/tmp/EUS/support/unifi-helper-results"
   ps -p $$ -o command= &> "/tmp/EUS/support/script-usage"
   echo "$PATH" &> "/tmp/EUS/support/PATH"
   cp "${script_location}" "/tmp/EUS/support/${script_file_name}" &> /dev/null
@@ -4403,40 +4403,38 @@ mongodb_avx_support_check() {
         fi
       fi
     else
-      if [[ "${glennr_mongod_compatible}" == "true" ]]; then
-        if [[ "${mongo_version_max}" =~ (70|80) ]]; then
-          if "$(which dpkg)" -l | grep "^ii\\|^hi" | grep -iq "mongod-amd64" || [[ "${script_option_skip}" == 'true' ]] || [[ "${glennr_compiled_mongod}" == 'true' ]]; then
-            mongod_amd64_installed="true"
-            yes_no="y"
-          else
-            echo -e "${GRAY_R}----${RESET}\\n"
-            echo -e "${YELLOW}#${RESET} Your CPU is no longer officially supported by MongoDB themselves..."
-            read -rp $'\033[39m#\033[0m Would you like to use mongod compiled from MongoDB source code specifically for your CPU by Glenn R.? (Y/n) ' yes_no
-          fi
-          case "$yes_no" in
-              [Yy]*|"")
-                 if [[ "${mongo_version_max}" == "80" ]]; then add_mongod_80_repo="true"; elif [[ "${mongo_version_max}" == "70" ]]; then add_mongod_70_repo="true"; fi
-                 glennr_compiled_mongod="true"
-                 if [[ "${broken_unifi_install}" == 'true' ]]; then broken_glennr_compiled_mongod="true"; fi
-                 cleanup_unifi_repos
-                 if [[ "${mongod_amd64_installed}" != 'true' ]]; then echo ""; fi;;
-              [Nn]*)
-                 unset add_mongodb_70_repo
-                 unset add_mongodb_80_repo
-                 add_mongodb_44_repo="true"
-                 mongo_version_max="44"
-                 mongo_version_max_with_dot="4.4"
-                 mongo_version_locked="4.4.18";;
-          esac
-          unset yes_no
+      if [[ "${mongo_version_max}" =~ (70|80) && "${glennr_mongod_compatible}" == "true" ]]; then
+        if "$(which dpkg)" -l | grep "^ii\\|^hi" | grep -iq "mongod-amd64" || [[ "${script_option_skip}" == 'true' ]] || [[ "${glennr_compiled_mongod}" == 'true' ]]; then
+          mongod_amd64_installed="true"
+          yes_no="y"
         else
-          unset add_mongodb_70_repo
-          unset add_mongodb_80_repo
-          add_mongodb_44_repo="true"
-          mongo_version_max="44"
-          mongo_version_max_with_dot="4.4"
-          mongo_version_locked="4.4.18"
+          echo -e "${GRAY_R}----${RESET}\\n"
+          echo -e "${YELLOW}#${RESET} Your CPU is no longer officially supported by MongoDB themselves..."
+          read -rp $'\033[39m#\033[0m Would you like to use mongod compiled from MongoDB source code specifically for your CPU by Glenn R.? (Y/n) ' yes_no
         fi
+        case "$yes_no" in
+            [Yy]*|"")
+               if [[ "${mongo_version_max}" == "80" ]]; then add_mongod_80_repo="true"; elif [[ "${mongo_version_max}" == "70" ]]; then add_mongod_70_repo="true"; fi
+               glennr_compiled_mongod="true"
+               if [[ "${broken_unifi_install}" == 'true' ]]; then broken_glennr_compiled_mongod="true"; fi
+               cleanup_unifi_repos
+               if [[ "${mongod_amd64_installed}" != 'true' ]]; then echo ""; fi;;
+            [Nn]*)
+               unset add_mongodb_70_repo
+               unset add_mongodb_80_repo
+               add_mongodb_44_repo="true"
+               mongo_version_max="44"
+               mongo_version_max_with_dot="4.4"
+               mongo_version_locked="4.4.18";;
+        esac
+        unset yes_no
+      else
+        unset add_mongodb_70_repo
+        unset add_mongodb_80_repo
+        add_mongodb_44_repo="true"
+        mongo_version_max="44"
+        mongo_version_max_with_dot="4.4"
+        mongo_version_locked="4.4.18"
       fi
     fi
     if [[ "$(dpkg-query --showformat='${Version}' --show jq | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
