@@ -11,6 +11,22 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 9.6.5
+  
+ - Improved the package installation prcoess.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 9.6.4
+  
+ - Improved the supported MongoDB version check.
+ - Improved the libssl installation prcoess.
+ - Improved the UniFi Network Application dependecy check.
+ - Improved the JAVA installed check.
+   - It will now also verify if java for the active architecture is installed, e.g. amd64 package on arm64 host.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 9.6.3
   
  - Improved support files.

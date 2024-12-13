@@ -11,6 +11,22 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 8.3.2
+  
+ - Improved the package installation prcoess.
+ 
+ ####
+
+ |  UniFi Network Application Installation Script  |  Version 8.3.1
+ 
+ - Improved the supported MongoDB version check.
+ - Improved the libssl installation prcoess.
+ - Improved the UniFi Network Application dependecy check.
+ - Improved the JAVA installed check.
+   - It will now also verify if java for the active architecture is installed, e.g. amd64 package on arm64 host.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 8.3.0
  
  - Improved support files.
