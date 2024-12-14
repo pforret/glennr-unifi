@@ -11,6 +11,14 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 8.3.3
+  
+ - Improved the MongoDB installation check.
+ - Fixed an issue where the script would try to install a newer package version than available on the MongoDB repository.
+ - Fixed the PATH check.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 8.3.2
   
  - Improved the package installation prcoess.

@@ -58,7 +58,7 @@
 ###################################################################################################################################################################################################
 
 # Script                | UniFi Network Easy Installation Script
-# Version               | 8.3.2
+# Version               | 8.3.3
 # Application version   | 6.0.27-e23884806a
 # Debian Repo version   | 6.0.27-14276-1
 # Author                | Glenn Rietveld
@@ -2695,7 +2695,7 @@ fi
 
 check_mongodb_installed() {
   unset mongodb_installed
-  "$(which dpkg)" -l | grep "mongodb-server\\|mongodb-org-server\\|mongod-armv8\\|mongod-amd64" | grep "^ii\\|^hi" | awk '{print $3}' | sed 's/.*://' | sed 's/-.*//g' &> /tmp/EUS/mongodb_versions
+  "$(which dpkg)" -l | grep "mongodb-server$\\|mongodb-org-server\\|mongod-armv8\\|mongod-amd64" | grep "^ii\\|^hi" | awk '{print $3}' | sed 's/.*://' | sed 's/-.*//g' &> /tmp/EUS/mongodb_versions
   if ! [[ -s "/tmp/EUS/mongodb_versions" ]]; then
     if [[ -n "$(command -v mongod)" ]]; then
       if "${mongocommand}" --port 27117 --eval "print(\"waited for connection\")" &> /dev/null; then
@@ -2708,7 +2708,7 @@ check_mongodb_installed() {
   mongodb_version_installed="$(sort -V /tmp/EUS/mongodb_versions | tail -n 1)"
   mongodb_version_installed_no_dots="${mongodb_version_installed//./}"
   if [[ -n "${mongodb_version_installed}" ]]; then mongodb_installed="true"; fi
-  if "$(which dpkg)" -l | grep "^ii\\|^hi" | grep -iq "mongodb-server\\|mongodb-org-server"; then mongodb_installed="true"; fi
+  if "$(which dpkg)" -l | grep "^ii\\|^hi" | grep -iq "mongodb-server$\\|mongodb-org-server"; then mongodb_installed="true"; fi
   rm --force /tmp/EUS/mongodb_versions &> /dev/null
   first_digit_mongodb_version_installed="$(echo "${mongodb_version_installed}" | cut -d'.' -f1)"
   second_digit_mongodb_version_installed="$(echo "${mongodb_version_installed}" | cut -d'.' -f2)"
@@ -2718,7 +2718,7 @@ check_and_add_to_path() {
   local directory="$1"
   if ! echo "${PATH}" | grep -qE "(^|:)$directory(:|$)"; then
     export PATH="$directory:$PATH"
-    echo "Added $directory to PATH" &>> "${eus_dir/logs/path.log}"
+    echo "Added $directory to PATH" &>> "${eus_dir}/logs/path.log}"
   fi
 }
 check_and_add_to_path "/usr/local/sbin"
@@ -3038,12 +3038,12 @@ if [[ -d "/usr/lib/unifi/logs/" ]]; then
     done < <(find /usr/lib/unifi/logs/ -maxdepth 1 -type f -print0 | while IFS= read -r -d '' file; do if "${grep_command}" ${grep_matches:+${grep_matches}} -Eial "db version v${found_mongodb_version}|buildInfo\":{\"version\":\"${found_mongodb_version}\"" "$file" > /dev/null 2>&1; then if [[ -e "$file" ]]; then stat --format '%Y %n' "$file"; fi; fi; done | sort -nr | awk '{print $2}')
     if [[ -n "${last_known_good_mongodb_version}" ]]; then wait; break; fi
   done < <(find /usr/lib/unifi/logs/ -maxdepth 1 -type f -print0 | xargs -0 "${grep_command}" ${grep_matches:+${grep_matches}} -sEioa "db version v[0-9].[0-9].[0-9]{1,2}|buildInfo\":{\"version\":\"[0-9].[0-9].[0-9]{1,2}\"" | sed -e 's/^.*://' -e 's/db version v//g' -e 's/buildInfo":{"version":"//g' -e 's/"//g' | sort -rV | uniq)
-  if [[ -z "${last_known_good_mongodb_version}" ]] && "$(which dpkg)" -l | grep "mongodb-server\\|mongodb-org-server\\|mongod-armv8\\|mongod-amd64" | grep -viq "^ii\\|^hi"; then
+  if [[ -z "${last_known_good_mongodb_version}" ]] && "$(which dpkg)" -l | grep "mongodb-server$\\|mongodb-org-server\\|mongod-armv8\\|mongod-amd64" | grep -viq "^ii\\|^hi"; then
     get_unifi_api_ports
     get_unifi_application_status
     if [[ "${application_up}" != 'true' ]]; then
       if [[ "$(find /usr/lib/unifi/logs/ -maxdepth 1 -type f -print0 | wc -l)" == "0" ]] || [[ "$(find /usr/lib/unifi/logs/ -type f -name "mongod.log*" | wc -l)" == "0" ]]; then 
-        last_known_installed_mongodb_version="$("$(which dpkg)" -l | grep "mongodb-server\\|mongodb-org-server\\|mongod-armv8\\|mongod-amd64" | grep -vi "^ii\\|^hi" | awk '{print $3}' | sed -e 's/.*://' -e 's/-.*//g' -e 's/+.*//g')"
+        last_known_installed_mongodb_version="$("$(which dpkg)" -l | grep "mongodb-server$\\|mongodb-org-server\\|mongod-armv8\\|mongod-amd64" | grep -vi "^ii\\|^hi" | awk '{print $3}' | sed -e 's/.*://' -e 's/-.*//g' -e 's/+.*//g')"
       fi
     fi
   fi
@@ -3092,8 +3092,8 @@ if [[ -d "/usr/lib/unifi/logs/" ]]; then
       fi
     fi
   fi
-  if "$(which dpkg)" -l | grep "mongodb-server\\|mongodb-org-server\\|mongod-armv8\\|mongod-amd64" | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui" && [[ -n "${previous_mongodb_version}" ]]; then
-    recovery_check_mongodb_server_version="$("$(which dpkg)" -l | grep "mongodb-server\\|mongodb-org-server\\|mongod-armv8\\|mongod-amd64" | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | awk '{print $3}' | sed 's/.*://' | sed 's/-.*//g' | sed 's/\.//g')"
+  if "$(which dpkg)" -l | grep "mongodb-server$\\|mongodb-org-server\\|mongod-armv8\\|mongod-amd64" | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui" && [[ -n "${previous_mongodb_version}" ]]; then
+    recovery_check_mongodb_server_version="$("$(which dpkg)" -l | grep "mongodb-server$\\|mongodb-org-server\\|mongod-armv8\\|mongod-amd64" | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | awk '{print $3}' | sed 's/.*://' | sed 's/-.*//g' | sed 's/\.//g')"
     if [[ "${recovery_check_mongodb_server_version::2}" != "${previous_mongodb_version::2}" ]]; then recovery_required="true"; fi
   fi
 fi
@@ -4102,22 +4102,19 @@ multiple_attempt_to_install_package() {
   attempt_to_install_package_attempts="0"
   if [[ -z "${multiple_attempt_to_install_package_attempts_max}" ]]; then multiple_attempt_to_install_package_attempts_max="4"; fi
   while [[ "${attempt_to_install_package_attempts}" -le "${multiple_attempt_to_install_package_attempts_max}" ]]; do
+    if [[ -n "${original_multiple_attempt_to_install_package_version_with_equal_sign}" ]]; then multiple_attempt_to_install_package_version_with_equal_sign="${original_multiple_attempt_to_install_package_version_with_equal_sign}"; fi
     if [[ "${attempt_to_install_package_attempts}" == '1' ]]; then
       attempt_message="second"
-      #short_attempt_message="2nd"
     elif [[ "${attempt_to_install_package_attempts}" == '2' ]]; then
       check_unmet_dependencies
       broken_packages_check
       attempt_recover_broken_packages
       add_apt_option_no_install_recommends="true"; get_apt_options
       attempt_message="third"
-      #short_attempt_message="3rd"
     elif [[ "${attempt_to_install_package_attempts}" == '3' ]]; then
       attempt_message="fourth"
-      #short_attempt_message="4th"
     elif [[ "${attempt_to_install_package_attempts}" == '4' ]]; then
       attempt_message="fifth"
-      #short_attempt_message="5th"
     fi
     if [[ "${multiple_attempt_to_install_package_name}" =~ (mongodb-mongosh-shared-openssl11|mongodb-mongosh-shared-openssl3|mongodb-org-shell|mongodb-org-tools) ]]; then
       if [[ "${attempt_to_install_package_attempts}" == '1' ]]; then
@@ -4130,6 +4127,11 @@ multiple_attempt_to_install_package() {
       mongodb_package_libssl="${multiple_attempt_to_install_package_name}"
       mongodb_package_version_libssl="${multiple_attempt_to_install_package_version_with_equal_sign//=/}"
       libssl_installation_check
+      if ! apt-cache policy "${multiple_attempt_to_install_package_name}" | tr '[:upper:]' '[:lower:]' | sed '1,/version table/d' | sed -e 's/500//g' -e 's/100//g' -e '/http/d' -e '/var/d' -e 's/*//g' -e 's/ //g' | grep -ioq "${multiple_attempt_to_install_package_version_with_equal_sign//=/}"; then
+        attempt_new_version="$(echo "${multiple_attempt_to_install_package_version_with_equal_sign//=/}" | cut -d'.' -f1,2)"
+        located_new_version="$(apt-cache policy "${multiple_attempt_to_install_package_name}" | tr '[:upper:]' '[:lower:]' | sed '1,/version table/d' | sed -e 's/500//g' -e 's/100//g' -e '/http/d' -e '/var/d' -e 's/*//g' -e 's/ //g' | grep -i "${attempt_new_version}" | head -n1)"
+        if [[ "${located_new_version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then multiple_attempt_to_install_package_version_with_equal_sign="=${located_new_version}"; else original_multiple_attempt_to_install_package_version_with_equal_sign="${multiple_attempt_to_install_package_version_with_equal_sign}"; unset multiple_attempt_to_install_package_version_with_equal_sign; fi
+      fi
     fi
     check_dpkg_lock
     if [[ "${attempt_to_install_package_attempts}" -ge '1' ]]; then
@@ -4194,6 +4196,7 @@ multiple_attempt_to_install_package() {
   unset multiple_attempt_to_install_package_attempts_max
   unset multiple_attempt_to_install_package_name
   unset multiple_attempt_to_install_package_version_with_equal_sign
+  unset original_multiple_attempt_to_install_package_version_with_equal_sign
   reverse_check_add_mongodb_repo_variable
   get_apt_options
 }
@@ -4450,7 +4453,7 @@ mongodb_avx_support_check() {
 mongodb_avx_support_check
 
 mongo_command() {
-  mongo_command_server_version="$("$(which dpkg)" -l | grep "^ii\\|^hi" | grep "mongodb-server\\|mongodb-org-server\\|mongod-armv8\\|mongod-amd64" | awk '{print $3}' | sed 's/\.//g' | sed 's/.*://' | sed 's/-.*//g')"
+  mongo_command_server_version="$("$(which dpkg)" -l | grep "^ii\\|^hi" | grep "mongodb-server$\\|mongodb-org-server\\|mongod-armv8\\|mongod-amd64" | awk '{print $3}' | sed 's/\.//g' | sed 's/.*://' | sed 's/-.*//g')"
   if "$(which dpkg)" -l mongodb-mongosh-shared-openssl3 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui" && [[ "${mongo_command_server_version::2}" -ge "40" ]]; then
     mongocommand="mongosh"
   elif "$(which dpkg)" -l mongodb-mongosh-shared-openssl11 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui" && [[ "${mongo_command_server_version::2}" -ge "40" ]]; then
@@ -5624,9 +5627,9 @@ unifi_deb_package_modification() {
 
 ignore_unifi_package_dependencies() {
   if [[ -f "/tmp/EUS/ignore-depends" ]]; then rm --force /tmp/EUS/ignore-depends &> /dev/null; fi
-  if ! "$(which dpkg)" -l | grep "^ii\\|^hi" | grep -iq "mongodb-server\\|mongodb-org-server\\|mongod-armv8\\|mongod-amd64"; then echo -e "mongodb-server" &>> /tmp/EUS/ignore-depends; fi
-  if "$(which dpkg)" -l | grep "^ii\\|^hi" | grep -iq "mongodb-server\\|mongodb-org-server\\|mongod-armv8\\|mongod-amd64"; then
-    ignore_unifi_package_dependencies_mongodb_version="$("$(which dpkg)" -l | grep "mongodb-server\\|mongodb-org-server\\|mongod-armv8\\|mongod-amd64" | grep "^ii\\|^hi" | awk '{print $3}' | sed 's/.*://' | sed -e 's/-.*//g' -e 's/\.//g')"
+  if ! "$(which dpkg)" -l | grep "^ii\\|^hi" | grep -iq "mongodb-server$\\|mongodb-org-server\\|mongod-armv8\\|mongod-amd64"; then echo -e "mongodb-server" &>> /tmp/EUS/ignore-depends; fi
+  if "$(which dpkg)" -l | grep "^ii\\|^hi" | grep -iq "mongodb-server$\\|mongodb-org-server\\|mongod-armv8\\|mongod-amd64"; then
+    ignore_unifi_package_dependencies_mongodb_version="$("$(which dpkg)" -l | grep "mongodb-server$\\|mongodb-org-server\\|mongod-armv8\\|mongod-amd64" | grep "^ii\\|^hi" | awk '{print $3}' | sed 's/.*://' | sed -e 's/-.*//g' -e 's/\.//g')"
     unset minimum_required_mongodb_version
     minimum_required_mongodb_version_check
     if [[ "${ignore_unifi_package_dependencies_mongodb_version::2}" -gt "${unifi_mongo_version_max}" ]]; then
@@ -6750,7 +6753,7 @@ fi
 if [[ "${first_digit_unifi}" -gt '7' ]] || [[ "${first_digit_unifi}" == '7' && "${second_digit_unifi}" -ge '4' ]] || [[ "${first_digit_unifi}" == '7' && "${second_digit_unifi}" -ge '5' ]]; then
   if [[ "${first_digit_unifi}" -gt '7' ]] || [[ "${first_digit_unifi}" == '7' && "${second_digit_unifi}" -ge '5' ]]; then minimum_required_mongodb_version_dot="3.6"; minimum_required_mongodb_version="36"; unifi_latest_supported_version_number="7.4"; fi
   if [[ "${first_digit_unifi}" == '7' && "${second_digit_unifi}" == '4' ]]; then minimum_required_mongodb_version_dot="2.6"; minimum_required_mongodb_version="26"; unifi_latest_supported_version_number="7.3"; fi
-  mongodb_server_version="$("$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep "mongodb-server\\|mongodb-org-server\\|mongod-armv8\\|mongod-amd64" | awk '{print $3}' | sed 's/\.//g' | sed 's/.*://' | sed 's/-.*//g')"
+  mongodb_server_version="$("$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep "mongodb-server$\\|mongodb-org-server\\|mongod-armv8\\|mongod-amd64" | awk '{print $3}' | sed 's/\.//g' | sed 's/.*://' | sed 's/-.*//g')"
   if [[ -z "${mongodb_server_version}" ]]; then
     if [[ -n "$(command -v mongod)" ]]; then
       if "${mongocommand}" --port 27117 --eval "print(\"waited for connection\")" &> /dev/null; then
@@ -6763,7 +6766,7 @@ if [[ "${first_digit_unifi}" -gt '7' ]] || [[ "${first_digit_unifi}" == '7' && "
   if [[ "${mongodb_server_version::2}" -lt "${minimum_required_mongodb_version}" ]]; then
     header_red
     echo -e "${GRAY_R}#${RESET} UniFi Network Application ${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi} requires MongoDB ${minimum_required_mongodb_version_dot} or newer."
-    echo -e "${GRAY_R}#${RESET} The latest version that you can run with MongoDB version $("$(which dpkg)" -l | grep "mongodb-server\\|mongodb-org-server\\|mongod-armv8\\|mongod-amd64" | awk '{print $3}' | sed -e 's/.*://' -e 's/-.*//') is $(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?version=${unifi_latest_supported_version_number}" 2> /dev/null | jq -r '.latest_version' 2> /dev/null) and older.. \\n\\n"
+    echo -e "${GRAY_R}#${RESET} The latest version that you can run with MongoDB version $("$(which dpkg)" -l | grep "mongodb-server$\\|mongodb-org-server\\|mongod-armv8\\|mongod-amd64" | awk '{print $3}' | sed -e 's/.*://' -e 's/-.*//') is $(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?version=${unifi_latest_supported_version_number}" 2> /dev/null | jq -r '.latest_version' 2> /dev/null) and older.. \\n\\n"
     echo -e "${GRAY_R}#${RESET} Upgrade to MongoDB ${minimum_required_mongodb_version_dot} or newer, or perform a fresh install with the latest OS."
     echo -e "${GRAY_R}#${RESET} Installation Script   | https://community.ui.com/questions/ccbc7530-dd61-40a7-82ec-22b17f027776\\n\\n"
     if [[ "$(getconf LONG_BIT)" == '32' ]]; then

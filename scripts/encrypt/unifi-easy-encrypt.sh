@@ -2,7 +2,7 @@
 
 # UniFi Easy Encrypt script.
 # Script   | UniFi Network Easy Encrypt Script
-# Version  | 3.3.2
+# Version  | 3.3.3
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -1509,7 +1509,7 @@ check_and_add_to_path() {
   local directory="$1"
   if ! echo "${PATH}" | grep -qE "(^|:)$directory(:|$)"; then
     export PATH="$directory:$PATH"
-    echo "Added $directory to PATH" &>> "${eus_dir/logs/path.log}"
+    echo "Added $directory to PATH" &>> "${eus_dir}/logs/path.log}"
   fi
 }
 check_and_add_to_path "/usr/local/sbin"

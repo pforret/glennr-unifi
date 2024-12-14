@@ -11,6 +11,13 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 9.6.6
+  
+ - Fixed an issue where the script would try to install a newer package version than available on the MongoDB repository.
+ - Fixed the PATH check.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 9.6.5
   
  - Improved the package installation prcoess.
