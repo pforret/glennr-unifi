@@ -11,6 +11,19 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 9.6.8
+  
+ - Fixed PATH logging.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 9.6.7
+  
+ - Improved the MongoDB upgrade abort process for setups using MongoDB compiled by Glenn R.
+ - Improved the MongoDB supported check for Neoverse ARMv8.2-A CPU's.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 9.6.6
   
  - Fixed an issue where the script would try to install a newer package version than available on the MongoDB repository.

@@ -11,6 +11,18 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 8.3.5
+  
+ - Fixed PATH logging.
+ 
+ ####
+
+ |  UniFi Network Application Installation Script  |  Version 8.3.4
+  
+ - Improved the MongoDB supported check for Neoverse ARMv8.2-A CPU's.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 8.3.3
   
  - Improved the MongoDB installation check.
