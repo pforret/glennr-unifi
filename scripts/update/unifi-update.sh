@@ -2,7 +2,7 @@
 
 # UniFi Network Application Easy Update Script.
 # Script   | UniFi Network Easy Update Script
-# Version  | 9.6.8
+# Version  | 9.7.0
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -1720,7 +1720,7 @@ broken_packages_check() {
 }
 
 mongo_command() {
-  mongo_command_server_version="$("$(which dpkg)" -l | grep "^ii\\|^hi" | grep "mongodb-server$\\|mongodb-org-server\\|mongod-armv8\\|mongod-amd64" | awk '{print $3}' | sed 's/\.//g' | sed 's/.*://' | sed 's/-.*//g')"
+  mongo_command_server_version="$("$(which dpkg)" -l | grep "^ii\\|^hi" | grep -E "(mongodb-server|mongodb-org-server|mongod-armv8|mongod-amd64)[[:space:]]" | awk '{print $3}' | sed -e 's/.*://' -e 's/-.*//' -e 's/+.*//' -e 's/\.//g')"
   if "$(which dpkg)" -l mongodb-mongosh-shared-openssl3 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui" && [[ "${mongo_command_server_version::2}" -ge "40" ]]; then
     mongocommand="mongosh"
     mongoprefix="EJSON.stringify( "
@@ -6249,7 +6249,7 @@ monitor_update_progress_pid() {
 ###################################################################################################################################################################################################
 
 only_archive_or_delete() {
-  mongodb_server_version=$("$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep "mongodb-server$\\|mongodb-org-server\\|mongod-armv8\\|mongod-amd64" | awk '{print $3}' | sed 's/\.//g' | sed 's/.*://' | sed 's/-.*//g')
+  mongodb_server_version=$("$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep -E "(mongodb-server|mongodb-org-server|mongod-armv8|mongod-amd64)[[:space:]]" | awk '{print $3}' | sed -e 's/.*://' -e 's/-.*//' -e 's/+.*//' -e 's/\.//g')
   header
   if [[ "${script_option_archive_alerts}" == 'true' ]]; then
     echo -e "${GRAY_R}#${RESET} Archiving the Alerts..."
@@ -6568,7 +6568,7 @@ alert_event_cleanup() {
   #alert_find_m=$("${mongocommand}" --port 27117 ace --eval 'db.alarm.find({"ip":{ $regex: "127.0.0.1|0:0:0:0:0:0:0:1"}})' | grep -c "log.* 127.0.0.1\|log.* 0:0:0:0:0:0:0:1")
   #event_find_m=$("${mongocommand}" --port 27117 ace --eval 'db.event.find({"ip":{ $regex: "127.0.0.1|0:0:0:0:0:0:0:1"}})' | grep -c "log.* 127.0.0.1\|log.* 0:0:0:0:0:0:0:1")
   if [[ "${application_login}" == 'success' ]]; then
-    mongodb_server_version=$("$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep "mongodb-server$\\|mongodb-org-server\\|mongod-armv8\\|mongod-amd64" | awk '{print $3}' | sed 's/\.//g' | sed 's/.*://' | sed 's/-.*//g')
+    mongodb_server_version=$("$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep -E "(mongodb-server|mongodb-org-server|mongod-armv8|mongod-amd64)[[:space:]]" | awk '{print $3}' | sed -e 's/.*://' -e 's/-.*//' -e 's/+.*//' -e 's/\.//g')
     header
     echo -e "${GRAY_R}#${RESET} What would you like to do with the script login events?"
     echo -e "${GRAY_R}#${RESET} Deleting/Archiving can take a while on big setups.\\n"
@@ -8185,7 +8185,7 @@ custom_url_upgrade_check() {
     if [[ "${first_digit_unifi}" -gt '7' ]] || [[ "${first_digit_unifi}" == '7' && "${second_digit_unifi}" -ge '5' ]]; then
       if [[ "$(getconf LONG_BIT)" == '32' ]]; then
         header_red
-        mongodb_server_version="$("$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep "mongodb-server$\\|mongodb-org-server\\|mongod-armv8\\|mongod-amd64" | awk '{print $3}' | sed 's/\.//g' | sed 's/.*://' | sed 's/-.*//g')"
+        mongodb_server_version="$("$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep -E "(mongodb-server|mongodb-org-server|mongod-armv8|mongod-amd64)[[:space:]]" | awk '{print $3}' | sed -e 's/.*://' -e 's/-.*//' -e 's/+.*//' -e 's/\.//g')"
         if [[ "${mongodb_server_version::2}" -le "25" ]]; then unifi_latest_supported_version="7.3"; else unifi_latest_supported_version="7.4"; fi
         echo -e "${GRAY_R}#${RESET} Your 32-bit system/OS is no longer supported by UniFi Network Application ${custom_application_version}!"
         echo -e "${GRAY_R}#${RESET} The latest supported version on your system/OS is $(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?version=${unifi_latest_supported_version}" 2> /dev/null | jq -r '.latest_version' 2> /dev/null) and older..."
@@ -8205,7 +8205,7 @@ custom_url_upgrade_check() {
           minimum_required_mongodb_version="26"
           unifi_latest_supported_version_number="7.3"
         fi
-        mongodb_server_version="$("$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep "mongodb-server$\\|mongodb-org-server\\|mongod-armv8\\|mongod-amd64" | awk '{print $3}' | sed 's/\.//g' | sed 's/.*://' | sed 's/-.*//g')"
+        mongodb_server_version="$("$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep -E "(mongodb-server|mongodb-org-server|mongod-armv8|mongod-amd64)[[:space:]]" | awk '{print $3}' | sed -e 's/.*://' -e 's/-.*//' -e 's/+.*//' -e 's/\.//g')"
         if [[ "${mongodb_server_version::2}" -lt "${minimum_required_mongodb_version}" ]]; then
           if [[ "${unifi_core_system}" == 'true' ]]; then
             if [[ "${os_codename}" == 'stretch' ]]; then
@@ -8219,7 +8219,7 @@ custom_url_upgrade_check() {
           else
             header_red
             echo -e "${GRAY_R}#${RESET} UniFi Network Application ${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi} requires MongoDB ${minimum_required_mongodb_version_dot} or newer."
-            echo -e "${GRAY_R}#${RESET} The latest version that you can run with MongoDB version $("$(which dpkg)" -l | grep "mongodb-server$\\|mongodb-org-server\\|mongod-armv8\\|mongod-amd64" | awk '{print $3}' | sed -e 's/.*://' -e 's/-.*//') is $(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?version=${unifi_latest_supported_version_number}" 2> /dev/null | jq -r '.latest_version' 2> /dev/null) and older.. \\n\\n"
+            echo -e "${GRAY_R}#${RESET} The latest version that you can run with MongoDB version $("$(which dpkg)" -l | grep -E "(mongodb-server|mongodb-org-server|mongod-armv8|mongod-amd64)[[:space:]]" | awk '{print $3}' | sed -e 's/.*://' -e 's/-.*//' -e 's/+.*//') is $(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?version=${unifi_latest_supported_version_number}" 2> /dev/null | jq -r '.latest_version' 2> /dev/null) and older.. \\n\\n"
             if [[ "${mongodb_org_v::2}" =~ (24|26|30|32|34) && "${mongo_version_max}" == "36" && "${mongodb_upgrade_supported}" == 'true' ]] || [[ "${mongodb_org_v::2}" =~ (24|26|30|32|34|36|40|42) && "${mongo_version_max}" == "44" && "${mongodb_upgrade_supported}" == 'true' ]]; then
               read -rp $'\033[39m#\033[0m Would you like to run the option to upgrade to MongoDB '"${mongo_version_max_with_dot}"'? (Y/n) ' yes_no
               case "$yes_no" in
@@ -10096,7 +10096,7 @@ application_upgrade_releases() {
   if [[ "${first_digit_unifi}" -gt '7' ]] || [[ "${first_digit_unifi}" == '7' && "${second_digit_unifi}" -ge '5' ]]; then
     if [[ "$(getconf LONG_BIT)" == '32' ]]; then
       header_red
-      mongodb_server_version="$("$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep "mongodb-server$\\|mongodb-org-server\\|mongod-armv8\\|mongod-amd64" | awk '{print $3}' | sed 's/\.//g' | sed 's/.*://' | sed 's/-.*//g')"
+      mongodb_server_version="$("$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep -E "(mongodb-server|mongodb-org-server|mongod-armv8|mongod-amd64)[[:space:]]" | awk '{print $3}' | sed -e 's/.*://' -e 's/-.*//' -e 's/+.*//' -e 's/\.//g')"
       if [[ "${mongodb_server_version::2}" -le "25" ]]; then unifi_latest_supported_version="7.3"; else unifi_latest_supported_version="7.4"; fi
       echo -e "${GRAY_R}#${RESET} Your 32-bit system/OS is no longer supported by UniFi Network Application ${application_version_release}!"
       echo -e "${GRAY_R}#${RESET} The latest supported version on your system/OS is $(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?version=${unifi_latest_supported_version}" 2> /dev/null | jq -r '.latest_version' 2> /dev/null) and older..."
@@ -10115,7 +10115,7 @@ application_upgrade_releases() {
       minimum_required_mongodb_version="26"
       unifi_latest_supported_version_number="7.3"
     fi
-    mongodb_server_version="$("$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep "mongodb-server$\\|mongodb-org-server\\|mongod-armv8\\|mongod-amd64" | awk '{print $3}' | sed 's/\.//g' | sed 's/.*://' | sed 's/-.*//g')"
+    mongodb_server_version="$("$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep -E "(mongodb-server|mongodb-org-server|mongod-armv8|mongod-amd64)[[:space:]]" | awk '{print $3}' | sed -e 's/.*://' -e 's/-.*//' -e 's/+.*//' -e 's/\.//g')"
     if [[ "${mongodb_server_version::2}" -lt "${minimum_required_mongodb_version}" ]]; then
       if [[ "${unifi_core_system}" == 'true' ]]; then
         if [[ "${os_codename}" == 'stretch' ]]; then
@@ -10129,7 +10129,7 @@ application_upgrade_releases() {
       else
         header_red
         echo -e "${GRAY_R}#${RESET} UniFi Network Application ${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi} requires MongoDB ${minimum_required_mongodb_version_dot} or newer."
-        echo -e "${GRAY_R}#${RESET} The latest version that you can run with MongoDB version $("$(which dpkg)" -l | grep "mongodb-server$\\|mongodb-org-server\\|mongod-armv8\\|mongod-amd64" | awk '{print $3}' | sed -e 's/.*://' -e 's/-.*//') is $(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?version=${unifi_latest_supported_version_number}" 2> /dev/null | jq -r '.latest_version' 2> /dev/null) and older.. \\n\\n"
+        echo -e "${GRAY_R}#${RESET} The latest version that you can run with MongoDB version $("$(which dpkg)" -l | grep -E "(mongodb-server|mongodb-org-server|mongod-armv8|mongod-amd64)[[:space:]]" | awk '{print $3}' | sed -e 's/.*://' -e 's/-.*//' -e 's/+.*//') is $(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?version=${unifi_latest_supported_version_number}" 2> /dev/null | jq -r '.latest_version' 2> /dev/null) and older.. \\n\\n"
         if [[ "${mongodb_org_v::2}" =~ (24|26|30|32|34) && "${mongo_version_max}" == "36" && "${mongodb_upgrade_supported}" == 'true' ]] || [[ "${mongodb_org_v::2}" =~ (24|26|30|32|34|36|40|42) && "${mongo_version_max}" == "44" && "${mongodb_upgrade_supported}" == 'true' ]] || [[ "${mongodb_org_v::2}" =~ (24|26|30|32|34|36|40|42|44|50|60) && "${mongo_version_max}" == "70" && "${mongodb_upgrade_supported}" == 'true' ]] || [[ "${mongodb_org_v::2}" =~ (24|26|30|32|34|36|40|42|44|50|60|70) && "${mongo_version_max}" == "80" && "${mongodb_upgrade_supported}" == 'true' ]]; then
           read -rp $'\033[39m#\033[0m Would you like to run the option to upgrade to MongoDB '"${mongo_version_max_with_dot}"'? (Y/n) ' yes_no
           case "$yes_no" in

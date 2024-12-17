@@ -11,6 +11,18 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 9.7.0
+  
+ - Fixed an issue where some variables had incorrect data.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 9.6.9
+  
+ - Improved the MongoDB version check.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 9.6.8
   
  - Fixed PATH logging.

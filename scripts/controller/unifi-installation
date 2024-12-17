@@ -11,6 +11,18 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 8.3.7
+  
+ - Fixed an issue where some variables had incorrect data.
+ 
+ ####
+
+ |  UniFi Network Application Installation Script  |  Version 8.3.6
+  
+ - Improved the MongoDB version check.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 8.3.5
   
  - Fixed PATH logging.
