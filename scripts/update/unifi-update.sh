@@ -2,7 +2,7 @@
 
 # UniFi Network Application Easy Update Script.
 # Script   | UniFi Network Easy Update Script
-# Version  | 9.7.0
+# Version  | 9.7.2
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -2479,6 +2479,7 @@ cleanup_malformed_repositories() {
           # Handle deb822 format
           entry_block_start_line="$(awk -v cleanup_line="${cleanup_malformed_repositories_line_number}" 'BEGIN { block = 0; in_block = 0; start_line = 0 } /^[^#]/ { if (!in_block) { start_line = NR; in_block = 1; } } /^$/ { if (in_block) { block++; in_block = 0; if (block == cleanup_line) { print start_line; } } } END { if (in_block) { block++; if (block == cleanup_line) { print start_line; } } }' "${cleanup_malformed_repositories_file_path}")"
           entry_block_end_line="$(awk -v start_line="$entry_block_start_line" ' NR > start_line && NF == 0 { print NR-1; found=1; exit } NR > start_line { last_non_blank=NR } END { if (!found) print last_non_blank }' "${cleanup_malformed_repositories_file_path}")"
+          if [[ -z "${entry_block_end_line}" ]]; then entry_block_end_line="${entry_block_start_line}"; fi
           sed -i "${entry_block_start_line},${entry_block_end_line}s/^/#/" "${cleanup_malformed_repositories_file_path}" &>/dev/null
         elif [[ "${cleanup_malformed_repositories_file_path}" == *".list" ]]; then
           # Handle regular format
@@ -2515,6 +2516,7 @@ cleanup_duplicated_repositories() {
           # Handle deb822 format
           entry_block_start_line="$(awk 'BEGIN { block = 0 } { if ($0 ~ /^Types:/) { block++ } if (block == '"$cleanup_duplicated_repositories_line_number"') { print NR; exit } }' "${cleanup_duplicated_repositories_file_path}")"
           entry_block_end_line="$(awk -v start_line="$entry_block_start_line" ' NR > start_line && NF == 0 { print NR-1; found=1; exit } NR > start_line { last_non_blank=NR } END { if (!found) print last_non_blank }' "${cleanup_duplicated_repositories_file_path}")"
+          if [[ -z "${entry_block_end_line}" ]]; then entry_block_end_line="${entry_block_start_line}"; fi
           sed -i "${entry_block_start_line},${entry_block_end_line}s/^\([^#]\)/# \1/" "${cleanup_duplicated_repositories_file_path}" &>/dev/null
         elif [[ "${cleanup_duplicated_repositories_file_path}" == *".list" ]]; then
           # Handle regular format
@@ -2548,6 +2550,7 @@ cleanup_unavailable_repositories() {
           if grep -sq "${domain}" "${file}"; then
             entry_block_start_line="$(awk '!/^#/ && /Types:/ { types_line=NR } /'"${domain}"'/ && !/^#/ && !seen[types_line]++ { print types_line }' "${file}" | head -n1)"
             entry_block_end_line="$(awk -v start_line="$entry_block_start_line" 'NR > start_line && NF == 0 { print NR-1; exit } END { if (NR > start_line && NF > 0) print NR }' "${file}")"
+            if [[ -z "${entry_block_end_line}" ]]; then entry_block_end_line="${entry_block_start_line}"; fi
             sed -i "${entry_block_start_line},${entry_block_end_line}s/^\([^#]\)/# \1/" "${file}" &>/dev/null
             cleanup_unavailable_repositories_changes_made="true"
             echo -e "$(date +%F-%R) | Unavailable repository with domain ${domain} has been commented out in '${file}'" &>> "${eus_dir}/logs/cleanup-unavailable-repository-lists.log"
@@ -2592,6 +2595,7 @@ cleanup_conflicting_repositories() {
               # Handle deb822 format
               entry_block_start_line="$(awk '!/^#/ && /Types:/ { types_line=NR } /'"${source_url}"'/ && !/^#/ && !seen[types_line]++ { print types_line }' "${file_with_conflict}" | head -n1)"
               entry_block_end_line="$(awk -v start_line="$entry_block_start_line" 'NR > start_line && NF == 0 { print NR-1; exit } END { if (NR > start_line && NF > 0) print NR }' "${file_with_conflict}")"
+              if [[ -z "${entry_block_end_line}" ]]; then entry_block_end_line="${entry_block_start_line}"; fi
               sed -i "${entry_block_start_line},${entry_block_end_line}s/^\([^#]\)/# \1/" "${file_with_conflict}" &>/dev/null
             elif [[ "${file_with_conflict}" == *".list" ]]; then
               # Handle regular format
@@ -2629,6 +2633,7 @@ cleanup_conflicting_repositories() {
               # Handle deb822 format
               entry_block_start_line="$(awk '!/^#/ && /Types:/ { types_line=NR } /'"${source_url}"'/ && !/^#/ && !seen[types_line]++ { print types_line }' "${file_with_conflict}" | head -n1)"
               entry_block_end_line="$(awk -v start_line="$entry_block_start_line" 'NR > start_line && NF == 0 { print NR-1; exit } END { if (NR > start_line && NF > 0) print NR }' "${file_with_conflict}")"
+              if [[ -z "${entry_block_end_line}" ]]; then entry_block_end_line="${entry_block_start_line}"; fi
               sed -i "${entry_block_start_line},${entry_block_end_line}s/^\([^#]\)/# \1/" "${file_with_conflict}" &>/dev/null
             elif [[ "${file_with_conflict}" == *".list" ]]; then
               # Handle regular format
@@ -3444,22 +3449,22 @@ apt_get_install_package() {
   run_apt_get_update
   check_dpkg_lock
   echo -e "\\n------- ${required_package} installation ------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/apt.log"
-  echo -e "${GRAY_R}#${RESET} Trying to ${apt_get_install_package_variable} ${required_package}..."
+  echo -e "${GRAY_R}#${RESET} Trying to ${apt_get_install_package_variable} ${required_package%%:*}..."
   if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${required_package}" 2>&1 | tee -a "${eus_dir}/logs/apt.log" > /tmp/EUS/apt/apt.log; then
     if [[ "${PIPESTATUS[0]}" -eq "0" ]]; then
-      echo -e "${GREEN}#${RESET} Successfully ${apt_get_install_package_variable_2} ${required_package}! \\n"; sleep 2
+      echo -e "${GREEN}#${RESET} Successfully ${apt_get_install_package_variable_2} ${required_package%%:*}! \\n"; sleep 2
     else
-      echo -e "${RED}#${RESET} Failed to ${apt_get_install_package_variable} ${required_package}...\\n"
+      echo -e "${RED}#${RESET} Failed to ${apt_get_install_package_variable} ${required_package%%:*}...\\n"
       check_unmet_dependencies
       broken_packages_check
       attempt_recover_broken_packages
       add_apt_option_no_install_recommends="true"; get_apt_options
-      echo -e "${GRAY_R}#${RESET} Trying to ${apt_get_install_package_variable} ${required_package}..."
+      echo -e "${GRAY_R}#${RESET} Trying to ${apt_get_install_package_variable} ${required_package%%:*}..."
       if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" "${apt_downgrade_option[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${required_package}" 2>&1 | tee -a "${eus_dir}/logs/apt.log" > /tmp/EUS/apt/apt.log; then
         if [[ "${PIPESTATUS[0]}" -eq "0" ]]; then
-          echo -e "${GREEN}#${RESET} Successfully ${apt_get_install_package_variable_2} ${required_package}! \\n"; sleep 2
+          echo -e "${GREEN}#${RESET} Successfully ${apt_get_install_package_variable_2} ${required_package%%:*}! \\n"; sleep 2
         else
-          if [[ -z "${java_install_attempts}" ]]; then abort_reason="Failed to ${apt_get_install_package_variable} ${required_package}."; abort; else echo -e "${RED}#${RESET} Failed to ${apt_get_install_package_variable} ${required_package}...\\n"; fi
+          if [[ -z "${java_install_attempts}" ]]; then abort_reason="Failed to ${apt_get_install_package_variable} ${required_package%%:*}."; abort; else echo -e "${RED}#${RESET} Failed to ${apt_get_install_package_variable} ${required_package%%:*}...\\n"; fi
         fi
       fi
       get_apt_options
@@ -5060,6 +5065,7 @@ if "$(which dpkg)" -l "${mongodb_org_server_package}" 2> /dev/null | awk '{print
   mongodb_org_version="$(dpkg-query --showformat='${Version}' --show "${mongodb_org_server_package}" | sed 's/.*://' | sed 's/-.*//g')"
   mongodb_org_version_no_dots="${mongodb_org_version//./}"
   if [[ "${mongodb_org_version_no_dots::1}" -ge "5" ]]; then
+    if ! apt-cache depends "${mongodb_org_server_package}" &> /dev/null; then silent_run_apt_get_update="true"; run_apt_get_update; fi
     mongodb_mongosh_libssl_version="$(apt-cache depends "${mongodb_org_server_package}"="${mongodb_org_version}" | sed -e 's/>//g' -e 's/<//g' | grep -io "libssl1.1$\\|libssl3$")"
     if [[ -z "${mongodb_mongosh_libssl_version}" ]]; then
       mongodb_mongosh_libssl_version="$(apt-cache depends "${mongodb_org_server_package}" | sed -e 's/>//g' -e 's/<//g' | grep -io "libssl1.1$\\|libssl3$")"

@@ -11,6 +11,18 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 9.7.2
+  
+ - Fixed an issue where the corrupted/malformed repository list cleanup process could get into an endless loop.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 9.7.1
+  
+ - Improved the package installation process text output.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 9.7.0
   
  - Fixed an issue where some variables had incorrect data.

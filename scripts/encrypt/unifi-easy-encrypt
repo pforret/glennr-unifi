@@ -11,6 +11,18 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Encrypt Script  |  Version 3.3.6
+  
+ - Fixed an issue where the corrupted/malformed repository list cleanup process could get into an endless loop.
+ 
+ ####
+
+ |  UniFi Easy Encrypt Script  |  Version 3.3.5
+  
+ - Improved the package installation process text output.
+ 
+ ####
+
  |  UniFi Easy Encrypt Script  |  Version 3.3.4
   
  - Fixed PATH logging.
