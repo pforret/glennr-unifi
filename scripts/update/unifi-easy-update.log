@@ -11,6 +11,19 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 9.7.4
+  
+ - Improved the libssl installation check.
+ - Fixed an issue where the script could remove the Glenn R. MongoDB repository and not add it back when required.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 9.7.3
+  
+ - Improved the libssl installation check.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 9.7.2
   
  - Fixed an issue where the corrupted/malformed repository list cleanup process could get into an endless loop.

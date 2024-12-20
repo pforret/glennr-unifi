@@ -2,7 +2,7 @@
 
 # UniFi Network Application Easy Update Script.
 # Script   | UniFi Network Easy Update Script
-# Version  | 9.7.2
+# Version  | 9.7.4
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -2910,7 +2910,7 @@ add_extra_repo_mongodb() {
 }
 
 add_mongodb_repo() {
-  if [[ "${glennr_compiled_mongod}" == 'true' ]]; then add_glennr_mongod_repo; fi
+  if [[ "${glennr_compiled_mongod}" == 'true' ]] || "$(which dpkg)" -l "${gr_mongod_name}" 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then add_glennr_mongod_repo; fi
   # if any "add_mongodb_xx_repo" is true, (set skip_mongodb_org_v to true, this is disabled).
   mongodb_add_repo_variables=( "add_mongodb_30_repo" "add_mongodb_32_repo" "add_mongodb_34_repo" "add_mongodb_36_repo" "add_mongodb_40_repo" "add_mongodb_42_repo" "add_mongodb_44_repo" "add_mongodb_50_repo" "add_mongodb_60_repo" "add_mongodb_70_repo" "add_mongod_70_repo" "add_mongod_80_repo" )
   for add_repo_variable in "${mongodb_add_repo_variables[@]}"; do if [[ "${!add_repo_variable}" == 'true' ]]; then mongodb_add_repo_variables_true_statements+=("${add_repo_variable}"); fi; done
@@ -4790,19 +4790,17 @@ libssl_installation_check() {
     if [[ "${mongodb_org_upgrade_from_version::2}" -ge "36" && "${mongodb_package_requirement_check}" == 'true' ]]; then
       required_libssl_version="libssl1.1"
       unset mongodb_package_requirement_check
-    elif [[ "${mongo_version_max}" =~ (70|80) ]]; then
+    elif [[ "${mongo_version_max}" =~ (70|80) && -n "${mongo_version_max}" ]]; then
       if grep -sioq "jammy" "/etc/apt/sources.list.d/mongodb-org-7.0.list" "/etc/apt/sources.list.d/mongodb-org-7.0.sources"; then
         required_libssl_version="libssl3"
       else
         required_libssl_version="libssl1.1"
       fi
-    elif [[ "${mongo_version_max}" == '44' ]]; then
+    elif [[ "${mongo_version_max}" -ge '36' && -n "${mongo_version_max}" ]]; then
       required_libssl_version="libssl1.1"
-    elif [[ "${mongo_version_max}" == '36' ]]; then
-      required_libssl_version="libssl1.1"
-    else
+    elif [[ "${mongo_version_max}" -lt '36' && -n "${mongo_version_max}" ]]; then
       required_libssl_version="libssl1.0.0"
-    fi 
+    fi
   fi
   unset libssl_install_required
   if [[ "${required_libssl_version}" == 'libssl3' ]]; then
@@ -4902,9 +4900,7 @@ libssl_installation_check() {
       libssl_repo_url="http://ports.ubuntu.com"
     fi
   else
-    echo -e "${RED}#${RESET} Failed to detect what libssl version is required..."
-    echo -e "$(date +%F-%R) | Failed to detect what libssl version is required..." &>> "${eus_dir}/logs/libssl-dynamic-failure.log"
-    sleep 3
+    echo -e "$(date +%F-%R) | ${mongodb_package_libssl} doesn't appear to required libssl..." &>> "${eus_dir}/logs/libssl-dynamic-failure.log"
   fi
   if [[ "${libssl_install_required}" == 'true' ]]; then libssl_installation; fi
   unset required_libssl_version
@@ -5040,18 +5036,17 @@ if "$(which dpkg)" -l "${gr_mongod_name}" 2> /dev/null | awk '{print $1}' | grep
 
 if "$(which dpkg)" -l "${mongodb_org_server_package}" 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
   mongodb_org_version="$(dpkg-query --showformat='${Version}' --show "${mongodb_org_server_package}" | sed 's/.*://' | sed 's/-.*//g')"
+  mongodb_org_version_major_minor="${mongodb_org_version%.*}"
   if ! "$(which dpkg)" -l mongodb-org-shell 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
 	install_mongodb_org_shell="true"
   else
-	install_mongodb_org_shell="$(dpkg-query --showformat='${Version}' --show mongodb-org-shell | sed 's/.*://' | sed 's/-.*//g' | sed 's/\.//g')"
-    if [[ "${install_mongodb_org_shell}" != "${mongodb_org_version//./}" ]]; then install_mongodb_org_shell="true"; fi
+	install_mongodb_org_shell_version="$(dpkg-query --showformat='${Version}' --show mongodb-org-shell | sed 's/.*://' | sed 's/-.*//g')"
+    install_mongodb_org_shell_major_minor="${install_mongodb_org_shell_version%.*}"
+    if [[ "${install_mongodb_org_shell_major_minor}" != "${mongodb_org_version_major_minor}" ]]; then install_mongodb_org_shell="true"; fi
   fi
   if [[ "${install_mongodb_org_shell}" == 'true' ]]; then
     unset install_mongodb_org_shell
     echo -e "${GRAY_R}----${RESET}\\n"
-    mongodb_package_libssl="mongodb-org-shell"
-    mongodb_package_version_libssl="${mongodb_org_version}"
-    libssl_installation_check
     multiple_attempt_to_install_package_log="unifi-easy-update-script-required"
     multiple_attempt_to_install_package_task="install"
     multiple_attempt_to_install_package_attempts_max="3"
