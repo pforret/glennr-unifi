@@ -11,6 +11,15 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 8.4.2
+  
+ - Improved the MongoDB unsupported upgrade recovery process.
+ - Improved the dpkg lock check.
+ - Improved adding the MongoDB/Glenn R. repository process.
+ - Improved the DNS availability check.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 8.4.1
   
  - Improved the libssl installation check.

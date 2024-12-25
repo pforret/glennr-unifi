@@ -2,7 +2,7 @@
 
 # UniFi Easy Encrypt script.
 # Script   | UniFi Network Easy Encrypt Script
-# Version  | 3.3.6
+# Version  | 3.3.7
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -633,19 +633,26 @@ check_dig_curl() {
 
 check_dns() {
   system_dns_servers="($(grep -s '^nameserver' /etc/resolv.conf /run/systemd/resolve/resolv.conf | awk '{print $2}'))"
-  local domains=("mongodb.com" "repo.mongodb.org" "ubuntu.com" "ui.com" "ubnt.com" "glennr.nl" "raspbian.org" "adoptium.org")
-  if command -v host &> /dev/null; then dns_check_command="host"; elif command -v ping &> /dev/null; then dns_check_command="ping -c 1 -W2"; fi
+  local domains=("mongodb.com" "repo.mongodb.org" "pgp.mongodb.com" "ubuntu.com" "ui.com" "ubnt.com" "glennr.nl" "raspbian.org" "adoptium.org")
+  if command -v host &> /dev/null; then
+    dns_check_command="host"
+  elif command -v ping &> /dev/null; then
+    dns_check_command="ping -c 1 -W2"
+  else
+    echo -e "$(date +%F-%R) | No DNS check command available (host or ping)..." &>> "${eus_dir}/logs/dns-check.log"
+    return 1
+  fi
   if [[ -n "${dns_check_command}" ]]; then
     for domain in "${domains[@]}"; do
       if ! ${dns_check_command} "${domain}" &> /dev/null; then
-        echo -e "Failed to resolve ${domain}..." &>> "${eus_dir}/logs/dns-check.log"
+        echo -e "$(date +%F-%R) | Failed to resolve ${domain}..." &>> "${eus_dir}/logs/dns-check.log"
         local dns_servers=("1.1.1.1" "8.8.8.8")
         for dns_server in "${dns_servers[@]}"; do
           if ! grep -qF "${dns_server}" /etc/resolv.conf; then
             if echo "nameserver ${dns_server}" | tee -a /etc/resolv.conf >/dev/null; then
-              echo -e "Added ${dns_server} to /etc/resolv.conf..." &>> "${eus_dir}/logs/dns-check.log"
+              echo -e "$(date +%F-%R) | Added ${dns_server} to /etc/resolv.conf..." &>> "${eus_dir}/logs/dns-check.log"
               if ${dns_check_command} "${domain}" &> /dev/null; then
-                echo -e "Successfully resolved ${domain} after adding ${dns_server}." &>> "${eus_dir}/logs/dns-check.log"
+                echo -e "$(date +%F-%R) | Successfully resolved ${domain} after adding ${dns_server}." &>> "${eus_dir}/logs/dns-check.log"
                 return 0
               fi
             fi
@@ -655,7 +662,7 @@ check_dns() {
       fi
     done
   fi
-  return 1
+  return 0
 }
 
 check_repository_key_permissions() {
@@ -1696,7 +1703,8 @@ check_dpkg_lock() {
       lock_owner="$(fuser "${lock_file}" 2>/dev/null)"
     fi
     if [[ -n "${lock_owner}" ]]; then
-      echo -e "${GRAY_R}#${RESET} $(echo "${lock_file}" | cut -d'/' -f4) is currently locked by process ${lock_owner}... We'll give it 2 minutes to finish." | tee -a "${eus_dir}/logs/dpkg-lock.log"
+      echo -e "${GRAY_R}#${RESET} $(echo "${lock_file}" | cut -d'/' -f4) is currently locked by process ${lock_owner}... We'll give it 2 minutes to finish."
+      echo -e "$(date +%F-%R) | $(echo "${lock_file}" | cut -d'/' -f4) is currently locked by process ${lock_owner}... We'll give it 2 minutes to finish." &>> "${eus_dir}/logs/dpkg-lock.log"
       local timeout="120"
       local start_time
       start_time="$(date +%s)"
@@ -1709,7 +1717,8 @@ check_dpkg_lock() {
           local elapsed_time="$((current_time - start_time))"
           if [[ "${elapsed_time}" -ge "${timeout}" ]]; then
             process_killed="true"
-            echo -e "${YELLOW}#${RESET} Timeout reached. Killing process ${lock_owner} forcefully. \\n" | tee -a "${eus_dir}/logs/dpkg-lock.log"
+            echo -e "$(date +%F-%R) | Timeout reached. Killing process ${lock_owner} forcefully." &>> "${eus_dir}/logs/dpkg-lock.log"
+            echo -e "${YELLOW}#${RESET} Timeout reached. Killing process ${lock_owner} forcefully. \\n"
             kill -9 "${lock_owner}" &>> "${eus_dir}/logs/dpkg-lock.log"
             rm -f "${lock_file}" &>> "${eus_dir}/logs/dpkg-lock.log"
             break
@@ -1717,7 +1726,8 @@ check_dpkg_lock() {
             sleep 1
           fi
         else
-          echo -e "${GREEN}#${RESET} $(echo "${lock_file}" | cut -d'/' -f4) is no longer locked! \\n" | tee -a "${eus_dir}/logs/dpkg-lock.log"
+          echo -e "${GREEN}#${RESET} $(echo "${lock_file}" | cut -d'/' -f4) is no longer locked! \\n"
+          echo -e "$(date +%F-%R) | $(echo "${lock_file}" | cut -d'/' -f4) is no longer locked!" &>> "${eus_dir}/logs/dpkg-lock.log"
           break
         fi
       done
@@ -1729,7 +1739,6 @@ check_dpkg_lock() {
   done
   check_dpkg_interrupted
 }
-check_dpkg_lock
 
 script_version_check() {
   local local_version

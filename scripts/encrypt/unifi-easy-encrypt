@@ -11,6 +11,13 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Encrypt Script  |  Version 3.3.7
+  
+ - Improved the dpkg lock check.
+ - Improved the DNS availability check.
+ 
+ ####
+
  |  UniFi Easy Encrypt Script  |  Version 3.3.6
   
  - Fixed an issue where the corrupted/malformed repository list cleanup process could get into an endless loop.

@@ -58,7 +58,7 @@
 ###################################################################################################################################################################################################
 
 # Script                | UniFi Network Easy Installation Script
-# Version               | 8.4.1
+# Version               | 8.4.2
 # Application version   | 7.3.76-4bee620529
 # Debian Repo version   | 7.3.76-19582-1
 # Author                | Glenn Rietveld
@@ -209,18 +209,27 @@ if [[ "$(find /etc/apt/ -type f \( -name "*.sources" -o -name "*.list" \) -exec 
 check_dns() {
   system_dns_servers="($(grep -s '^nameserver' /etc/resolv.conf /run/systemd/resolve/resolv.conf | awk '{print $2}'))"
   local domains=("mongodb.com" "repo.mongodb.org" "pgp.mongodb.com" "ubuntu.com" "ui.com" "ubnt.com" "glennr.nl" "raspbian.org" "adoptium.org")
-  if command -v host &> /dev/null; then dns_check_command="host"; elif command -v ping &> /dev/null; then dns_check_command="ping -c 1 -W2"; fi
+  local target_domain="$1"
+  if [[ -n "${target_domain}" ]]; then domains=("${target_domain}"); fi
+  if command -v host &> /dev/null; then
+    dns_check_command="host"
+  elif command -v ping &> /dev/null; then
+    dns_check_command="ping -c 1 -W2"
+  else
+    echo -e "$(date +%F-%R) | No DNS check command available (host or ping)..." &>> "${eus_dir}/logs/dns-check.log"
+    return 1
+  fi
   if [[ -n "${dns_check_command}" ]]; then
     for domain in "${domains[@]}"; do
       if ! ${dns_check_command} "${domain}" &> /dev/null; then
-        echo -e "Failed to resolve ${domain}..." &>> "${eus_dir}/logs/dns-check.log"
+        echo -e "$(date +%F-%R) | Failed to resolve ${domain}..." &>> "${eus_dir}/logs/dns-check.log"
         local dns_servers=("1.1.1.1" "8.8.8.8")
         for dns_server in "${dns_servers[@]}"; do
           if ! grep -qF "${dns_server}" /etc/resolv.conf; then
             if echo "nameserver ${dns_server}" | tee -a /etc/resolv.conf >/dev/null; then
-              echo -e "Added ${dns_server} to /etc/resolv.conf..." &>> "${eus_dir}/logs/dns-check.log"
+              echo -e "$(date +%F-%R) | Added ${dns_server} to /etc/resolv.conf..." &>> "${eus_dir}/logs/dns-check.log"
               if ${dns_check_command} "${domain}" &> /dev/null; then
-                echo -e "Successfully resolved ${domain} after adding ${dns_server}." &>> "${eus_dir}/logs/dns-check.log"
+                echo -e "$(date +%F-%R) | Successfully resolved ${domain} after adding ${dns_server}." &>> "${eus_dir}/logs/dns-check.log"
                 return 0
               fi
             fi
@@ -230,7 +239,7 @@ check_dns() {
       fi
     done
   fi
-  return 1
+  return 0
 }
 
 check_repository_key_permissions() {
@@ -1571,6 +1580,7 @@ reverse_check_add_mongodb_repo_variable() {
 
 # https://github.com/AmazedMender16/mongodb-no-avx-patch
 add_glennr_mongod_repo() {
+  check_dns apt.glennr.nl
   repo_http_https="https"
   glennr_mongod_v="$("$(which dpkg)" -l | grep "${gr_mongod_name}" | grep -i "^ii\\|^hi\\|^ri\\|^pi\\|^ui" | awk '{print $3}' | sed 's/\.//g' | sed 's/.*://' | sed 's/-.*//g' | sed 's/+.*//g' | sort -V | tail -n 1)"
   if [[ "${glennr_mongod_v::2}" == '70' ]] || [[ "${add_mongod_70_repo}" == 'true' ]]; then
@@ -1710,6 +1720,7 @@ add_extra_repo_mongodb() {
 
 add_mongodb_repo() {
   if [[ "${glennr_compiled_mongod}" == 'true' ]] || "$(which dpkg)" -l "${gr_mongod_name}" 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then add_glennr_mongod_repo; fi
+  check_dns repo.mongodb.org
   # if any "add_mongodb_xx_repo" is true, (set skip_mongodb_org_v to true, this is disabled).
   mongodb_add_repo_variables=( "add_mongodb_30_repo" "add_mongodb_32_repo" "add_mongodb_34_repo" "add_mongodb_36_repo" "add_mongodb_40_repo" "add_mongodb_42_repo" "add_mongodb_44_repo" "add_mongodb_50_repo" "add_mongodb_60_repo" "add_mongodb_70_repo" "add_mongod_70_repo" "add_mongod_80_repo" )
   for add_repo_variable in "${mongodb_add_repo_variables[@]}"; do if [[ "${!add_repo_variable}" == 'true' ]]; then mongodb_add_repo_variables_true_statements+=("${add_repo_variable}"); fi; done
@@ -2832,9 +2843,10 @@ broken_packages_check() {
 check_default_repositories() {
   get_repo_url
   if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then
-    if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish) ]]; then repo_component="main universe"; add_repositories; fi
-    if [[ "${repo_codename}" =~ (jammy|kinetic|lunar|mantic|noble|oracular) ]]; then repo_component="main"; add_repositories; fi
-    repo_codename_argument="-security"; repo_component="main universe"
+    if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish) ]]; then repo_component="main universe multiverse"; add_repositories; fi
+    if [[ "${repo_codename}" =~ (jammy|kinetic|lunar|mantic|noble|oracular) ]]; then repo_component="main universe multiverse"; add_repositories; fi
+    repo_codename_argument="-security"
+    repo_component="main universe multiverse"
   elif [[ "${repo_codename}" =~ (wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky) ]]; then
     if [[ "${repo_codename}" =~ (wheezy|jessie|stretch|buster) ]]; then repo_url_arguments="-security/"; repo_codename_argument="/updates"; repo_component="main"; add_repositories; fi
     if [[ "${repo_codename}" =~ (bullseye|bookworm|trixie|forky) ]]; then repo_url_arguments="-security/"; repo_codename_argument="-security"; repo_component="main"; add_repositories; fi
@@ -2989,7 +3001,8 @@ check_dpkg_lock() {
       lock_owner="$(fuser "${lock_file}" 2>/dev/null)"
     fi
     if [[ -n "${lock_owner}" ]]; then
-      echo -e "${GRAY_R}#${RESET} $(echo "${lock_file}" | cut -d'/' -f4) is currently locked by process ${lock_owner}... We'll give it 2 minutes to finish." | tee -a "${eus_dir}/logs/dpkg-lock.log"
+      echo -e "${GRAY_R}#${RESET} $(echo "${lock_file}" | cut -d'/' -f4) is currently locked by process ${lock_owner}... We'll give it 2 minutes to finish."
+      echo -e "$(date +%F-%R) | $(echo "${lock_file}" | cut -d'/' -f4) is currently locked by process ${lock_owner}... We'll give it 2 minutes to finish." &>> "${eus_dir}/logs/dpkg-lock.log"
       local timeout="120"
       local start_time
       start_time="$(date +%s)"
@@ -3002,7 +3015,8 @@ check_dpkg_lock() {
           local elapsed_time="$((current_time - start_time))"
           if [[ "${elapsed_time}" -ge "${timeout}" ]]; then
             process_killed="true"
-            echo -e "${YELLOW}#${RESET} Timeout reached. Killing process ${lock_owner} forcefully. \\n" | tee -a "${eus_dir}/logs/dpkg-lock.log"
+            echo -e "$(date +%F-%R) | Timeout reached. Killing process ${lock_owner} forcefully." &>> "${eus_dir}/logs/dpkg-lock.log"
+            echo -e "${YELLOW}#${RESET} Timeout reached. Killing process ${lock_owner} forcefully. \\n"
             kill -9 "${lock_owner}" &>> "${eus_dir}/logs/dpkg-lock.log"
             rm -f "${lock_file}" &>> "${eus_dir}/logs/dpkg-lock.log"
             break
@@ -3010,7 +3024,8 @@ check_dpkg_lock() {
             sleep 1
           fi
         else
-          echo -e "${GREEN}#${RESET} $(echo "${lock_file}" | cut -d'/' -f4) is no longer locked! \\n" | tee -a "${eus_dir}/logs/dpkg-lock.log"
+          echo -e "${GREEN}#${RESET} $(echo "${lock_file}" | cut -d'/' -f4) is no longer locked! \\n"
+          echo -e "$(date +%F-%R) | $(echo "${lock_file}" | cut -d'/' -f4) is no longer locked!" &>> "${eus_dir}/logs/dpkg-lock.log"
           break
         fi
       done
@@ -6532,7 +6547,7 @@ if [[ "${mongo_version_locked}" == '4.4.18' ]] || [[ "${unsupported_database_ver
         glennr_compiled_mongod="true"
       fi
     fi
-    "$(which dpkg)" -l | grep "mongo-\\|mongodb-\\|mongod-" | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | awk '{print $2}' &> /tmp/EUS/mongodb/packages_list
+    "$(which dpkg)" -l | grep "mongo-\\|mongodb-\\|mongod-" | grep "^ii\\|^hi\\|^hU\\|^ri\\|^pi\\|^ui\\|^iU" | awk '{print $2}' &> /tmp/EUS/mongodb/packages_list
     check_add_mongodb_repo_variable
     if [[ -n "${previous_mongodb_version}" ]]; then
       if [[ "${previous_mongodb_version::2}" == "26" ]]; then
@@ -6561,7 +6576,7 @@ if [[ "${mongo_version_locked}" == '4.4.18' ]] || [[ "${unsupported_database_ver
     mongodb_package_version_libssl="${install_mongodb_version}"
     libssl_installation_check
     rm --force /tmp/EUS/mongodb/packages_remove_list &> /dev/null
-    "$(which dpkg)" -l | awk '{print$2}' | grep "^unifi$" | awk '{print $1}' &>> /tmp/EUS/mongodb/packages_remove_list
+    "$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | awk '{print$2}' | grep "^unifi$" | awk '{print $1}' &>> /tmp/EUS/mongodb/packages_remove_list
     cp /tmp/EUS/mongodb/packages_list /tmp/EUS/mongodb/packages_list.tmp &> /dev/null
     recovery_install_mongodb_version="${install_mongodb_version//./}"
     while read -r installed_mongodb_package; do
@@ -6584,9 +6599,9 @@ if [[ "${mongo_version_locked}" == '4.4.18' ]] || [[ "${unsupported_database_ver
     awk '{ if ($0 == "mongodb-server") { server_found = 1; } else if ($0 == "mongodb-server-core") { core_found = 1; } if (!found_both) { original[NR] = $0; } } END { if (server_found && core_found) { found_both = 1; printed_server = 0; printed_core = 0; for (i = 1; i <= NR; i++) { if (original[i] == "mongodb-server" && !printed_server) { printed_server = 1; continue; } else if (original[i] == "mongodb-server-core" && !printed_core) { printed_core = 1; print "mongodb-server"; } print original[i]; } } else { for (i = 1; i <= NR; i++) { print original[i]; } } }' /tmp/EUS/mongodb/packages_remove_list &> /tmp/EUS/mongodb/packages_remove_list.tmp && mv /tmp/EUS/mongodb/packages_remove_list.tmp /tmp/EUS/mongodb/packages_remove_list
     if grep -iq "unifi" /tmp/EUS/mongodb/packages_remove_list; then reinstall_unifi="true"; fi
     while read -r package; do
-      check_dpkg_lock
       if [[ "${package}" == "mongodb-org-"* ]] && "$(which dpkg)" -l | grep -i "^ii\\|^hi\\|^ri\\|^pi\\|^ui" | awk '{print $2}' | grep -ioq "mongodb-org$"; then package2="mongodb-org"; fi
       echo -e "${GRAY_R}#${RESET} Removing ${package}..."
+      check_dpkg_lock
       if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_downgrade_option[@]}" "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' remove "${package}" "${package2}" &>> "${eus_dir}/logs/mongodb-unsupported-version-change.log"; then
         echo -e "${GREEN}#${RESET} Successfully removed ${package}! \\n"
       else
@@ -6620,18 +6635,21 @@ if [[ "${mongo_version_locked}" == '4.4.18' ]] || [[ "${unsupported_database_ver
           broken_packages_check
           attempt_recover_broken_packages
           add_apt_option_no_install_recommends="true"; get_apt_options
+          check_dpkg_lock
           if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_downgrade_option[@]}" "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${mongodb_package}${mongodb_version_with_equal}" &>> "${eus_dir}/logs/mongodb-unsupported-version-change.log"; then
             echo -e "${GREEN}#${RESET} Successfully downgraded ${mongodb_package} to version ${install_mongodb_version}! \\n"
           else
             try_different_mongodb_repo="true"
             skip_mongodb_org_v="true"
             add_mongodb_repo
+            check_dpkg_lock
             if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_downgrade_option[@]}" "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${mongodb_package}${mongodb_version_with_equal}" &>> "${eus_dir}/logs/mongodb-unsupported-version-change.log"; then
               echo -e "${GREEN}#${RESET} Successfully downgraded ${mongodb_package} to version ${install_mongodb_version}! \\n"
             else
               try_http_mongodb_repo="true"
               skip_mongodb_org_v="true"
               add_mongodb_repo
+              check_dpkg_lock
               if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_downgrade_option[@]}" "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${mongodb_package}${mongodb_version_with_equal}" &>> "${eus_dir}/logs/mongodb-unsupported-version-change.log"; then
                 echo -e "${GREEN}#${RESET} Successfully downgraded ${mongodb_package} to version ${install_mongodb_version}! \\n"
               else
@@ -6717,6 +6735,7 @@ if [[ "${mongo_version_locked}" == '4.4.18' ]] || [[ "${unsupported_database_ver
         set_required_unifi_package_versions
         ignore_unifi_package_dependencies
         echo -e "${GRAY_R}#${RESET} Re-installing UniFi Network Application version ${reinstall_unifi_version}..."
+        check_dpkg_lock
         echo "unifi unifi/has_backup boolean true" 2> /dev/null | debconf-set-selections
         # shellcheck disable=SC2086
         if DEBIAN_FRONTEND='noninteractive' "$(which dpkg)" -i ${dpkg_ignore_depends_flag} "${unifi_temp}" &>> "${eus_dir}/logs/mongodb-unsupported-version-change.log"; then

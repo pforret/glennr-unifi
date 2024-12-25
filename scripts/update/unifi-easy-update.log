@@ -11,6 +11,16 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 9.7.5
+  
+ - Improved the MongoDB upgrade process.
+ - Improved the MongoDB unsupported upgrade recovery process.
+ - Improved the dpkg lock check.
+ - Improved adding the MongoDB/Glenn R. repository process.
+ - Improved the DNS availability check.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 9.7.4
   
  - Improved the libssl installation check.
