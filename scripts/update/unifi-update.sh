@@ -2,7 +2,7 @@
 
 # UniFi Network Application Easy Update Script.
 # Script   | UniFi Network Easy Update Script
-# Version  | 9.7.6
+# Version  | 9.7.7
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -1651,7 +1651,7 @@ if ! "$(which dpkg)" -l unifi 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|
 fi
 
 # If there a RC?
-is_there_a_release_candidate='no'
+is_there_a_release_candidate='yes'
 
 # UniFi Core Setups if no RC channel is available
 if [[ "${unifi_core_system}" == 'true' && "${is_there_a_release_candidate}" == 'yes' ]]; then
@@ -1701,7 +1701,7 @@ release_wanted () {
         2*) release_stage="RC"; release_stage_friendly="Release Candidate";;
     esac
   fi
-  if [[ "${release_stage}" == 'RC' ]]; then rc_version_available="8.6.9"; rc_version_available_secret="8.6.9-0f45j609pu"; fi
+  if [[ "${release_stage}" == 'RC' ]]; then rc_version_available="9.0.108"; rc_version_available_secret="9.0.108-u598f2io2a"; fi
 }
 
 if [[ "$(command -v jq)" ]]; then latest_release_api_status="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?status" 2> /dev/null | jq -r '.availability' 2> /dev/null)"; else latest_release_api_status="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?status" 2> /dev/null | grep -oP '(?<="availability":")[^"]+')"; fi
@@ -13180,7 +13180,6 @@ elif [[ "${first_digit_unifi}" == '8' && "${second_digit_unifi}" == '6' ]]; then
   if [[ "${third_digit_unifi}" -gt '9' ]]; then not_supported_version; fi
   release_wanted
   if [[ "${release_stage}" == 'S' ]]; then if [[ "${unifi}" == "${latest_release}" ]]; then debug_check_no_upgrade; unifi_update_latest; fi; fi
-  if [[ "${release_stage}" == 'RC' ]]; then if [[ "${unifi}" == "${rc_version_available}" ]]; then debug_check_no_upgrade; unifi_update_latest; fi; fi
   header
   echo "  To what UniFi Network Application version would you like to update?"
   echo -e "  Currently your UniFi Network Application is on version ${GRAY_R}$unifi${RESET}"
@@ -13207,6 +13206,12 @@ elif [[ "${first_digit_unifi}" == '8' && "${second_digit_unifi}" == '6' ]]; then
   if [[ "${unifi_version}" == "8.6.9" ]]; then
     read -rp $'Your choice | \033[39m' UPGRADE_VERSION
     case "$UPGRADE_VERSION" in
+        #1)
+        #  unifi_update_start
+        #  unifi_firmware_requirement
+        #  application_version="8.6.9-0f45j609pu"
+        #  application_upgrade_releases
+        #  unifi_update_finish;;
         1)
           if [[ "${release_stage}" == 'RC' ]]; then
             unifi_update_start
@@ -13239,6 +13244,77 @@ elif [[ "${first_digit_unifi}" == '8' && "${second_digit_unifi}" == '6' ]]; then
             cancel_script
           fi;;
         3|*) cancel_script;;
+    esac
+  fi
+
+##########################################################################################################################################################################
+#                                                                                                                                                                        #
+#                                                                                  9.0.x                                                                                 #
+#                                                                                                                                                                        #
+##########################################################################################################################################################################
+
+elif [[ "${first_digit_unifi}" == '9' && "${second_digit_unifi}" == '0' ]]; then
+  if [[ "${third_digit_unifi}" -gt '108' ]]; then not_supported_version; fi
+  release_wanted
+  if [[ "${release_stage}" == 'RC' ]]; then if [[ "${unifi}" == "${rc_version_available}" ]]; then debug_check_no_upgrade; unifi_update_latest; fi; fi
+  header
+  echo "  To what UniFi Network Application version would you like to update?"
+  echo -e "  Currently your UniFi Network Application is on version ${GRAY_R}$unifi${RESET}"
+  echo -e "\\n  Release stage is set to | ${GRAY_R}${release_stage_friendly}${RESET}\\n\\n"
+  if [[ "${unifi}" == "9.0.108" ]]; then
+    unifi_version='9.0.108'
+    #echo -e " [   ${WHITE_R}1${RESET}   ]  |  9.0.108"
+    if [[ "${release_stage}" == 'RC' ]]; then
+      echo -e " [   ${WHITE_R}1${RESET}   ]  |  ${rc_version_available}"
+      echo -e " [   ${WHITE_R}2${RESET}   ]  |  Cancel\\n\\n"
+    else
+      echo -e " [   ${WHITE_R}1${RESET}   ]  |  Cancel\\n\\n"
+    fi
+  else
+    #echo -e " [   ${WHITE_R}1${RESET}   ]  |  9.0.108"
+    if [[ "${release_stage}" == 'RC' ]]; then
+      echo -e " [   ${WHITE_R}1${RESET}   ]  |  ${rc_version_available}"
+      echo -e " [   ${WHITE_R}2${RESET}   ]  |  Cancel\\n\\n"
+    else
+      echo -e " [   ${WHITE_R}1${RESET}   ]  |  Cancel\\n\\n"
+    fi
+  fi
+
+  if [[ "${unifi_version}" == "9.0.108" ]]; then
+    read -rp $'Your choice | \033[39m' UPGRADE_VERSION
+    case "$UPGRADE_VERSION" in
+        1)
+          if [[ "${release_stage}" == 'RC' ]]; then
+            unifi_update_start
+            unifi_firmware_requirement
+            application_version="${rc_version_available_secret}"
+            application_upgrade_releases
+            unifi_update_finish
+          else
+            cancel_script
+          fi;;
+        2|*) cancel_script;;
+    esac
+  else
+    read -rp $'Your choice | \033[39m' UPGRADE_VERSION
+    case "$UPGRADE_VERSION" in
+        #1)
+        #  unifi_update_start
+        #  unifi_firmware_requirement
+        #  application_version="9.0.108-u598f2io2a"
+        #  application_upgrade_releases
+        #  unifi_update_finish;;
+        1)
+          if [[ "${release_stage}" == 'RC' ]]; then
+            unifi_update_start
+            unifi_firmware_requirement
+            application_version="${rc_version_available_secret}"
+            application_upgrade_releases
+            unifi_update_finish
+          else
+            cancel_script
+          fi;;
+        2|*) cancel_script;;
     esac
   fi
 else
