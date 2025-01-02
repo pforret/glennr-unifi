@@ -11,6 +11,12 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 9.7.8
+  
+ - Fixed an issue where the script could add the incorrect signing key for debian repositories.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 9.7.7
   
  - Added support for updating to 9.0.108 RC.
