@@ -11,6 +11,18 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Encrypt Script  |  Version 3.4.1
+  
+ - Fixed an issue where the script could add the incorrect signing keys for non-security debian repositories.
+ 
+ ####
+
+ |  UniFi Easy Encrypt Script  |  Version 3.4.0
+  
+ - Fixed an issue where the script ignored the users answer to a question.
+ 
+ ####
+
  |  UniFi Easy Encrypt Script  |  Version 3.3.9
   
  - Fixed an issue where the script could add the incorrect signing key for debian repositories.

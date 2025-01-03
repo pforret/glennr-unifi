@@ -58,7 +58,7 @@
 ###################################################################################################################################################################################################
 
 # Script                | UniFi Network Easy Installation Script
-# Version               | 8.4.4
+# Version               | 8.4.5
 # Application version   | 9.0.108-u598f2io2a
 # Debian Repo version   | 9.0.108-27982-1
 # Author                | Glenn Rietveld
@@ -2622,8 +2622,15 @@ add_repositories() {
     signed_by_value_repo_key_find="$(echo "${repo_url}" | sed -e 's/https\:\/\///g' -e 's/http\:\/\///g' -e 's/\/.*//g' -e 's/\.com//g' -e 's/\./-/g' -e 's/\./-/g' -e 's/deb-debian/archive-debian/g' -e 's/security-ubuntu/archive-ubuntu/g' -e 's/ports-ubuntu/archive-ubuntu/g' -e 's/old-releases/archive-ubuntu/g' | awk -F'-' '{print $2 "-" $1}')"
     if [[ -n "${signed_by_value_repo_key_find}" ]]; then
       if [[ "${repo_codename_argument//-/}" == "security" ]]; then signed_by_value_repo_security="${repo_codename_argument}"; else unset signed_by_value_repo_security; fi
-      signed_by_value_repo_key="signed-by=$(find /usr/share/keyrings/ /etc/apt/keyrings/ -name "${signed_by_value_repo_key_find}*" | grep -i "${repo_codename}${signed_by_value_repo_security}" | sed '/removed/d' | head -n1)"
-      if [[ -z "${signed_by_value_repo_key}" ]]; then signed_by_value_repo_key="signed-by=$(find /usr/share/keyrings/ /etc/apt/keyrings/ -name "${signed_by_value_repo_key_find}*" | sed '/removed/d' | head -n1)"; fi
+      if [[ "${os_id}" == "debian" ]]; then
+        if [[ "${signed_by_value_repo_security//-/}" == "security" ]]; then
+          signed_by_value_repo_key="signed-by=$(find /usr/share/keyrings/ /etc/apt/keyrings/ -name "${signed_by_value_repo_key_find}-${repo_codename}${signed_by_value_repo_security}*" | sed '/removed/d' | head -n1)"
+        else
+          signed_by_value_repo_key="signed-by=$(find /usr/share/keyrings/ /etc/apt/keyrings/ -name "${signed_by_value_repo_key_find}-${repo_codename}*" ! -name "*security*" | sed '/removed/d' | head -n1)"
+        fi
+      else
+        signed_by_value_repo_key="signed-by=$(find /usr/share/keyrings/ /etc/apt/keyrings/ -name "${signed_by_value_repo_key_find}*" | sed '/removed/d' | head -n1)"
+      fi
     fi
   fi
   # Determine format

@@ -2,7 +2,7 @@
 
 # UniFi Easy Encrypt script.
 # Script   | UniFi Network Easy Encrypt Script
-# Version  | 3.3.9
+# Version  | 3.4.1
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -1470,8 +1470,15 @@ add_repositories() {
     signed_by_value_repo_key_find="$(echo "${repo_url}" | sed -e 's/https\:\/\///g' -e 's/http\:\/\///g' -e 's/\/.*//g' -e 's/\.com//g' -e 's/\./-/g' -e 's/\./-/g' -e 's/deb-debian/archive-debian/g' -e 's/security-ubuntu/archive-ubuntu/g' -e 's/ports-ubuntu/archive-ubuntu/g' -e 's/old-releases/archive-ubuntu/g' | awk -F'-' '{print $2 "-" $1}')"
     if [[ -n "${signed_by_value_repo_key_find}" ]]; then
       if [[ "${repo_codename_argument//-/}" == "security" ]]; then signed_by_value_repo_security="${repo_codename_argument}"; else unset signed_by_value_repo_security; fi
-      signed_by_value_repo_key="signed-by=$(find /usr/share/keyrings/ /etc/apt/keyrings/ -name "${signed_by_value_repo_key_find}*" | grep -i "${repo_codename}${signed_by_value_repo_security}" | sed '/removed/d' | head -n1)"
-      if [[ -z "${signed_by_value_repo_key}" ]]; then signed_by_value_repo_key="signed-by=$(find /usr/share/keyrings/ /etc/apt/keyrings/ -name "${signed_by_value_repo_key_find}*" | sed '/removed/d' | head -n1)"; fi
+      if [[ "${os_id}" == "debian" ]]; then
+        if [[ "${signed_by_value_repo_security//-/}" == "security" ]]; then
+          signed_by_value_repo_key="signed-by=$(find /usr/share/keyrings/ /etc/apt/keyrings/ -name "${signed_by_value_repo_key_find}-${repo_codename}${signed_by_value_repo_security}*" | sed '/removed/d' | head -n1)"
+        else
+          signed_by_value_repo_key="signed-by=$(find /usr/share/keyrings/ /etc/apt/keyrings/ -name "${signed_by_value_repo_key_find}-${repo_codename}*" ! -name "*security*" | sed '/removed/d' | head -n1)"
+        fi
+      else
+        signed_by_value_repo_key="signed-by=$(find /usr/share/keyrings/ /etc/apt/keyrings/ -name "${signed_by_value_repo_key_find}*" | sed '/removed/d' | head -n1)"
+      fi
     fi
   fi
   # Determine format
@@ -5072,15 +5079,17 @@ lets_encrypt() {
               import_ssl_certificates;;
           [Nn]*)
               read -rp $'\033[39m#\033[0m Would you like to import the existing certificates? (Y/n) ' yes_no
-              import_existing_ssl_certificates;;
+              case "$yes_no" in
+                   [Yy]*|"") import_existing_ssl_certificates;;
+                   [Nn]*) ;;
+              esac;;
       esac
     elif [[ "${valid_days}" -ge '30' ]]; then
       echo -e "\\n${GREEN}----${RESET}\\n"
       echo -e "${GRAY_R}#${RESET} You already seem to have certificates for '${server_fqdn}', those expire in ${valid_days} days..."
       if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Would you like to import the existing certificates? (Y/n) ' yes_no; fi
       case "$yes_no" in
-           [Yy]*|"")
-               import_existing_ssl_certificates;;
+           [Yy]*|"") import_existing_ssl_certificates;;
            [Nn]*) ;;
       esac
     fi
@@ -5106,10 +5115,10 @@ EOF
     tee /etc/cron.d/eus_script &>/dev/null << EOF
 SHELL=/bin/sh
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
-@reboot root sleep 300 && /bin/bash /srv/EUS/cronjob/install_certbot.sh
+@reboot root sleep 300 && /bin/bash ${eus_dir}/cronjob/install_certbot.sh
 EOF
     # shellcheck disable=SC1117
-    tee /srv/EUS/cronjob/install_certbot.sh &>/dev/null << EOF
+    tee "${eus_dir}/cronjob/install_certbot.sh" &>/dev/null << EOF
 #!/bin/bash
 
 # Functions
@@ -5245,71 +5254,71 @@ while [ -n "\$1" ]; do
   esac
   shift
 done
-echo -e "\\n------- \$(date +%F-%R) -------\\n" &>>/srv/EUS/logs/cronjob_install.log
-mkdir -p /srv/EUS/tmp/
+echo -e "\\n------- \$(date +%F-%R) -------\\n" &>>${eus_dir}/logs/cronjob_install.log
+mkdir -p ${eus_dir}/tmp/
 while fuser /var/lib/dpkg/lock /var/lib/apt/lists/lock /var/cache/apt/archives/lock >/dev/null 2>&1; do
   unset dpkg_locked
   if [[ "\${script_option_force_dpkg}" == "true" ]]; then
     current_time=\$(date "+%Y-%m-%d %H:%M")
-    echo "Force killing the lock... | \${current_time}" &>> /srv/EUS/logs/cronjob_install.log
-    rm --force /srv/EUS/tmp/dpkg_lock &> /dev/null
-    pgrep "apt" >> /srv/EUS/tmp/apt
+    echo "Force killing the lock... | \${current_time}" &>> ${eus_dir}/logs/cronjob_install.log
+    rm --force ${eus_dir}/tmp/dpkg_lock &> /dev/null
+    pgrep "apt" >> ${eus_dir}/tmp/apt
     while read -r glennr_apt; do
       kill -9 "\$glennr_apt" &> /dev/null
-    done < /srv/EUS/tmp/apt
-    rm --force /srv/EUS/tmp/apt &> /dev/null
+    done < ${eus_dir}/tmp/apt
+    rm --force ${eus_dir}/tmp/apt &> /dev/null
     rm --force /var/lib/apt/lists/lock &> /dev/null
     rm --force /var/cache/apt/archives/lock &> /dev/null
     rm --force /var/lib/dpkg/lock* &> /dev/null
     dpkg --configure -a &> /dev/null
     DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install --fix-broken &> /dev/null
   else
-    if [[ \$(grep -c "eus_lock_active" /srv/EUS/tmp/dpkg_lock) -ge 60 ]]; then
-      echo "dpkg lock still active after 600 seconds..." &>> /srv/EUS/logs/cronjob_install.log
+    if [[ \$(grep -c "eus_lock_active" ${eus_dir}/tmp/dpkg_lock) -ge 60 ]]; then
+      echo "dpkg lock still active after 600 seconds..." &>> ${eus_dir}/logs/cronjob_install.log
       date_minute=\$(date +%M)
-      if ! grep -iq "/srv/EUS/cronjob/install_certbot.sh" /etc/crontab; then
-        echo "\${date_minute} * * * * root /bin/bash /srv/EUS/cronjob/install_certbot.sh --force-dpkg" >> /etc/crontab
-        if grep -iq "root /bin/bash /srv/EUS/cronjob/install_certbot.sh --force-dpkg" /etc/crontab; then
-          echo "Script has been scheduled to run on a later time..." &>> /srv/EUS/logs/cronjob_install.log
+      if ! grep -iq "${eus_dir}/cronjob/install_certbot.sh" /etc/crontab; then
+        echo "\${date_minute} * * * * root /bin/bash ${eus_dir}/cronjob/install_certbot.sh --force-dpkg" >> /etc/crontab
+        if grep -iq "root /bin/bash ${eus_dir}/cronjob/install_certbot.sh --force-dpkg" /etc/crontab; then
+          echo "Script has been scheduled to run on a later time..." &>> ${eus_dir}/logs/cronjob_install.log
           exit 0
         fi
       fi
     fi
   fi
-  echo "eus_lock_active" >> /srv/EUS/tmp/dpkg_lock
+  echo "eus_lock_active" >> ${eus_dir}/tmp/dpkg_lock
   sleep 10
 done;
-rm --force /srv/EUS/tmp/dpkg_lock_test &> /dev/null
-rmdir /srv/EUS/tmp/ &> /dev/null
+rm --force ${eus_dir}/tmp/dpkg_lock_test &> /dev/null
+rmdir ${eus_dir}/tmp/ &> /dev/null
 if ! dpkg -l certbot 2> /dev/null | awk '{print \$1}' | grep -iq "^ii\\|^hi"; then
-  if [[ -f /srv/EUS/certbot_install_failed ]]; then
-    rm --force /srv/EUS/certbot_install_failed
+  if [[ -f ${eus_dir}/certbot_install_failed ]]; then
+    rm --force ${eus_dir}/certbot_install_failed
   fi
-  if [[ -f /srv/EUS/logs/cronjob_install.log ]]; then
-    cronjob_install_log_size=\$(du -sc /srv/EUS/logs/cronjob_install.log | grep total\$ | awk '{print \$1}')
+  if [[ -f ${eus_dir}/logs/cronjob_install.log ]]; then
+    cronjob_install_log_size=\$(du -sc ${eus_dir}/logs/cronjob_install.log | grep total\$ | awk '{print \$1}')
     if [[ \${cronjob_install_log_size} -gt '50' ]]; then
-      tail -n100 /srv/EUS/logs/cronjob_install.log &> /srv/EUS/logs/cronjob_install_tmp.log
-      cp /srv/EUS/logs/cronjob_install_tmp.log /srv/EUS/logs/cronjob_install.log && rm --force /srv/EUS/logs/cronjob_install_tmp.log
+      tail -n100 ${eus_dir}/logs/cronjob_install.log &> ${eus_dir}/logs/cronjob_install_tmp.log
+      cp ${eus_dir}/logs/cronjob_install_tmp.log ${eus_dir}/logs/cronjob_install.log && rm --force ${eus_dir}/logs/cronjob_install_tmp.log
     fi
   fi
   get_distro
   if [[ \$os_codename == "jessie" ]]; then
     if [[ ! -f "${eus_dir}/certbot-auto" && -s "${eus_dir}/certbot-auto" ]]; then
-      curl -s https://raw.githubusercontent.com/certbot/certbot/v1.9.0/certbot-auto -o "${eus_dir}/certbot-auto" &>>/srv/EUS/logs/cronjob_install.log
-      chown root ${eus_dir}/certbot-auto &>>/srv/EUS/logs/cronjob_install.log
-      chmod 0755 ${eus_dir}/certbot-auto &>>/srv/EUS/logs/cronjob_install.log
+      curl -s https://raw.githubusercontent.com/certbot/certbot/v1.9.0/certbot-auto -o "${eus_dir}/certbot-auto" &>>${eus_dir}/logs/cronjob_install.log
+      chown root ${eus_dir}/certbot-auto &>>${eus_dir}/logs/cronjob_install.log
+      chmod 0755 ${eus_dir}/certbot-auto &>>${eus_dir}/logs/cronjob_install.log
     else
-      echo "certbot-auto is available!" &>>/srv/EUS/logs/cronjob_install.log
+      echo "certbot-auto is available!" &>>${eus_dir}/logs/cronjob_install.log
     fi
     if ! dpkg -l libssl-dev 2> /dev/null | awk '{print \$1}' | grep -iq "^ii\\|^hi"; then
       if ! apt-get install libssl-dev -y; then
         echo deb http://archive.debian.org/debian jessie-backports main >>/etc/apt/sources.list.d/glennr-install-script.list
-        apt-get update -o Acquire::Check-Valid-Until=false &>>/srv/EUS/logs/cronjob_install.log
-        apt-get install -t jessie-backports libssl-dev -y &>>/srv/EUS/logs/cronjob_install.log
-        sed -i '/jessie-backports/d' /etc/apt/sources.list.d/glennr-install-script.list &>>/srv/EUS/logs/cronjob_install.log
+        apt-get update -o Acquire::Check-Valid-Until=false &>>${eus_dir}/logs/cronjob_install.log
+        apt-get install -t jessie-backports libssl-dev -y &>>${eus_dir}/logs/cronjob_install.log
+        sed -i '/jessie-backports/d' /etc/apt/sources.list.d/glennr-install-script.list &>>${eus_dir}/logs/cronjob_install.log
       fi
     else
-      echo "libssl-dev is installed!" &>>/srv/EUS/logs/cronjob_install.log
+      echo "libssl-dev is installed!" &>>${eus_dir}/logs/cronjob_install.log
     fi
     if [[ -f "${eus_dir}/certbot-auto" || -s "${eus_dir}/certbot-auto" ]]; then
       if [[ \$(stat -c "%a" "${eus_dir}/certbot-auto") != "755" ]]; then
@@ -5319,13 +5328,13 @@ if ! dpkg -l certbot 2> /dev/null | awk '{print \$1}' | grep -iq "^ii\\|^hi"; th
         chown root ${eus_dir}/certbot-auto
       fi
     fi
-    ${eus_dir}/certbot-auto --non-interactive --install-only --verbose &>>/srv/EUS/logs/cronjob_install.log
+    ${eus_dir}/certbot-auto --non-interactive --install-only --verbose &>>${eus_dir}/logs/cronjob_install.log
   fi
   if [[ \$os_codename =~ (stretch|bullseye|bookworm|trixie|forky|unstable) ]]; then
     repo_component="main"
     add_repositories
-    apt-get update &>>/srv/EUS/logs/cronjob_install.log
-    apt-get install certbot -y &>>/srv/EUS/logs/cronjob_install.log || touch /srv/EUS/certbot_install_failed
+    apt-get update &>>${eus_dir}/logs/cronjob_install.log
+    apt-get install certbot -y &>>${eus_dir}/logs/cronjob_install.log || touch ${eus_dir}/certbot_install_failed
   fi
 fi
 if [[ -n "\${auto_dns_challenge_provider}" ]]; then
@@ -5369,30 +5378,30 @@ if [[ -n "\${auto_dns_challenge_provider}" ]]; then
 fi
 if [[ "\${script_option_force_dpkg}" == "true" ]]; then sed -i "/install_certbot.sh/d" /etc/crontab &> /dev/null; fi
 EOF
-    chmod +x /srv/EUS/cronjob/install_certbot.sh
+    chmod +x "${eus_dir}/cronjob/install_certbot.sh" 2> /dev/null
   fi
   if [[ "${run_uck_scripts}" == 'true' ]]; then
     if [[ "${is_cloudkey}" == 'true' ]]; then
       echo -e "\\n${GRAY_R}----${RESET}\\n"
       echo -e "${GRAY_R}#${RESET} Creating required scripts and adding them as cronjobs!"
-      mkdir -p /srv/EUS/cronjob
+      mkdir -p "${eus_dir}/cronjob"
       if dpkg --print-architecture | grep -iq 'armhf'; then
         touch /usr/lib/eus &>/dev/null
-        cat /usr/lib/version &> /srv/EUS/cloudkey/version
+        cat /usr/lib/version &> "${eus_dir}/cloudkey/version"
         tee /etc/cron.d/eus_script_uc_ck &>/dev/null << EOF
 SHELL=/bin/sh
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
-@reboot root sleep 200 && /bin/bash /srv/EUS/cronjob/eus_uc_ck.sh
+@reboot root sleep 200 && /bin/bash ${eus_dir}/cronjob/eus_uc_ck.sh
 EOF
         # shellcheck disable=SC1117
-        tee /srv/EUS/cronjob/eus_uc_ck.sh &>/dev/null << EOF
+        tee "${eus_dir}/cronjob/eus_uc_ck.sh" &>/dev/null << EOF
 #!/bin/bash
-if [[ -f /srv/EUS/cloudkey/version ]]; then
+if [[ -f ${eus_dir}/cloudkey/version ]]; then
   current_version=\$(cat /usr/lib/version)
-  old_version=\$(cat /srv/EUS/cloudkey/version)
+  old_version=\$(cat ${eus_dir}/cloudkey/version)
   if [[ \${old_version} != \${current_version} ]] || ! [[ -f /usr/lib/eus ]]; then
     touch /usr/lib/eus
-    echo "\$(date +%F-%R) | Cloudkey firmware version changed from \${old_version} to \${current_version}" &>> /srv/EUS/logs/uc-ck_firmware_versions.log
+    echo "\$(date +%F-%R) | Cloudkey firmware version changed from \${old_version} to \${current_version}" &>> ${eus_dir}/logs/uc-ck_firmware_versions.log
   fi
   server_fqdn="${server_fqdn}"
   if ls ${eus_dir}/logs/lets_encrypt_[0-9]*.log &>/dev/null && [[ -d "/etc/letsencrypt/live/${server_fqdn}" ]]; then
@@ -5411,7 +5420,7 @@ if [[ -f /srv/EUS/cloudkey/version ]]; then
     uc_ck_key=\$(cat /etc/ssl/private/cloudkey.key)
     priv_key=\$(cat /etc/letsencrypt/live/${server_fqdn}\${le_var}/privkey.pem)
     if [[ \${uc_ck_key} != \${priv_key} ]]; then
-      echo "\$(date +%F-%R) | Certificates were different.. applying the Let's Encrypt ones." &>> /srv/EUS/logs/uc_ck_certificates.log
+      echo "\$(date +%F-%R) | Certificates were different.. applying the Let's Encrypt ones." &>> ${eus_dir}/logs/uc_ck_certificates.log
       cp /etc/ssl/private/cloudkey.crt ${eus_dir}/cloudkey/certs_backups/cloudkey.crt_\$(date +%Y%m%d_%H%M)
       cp /etc/ssl/private/cloudkey.key ${eus_dir}/cloudkey/certs_backups/cloudkey.key_\$(date +%Y%m%d_%H%M)
       if [[ -f /etc/letsencrypt/live/${server_fqdn}\${le_var}/fullchain.pem ]]; then
@@ -5438,18 +5447,18 @@ if [[ -f /srv/EUS/cloudkey/version ]]; then
       fi
     fi
   fi
-  if [[ -f /srv/EUS/logs/uc_ck_certificates.log ]]; then
-    uc_ck_certificates_log_size=\$(du -sc /srv/EUS/logs/uc_ck_certificates.log | grep total\$ | awk '{print \$1}')
+  if [[ -f ${eus_dir}/logs/uc_ck_certificates.log ]]; then
+    uc_ck_certificates_log_size=\$(du -sc ${eus_dir}/logs/uc_ck_certificates.log | grep total\$ | awk '{print \$1}')
     if [[ \${uc_ck_certificates_log_size} -gt '50' ]]; then
-      tail -n5 /srv/EUS/logs/uc_ck_certificates.log &> /srv/EUS/logs/uc_ck_certificates_tmp.log
-      cp /srv/EUS/logs/uc_ck_certificates_tmp.log /srv/EUS/logs/uc_ck_certificates.log && rm --force /srv/EUS/logs/uc_ck_certificates_tmp.log
+      tail -n5 ${eus_dir}/logs/uc_ck_certificates.log &> ${eus_dir}/logs/uc_ck_certificates_tmp.log
+      cp ${eus_dir}/logs/uc_ck_certificates_tmp.log ${eus_dir}/logs/uc_ck_certificates.log && rm --force ${eus_dir}/logs/uc_ck_certificates_tmp.log
     fi
   fi
-  if [[ -f /srv/EUS/logs/uc-ck_firmware_versions.log ]]; then
-    firmware_versions_log_size=\$(du -sc /srv/EUS/logs/uc-ck_firmware_versions.log | grep total\$ | awk '{print \$1}')
+  if [[ -f ${eus_dir}/logs/uc-ck_firmware_versions.log ]]; then
+    firmware_versions_log_size=\$(du -sc ${eus_dir}/logs/uc-ck_firmware_versions.log | grep total\$ | awk '{print \$1}')
     if [[ \${firmware_versions_log_size} -gt '50' ]]; then
-      tail -n5 /srv/EUS/logs/uc-ck_firmware_versions.log &> /srv/EUS/logs/uc-ck_firmware_versions_tmp.log
-      cp /srv/EUS/logs/uc-ck_firmware_versions_tmp.log /srv/EUS/logs/uc-ck_firmware_versions.log && rm --force /srv/EUS/logs/uc-ck_firmware_versions_tmp.log
+      tail -n5 ${eus_dir}/logs/uc-ck_firmware_versions.log &> ${eus_dir}/logs/uc-ck_firmware_versions_tmp.log
+      cp ${eus_dir}/logs/uc-ck_firmware_versions_tmp.log ${eus_dir}/logs/uc-ck_firmware_versions.log && rm --force ${eus_dir}/logs/uc-ck_firmware_versions_tmp.log
     fi
   fi
   if [[ -f ${eus_dir}/cloudkey/uc_ck_unifi_import.log ]]; then
@@ -5461,7 +5470,7 @@ if [[ -f /srv/EUS/cloudkey/version ]]; then
   fi
 fi
 EOF
-        chmod +x /srv/EUS/cronjob/eus_uc_ck.sh
+        chmod +x "${eus_dir}/cronjob/eus_uc_ck.sh" 2> /dev/null
       fi
     fi
   fi
@@ -5496,29 +5505,29 @@ EOF
 paid_certificate_uc_ck() {
   echo -e "\\n${GRAY_R}----${RESET}\\n"
   echo -e "${GRAY_R}#${RESET} Creating required scripts and adding them as cronjobs!"
-  if ! [[ -d "/srv/EUS/cronjob" ]]; then mkdir -p /srv/EUS/cronjob; fi
+  if ! [[ -d "${eus_dir}/cronjob" ]]; then mkdir -p "${eus_dir}/cronjob"; fi
   if ! [[ -f "/usr/lib/eus" ]]; then touch /usr/lib/eus &>/dev/null; fi
-  cat /usr/lib/version &> /srv/EUS/cloudkey/version
+  cat /usr/lib/version &> "${eus_dir}/cloudkey/version"
   tee /etc/cron.d/eus_script_uc_ck &>/dev/null << EOF
 SHELL=/bin/sh
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
-@reboot root sleep 200 && /bin/bash /srv/EUS/cronjob/eus_uc_ck.sh
+@reboot root sleep 200 && /bin/bash ${eus_dir}/cronjob/eus_uc_ck.sh
 EOF
   # shellcheck disable=SC1117
-  tee /srv/EUS/cronjob/eus_uc_ck.sh &>/dev/null << EOF
+  tee "${eus_dir}/cronjob/eus_uc_ck.sh" &>/dev/null << EOF
 #!/bin/bash
-if [[ -f /srv/EUS/cloudkey/version ]]; then
+if [[ -f ${eus_dir}/cloudkey/version ]]; then
   current_version=\$(cat /usr/lib/version)
-  old_version=\$(cat /srv/EUS/cloudkey/version)
+  old_version=\$(cat ${eus_dir}/cloudkey/version)
   if [[ "\${old_version}" != "\${current_version}" ]] || ! [[ -f /usr/lib/eus ]]; then
     touch /usr/lib/eus
-    echo "\$(date +%F-%R) | Cloudkey firmware version changed from \${old_version} to \${current_version}" &>> /srv/EUS/logs/uc-ck_firmware_versions.log
+    echo "\$(date +%F-%R) | Cloudkey firmware version changed from \${old_version} to \${current_version}" &>> ${eus_dir}/logs/uc-ck_firmware_versions.log
   fi
   if [[ -f "${eus_dir}/paid-certificates/eus_crt_file.crt" && -f "${eus_dir}/paid-certificates/eus_key_file.key" ]]; then
     uc_ck_key=\$(md5sum /etc/ssl/private/cloudkey.key | awk '{print $1}')
     priv_key=\$(md5sum "${eus_dir}/paid-certificates/eus_key_file.key" | awk '{print $1}')
     if [[ "\${uc_ck_key}" != "\${priv_key}" ]]; then
-      echo "\$(date +%F-%R) | Certificates were different.. applying the paid ones." &>> /srv/EUS/logs/uc_ck_certificates.log
+      echo "\$(date +%F-%R) | Certificates were different.. applying the paid ones." &>> ${eus_dir}/logs/uc_ck_certificates.log
       cp "/etc/ssl/private/cloudkey.crt" "${eus_dir}/cloudkey/certs_backups/cloudkey.crt_\$(date +%Y%m%d_%H%M)"
       cp "/etc/ssl/private/cloudkey.key" "${eus_dir}/cloudkey/certs_backups/cloudkey.key_\$(date +%Y%m%d_%H%M)"
       if [[ -f "${eus_dir}/paid-certificates/eus_crt_file.crt" ]]; then
@@ -5543,18 +5552,18 @@ if [[ -f /srv/EUS/cloudkey/version ]]; then
       fi
     fi
   fi
-  if [[ -f /srv/EUS/logs/uc_ck_certificates.log ]]; then
-    uc_ck_certificates_log_size=\$(du -sc /srv/EUS/logs/uc_ck_certificates.log | grep total\$ | awk '{print \$1}')
+  if [[ -f ${eus_dir}/logs/uc_ck_certificates.log ]]; then
+    uc_ck_certificates_log_size=\$(du -sc ${eus_dir}/logs/uc_ck_certificates.log | grep total\$ | awk '{print \$1}')
     if [[ "\${uc_ck_certificates_log_size}" -gt '50' ]]; then
-      tail -n5 /srv/EUS/logs/uc_ck_certificates.log &> /srv/EUS/logs/uc_ck_certificates_tmp.log
-      cp /srv/EUS/logs/uc_ck_certificates_tmp.log /srv/EUS/logs/uc_ck_certificates.log && rm --force /srv/EUS/logs/uc_ck_certificates_tmp.log
+      tail -n5 ${eus_dir}/logs/uc_ck_certificates.log &> ${eus_dir}/logs/uc_ck_certificates_tmp.log
+      cp ${eus_dir}/logs/uc_ck_certificates_tmp.log ${eus_dir}/logs/uc_ck_certificates.log && rm --force ${eus_dir}/logs/uc_ck_certificates_tmp.log
     fi
   fi
-  if [[ -f /srv/EUS/logs/uc-ck_firmware_versions.log ]]; then
-    firmware_versions_log_size=\$(du -sc /srv/EUS/logs/uc-ck_firmware_versions.log | grep total\$ | awk '{print \$1}')
+  if [[ -f ${eus_dir}/logs/uc-ck_firmware_versions.log ]]; then
+    firmware_versions_log_size=\$(du -sc ${eus_dir}/logs/uc-ck_firmware_versions.log | grep total\$ | awk '{print \$1}')
     if [[ "\${firmware_versions_log_size}" -gt '50' ]]; then
-      tail -n5 /srv/EUS/logs/uc-ck_firmware_versions.log &> /srv/EUS/logs/uc-ck_firmware_versions_tmp.log
-      cp /srv/EUS/logs/uc-ck_firmware_versions_tmp.log /srv/EUS/logs/uc-ck_firmware_versions.log && rm --force /srv/EUS/logs/uc-ck_firmware_versions_tmp.log
+      tail -n5 ${eus_dir}/logs/uc-ck_firmware_versions.log &> ${eus_dir}/logs/uc-ck_firmware_versions_tmp.log
+      cp ${eus_dir}/logs/uc-ck_firmware_versions_tmp.log ${eus_dir}/logs/uc-ck_firmware_versions.log && rm --force ${eus_dir}/logs/uc-ck_firmware_versions_tmp.log
     fi
   fi
   if [[ -f "${eus_dir}/cloudkey/uc_ck_unifi_import.log" ]]; then
@@ -5566,8 +5575,8 @@ if [[ -f /srv/EUS/cloudkey/version ]]; then
   fi
 fi
 EOF
-  chmod +x /srv/EUS/cronjob/eus_uc_ck.sh
-  if [[ -f "/srv/EUS/cronjob/eus_uc_ck.sh" && -f "/etc/cron.d/eus_script_uc_ck" ]]; then
+  chmod +x "${eus_dir}/cronjob/eus_uc_ck.sh" 2> /dev/null
+  if [[ -f "${eus_dir}/cronjob/eus_uc_ck.sh" && -f "/etc/cron.d/eus_script_uc_ck" ]]; then
     echo -e "${GREEN}#${RESET} Successfully created the required scripts and were added as cronjob!"
     sleep 3
   else
