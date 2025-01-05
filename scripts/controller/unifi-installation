@@ -11,6 +11,12 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 8.4.6
+  
+ - Added support for Elementary OS Circe.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 8.4.5
   
  - Fixed an issue where the script could add the incorrect signing keys for non-security debian repositories.

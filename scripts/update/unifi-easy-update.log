@@ -11,6 +11,12 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 9.8.0
+  
+ - Added support for Elementary OS Circe.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 9.7.9
   
  - Fixed an issue where the script could add the incorrect signing keys for non-security debian repositories.
