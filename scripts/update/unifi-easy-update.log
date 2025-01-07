@@ -11,6 +11,12 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 9.8.1
+  
+ - Added support for upgrading to 9.0.108 Stable/Official.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 9.8.0
   
  - Added support for Elementary OS Circe.
