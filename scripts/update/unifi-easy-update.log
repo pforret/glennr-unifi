@@ -11,6 +11,25 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 9.8.4
+  
+ - Updated AVX support check.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 9.8.3
+  
+ - Fixed an issue where the script could add the incorrect MongoDB key when MongoDB 8.0 is supported.
+ - Fixed an issue where the script could fail to downgrade MongoDB packages when MongoDB 8.0 is supported.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 9.8.2
+  
+ - Fixed MongoDB upgrade issues on systems with Neoverse ARMv8.2-A CPUs that were previously using Glenn R. MongoDB.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 9.8.1
   
  - Added support for upgrading to 9.0.108 Stable/Official.

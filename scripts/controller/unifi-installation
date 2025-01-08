@@ -11,6 +11,19 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 8.4.8
+  
+ - Updated AVX support check.
+ 
+ ####
+
+ |  UniFi Network Application Installation Script  |  Version 8.4.7
+  
+ - Fixed an issue where the script could add the incorrect MongoDB key when MongoDB 8.0 is supported.
+ - Fixed an issue where the script could fail to downgrade MongoDB packages when MongoDB 8.0 is supported.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 8.4.6
   
  - Added support for Elementary OS Circe.

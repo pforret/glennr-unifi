@@ -58,7 +58,7 @@
 ###################################################################################################################################################################################################
 
 # Script                | UniFi Network Easy Installation Script
-# Version               | 8.4.6
+# Version               | 8.4.8
 # Application version   | 9.0.108-u598f2io2a
 # Debian Repo version   | 9.0.108-27982-1
 # Author                | Glenn Rietveld
@@ -1563,7 +1563,7 @@ run_apt_get_update() {
 
 check_add_mongodb_repo_variable() {
   if [[ -e "/tmp/EUS/mongodb/check_add_mongodb_repo_variable" ]]; then rm --force "/tmp/EUS/mongodb/check_add_mongodb_repo_variable" &> /dev/null; fi
-  check_add_mongodb_repo_variables=( "add_mongodb_30_repo" "add_mongodb_32_repo" "add_mongodb_34_repo" "add_mongodb_36_repo" "add_mongodb_40_repo" "add_mongodb_42_repo" "add_mongodb_44_repo" "add_mongodb_50_repo" "add_mongodb_60_repo" "add_mongodb_70_repo" "add_mongod_70_repo" "add_mongod_80_repo" )
+  check_add_mongodb_repo_variables=( "add_mongodb_30_repo" "add_mongodb_32_repo" "add_mongodb_34_repo" "add_mongodb_36_repo" "add_mongodb_40_repo" "add_mongodb_42_repo" "add_mongodb_44_repo" "add_mongodb_50_repo" "add_mongodb_60_repo" "add_mongodb_70_repo" "add_mongodb_80_repo" "add_mongod_70_repo" "add_mongod_80_repo" )
   for mongodb_repo_variable in "${check_add_mongodb_repo_variables[@]}"; do if [[ "${!mongodb_repo_variable}" == 'true' ]]; then if echo "${mongodb_repo_variable}" &>> /tmp/EUS/mongodb/check_add_mongodb_repo_variable; then unset "${mongodb_repo_variable}"; fi; fi; done
 }
 
@@ -1726,7 +1726,7 @@ add_mongodb_repo() {
   if [[ "${glennr_compiled_mongod}" == 'true' ]] || "$(which dpkg)" -l "${gr_mongod_name}" 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then add_glennr_mongod_repo; fi
   check_dns repo.mongodb.org
   # if any "add_mongodb_xx_repo" is true, (set skip_mongodb_org_v to true, this is disabled).
-  mongodb_add_repo_variables=( "add_mongodb_30_repo" "add_mongodb_32_repo" "add_mongodb_34_repo" "add_mongodb_36_repo" "add_mongodb_40_repo" "add_mongodb_42_repo" "add_mongodb_44_repo" "add_mongodb_50_repo" "add_mongodb_60_repo" "add_mongodb_70_repo" "add_mongod_70_repo" "add_mongod_80_repo" )
+  mongodb_add_repo_variables=( "add_mongodb_30_repo" "add_mongodb_32_repo" "add_mongodb_34_repo" "add_mongodb_36_repo" "add_mongodb_40_repo" "add_mongodb_42_repo" "add_mongodb_44_repo" "add_mongodb_50_repo" "add_mongodb_60_repo" "add_mongodb_70_repo" "add_mongodb_80_repo" "add_mongod_70_repo" "add_mongod_80_repo" )
   for add_repo_variable in "${mongodb_add_repo_variables[@]}"; do if [[ "${!add_repo_variable}" == 'true' ]]; then mongodb_add_repo_variables_true_statements+=("${add_repo_variable}"); fi; done
   if [[ "${mongodb_key_update}" == 'true' ]]; then skip_mongodb_org_v="true"; fi
   if [[ "${skip_mongodb_org_v}" != 'true' ]]; then
@@ -2360,7 +2360,9 @@ fi
 # Check AVX or not
 if [[ "${architecture}" != 'arm64' ]]; then
   if ( ! (lscpu 2>/dev/null | grep -iq "avx") && (lscpu 2>/dev/null | grep -iq "sse4_2") ) || ( ! (grep -iq "avx" /proc/cpuinfo) && (grep -iq "sse4_2" /proc/cpuinfo) ); then glennr_mongod_compatible="true"; fi
-  if (lscpu 2>/dev/null | grep -iq "avx") || (grep -iq "avx" /proc/cpuinfo); then avx_compatible="true"; fi
+  if (lscpu 2>/dev/null | grep -iq "avx2") || (grep -iq "avx2" /proc/cpuinfo); then avx_compatible="true"; glennr_mongod_compatible="true"; fi
+  if (lscpu 2>/dev/null | grep -iq "avx") || (grep -iq "avx" /proc/cpuinfo); then avx_compatible="true"; glennr_mongod_compatible="true"; fi
+  if ( (lscpu 2>/dev/null | grep -iq "avx") && (lscpu 2>/dev/null | grep -iq "sse4_2") ) || ( (grep -iq "avx" /proc/cpuinfo) && (grep -iq "sse4_2" /proc/cpuinfo) ); then official_mongodb_compatible="true"; fi
 else  
   if ! (lscpu 2>/dev/null | grep -iq "avx") || ! grep -iq "avx" /proc/cpuinfo; then glennr_mongod_compatible="true"; fi
 fi
@@ -4429,7 +4431,8 @@ mongodb_avx_support_check() {
                  add_mongodb_44_repo="true"
                  mongo_version_max="44"
                  mongo_version_max_with_dot="4.4"
-                 mongo_version_locked="4.4.18";;
+                 mongo_version_locked="4.4.18"
+                 echo "";;
           esac
           unset yes_no
         else
@@ -4442,7 +4445,7 @@ mongodb_avx_support_check() {
         fi
       fi
     else
-      if [[ "${mongo_version_max}" =~ (70|80) && "${glennr_mongod_compatible}" == "true" ]]; then
+      if [[ "${mongo_version_max}" =~ (70|80) && "${glennr_mongod_compatible}" == "true" && "${official_mongodb_compatible}" != 'true' ]]; then
         if "$(which dpkg)" -l | grep "^ii\\|^hi" | grep -iq "mongod-amd64" || [[ "${script_option_skip}" == 'true' ]] || [[ "${glennr_compiled_mongod}" == 'true' ]]; then
           mongod_amd64_installed="true"
           yes_no="y"
@@ -4464,7 +4467,8 @@ mongodb_avx_support_check() {
                add_mongodb_44_repo="true"
                mongo_version_max="44"
                mongo_version_max_with_dot="4.4"
-               mongo_version_locked="4.4.18";;
+               mongo_version_locked="4.4.18"
+               echo "";;
         esac
         unset yes_no
       else
