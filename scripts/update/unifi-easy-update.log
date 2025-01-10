@@ -11,6 +11,13 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 9.8.5
+  
+ - Fixed an issue where the script could log to a incorrect file.
+ - Fixed an issue where the script could fail to reinstall the UniFi Network Application if the user used a newer MongoDB version than actually supported by the Network Application.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 9.8.4
   
  - Updated AVX support check.

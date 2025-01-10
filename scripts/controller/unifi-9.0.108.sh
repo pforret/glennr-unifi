@@ -58,7 +58,7 @@
 ###################################################################################################################################################################################################
 
 # Script                | UniFi Network Easy Installation Script
-# Version               | 8.4.8
+# Version               | 8.4.9
 # Application version   | 9.0.108-u598f2io2a
 # Debian Repo version   | 9.0.108-27982-1
 # Author                | Glenn Rietveld
@@ -3136,7 +3136,8 @@ if [[ -d "/usr/lib/unifi/logs/" ]]; then
 fi
 
 minimum_required_mongodb_version_check() {
-  if [[ "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/unifi-package-versions?status" 2> /dev/null | jq -r '.availability' 2> /dev/null)" == "OK" ]]; then
+  if [[ "$(command -v jq)" ]]; then minimum_required_api_status="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/unifi-package-versions?status" 2> /dev/null | jq -r '.availability' 2> /dev/null)"; else minimum_required_api_status="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/unifi-package-versions?status" 2> /dev/null | grep -oP '(?<="availability":")[^"]+')"; fi
+  if [[ "${minimum_required_api_status}" == "OK" ]]; then
     if [[ -n "$(command -v jq)" ]]; then
       minimum_required_mongodb_version="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/unifi-package-versions?unifi-version=${unifi_version}" | jq -r '."minimum_required_mongodb_version"')"
     else
