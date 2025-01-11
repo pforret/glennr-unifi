@@ -11,6 +11,12 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 8.5.0
+  
+ - Improved getting CPU model name.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 8.4.9
   
  - Fixed an issue where the script could fail to check if an API is available if JQ is not installed.
