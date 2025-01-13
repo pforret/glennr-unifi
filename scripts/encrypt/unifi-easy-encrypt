@@ -11,6 +11,12 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Encrypt Script  |  Version 3.4.3
+  
+ - Improved getting the MongoDB version.
+ 
+ ####
+
  |  UniFi Easy Encrypt Script  |  Version 3.4.2
   
  - Added support for Elementary OS Circe.

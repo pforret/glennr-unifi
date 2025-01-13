@@ -11,6 +11,15 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 8.5.1
+  
+ - Added a check that disables/removes existing Adoptium repositories.
+ - Improved getting the MongoDB version.
+ - Improved removing older MongoDB repository entries.
+ - Improved getting CPU model name.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 8.5.0
   
  - Improved getting CPU model name.

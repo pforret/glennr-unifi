@@ -2,7 +2,7 @@
 
 # UniFi Network Application Easy Update Script.
 # Script   | UniFi Network Easy Update Script
-# Version  | 9.8.6
+# Version  | 9.8.7
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -247,7 +247,7 @@ check_unifi_folder_permissions() {
 check_docker_setup() {
   if [[ -f /.dockerenv ]] || grep -sq '/docker/' /proc/1/cgroup || { command -v pgrep &>/dev/null && (pgrep -f "^dockerd" &>/dev/null || pgrep -f "^containerd" &>/dev/null); }; then docker_setup="true"; else docker_setup="false"; fi
   if [[ -n "$(command -v jq)" && -e "${eus_dir}/db/db.json" ]]; then
-    if [[ "$(dpkg-query --showformat='${Version}' --show jq | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
+    if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
       jq '."database" += {"docker-container": "'"${docker_setup}"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
     else
       jq --arg docker_setup "$docker_setup" '.database = (.database + {"docker-container": $docker_setup})' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
@@ -259,7 +259,7 @@ check_docker_setup() {
 check_lxc_setup() {
   if grep -sqa "lxc" /proc/1/environ /proc/self/mountinfo /proc/1/environ; then lxc_setup="true"; else lxc_setup="false"; fi
   if [[ -n "$(command -v jq)" && -e "${eus_dir}/db/db.json" ]]; then
-    if [[ "$(dpkg-query --showformat='${Version}' --show jq | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
+    if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
       jq '."database" += {"lxc-container": "'"${lxc_setup}"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
     else
       jq --arg lxc_setup "$lxc_setup" '.database = (.database + {"lxc-container": $lxc_setup})' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
@@ -275,7 +275,7 @@ locate_http_proxy() {
   all_proxies="$(echo -e "$env_proxies\n$profile_proxies" | sed 's:/*$::' | sort -u | grep -v '^$')"
   http_proxy="$(echo "$all_proxies" | tail -n1)"
   if [[ -n "$(command -v jq)" && -e "${eus_dir}/db/db.json" ]]; then
-    if [[ "$(dpkg-query --showformat='${Version}' --show jq | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
+    if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
       json_proxies="$(echo "$all_proxies" | jq -R -s 'split("\n") | map(select(length > 0))')"
       jq --argjson proxies "$json_proxies" '.database."http-proxy" = $proxies' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
     else
@@ -290,7 +290,7 @@ locate_http_proxy() {
 update_eus_db() {
   if [[ -n "$(command -v jq)" && -e "${eus_dir}/db/db.json" ]]; then
     if [[ -n "${script_local_version_dots}" ]]; then
-      if [[ "$(dpkg-query --showformat='${Version}' --show jq | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
+      if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
         jq '.scripts."'"${script_name}"'" |= if .["versions-ran"] | index("'"${script_local_version_dots}"'") | not then .["versions-ran"] += ["'"${script_local_version_dots}"'"] else . end' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
       else
         jq --arg script_name "$script_name" --arg script_local_version_dots "$script_local_version_dots" '.scripts[$script_name] |= (if (.["versions-ran"] | map(select(. == $script_local_version_dots)) | length == 0) then .["versions-ran"] += [$script_local_version_dots] else . end)' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
@@ -298,13 +298,13 @@ update_eus_db() {
       eus_database_move
     fi
     if [[ -z "${abort_reason}" ]]; then
-      if [[ "$(dpkg-query --showformat='${Version}' --show jq | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
+      if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
         script_success="$(jq -r '.scripts."'"${script_name}"'".success' "${eus_dir}/db/db.json")"
       else
         script_success="$(jq --arg script_name "$script_name"  -r '.scripts[$script_name]["success"]' "${eus_dir}/db/db.json")"
       fi
       ((script_success=script_success+1))
-      if [[ "$(dpkg-query --showformat='${Version}' --show jq | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
+      if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
         jq --arg script_success "${script_success}" '."scripts"."'"${script_name}"'" += {"success": "'"${script_success}"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
       else
         jq --arg script_name "$script_name" --arg script_success "$script_success" '.scripts[$script_name] += {"success": $script_success}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
@@ -312,13 +312,13 @@ update_eus_db() {
       eus_database_move
     fi
     if [[ "${update_at_support_file}" != 'true' ]]; then
-      if [[ "$(dpkg-query --showformat='${Version}' --show jq | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
+      if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
         script_total_runs="$(jq -r '.scripts."'"${script_name}"'"."total-runs"' "${eus_dir}/db/db.json")"
       else
         script_total_runs="$(jq --arg script_name "$script_name"  -r '.scripts[$script_name]["total-runs"]' "${eus_dir}/db/db.json")"
       fi
       ((script_total_runs=script_total_runs+1))
-      if [[ "$(dpkg-query --showformat='${Version}' --show jq | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
+      if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
         jq --arg script_total_runs "${script_total_runs}" '."scripts"."'"${script_name}"'" += {"total-runs": "'"${script_total_runs}"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
       else
         jq --arg script_name "$script_name" --arg script_total_runs "$script_total_runs" '.scripts[$script_name] |= (. + {"total-runs": $script_total_runs})' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
@@ -326,7 +326,7 @@ update_eus_db() {
       eus_database_move
     fi
     if [[ "${update_at_start_script}" == 'true' ]]; then
-      if [[ "$(dpkg-query --showformat='${Version}' --show jq | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
+      if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
         jq '."scripts"."'"${script_name}"'" += {"last-run": "'"$(date +%s)"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
       else
         jq --arg script_name "$script_name" --arg last_run "$(date +%s)" '.scripts[$script_name] |= (. + {"last-run": $last_run})' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
@@ -335,7 +335,7 @@ update_eus_db() {
       unset update_at_start_script
     fi
     json_system_dns_servers="$(echo "$system_dns_servers" | sed 's/[()]//g' | tr ' ' '\n' | jq -R . | jq -s . | jq -c .)"
-    if [[ "$(dpkg-query --showformat='${Version}' --show jq | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
+    if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
       jq --argjson dns "$json_system_dns_servers" '.database["name-servers"] = $dns' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
     else
       jq '.database["name-servers"] = '"$json_system_dns_servers"'' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
@@ -379,7 +379,7 @@ support_file() {
   eus_directory_location="/tmp/EUS"
   eus_create_directories "support"
   if "$(which dpkg)" -l lsb-release 2> /dev/null | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then lsb_release -a &> "/tmp/EUS/support/lsb-release"; else cat /etc/os-release &> "/tmp/EUS/support/os-release"; fi
-  if [[ -n "$(command -v jq)" && "$(dpkg-query --showformat='${Version}' --show jq | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
+  if [[ -n "$(command -v jq)" && "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
     df -hP | awk 'BEGIN {print"{\"disk-usage\":["}{if($1=="Filesystem")next;if(a)print",";print"{\"mount\":\""$6"\",\"size\":\""$2"\",\"used\":\""$3"\",\"avail\":\""$4"\",\"use%\":\""$5"\"}";a++;}END{print"]}";}' | jq &> "/tmp/EUS/support/disk-usage.json"
   else
     df -h &> "/tmp/EUS/support/df"
@@ -455,7 +455,7 @@ support_file() {
     swap_free="$(grep "^SwapFree:" /proc/meminfo | awk '{print $2}')"
     swap_used="$(($(grep "^SwapTotal:" /proc/meminfo | awk '{print $2}') - $(grep "SwapFree" /proc/meminfo | awk '{print $2}')))"
     swap_cached="$(grep "^SwapCached:" /proc/meminfo | awk '{print $2}')"
-    if [[ "$(dpkg-query --showformat='${Version}' --show jq | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
+    if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
       jq -n \
         --argjson "system-stats" "$( 
           jq -n \
@@ -608,7 +608,7 @@ support_file() {
   if "$(which dpkg)" -l xz-utils 2> /dev/null | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
     support_file="/tmp/eus-support-${support_file_uuid}${support_file_time}.tar.xz"
     support_file_name="$(basename "${support_file}")"
-    if [[ "$(dpkg-query --showformat='${Version}' --show jq | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
+    if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
       jq '.scripts."'"${script_name}"'" |= . + {"support": (.support + {("'"${support_file_name}"'"): {"abort-reason": "'"${abort_reason}"'","upload-results": ""}})}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
     else
       jq --arg script_name "$script_name" --arg support_file_name "$support_file_name" --arg abort_reason "$abort_reason" '.scripts[$script_name] |= (. + {support: ((.support // {}) + {($support_file_name): {"abort-reason": $abort_reason,"upload-results": ""}})})' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
@@ -618,7 +618,7 @@ support_file() {
   elif "$(which dpkg)" -l zstd 2> /dev/null | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
     support_file="/tmp/eus-support-${support_file_uuid}${support_file_time}.tar.zst"
     support_file_name="$(basename "${support_file}")"
-    if [[ "$(dpkg-query --showformat='${Version}' --show jq | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
+    if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
       jq '.scripts."'"${script_name}"'" |= . + {"support": (.support + {("'"${support_file_name}"'"): {"abort-reason": "'"${abort_reason}"'","upload-results": ""}})}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
     else
       jq --arg script_name "$script_name" --arg support_file_name "$support_file_name" --arg abort_reason "$abort_reason" '.scripts[$script_name] |= (. + {support: ((.support // {}) + {($support_file_name): {"abort-reason": $abort_reason,"upload-results": ""}})})' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
@@ -628,7 +628,7 @@ support_file() {
   elif "$(which dpkg)" -l tar 2> /dev/null | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
     support_file="/tmp/eus-support-${support_file_uuid}${support_file_time}.tar.gz"
     support_file_name="$(basename "${support_file}")"
-    if [[ "$(dpkg-query --showformat='${Version}' --show jq | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
+    if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
       jq '.scripts."'"${script_name}"'" |= . + {"support": (.support + {("'"${support_file_name}"'"): {"abort-reason": "'"${abort_reason}"'","upload-results": ""}})}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
     else
       jq --arg script_name "$script_name" --arg support_file_name "$support_file_name" --arg abort_reason "$abort_reason" '.scripts[$script_name] |= (. + {support: ((.support // {}) + {($support_file_name): {"abort-reason": $abort_reason,"upload-results": ""}})})' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
@@ -638,7 +638,7 @@ support_file() {
   elif "$(which dpkg)" -l zip 2> /dev/null | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
     support_file="/tmp/eus-support-${support_file_uuid}${support_file_time}.zip"
     support_file_name="$(basename "${support_file}")"
-    if [[ "$(dpkg-query --showformat='${Version}' --show jq | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
+    if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
       jq '.scripts."'"${script_name}"'" |= . + {"support": (.support + {("'"${support_file_name}"'"): {"abort-reason": "'"${abort_reason}"'","upload-results": ""}})}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
     else
       jq --arg script_name "$script_name" --arg support_file_name "$support_file_name" --arg abort_reason "$abort_reason" '.scripts[$script_name] |= (. + {support: ((.support // {}) + {($support_file_name): {"abort-reason": $abort_reason,"upload-results": ""}})})' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
@@ -658,7 +658,7 @@ support_file() {
       fi
       if [[ "$(jq -r '.database["support-file-upload"]' "${eus_dir}/db/db.json")" == 'true' ]] || [[ "${eus_support_one_time_upload}" == 'true' ]]; then
         upload_result="$(curl "${curl_argument[@]}" -X POST -F "file=@${support_file}" "https://api.glennr.nl/api/eus-support" 2> /dev/null | jq -r '.[]' 2> /dev/null)"
-        if [[ "$(dpkg-query --showformat='${Version}' --show jq | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
+        if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
           jq '.scripts."'"${script_name}"'".support."'"${support_file_name}"'"."upload-results" = "'"${upload_result}"'"' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
         else
           jq --arg script_name "$script_name" --arg support_file_name "$support_file_name" --arg upload_result "$upload_result" '.scripts[$script_name].support[$support_file_name]["upload-results"] = $upload_result' "${eus_dir}/db/db.json"
@@ -717,7 +717,7 @@ abort_mongodb() {
 
 abort() {
   if [[ "${mongodb_upgrade_started_success_value}" == 'true' ]] && [[ -n "$(command -v jq)" && -f "${eus_dir}/db/db.json" ]]; then
-    if [[ "$(dpkg-query --showformat='${Version}' --show jq | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
+    if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
       jq '.scripts["'"$script_name"'"].tasks += {"mongodb-upgrade ('"${mongodb_upgrade_date}"')": [.scripts["'"$script_name"'"].tasks["mongodb-upgrade ('"${mongodb_upgrade_date}"')"][0] + {"status":"failed"}]}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
     else
       jq --arg script_name "$script_name" --arg mongodb_upgrade_date "$mongodb_upgrade_date" '.scripts[$script_name].tasks += {("mongodb-upgrade (" + $mongodb_upgrade_date + ")"): [.scripts[$script_name].tasks["mongodb-upgrade (" + $mongodb_upgrade_date + ")"][0] + {"status": "failed"}]}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
@@ -728,13 +728,13 @@ abort() {
   fi
   if [[ -n "${abort_reason}" && "${abort_function_skip_reason}" != 'true' ]]; then echo -e "${RED}#${RESET} ${abort_reason}.. \\n"; fi
   if [[ -n "$(command -v jq)" && -f "${eus_dir}/db/db.json" ]]; then
-    if [[ "$(dpkg-query --showformat='${Version}' --show jq | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
+    if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
       script_aborts="$(jq -r '.scripts."'"${script_name}"'".aborts' "${eus_dir}/db/db.json")"
     else
       script_aborts="$(jq --arg script_name "$script_name" -r '.scripts[$script_name].aborts' "${eus_dir}/db/db.json")"
     fi
     ((script_aborts=script_aborts+1))
-    if [[ "$(dpkg-query --showformat='${Version}' --show jq | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
+    if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
       jq --arg script_aborts "${script_aborts}" '."scripts"."'"${script_name}"'" += {"aborts": "'"${script_aborts}"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
     else
       jq --arg script_name "$script_name" --arg script_aborts "$script_aborts" '.scripts[$script_name] += {"aborts": $script_aborts}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
@@ -1139,7 +1139,7 @@ glennr_mongod_repository_check() {
       apt-get update -o Dir::Etc::SourceList="${glennr_repo_list}" --allow-releaseinfo-change &> /dev/null
     done < <(grep -riIl "apt.glennr.nl" /etc/apt/)
     glennr_mongod_repository_check_time="$(date +%s)"
-    if [[ "$(dpkg-query --showformat='${Version}' --show jq | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
+    if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
       jq --arg glennr_mongod_repository_check_time "${glennr_mongod_repository_check_time}" '."database" += {"glennr-mongod-repository-check": "'"${glennr_mongod_repository_check_time}"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
     else
       jq --arg glennr_mongod_repository_check_time "$glennr_mongod_repository_check_time" '.database += {"glennr-mongod-repository-check": $glennr_mongod_repository_check_time}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
@@ -1198,7 +1198,7 @@ if [[ "${architecture}" == 'arm64' ]]; then gr_mongod_name="mongod-armv8"; fi
 if [[ "${architecture}" == 'amd64' ]]; then gr_mongod_name="mongod-amd64"; fi
 if [[ -z "${gr_mongod_name}" ]]; then gr_mongod_name="mongod-armv8"; echo -e "$(date +%F-%R) | Variable gr_mongod_name was empty..." &>> "${eus_dir}/logs/variables.log"; fi
 if [[ -n "$(command -v jq)" && -e "${eus_dir}/db/db.json" ]]; then
-  if [[ "$(dpkg-query --showformat='${Version}' --show jq | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
+  if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
     jq '."database" += {"architecture": "'"${architecture}"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
   else
     jq --arg architecture "$architecture" '.database.architecture = $architecture' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
@@ -1264,7 +1264,7 @@ get_distro() {
       repo_codename="${os_codename}"
     fi
     if [[ -n "$(command -v jq)" && "$(jq -r '.database.distribution' "${eus_dir}/db/db.json")" != "${os_codename}" ]]; then
-      if [[ "$(dpkg-query --showformat='${Version}' --show jq | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
+      if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
         jq '."database" += {"distribution": "'"${os_codename}"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
       else
         jq --arg os_codename "$os_codename" '.database.distribution = $os_codename' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
@@ -1278,7 +1278,7 @@ get_distro
 get_repo_url() {
   unset archived_repo
   if [[ "${os_codename}" != "${repo_codename}" ]]; then os_codename="${repo_codename}"; os_codename_changed="true"; fi
-  if "$(which dpkg)" -l apt 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then apt_package_version="$(dpkg-query --showformat='${Version}' --show apt | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)"; fi
+  if "$(which dpkg)" -l apt 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then apt_package_version="$(dpkg-query --showformat='${version}' --show apt 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)"; fi
   if "$(which dpkg)" -l apt-transport-https 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui" || [[ "${apt_package_version::2}" -ge "15" ]]; then
     http_or_https="https"
     add_repositories_http_or_https="http[s]*"
@@ -2044,7 +2044,7 @@ cleanup_multiple_default_lan_networks() {
   if [[ "${affected_sites_count}" == '0' ]]; then
     rm --force "${eus_dir}/data/multiple-default-lan-networks/${cleanup_epoch}-data.json" &> /dev/null
     if [[ "$(jq -r '.scripts."'"${script_name}"'".tasks | to_entries[]? | select(.key | startswith("cleanup-multiple-default-lan-networks")) | .value[]? | ."check-completed" // empty' "${eus_dir}/db/db.json" 2> /dev/null | tail -n1)" != 'true' ]]; then
-      if [[ "$(dpkg-query --showformat='${Version}' --show jq | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
+      if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
         jq '.scripts."'"${script_name}"'" |= . + {"tasks": (.tasks + {"cleanup-multiple-default-lan-networks ('"${cleanup_epoch}"')":[{"check-completed":"true", "affected-sites":"'"${affected_sites_count}"'"}]})}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
       else
         jq '.scripts["'"${script_name}"'"] |= (.tasks += {"cleanup-multiple-default-lan-networks ('"${cleanup_epoch}"')": [{"check-completed":"true", "affected-sites":"'"${affected_sites_count}"'"}]})' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
@@ -2131,7 +2131,7 @@ cleanup_multiple_default_lan_networks() {
   else
     if systemctl restart unifi &>> "${eus_dir}/logs/cleanup-multiple-default-lan-networks.log"; then echo -e "${GREEN}#${RESET} Successfully restarted the UniFi Network Application! \\n"; else echo -e "${RED}#${RESET} Failed to restart the UniFi Network Application... \\n"; fi
   fi
-  if [[ "$(dpkg-query --showformat='${Version}' --show jq | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
+  if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
     jq '.scripts."'"${script_name}"'" |= . + {"tasks": (.tasks + {"cleanup-multiple-default-lan-networks ('"${cleanup_epoch}"')":[{"check-completed":"true", "affected-sites":"'"${affected_sites_count}"'"}]})}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
   else
     jq '.scripts["'"${script_name}"'"] |= (.tasks += {"cleanup-multiple-default-lan-networks ('"${cleanup_epoch}"')": [{"check-completed":"true", "affected-sites":"'"${affected_sites_count}"'"}]})' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
@@ -2791,7 +2791,7 @@ reverse_check_add_mongodb_repo_variable() {
 }
 
 get_mongodb_org_v() {
-  mongodb_org_v="$("$(which dpkg)" -l | grep "mongodb-org-server\\|mongodb-server$\\|mongodb-10gen\\|mongod-armv8\\|mongod-amd64" | grep -i "^ii\\|^hi\\|^ri\\|^pi\\|^ui" | sed '/tool/d' | awk '{print $3}' | sed 's/\.//g' | sed 's/.*://' | sed 's/-.*//g' | sed 's/+.*//g' | sort -V | tail -n 1)"
+  mongodb_org_v="$("$(which dpkg)" -l | grep -E "(mongodb-server|mongodb-org-server|mongodb-10gen|mongod-armv8|mongod-amd64)[[:space:]]" | grep -i "^ii\\|^hi\\|^ri\\|^pi\\|^ui" | sed '/tool/d' | awk '{print $3}' | sed 's/\.//g' | sed 's/.*://' | sed 's/-.*//g' | sed 's/+.*//g' | sort -V | tail -n 1)"
 }
 
 # https://github.com/AmazedMender16/mongodb-no-avx-patch
@@ -3324,7 +3324,7 @@ add_mongodb_repo() {
   fi
   if [[ "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/mongodb-release?version=${mongodb_version_major_minor}" 2> /dev/null | jq -r '.expired' 2> /dev/null)" == 'true' ]]; then trusted_mongodb_repo=" trusted=yes"; deb822_trusted_mongodb_repo="\nTrusted: yes"; fi
   mongodb_key_check_time="$(date +%s)"
-  if [[ "$(dpkg-query --showformat='${Version}' --show jq | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
+  if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
     jq --arg mongodb_key_check_time "${mongodb_key_check_time}" '."database" += {"mongodb-key-last-check": "'"${mongodb_key_check_time}"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
   else
     jq --arg mongodb_key_check_time "$mongodb_key_check_time" '.database += {"mongodb-key-last-check": $mongodb_key_check_time}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
@@ -3603,7 +3603,7 @@ if [[ "${unifi_core_system}" != 'true' ]]; then
   fi
 fi
 if "$(which dpkg)" -l apt 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
-  apt_package_version="$(dpkg-query --showformat='${Version}' --show apt | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)"
+  apt_package_version="$(dpkg-query --showformat='${version}' --show apt 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)"
   if [[ "${apt_package_version::2}" -le "14" ]]; then 
     if ! "$(which dpkg)" -l apt-transport-https 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
       check_dpkg_lock
@@ -3809,16 +3809,60 @@ repackage_deb_file_required_package() {
 
 remove_older_mongodb_repositories() {
   echo -e "${GRAY_R}#${RESET} Checking for older MongoDB repository entries..."
-  if grep -qriIl "mongo" /etc/apt/sources.list*; then
-    if [[ "${abort_mongodb_remove_older_mongodb_repositories}" == "true" ]]; then cp -r /etc/apt/sources.list* "/tmp/EUS/repositories/${mongodb_upgrade_date}" &> /dev/null; fi
-    echo -ne "${GRAY_R}#${RESET} Removing old repository entries for MongoDB..." && sleep 1
-    if [[ -e "/etc/apt/sources.list" ]]; then sed -i '/mongodb/d' /etc/apt/sources.list; fi
-    grep -sriIl "mongo" /etc/apt/sources.list.d/ | xargs rm -f 2> /dev/null
+  local found_entries="false"
+  if [[ "${abort_mongodb_remove_older_mongodb_repositories}" == "true" ]]; then cp -r /etc/apt/sources.list* "/tmp/EUS/repositories/${mongodb_upgrade_date}" &> /dev/null; fi
+  if [[ -e "/etc/apt/sources.list" ]] && grep -q "mongo" /etc/apt/sources.list; then
+    if [[ "${remove_older_mongodb_repositories_message_1}" != 'true' ]]; then remove_older_mongodb_repositories_message_1="true"; echo -ne "${GRAY_R}#${RESET} Removing old repository entries for MongoDB..."; fi
+    sed -i 's|^\(.*mongo.*\)|# \1|' /etc/apt/sources.list
+    found_entries="true"
+  fi
+  while read -r file; do
+    if [[ "${remove_older_mongodb_repositories_message_1}" != 'true' ]]; then remove_older_mongodb_repositories_message_1="true"; echo -ne "${GRAY_R}#${RESET} Removing old repository entries for MongoDB..."; fi
+    if [[ "${file##*.}" == "sources" ]]; then
+      entry_block_start_line="$(awk '{ lines[NR] = $0 } END { for (i = NR; i >= 1; i--) if (lines[i] ~ /mongo/) { for (j = i - 1; j >= 1; j--) if (lines[j] != "" && lines[j] !~ /^#/) { print j; exit } } }' "${file}")"
+      entry_block_end_line="$(awk -v start_line="${entry_block_start_line}" '{ lines[NR] = $0 } END { for (k = start_line + 1; k <= NR; k++) if (lines[k] == "") { print k - 1; exit } print NR }' "${file}")"
+      if [[ -z "${entry_block_end_line}" ]]; then entry_block_end_line="${entry_block_start_line}"; fi
+      sed -i "${entry_block_start_line},${entry_block_end_line}s/^\([^#]\)/# \1/" "${file}" &>/dev/null
+    elif [[ "${file##*.}" == "list" ]]; then
+      sed -i 's|^\([^#]*mongo.*\)|# \1|' "${file}" 2> /dev/null
+    fi
+    if ! grep -qE '^\s*[^#]' "${file}"; then rm -f "${file}"; fi
+    found_entries="true"
+  done < <(find /etc/apt/sources.list.d/ \( -name "*.list" -o -name "*.sources" \) -exec grep -sril "^[^#]*mongo" {} +)
+  if [[ "${found_entries}" == "true" ]]; then
     echo -e "\\r${GREEN}#${RESET} Successfully removed all older MongoDB repository entries! \\n"
   else
-    echo -e "\\r${YELLOW}#${RESET} There were no older MongoDB Repository entries! \\n"
+    echo -e "\\r${YELLOW}#${RESET} There were no older MongoDB Repository entries... \\n"
   fi
-  sleep 2
+  unset remove_older_mongodb_repositories_message_1
+}
+
+remove_older_adoptium_repositories() {
+  echo -e "${GRAY_R}#${RESET} Checking for older Adoptium repository entries..."
+  local found_entries="false"
+  if [[ -e "/etc/apt/sources.list" ]] && grep -q "packages.adoptium.net" /etc/apt/sources.list; then
+    if [[ "${remove_older_adoptium_repositories_message_1}" != 'true' ]]; then remove_older_adoptium_repositories_message_1="true"; echo -ne "${GRAY_R}#${RESET} Removing old repository entries for Adoptium..."; fi
+    sed -i 's|^\(.*packages.adoptium.net.*\)|# \1|' /etc/apt/sources.list
+    found_entries="true"
+  fi
+  while read -r file; do
+    if [[ "${remove_older_adoptium_repositories_message_1}" != 'true' ]]; then remove_older_adoptium_repositories_message_1="true"; echo -ne "${GRAY_R}#${RESET} Removing old repository entries for Adoptium..."; fi
+    if [[ "${file##*.}" == "sources" ]]; then
+      entry_block_start_line="$(awk '{ lines[NR] = $0 } END { for (i = NR; i >= 1; i--) if (lines[i] ~ /packages.adoptium.net/) { for (j = i - 1; j >= 1; j--) if (lines[j] != "" && lines[j] !~ /^#/) { print j; exit } } }' "${file}")"
+      entry_block_end_line="$(awk -v start_line="${entry_block_start_line}" '{ lines[NR] = $0 } END { for (k = start_line + 1; k <= NR; k++) if (lines[k] == "") { print k - 1; exit } print NR }' "${file}")"
+      if [[ -z "${entry_block_end_line}" ]]; then entry_block_end_line="${entry_block_start_line}"; fi
+      sed -i "${entry_block_start_line},${entry_block_end_line}s/^\([^#]\)/# \1/" "${file}" &>/dev/null
+    elif [[ "${file##*.}" == "list" ]]; then
+      sed -i 's|^\([^#]*packages.adoptium.net.*\)|# \1|' "${file}" 2> /dev/null
+    fi
+    if ! grep -qE '^\s*[^#]' "${file}"; then rm -f "${file}"; fi
+    found_entries="true"
+  done < <(find /etc/apt/sources.list.d/ \( -name "*.list" -o -name "*.sources" \) -exec grep -sril "^[^#]*packages.adoptium.net" {} +)
+  if [[ "${found_entries}" == "true" ]]; then
+    echo -e "\\r${GREEN}#${RESET} Successfully removed all older Adoptium repository entries! \\n"
+  else
+    echo -e "\\r${YELLOW}#${RESET} There were no older Adoptium repository entries... \\n"
+  fi
 }
 
 repackage_deb_file() {
@@ -4016,8 +4060,8 @@ ignore_unifi_package_dependencies() {
     if [[ "${unifi_version_modified}" == 'true' ]]; then get_unifi_version; fi
   fi
   if [[ -f "/tmp/EUS/ignore-depends" ]]; then rm --force /tmp/EUS/ignore-depends &> /dev/null; fi
-  if ! "$(which dpkg)" -l | grep "^ii\\|^hi" | grep -iq "mongodb-server$\\|mongodb-org-server\\|mongod-armv8\\|mongod-amd64"; then echo -e "mongodb-server" &>> /tmp/EUS/ignore-depends; fi
-  if "$(which dpkg)" -l | grep "^ii\\|^hi" | grep -iq "mongodb-server$\\|mongodb-org-server\\|mongod-armv8\\|mongod-amd64"; then echo -e "mongodb-server" &>> /tmp/EUS/ignore-depends; fi
+  if ! "$(which dpkg)" -l | grep "^ii\\|^hi" | grep -Eiq "(mongodb-server|mongodb-org-server|mongod-armv8|mongod-amd64)[[:space:]]"; then echo -e "mongodb-server" &>> /tmp/EUS/ignore-depends; fi
+  if "$(which dpkg)" -l | grep "^ii\\|^hi" | grep -Eiq "(mongodb-server|mongodb-org-server|mongod-armv8|mongod-amd64)[[:space:]]"; then echo -e "mongodb-server" &>> /tmp/EUS/ignore-depends; fi
   if [[ "${first_digit_unifi}" -lt '8' ]]; then
     if ! "$(which dpkg)" -l | grep "^ii\\|^hi" | grep -iq "${required_java_version}-jre-headless"; then echo -e "${required_java_version}-jre-headless" &>> /tmp/EUS/ignore-depends; fi
   fi
@@ -4387,6 +4431,7 @@ adoptium_java() {
       fi
     fi
   fi
+  remove_older_adoptium_repositories
   if curl "${curl_argument[@]}" "https://packages.adoptium.net/artifactory/deb/dists/" | sed -e 's/<[^>]*>//g' -e '/^$/d' -e '/\/\//d' -e '/function/d' -e '/location/d' -e '/}/d' -e 's/\///g' -e '/Name/d' -e '/Index/d' -e '/\.\./d' -e '/Artifactory/d' | awk '{print $1}' | grep -iq "${os_codename}"; then
     echo -e "${GRAY_R}#${RESET} Adding the key for adoptium packages..."
     aptkey_depreciated
@@ -4758,7 +4803,7 @@ libssl_installation() {
     curl "${curl_argument[@]}" "${libssl_repo_url}/pool/main/o/${libssl_url_arg}/?C=M;O=D" &> /tmp/EUS/libssl.html
     if ! [[ -s "${eus_dir}/logs/libssl-failure-debug-info.json" ]] || ! jq empty "${eus_dir}/logs/libssl-failure-debug-info.json"; then
       libssl_json_time="$(date +%F-%R)"
-      if [[ "$(dpkg-query --showformat='${Version}' --show jq | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
+      if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
         jq -n \
           --argjson "libssl failures" "$( 
             jq -n \
@@ -4782,14 +4827,14 @@ libssl_installation() {
             }
           }' &> "${eus_dir}/logs/libssl-failure-debug-info.json"
       fi
-      if [[ "$(dpkg-query --showformat='${Version}' --show jq | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
+      if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
         jq --arg libssl_json_time "${libssl_json_time}" --arg libssl_curl_results "$(</tmp/EUS/libssl.html)" '."libssl failures"."'"${libssl_json_time}"'"."Curl Results"=$libssl_curl_results' "${eus_dir}/logs/libssl-failure-debug-info.json" > "${eus_dir}/logs/libssl-failure-debug-info.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
       else
         jq --arg libssl_json_time "$libssl_json_time" --arg libssl_curl_results "$(</tmp/EUS/libssl.html)" '.["libssl failures"][$libssl_json_time]["Curl Results"] = $libssl_curl_results' "${eus_dir}/logs/libssl-failure-debug-info.json" > "${eus_dir}/logs/libssl-failure-debug-info.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
       fi
       eus_database_move_file="${eus_dir}/logs/libssl-failure-debug-info.json"; eus_database_move_log_file="${eus_dir}/logs/libssl-failure-debug-info.log"; eus_database_move
     else
-      if [[ "$(dpkg-query --showformat='${Version}' --show jq | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
+      if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
         jq --arg libssl_repo_url "${libssl_repo_url}" --arg libssl_grep_arg "${libssl_grep_arg}" --arg libssl_url_arg "${libssl_url_arg}" --arg libssl_version "${libssl_version}" --arg version "${version}" --arg libssl_curl_results "$(</tmp/EUS/libssl.html)" '."libssl failures" += {"'"$(date +%F-%R)"'": {"version": $libssl_version, "URL Argument": $libssl_url_arg, "Grep Argument": $libssl_grep_arg, "Repository URL": $libssl_repo_url, "Curl Results": $libssl_curl_results}}' "${eus_dir}/logs/libssl-failure-debug-info.json" > "${eus_dir}/logs/libssl-failure-debug-info.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
       else
         jq --arg libssl_repo_url "$libssl_repo_url" --arg libssl_grep_arg "$libssl_grep_arg" --arg libssl_url_arg "$libssl_url_arg" --arg libssl_version "$libssl_version" --arg version "$version" --arg libssl_curl_results "$(</tmp/EUS/libssl.html)" --arg current_time "$current_time" '.["libssl failures"][$current_time] = {"version": $libssl_version, "URL Argument": $libssl_url_arg, "Grep Argument": $libssl_grep_arg, "Repository URL": $libssl_repo_url, "Curl Results": $libssl_curl_results}' "${eus_dir}/logs/libssl-failure-debug-info.json" > "${eus_dir}/logs/libssl-failure-debug-info.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
@@ -4841,7 +4886,7 @@ libssl_installation_check() {
     if ! "$(which dpkg)" -l libssl3 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
       libssl_install_required="true"
       if "$(which dpkg)" -l libssl3t64 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then unset libssl_install_required; fi
-    elif [[ "$(dpkg-query --showformat='${Version}' --show libssl3 | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -lt "${libssl_version//./}" ]]; then
+    elif [[ "$(dpkg-query --showformat='${Version}' --show libssl3 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -lt "${libssl_version//./}" ]]; then
       libssl_install_required="true"
     fi
     if [[ "${os_codename}" =~ (wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky|unstable) ]]; then
@@ -4854,7 +4899,7 @@ libssl_installation_check() {
       fi
     fi
     if [[ "${libssl_install_required}" == 'true' ]]; then
-      if [[ "$(dpkg-query --showformat='${Version}' --show libc6 | sed 's/.*://' | sed 's/-.*//g' | cut -d'.' -f1)" -lt "2" ]] || [[ "$(dpkg-query --showformat='${Version}' --show libc6 | sed 's/.*://' | sed 's/-.*//g' | cut -d'.' -f1)" == "2" && "$(dpkg-query --showformat='${Version}' --show libc6 | sed 's/.*://' | sed 's/-.*//g' | cut -d'.' -f2)" -lt "34" ]]; then
+      if [[ "$(dpkg-query --showformat='${version}' --show libc6 2> /dev/null | sed 's/.*://' | sed 's/-.*//g' | cut -d'.' -f1)" -lt "2" ]] || [[ "$(dpkg-query --showformat='${version}' --show libc6 2> /dev/null | sed 's/.*://' | sed 's/-.*//g' | cut -d'.' -f1)" == "2" && "$(dpkg-query --showformat='${version}' --show libc6 2> /dev/null | sed 's/.*://' | sed 's/-.*//g' | cut -d'.' -f2)" -lt "34" ]]; then
         if [[ "${os_codename}" =~ (trusty|qiana|rebecca|rafaela|rosa|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish) ]]; then
           if [[ "${architecture}" =~ (amd64|i386) ]]; then
             repo_url="http://security.ubuntu.com/ubuntu"
@@ -4881,7 +4926,7 @@ libssl_installation_check() {
     libssl_grep_arg="libssl1.1.*${architecture}.deb"
     if ! "$(which dpkg)" -l libssl1.1 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
       libssl_install_required="true"
-    elif [[ "$(dpkg-query --showformat='${Version}' --show libssl1.1 | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g')" -lt "${libssl_version//./}" ]]; then
+    elif [[ "$(dpkg-query --showformat='${Version}' --show libssl1.1 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g')" -lt "${libssl_version//./}" ]]; then
       libssl_install_required="true"
     fi
     if [[ "${os_codename}" =~ (wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky|unstable) ]]; then
@@ -4894,7 +4939,7 @@ libssl_installation_check() {
       fi
     fi
     if [[ "${libssl_install_required}" == 'true' ]]; then
-      if [[ "$(dpkg-query --showformat='${Version}' --show libc6 | sed 's/.*://' | sed 's/-.*//g' | cut -d'.' -f1)" -lt "2" ]] || [[ "$(dpkg-query --showformat='${Version}' --show libc6 | sed 's/.*://' | sed 's/-.*//g' | cut -d'.' -f1)" == "2" && "$(dpkg-query --showformat='${Version}' --show libc6 | sed 's/.*://' | sed 's/-.*//g' | cut -d'.' -f2)" -lt "29" ]]; then
+      if [[ "$(dpkg-query --showformat='${version}' --show libc6 2> /dev/null | sed 's/.*://' | sed 's/-.*//g' | cut -d'.' -f1)" -lt "2" ]] || [[ "$(dpkg-query --showformat='${version}' --show libc6 2> /dev/null | sed 's/.*://' | sed 's/-.*//g' | cut -d'.' -f1)" == "2" && "$(dpkg-query --showformat='${version}' --show libc6 2> /dev/null | sed 's/.*://' | sed 's/-.*//g' | cut -d'.' -f2)" -lt "29" ]]; then
         if [[ "${os_codename}" =~ (trusty|qiana|rebecca|rafaela|rosa|xenial|bionic|cosmic|disco|eoan) ]]; then
           if [[ "${architecture}" =~ (amd64|i386) ]]; then
             get_repo_url_security_url="true"
@@ -4922,7 +4967,7 @@ libssl_installation_check() {
     libssl_grep_arg="libssl1.0.*${architecture}.deb"
     if ! "$(which dpkg)" -l libssl1.0.0 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
       libssl_install_required="true"
-    elif [[ "$(dpkg-query --showformat='${Version}' --show libssl1.0.0 | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g')" -lt "${libssl_version//./}" ]]; then
+    elif [[ "$(dpkg-query --showformat='${Version}' --show libssl1.0.0 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g')" -lt "${libssl_version//./}" ]]; then
       libssl_install_required="true"
     fi
     if [[ "${architecture}" =~ (amd64|i386) ]]; then
@@ -5009,7 +5054,7 @@ mongo_last_attempt() {
       curl "${curl_argument[@]}" "${repo_archive}" &> /tmp/EUS/mongodb.html
       if ! [[ -s "${eus_dir}/logs/mongodb-last-attempt-failure-debug-info.json" ]] || ! jq empty "${eus_dir}/logs/mongodb-last-attempt-failure-debug-info.json"; then
         mongodb_json_time="$(date +%F-%R)"
-        if [[ "$(dpkg-query --showformat='${Version}' --show jq | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
+        if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
           jq -n \
             --argjson "MongoDB Last Attempt Failures" "$( 
               jq -n \
@@ -5033,14 +5078,14 @@ mongo_last_attempt() {
               }
             }' &> "${eus_dir}/logs/mongodb-last-attempt-failure-debug-info.json"
         fi
-        if [[ "$(dpkg-query --showformat='${Version}' --show jq | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
+        if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
           jq --arg mongodb_json_time "${mongodb_json_time}" --arg mongodb_curl_results "$(</tmp/EUS/mongodb.html)" '."MongoDB Last Attempt Failures"."'"${mongodb_json_time}"'"."Curl Results"=$mongodb_curl_results' "${eus_dir}/logs/mongodb-last-attempt-failure-debug-info.json" > "${eus_dir}/logs/mongodb-last-attempt-failure-debug-info.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
         else
           jq --arg mongodb_json_time "$mongodb_json_time" --arg mongodb_curl_results "$(</tmp/EUS/mongodb.html)" '.["MongoDB Last Attempt Failures"][$mongodb_json_time]["Curl Results"] = $mongodb_curl_results' "${eus_dir}/logs/mongodb-last-attempt-failure-debug-info.json" > "${eus_dir}/logs/mongodb-last-attempt-failure-debug-info.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
         fi
         eus_database_move_file="${eus_dir}/logs/libssl-failure-debug-info.json"; eus_database_move_log_file="${eus_dir}/logs/libssl-failure-debug-info.log"; eus_database_move
       else
-        if [[ "$(dpkg-query --showformat='${Version}' --show jq | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
+        if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
           jq --arg mongo_last_attempt_version "${mongo_last_attempt_version}" --arg repo_archive "${repo_archive}" --arg architecture "${architecture}" --arg mongo_last_attempt_package "${mongo_last_attempt_package}" --arg mongodb_curl_results "$(</tmp/EUS/mongodb.html)" '."MongoDB Last Attempt Failures" += {"'"$(date +%F-%R)"'": {"version": $mongo_last_attempt_version, "Repository URL": $repo_archive, "Architecture": $architecture, "Package": $mongo_last_attempt_package, "Curl Results": $mongodb_curl_results}}' "${eus_dir}/logs/mongodb-last-attempt-failure-debug-info.json" > "${eus_dir}/logs/mongodb-last-attempt-failure-debug-info.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
         else
           jq --arg mongo_last_attempt_version "$mongo_last_attempt_version" --arg repo_archive "$repo_archive" --arg architecture "$architecture" --arg mongo_last_attempt_package "$mongo_last_attempt_package" --arg mongodb_curl_results "$(</tmp/EUS/mongodb.html)" --arg libssl_curl_results "$(</tmp/EUS/libssl.html)" --arg current_time "$current_time" '.["MongoDB Last Attempt Failures"][$current_time] = {"version": $mongo_last_attempt_version, "Repository URL": $repo_archive, "Architecture": $architecture, "Package": $mongo_last_attempt_package, "Curl Results": $mongodb_curl_results}' "${eus_dir}/logs/mongodb-last-attempt-failure-debug-info.json" > "${eus_dir}/logs/mongodb-last-attempt-failure-debug-info.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
@@ -5066,12 +5111,12 @@ mongo_last_attempt() {
 if "$(which dpkg)" -l "${gr_mongod_name}" 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then mongodb_org_server_package="${gr_mongod_name}"; else mongodb_org_server_package="mongodb-org-server"; fi
 
 if "$(which dpkg)" -l "${mongodb_org_server_package}" 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
-  mongodb_org_version="$(dpkg-query --showformat='${Version}' --show "${mongodb_org_server_package}" | sed 's/.*://' | sed 's/-.*//g')"
+  mongodb_org_version="$(dpkg-query --showformat='${Version}' --show "${mongodb_org_server_package}" 2> /dev/null | sed 's/.*://' | sed 's/-.*//g')"
   mongodb_org_version_major_minor="${mongodb_org_version%.*}"
   if ! "$(which dpkg)" -l mongodb-org-shell 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
 	install_mongodb_org_shell="true"
   else
-	install_mongodb_org_shell_version="$(dpkg-query --showformat='${Version}' --show mongodb-org-shell | sed 's/.*://' | sed 's/-.*//g')"
+	install_mongodb_org_shell_version="$(dpkg-query --showformat='${version}' --show mongodb-org-shell 2> /dev/null | sed 's/.*://' | sed 's/-.*//g')"
     install_mongodb_org_shell_major_minor="${install_mongodb_org_shell_version%.*}"
     if [[ "${install_mongodb_org_shell_major_minor}" != "${mongodb_org_version_major_minor}" ]]; then install_mongodb_org_shell="true"; fi
   fi
@@ -5088,7 +5133,7 @@ if "$(which dpkg)" -l "${mongodb_org_server_package}" 2> /dev/null | awk '{print
   fi
 fi
 if "$(which dpkg)" -l "${mongodb_org_server_package}" 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
-  mongodb_org_version="$(dpkg-query --showformat='${Version}' --show "${mongodb_org_server_package}" | sed 's/.*://' | sed 's/-.*//g')"
+  mongodb_org_version="$(dpkg-query --showformat='${Version}' --show "${mongodb_org_server_package}" 2> /dev/null | sed 's/.*://' | sed 's/-.*//g')"
   mongodb_org_version_no_dots="${mongodb_org_version//./}"
   if [[ "${mongodb_org_version_no_dots::1}" -ge "5" ]]; then
     if ! apt-cache depends "${mongodb_org_server_package}" &> /dev/null; then silent_run_apt_get_update="true"; run_apt_get_update; fi
@@ -5251,12 +5296,12 @@ fi
 
 # downgrade arm64 to 4.4.18 if 4.4 MongoDB is installed.
 if "$(which dpkg)" -l mongodb-org-server 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
-  installed_mongodb_org_version_check="$(dpkg-query --showformat='${Version}' --show mongodb-org-server | sed -e 's/.*://' -e 's/-.*//g' -e 's/\.//g')"
-  if [[ "${installed_mongodb_org_version_check::2}" -ge '44' && "$(dpkg-query --showformat='${Version}' --show mongodb-org-server | sed -e 's/.*://' -e 's/-.*//g' | awk -F. '{print $3}')" -ge "19" ]]; then if [[ "${glennr_mongod_compatible}" == "true" ]]; then unsupported_database_version_change="true"; fi; fi
+  installed_mongodb_org_version_check="$(dpkg-query --showformat='${version}' --show mongodb-org-server 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/\.//g')"
+  if [[ "${installed_mongodb_org_version_check::2}" -ge '44' && "$(dpkg-query --showformat='${version}' --show mongodb-org-server 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' | awk -F. '{print $3}')" -ge "19" ]]; then if [[ "${glennr_mongod_compatible}" == "true" ]]; then unsupported_database_version_change="true"; fi; fi
   if [[ -n "${previous_mongodb_version}" ]]; then if [[ "${installed_mongodb_org_version_check::2}" != "${previous_mongodb_version::2}" ]] && [[ "${previous_mongodb_version::2}" != "$((${installed_mongodb_org_version_check::2} - 2))" ]]; then unsupported_database_version_change="true"; fi; fi
 elif "$(which dpkg)" -l mongodb-server 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
-  installed_mongodb_version_check="$(dpkg-query --showformat='${Version}' --show mongodb-server | sed -e 's/.*://' -e 's/-.*//g' -e 's/\.//g')"
-  if [[ "${installed_mongodb_version_check::2}" -ge '44' && "$(dpkg-query --showformat='${Version}' --show mongodb-server | sed -e 's/.*://' -e 's/-.*//g' | awk -F. '{print $3}')" -ge "19" ]]; then if [[ "${glennr_mongod_compatible}" == "true" ]]; then unsupported_database_version_change="true"; fi; fi
+  installed_mongodb_version_check="$(dpkg-query --showformat='${version}' --show mongodb-server 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/\.//g')"
+  if [[ "${installed_mongodb_version_check::2}" -ge '44' && "$(dpkg-query --showformat='${version}' --show mongodb-server 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' | awk -F. '{print $3}')" -ge "19" ]]; then if [[ "${glennr_mongod_compatible}" == "true" ]]; then unsupported_database_version_change="true"; fi; fi
   if [[ -n "${previous_mongodb_version}" ]]; then if [[ "${installed_mongodb_version_check::2}" != "${previous_mongodb_version::2}" ]] && [[ "${previous_mongodb_version::2}" != "$((${installed_mongodb_version_check::2} - 2))" ]]; then unsupported_database_version_change="true"; fi; fi
 fi
 
@@ -5275,10 +5320,10 @@ fi
 
 if [[ "${mongo_version_locked}" == '4.4.18' ]] || [[ "${unsupported_database_version_change}" == 'true' ]]; then
   if "$(which dpkg)" -l mongodb-org-server 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
-    mongodb_org_version="$(dpkg-query --showformat='${Version}' --show mongodb-org-server | sed 's/.*://' | sed 's/-.*//g')"
+    mongodb_org_version="$(dpkg-query --showformat='${version}' --show mongodb-org-server 2> /dev/null | sed 's/.*://' | sed 's/-.*//g')"
     mongodb_org_version_no_dots="${mongodb_org_version//./}"
   elif "$(which dpkg)" -l mongodb-server 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
-    mongodb_org_version="$(dpkg-query --showformat='${Version}' --show mongodb-server | sed 's/.*://' | sed 's/-.*//g')"
+    mongodb_org_version="$(dpkg-query --showformat='${version}' --show mongodb-server 2> /dev/null | sed 's/.*://' | sed 's/-.*//g')"
     mongodb_org_version_no_dots="${mongodb_org_version//./}"
   fi
   if [[ "${mongodb_org_version_no_dots::2}" == '44' && "$(echo "${mongodb_org_version}" | cut -d'.' -f3)" -gt "18" ]] || [[ "${unsupported_database_version_change}" == 'true' ]]; then
@@ -5421,7 +5466,7 @@ if [[ "${mongo_version_locked}" == '4.4.18' ]] || [[ "${unsupported_database_ver
     fi
     if [[ "${reinstall_unifi}" == 'true' ]]; then
       reinstall_unifi_version="$(head -n1 /usr/lib/unifi/data/db/version | sed 's/[^0-9.]//g' 2> /dev/null)"
-      if [[ -z "${reinstall_unifi_version}" ]]; then reinstall_unifi_version="$(dpkg-query --showformat='${Version}' --show unifi | awk -F '[-]' '{print $1}')"; fi
+      if [[ -z "${reinstall_unifi_version}" ]]; then reinstall_unifi_version="$(dpkg-query --showformat='${version}' --show unifi 2> /dev/null | awk -F '[-]' '{print $1}')"; fi
       if [[ "$(curl "${curl_argument[@]}" https://api.glennr.nl/api/network-release?status 2> /dev/null | jq -r '.[]' 2> /dev/null)" == "OK" ]]; then
         fw_update_dl_link="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-release?version=${reinstall_unifi_version}${unifi_core_glennr_api}" | jq -r '."download_link"' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
         fw_update_gr_dl_link="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-release?version=${reinstall_unifi_version}&server=archive${unifi_core_glennr_api}" | jq -r '."download_link"' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
@@ -5590,8 +5635,8 @@ get_mongo_version_max
 # Stick to 4.4 if cpu doesn't report avx support.
 mongodb_avx_support_check() {
   if [[ "${mongo_version_max}" =~ (44|70|80) && "${unifi_core_system}" != 'true' ]]; then
-    cpu_model_name="$(lscpu | tr '[:upper:]' '[:lower:]' | grep -i 'model name' | cut -f 2 -d ":" | awk '{$1=$1}1' | tr -cd '[:print:][:space:].,_-' | sed 's/\\/\\\\/g')"
-    if [[ -z "${cpu_model_name}" ]]; then cpu_model_name="$(lscpu | tr '[:upper:]' '[:lower:]' | sed -n 's/^model name:[[:space:]]*//p' | tr -cd '[:print:][:space:].,_-' | sed 's/\\/\\\\/g')"; fi
+    cpu_model_name="$(lscpu | tr '[:upper:]' '[:lower:]' | grep -i '^model name' | cut -f 2 -d ":" | awk '{$1=$1}1')"
+    if [[ -z "${cpu_model_name}" ]]; then cpu_model_name="$(lscpu | tr '[:upper:]' '[:lower:]' | sed -n 's/^model name:[[:space:]]*//p')"; fi
     if [[ "${architecture}" == "arm64" && -n "${cpu_model_name}" ]]; then
       cpu_model_regex="^(cortex-a55|cortex-a65|cortex-a65ae|cortex-a75|cortex-a76|cortex-a77|cortex-a78|cortex-x1|cortex-x2|cortex-x3|cortex-x4|neoverse-n1|neoverse-n2|neoverse-n3|neoverse-e1|neoverse-e2|neoverse-v1|neoverse-v2|neoverse-v3|cortex-a510|cortex-a520|cortex-a715|cortex-a720)$"
       if ! [[ "${cpu_model_name}" =~ ${cpu_model_regex} ]]; then
@@ -5666,7 +5711,7 @@ mongodb_avx_support_check() {
         fi
       fi
     fi
-    if [[ "$(dpkg-query --showformat='${Version}' --show jq | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
+    if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
       jq '.scripts["'"$script_name"'"].tasks += {"mongodb-avx-check ('"$(date +%s)"')": [.scripts["'"$script_name"'"].tasks["mongodb-avx-check ('"$(date +%s)"')"][0] + {"CPU":"'"${cpu_model_name}"'","add_mongodb_44_repo":"'"${add_mongodb_44_repo}"'","mongo_version_max":"'"${mongo_version_max}"'","mongo_version_max_with_dot":"'"${mongo_version_max_with_dot}"'","mongo_version_locked":"'"${mongo_version_locked}"'","Glenn R. MongoDB":"'"${glennr_compiled_mongod}"'","Glenn R. MongoDB Compatible":"'"${glennr_mongod_compatible}"'"}]}' "${eus_dir}/db/db.json" > "/tmp/EUS/db-avx-debug.json"
     else
       jq --arg script_name "$script_name" --arg date_key "$(date +%s)" --arg cpu_model_name "${cpu_model_name}" --arg add_mongodb_44_repo "$add_mongodb_44_repo" --arg mongo_version_max "$mongo_version_max" --arg mongo_version_max_with_dot "$mongo_version_max_with_dot" --arg mongo_version_locked "$mongo_version_locked" --arg glennr_compiled_mongod "$glennr_compiled_mongod" --arg glennr_mongod_compatible "$glennr_mongod_compatible" '.scripts[$script_name].tasks = (.scripts[$script_name].tasks + {("mongodb-avx-check (" + $date_key + ")"): ((.scripts[$script_name].tasks["mongodb-avx-check (" + $date_key + ")"] // []) + [{"CPU": $cpu_model_name, "add_mongodb_44_repo": $add_mongodb_44_repo, "mongo_version_max": $mongo_version_max, "mongo_version_max_with_dot": $mongo_version_max_with_dot, "mongo_version_locked": $mongo_version_locked, "Glenn R. MongoDB": $glennr_compiled_mongod, "Glenn R. MongoDB Compatible": $glennr_mongod_compatible}] )})' "${eus_dir}/db/db.json" > "/tmp/EUS/db-avx-debug.json"
@@ -5941,7 +5986,7 @@ unifi_update_finish() {
   fi
   login_cleanup
   header
-  echo -e "${GRAY_R}#${RESET} Your UniFi Network Application has been successfully updated to $(dpkg-query --showformat='${Version}' --show unifi | awk -F '[-]' '{print $1}')"
+  echo -e "${GRAY_R}#${RESET} Your UniFi Network Application has been successfully updated to $(dpkg-query --showformat='${version}' --show unifi 2> /dev/null | awk -F '[-]' '{print $1}')"
   if [[ "${script_option_do_not_start_unifi}" == 'true' ]]; then
     echo -e "${GRAY_R}#${RESET} You've used the script option \"Do Not Start UniFi\"... Stopping the service..."
     echo -e "$(date +%F-%R) | Script option \"Do Not Start UniFi\" was used... Stopping the UniFi Network Application..." &>> "${eus_dir}/logs/script-option-do-not-start-unifi.log"
@@ -6073,7 +6118,7 @@ get_sysinfo() {
 
 old_systemd_version_check() {
   if [[ "${first_digit_unifi}" == '6' && "${second_digit_unifi}" -ge '4' ]] || [[ "${first_digit_unifi}" -ge '7' ]]; then old_systemd_unifi_check_passed="true"; fi
-  if [[ "$(dpkg-query --showformat='${Version}' --show systemd | awk -F '[.-]' '{print $1}')" -lt "231" && "${old_systemd_unifi_check_passed}" == 'true' ]]; then
+  if [[ "$(dpkg-query --showformat='${version}' --show systemd 2> /dev/null | awk -F '[.-]' '{print $1}')" -lt "231" && "${old_systemd_unifi_check_passed}" == 'true' ]]; then
     old_systemd_version="true"
     if ! [[ -d "/etc/systemd/system/unifi.service.d/" ]]; then eus_directory_location="/etc/systemd/system"; eus_create_directories "unifi.service.d"; fi
     unifi_helpers="$(grep -s "unifi-network-service-helper" /lib/systemd/system/unifi.service | grep "=+" | while read -r helper; do echo "${helper//+/}"; done)"
@@ -6087,7 +6132,7 @@ old_systemd_version_check() {
     else
       if systemctl restart unifi &>> "${eus_dir}/logs/old-systemd.log"; then old_systemd_version_check_unifi_restart="true"; fi
     fi
-  elif [[ "$(dpkg-query --showformat='${Version}' --show systemd | awk -F '[.-]' '{print $1}')" -lt "238" && "$(dpkg-query --showformat='${Version}' --show systemd | awk -F '[.-]' '{print $1}')" -gt "231" && "${old_systemd_unifi_check_passed}" == 'true' ]]; then
+  elif [[ "$(dpkg-query --showformat='${version}' --show systemd 2> /dev/null | awk -F '[.-]' '{print $1}')" -lt "238" && "$(dpkg-query --showformat='${version}' --show systemd 2> /dev/null | awk -F '[.-]' '{print $1}')" -gt "231" && "${old_systemd_unifi_check_passed}" == 'true' ]]; then
     old_systemd_version="true"
     if ! [[ -d "/etc/systemd/system/unifi.service.d/" ]]; then eus_directory_location="/etc/systemd/system"; eus_create_directories "unifi.service.d"; fi
     if echo -e "[Service]\nPermissionsStartOnly=true\nExecStartPre=/usr/sbin/unifi-network-service-helper create-dirs" &> /etc/systemd/system/unifi.service.d/override.conf; then
@@ -6161,7 +6206,7 @@ check_service_overrides() {
           done < <(find /etc/systemd/system/unifi.service.d/ -type f 2> /dev/null)
         fi
       fi
-      if [[ "$(dpkg-query --showformat='${Version}' --show systemd | awk -F '[.-]' '{print $1}')" -ge "230" ]]; then
+      if [[ "$(dpkg-query --showformat='${version}' --show systemd 2> /dev/null | awk -F '[.-]' '{print $1}')" -ge "230" ]]; then
         if systemctl revert unifi &>> "${eus_dir}/logs/service-override.log"; then
           echo -e "${GREEN}#${RESET} Successfully reverted the UniFi Network Application service overrides! \\n"
           check_service_overrides_reverted="true"
@@ -7775,14 +7820,14 @@ usg_unsupported_notice() {
     read -rp $'\033[39m#\033[0m Do you want to proceed with the upgrade and lose configuration control for these devices? (y/N) ' yes_no
     case "$yes_no" in
         [Yy]*)
-           if [[ "$(dpkg-query --showformat='${Version}' --show jq | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
+           if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
              jq '.scripts."'"${script_name}"'" |= . + {"tasks": (.tasks + {"usg-unsupported-notice ('"$(date +%Y%m%d_%H%M_%s)"')":[{"user-warned":"true"}]})}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
            else
              jq '.scripts["'"${script_name}"'"] |= (.tasks += {"usg-unsupported-notice ('"$(date +%Y%m%d_%H%M_%s)"')": [{"user-warned":"true"}]})' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
            fi
            eus_database_move;;
         [Nn]*|"")
-           if [[ "$(dpkg-query --showformat='${Version}' --show jq | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
+           if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
              jq '.scripts."'"${script_name}"'" |= . + {"tasks": (.tasks + {"usg-unsupported-notice ('"$(date +%Y%m%d_%H%M_%s)"')":[{"user-cancelled":"true"}]})}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
            else
              jq '.scripts["'"${script_name}"'"] |= (.tasks += {"usg-unsupported-notice ('"$(date +%Y%m%d_%H%M_%s)"')": [{"user-cancelled":"true"}]})' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
@@ -8399,7 +8444,7 @@ custom_url_install() {
     echo -e "${GRAY_R}#${RESET} Upgrading your UniFi Network Application from \"${current_application_version}\" to \"${custom_application_version}\"..."
     echo -e "${GRAY_R}#${RESET} This process could take up to ${unifi_upgrade_estimate_duration}..."
   fi
-  if [[ "$(dpkg-query --showformat='${Version}' --show jq | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
+  if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
     jq '.scripts."'"${script_name}"'" |= if .["upgrade-path"] | index("'"${current_application_digit_1}.${current_application_digit_2}.${current_application_digit_3} > ${custom_application_digit_1}.${custom_application_digit_2}.${custom_application_digit_3}"'") | not then .["upgrade-path"] += ["'"${current_application_digit_1}.${current_application_digit_2}.${current_application_digit_3} > ${custom_application_digit_1}.${custom_application_digit_2}.${custom_application_digit_3}"'"] else . end' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
   else
     jq --arg script_name "$script_name" --arg current_app "$current_application_digit_1.$current_application_digit_2.$current_application_digit_3" --arg custom_app "$custom_application_digit_1.$custom_application_digit_2.$custom_application_digit_3" '.scripts[$script_name] |= (if .["upgrade-path"] | type == "array" | not then.["upgrade-path"] = []| .["upgrade-path"] += [$current_app + " > " + $custom_app]else.["upgrade-path"] |= (if map(select(. == ($current_app + " > " + $custom_app))) | length == 0 then. + [$current_app + " > " + $custom_app] else . end ) end )' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
@@ -8469,10 +8514,10 @@ mongodb_upgrade() {
   if [[ -z "${unifi_database_location}" ]]; then unifi_database_location="/usr/lib/unifi/data/db"; fi
   unifi_db_eus_dir="${eus_dir}"
   mongodb_upgrade_date="$(date +%Y%m%d_%H%M_%s)"
-  mongodb_upgrade_from_version_with_dots="$("$(which dpkg)" -l | grep "mongodb-org-server\\|mongodb-server$\\|mongodb-10gen\\|mongod-armv8\\|mongod-amd64" | grep -i "^ii\\|^hi\\|^ri\\|^pi\\|^ui" | awk '{print $3}' | sed 's/.*://' | sed 's/-.*//g' | sed 's/+.*//g' | sort -V | tail -n 1)"
-  mongodb_upgrade_from_version="$("$(which dpkg)" -l | grep "mongodb-org-server\\|mongodb-server$\\|mongodb-10gen\\|mongod-armv8\\|mongod-amd64" | grep -i "^ii\\|^hi\\|^ri\\|^pi\\|^ui" | awk '{print $3}' | sed 's/\.//g' | sed 's/.*://' | sed 's/-.*//g' | sed 's/+.*//g' | sort -V | tail -n 1)"
-  mongodb_org_upgrade_from_version_with_dots="$("$(which dpkg)" -l | grep "mongodb-org-server\\|mongod-armv8\\|mongod-amd64" | grep -i "^ii\\|^hi\\|^ri\\|^pi\\|^ui" | awk '{print $3}' | sed 's/.*://' | sed 's/-.*//g' | sed 's/+.*//g' | sort -V | tail -n 1)"
-  mongodb_org_upgrade_from_version="$("$(which dpkg)" -l | grep "mongodb-org-server\\|mongod-armv8\\|mongod-amd64" | grep -i "^ii\\|^hi\\|^ri\\|^pi\\|^ui" | awk '{print $3}' | sed 's/\.//g' | sed 's/.*://' | sed 's/-.*//g' | sed 's/+.*//g' | sort -V | tail -n 1)"
+  mongodb_upgrade_from_version_with_dots="$("$(which dpkg)" -l | grep -E "(mongodb-server|mongodb-org-server|mongodb-10gen|mongod-armv8|mongod-amd64)[[:space:]]" | grep -i "^ii\\|^hi\\|^ri\\|^pi\\|^ui" | awk '{print $3}' | sed 's/.*://' | sed 's/-.*//g' | sed 's/+.*//g' | sort -V | tail -n 1)"
+  mongodb_upgrade_from_version="$("$(which dpkg)" -l | grep -E "(mongodb-server|mongodb-org-server|mongodb-10gen|mongod-armv8|mongod-amd64)[[:space:]]" | grep -i "^ii\\|^hi\\|^ri\\|^pi\\|^ui" | awk '{print $3}' | sed 's/\.//g' | sed 's/.*://' | sed 's/-.*//g' | sed 's/+.*//g' | sort -V | tail -n 1)"
+  mongodb_org_upgrade_from_version_with_dots="$("$(which dpkg)" -l | grep -E "(mongodb-org-server|mongod-armv8|mongod-amd64)[[:space:]]" | grep -i "^ii\\|^hi\\|^ri\\|^pi\\|^ui" | awk '{print $3}' | sed 's/.*://' | sed 's/-.*//g' | sed 's/+.*//g' | sort -V | tail -n 1)"
+  mongodb_org_upgrade_from_version="$("$(which dpkg)" -l | grep -E "(mongodb-org-server|mongod-armv8|mongod-amd64)[[:space:]]" | grep -i "^ii\\|^hi\\|^ri\\|^pi\\|^ui" | awk '{print $3}' | sed 's/\.//g' | sed 's/.*://' | sed 's/-.*//g' | sed 's/+.*//g' | sort -V | tail -n 1)"
   mongodb_upgrade_mongodb_org_message="Updating"
   mongodb_upgrade_mongodb_org_message_2="updated"
   mongodb_upgrade_mongodb_org_message_3="update"
@@ -8488,7 +8533,7 @@ mongodb_upgrade() {
   check_unifi_folder_permissions_state="before"
   check_unifi_folder_permissions
   if [[ "${glennr_compiled_mongod}" == 'true' ]]; then unset mongodb_upgrade_without_export_import; fi
-  if [[ "$(dpkg-query --showformat='${Version}' --show jq | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
+  if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
     jq '.scripts."'"${script_name}"'" |= . + {"tasks": (.tasks + {"mongodb-upgrade ('"${mongodb_upgrade_date}"')":[{"distribution":"'"${os_codename}"'","from":"'"${mongodb_upgrade_from_version_with_dots}"'","to":"'"${mongo_version_max_with_dot}"'","unifi-version":"'"${unifi}"'","Glenn R. MongoDB":"'"${glennr_compiled_mongod}"'"}]})}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
   else
     jq '.scripts["'"${script_name}"'"] |= (.tasks += {"mongodb-upgrade ('"${mongodb_upgrade_date}"')": [{"distribution": "'"${os_codename}"'", "from": "'"${mongodb_upgrade_from_version_with_dots}"'", "to": "'"${mongo_version_max_with_dot}"'", "unifi-version": "'"${unifi}"'", "Glenn R. MongoDB": "'"${glennr_compiled_mongod}"'"}]})' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
@@ -8551,7 +8596,7 @@ mongodb_upgrade() {
   fi
   header
   if "$(which dpkg)" -l mongodb-org-server 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
-    mongodb_org_version="$(dpkg-query --showformat='${Version}' --show mongodb-org-server | sed 's/.*://' | sed 's/-.*//g')"
+    mongodb_org_version="$(dpkg-query --showformat='${version}' --show mongodb-org-server 2> /dev/null | sed 's/.*://' | sed 's/-.*//g')"
     mongodb_package_requirement_check="true"
     mongodb_package_libssl="mongodb-org-tools"
     mongodb_package_version_libssl="${mongodb_org_version}"
@@ -8561,7 +8606,7 @@ mongodb_upgrade() {
 	  install_mongodb_org_tools="true"
       multiple_attempt_to_install_package_task="install"
 	else
-	  mongodb_org_tools_version="$(dpkg-query --showformat='${Version}' --show mongodb-org-tools | sed 's/.*://' | sed 's/-.*//g' | sed 's/\.//g')"
+	  mongodb_org_tools_version="$(dpkg-query --showformat='${version}' --show mongodb-org-tools 2> /dev/null | sed 's/.*://' | sed 's/-.*//g' | sed 's/\.//g')"
       if [[ "${mongodb_org_tools_version}" != "${mongodb_org_version//./}" ]]; then install_mongodb_org_tools="true"; fi
       multiple_attempt_to_install_package_task="downgrade"
     fi
@@ -8612,7 +8657,7 @@ mongodb_upgrade() {
 	  install_mongodb_org_shell="true"
       multiple_attempt_to_install_package_task="install"
 	else
-	  install_mongodb_org_shell="$(dpkg-query --showformat='${Version}' --show mongodb-org-shell | sed 's/.*://' | sed 's/-.*//g' | sed 's/\.//g')"
+	  install_mongodb_org_shell="$(dpkg-query --showformat='${version}' --show mongodb-org-shell 2> /dev/null | sed 's/.*://' | sed 's/-.*//g' | sed 's/\.//g')"
       if [[ "${install_mongodb_org_shell}" != "${mongodb_org_version//./}" ]]; then install_mongodb_org_shell="true"; fi
       multiple_attempt_to_install_package_task="downgrade"
     fi
@@ -9101,7 +9146,7 @@ mongodb_upgrade() {
       fi
       if [[ "${glennr_mongod_dependency}" =~ (libc6) ]]; then
         glennr_mongod_libc6_required_version="$(apt-cache show "${gr_mongod_name}${install_mongod_version_with_equality_sign}" | grep -i "libc6" | grep -oP "libc6 \(>= \K[0-9\.]+")"
-        installed_libc_version="$(dpkg-query -W -f='${Version}' libc6)"
+        installed_libc_version="$(dpkg-query -W -f='${Version}' libc6 2> /dev/null)"
         if dpkg --compare-versions "${installed_libc_version}" lt "${glennr_mongod_libc6_required_version}"; then
           if [[ "${os_codename}" =~ (trusty|qiana|rebecca|rafaela|rosa|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy) ]]; then
             if [[ "${architecture}" =~ (amd64|i386) ]]; then
@@ -9418,8 +9463,8 @@ mongodb_upgrade() {
   chown -R "${unifi_database_location_user}":"${unifi_database_location_group}" "${unifi_database_location}" &> /dev/null
   if ! [[ -d "/var/run/unifi" ]]; then /usr/sbin/unifi-network-service-helper create-dirs &>> "${eus_dir}/logs/unifi-var-run-missing.log"; fi
   #
-  mongodb_org_v="$("$(which dpkg)" -l | grep "mongodb-org-server\\|mongod-armv8\\|mongod-amd64" | grep -i "^ii\\|^hi\\|^ri\\|^pi\\|^ui" | awk '{print $3}' | sed 's/\.//g' | sed 's/.*://' | sed 's/-.*//g' | sed 's/+.*//g' | sort -V | tail -n 1)"
-  mongodb_org_v_with_dot="$("$(which dpkg)" -l | grep "mongodb-org-server\\|mongod-armv8\\|mongod-amd64" | grep -i "^ii\\|^hi\\|^ri\\|^pi\\|^ui" | awk '{print $3}' | sed 's/.*://' | sed 's/-.*//g' | sed 's/+.*//g' | sort -V | tail -n 1)"
+  mongodb_org_v="$("$(which dpkg)" -l | grep -E "(mongodb-org-server|mongod-armv8|mongod-amd64)[[:space:]]" | grep -i "^ii\\|^hi\\|^ri\\|^pi\\|^ui" | awk '{print $3}' | sed 's/\.//g' | sed 's/.*://' | sed 's/-.*//g' | sed 's/+.*//g' | sort -V | tail -n 1)"
+  mongodb_org_v_with_dot="$("$(which dpkg)" -l | grep -E "(mongodb-org-server|mongod-armv8|mongod-amd64)[[:space:]]" | grep -i "^ii\\|^hi\\|^ri\\|^pi\\|^ui" | awk '{print $3}' | sed 's/.*://' | sed 's/-.*//g' | sed 's/+.*//g' | sort -V | tail -n 1)"
   if [[ "${mongo_version_max}" =~ (44|70|80) ]] || [[ "${mongodb_org_v::2}" =~ (44|70|80) ]]; then mongodb_upgrade_system_propties; fi
   while read -r unifi_package; do
     echo -e "${GRAY_R}#${RESET} Starting service ${unifi_package}..."
@@ -9579,20 +9624,20 @@ support_file_requests_opt_in() {
     if [[ "${opt_in_requests}" -ge '3' ]]; then
       opt_in_rotations="$(jq -r '.database["opt-in-rotations"]' "${eus_dir}/db/db.json")"
       ((opt_in_rotations=opt_in_rotations+1))
-      if [[ "$(dpkg-query --showformat='${Version}' --show jq | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
+      if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
         jq '."database" += {"opt-in-rotations": "'"${opt_in_rotations}"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
       else
         jq --arg opt_in_rotations "$opt_in_rotations" '.database = (.database + {"opt-in-rotations": $opt_in_rotations})' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
       fi
       eus_database_move
-      if [[ "$(dpkg-query --showformat='${Version}' --show jq | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
+      if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
         jq --arg opt_in_requests "0" '."database" += {"opt-in-requests": "'"${opt_in_requests}"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
       else
         jq --arg opt_in_requests "$opt_in_requests" '.database = (.database + {"opt-in-requests": $opt_in_requests})' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
       fi
       eus_database_move
     else
-      if [[ "$(dpkg-query --showformat='${Version}' --show jq | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
+      if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
         jq '."database" += {"opt-in-requests": "'"${opt_in_requests}"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
       else
         jq --arg opt_in_requests "$opt_in_requests" '.database = (.database + {"opt-in-requests": $opt_in_requests})' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
@@ -9614,7 +9659,7 @@ support_file_upload_opt_in() {
         [Yy]*|"") upload_support_files="true";;
         [Nn]*) upload_support_files="false";;
     esac
-    if [[ "$(dpkg-query --showformat='${Version}' --show jq | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
+    if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
       jq '."database" += {"support-file-upload": "'"${upload_support_files}"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
     else
       jq --arg upload_support_files "$upload_support_files" '.database = (.database + {"support-file-upload": $upload_support_files})' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
@@ -9656,7 +9701,7 @@ free_space_check() {
           echo -e "${YELLOW}#${RESET} OK... Proceeding with the script.. please note that failures may occur due to not enough disk space... \\n"; sleep 10;;
     esac
     if [[ -n "$(command -v jq)" ]]; then
-      if [[ "$(dpkg-query --showformat='${Version}' --show jq | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" && -e "${eus_dir}/db/db.json" ]]; then
+      if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" && -e "${eus_dir}/db/db.json" ]]; then
         jq '.scripts."'"${script_name}"'" += {"warnings": {"low-free-disk-space": {"response": "'"${free_space_check_response}"'", "detected-date": "'"${free_space_check_date}"'"}}}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
       else
         jq '.scripts."'"${script_name}"'" = (.scripts."'"${script_name}"'" | . + {"warnings": {"low-free-disk-space": {"response": "'"${free_space_check_response}"'", "detected-date": "'"${free_space_check_date}"'"}}})' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
@@ -9689,7 +9734,7 @@ free_boot_space_check() {
               echo -e "${YELLOW}#${RESET} OK... Proceeding with the script.. please note that failures may occur due to not enough disk space... \\n"; sleep 10; skip_linux_images_recovery="true";;
         esac
         if [[ -n "$(command -v jq)" ]]; then
-          if [[ "$(dpkg-query --showformat='${Version}' --show jq | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" && -e "${eus_dir}/db/db.json" ]]; then
+          if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" && -e "${eus_dir}/db/db.json" ]]; then
             jq '.scripts."'"${script_name}"'" += {"warnings": {"low-free-boot-partition-space": {"response": "'"${free_boot_space_check_response}"'", "detected-date": "'"${free_boot_space_check_date}"'"}}}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
           else
             jq '.scripts."'"${script_name}"'" = (.scripts."'"${script_name}"'" | . + {"warnings": {"low-free-boot-partition-space": {"response": "'"${free_boot_space_check_response}"'", "detected-date": "'"${free_boot_space_check_date}"'"}}})' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
@@ -9878,7 +9923,7 @@ if [[ "${mongodb_key_update}" == 'true' ]]; then run_apt_get_update; unset mongo
 
 if [[ "$(jq -r '.database["mongodb-key-last-check"]' "${eus_dir}/db/db.json")" == 'null' ]]; then
   mongodb_key_check_time="$(date +%s)"
-  if [[ "$(dpkg-query --showformat='${Version}' --show jq | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
+  if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
     jq --arg mongodb_key_check_time "${mongodb_key_check_time}" '."database" += {"mongodb-key-last-check": "'"${mongodb_key_check_time}"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
   else
     jq --arg mongodb_key_check_time "$mongodb_key_check_time" '.database = (.database + {"mongodb-key-last-check": $mongodb_key_check_time})' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
@@ -10271,7 +10316,7 @@ application_upgrade_releases() {
     echo -e "${GRAY_R}#${RESET} Upgrading your UniFi Network Application from \"${unifi_current}\" to \"${application_version_release}\"..."
     echo -e "${GRAY_R}#${RESET} This process could take up to ${unifi_upgrade_estimate_duration}..."
   fi
-  if [[ "$(dpkg-query --showformat='${Version}' --show jq | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
+  if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
     jq '.scripts."'"${script_name}"'" |= if .["upgrade-path"] | index("'"${application_current_digit_1}.${application_current_digit_2}.${application_current_digit_3} > ${application_version_release_digit_1}.${application_version_release_digit_2}.${application_version_release_digit_3}"'") | not then .["upgrade-path"] += ["'"${application_current_digit_1}.${application_current_digit_2}.${application_current_digit_3} > ${application_version_release_digit_1}.${application_version_release_digit_2}.${application_version_release_digit_3}"'"] else . end' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
   else
     jq --arg script_name "$script_name" --arg current_app "$application_current_digit_1.$application_current_digit_2.$application_current_digit_3" --arg new_app "$application_version_release_digit_1.$application_version_release_digit_2.$application_version_release_digit_3" '.scripts[$script_name] |= (if (.["upgrade-path"] | type == "array") then if (.["upgrade-path"] | map(select(. == ($current_app + " > " + $new_app))) | length == 0) then .["upgrade-path"] += [$current_app + " > " + $new_app] else . end else .["upgrade-path"] = [$current_app + " > " + $new_app] end )' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"

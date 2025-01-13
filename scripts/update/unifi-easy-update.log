@@ -11,6 +11,15 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 9.8.7
+  
+ - Added a check that disables/removes existing Adoptium repositories.
+ - Improved getting the MongoDB version.
+ - Improved removing older MongoDB repository entries.
+ - Improved getting CPU model name.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 9.8.6
   
  - Improved getting CPU model name.
