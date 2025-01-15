@@ -58,7 +58,7 @@
 ###################################################################################################################################################################################################
 
 # Script                | UniFi Network Easy Installation Script
-# Version               | 8.5.1
+# Version               | 8.5.3
 # Application version   | 9.0.108-u598f2io2a
 # Debian Repo version   | 9.0.108-27982-1
 # Author                | Glenn Rietveld
@@ -1145,7 +1145,8 @@ if grep -qriIl "apt.glennr.nl/debian\\|apt.glennr.nl/ubuntu" /etc/apt/; then gle
 glennr_mongod_repository_check() {
   if [[ "$(jq -r '.database["glennr-mongod-repository-check"]' "${eus_dir}/db/db.json" 2> /dev/null)" -lt "1733356800" ]]; then
     while read -r glennr_repo_list; do
-      apt-get update -o Dir::Etc::SourceList="${glennr_repo_list}" --allow-releaseinfo-change &> /dev/null
+      if [[ "${glennr_mongod_repository_check_date}" != "true" ]]; then echo -e "\\n------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/glennr-apt-repository-update.log"; glennr_mongod_repository_check_date="true"; fi
+      apt-get update -o Dir::Etc::SourceList="${glennr_repo_list}" --allow-releaseinfo-change &>> "${eus_dir}/logs/glennr-apt-repository-update.log"
     done < <(grep -riIl "apt.glennr.nl" /etc/apt/)
     glennr_mongod_repository_check_time="$(date +%s)"
     if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
@@ -1674,7 +1675,8 @@ add_glennr_mongod_repo() {
       mongod_repo_entry="deb [ ${arch}${signed_by_value} ] ${repo_http_https}://apt.glennr.nl/${mongod_codename} ${mongod_repo_type}"
     fi
     if echo -e "${mongod_repo_entry}" &> "/etc/apt/sources.list.d/glennr-mongod-${mongod_version_major_minor}.${source_file_format}"; then
-      echo -e "${GREEN}#${RESET} Successfully added the Glenn R. APT repository for mongod ${mongod_version_major_minor}${try_http_glennr_mongod_repo_text_2}!\\n" && sleep 2
+      echo -e "${GREEN}#${RESET} Successfully added the Glenn R. APT repository for mongod ${mongod_version_major_minor}${try_http_glennr_mongod_repo_text_2}!\\n"
+      glennr_mongod_repository_check
       if [[ "${mongodb_key_update}" != 'true' ]]; then
         run_apt_get_update
         mongod_upgrade_to_version_with_dot="$(apt-cache policy "${gr_mongod_name}" | grep -i "${mongo_version_max_with_dot}" | grep -i Candidate | sed -e 's/ //g' -e 's/*//g' | cut -d':' -f2)"
@@ -4155,6 +4157,11 @@ multiple_attempt_to_install_package() {
       attempt_message="fifth"
     fi
     if [[ "${multiple_attempt_to_install_package_name}" =~ (mongodb-mongosh-shared-openssl11|mongodb-mongosh-shared-openssl3|mongodb-org-shell|mongodb-org-tools) ]]; then
+      if [[ "${multiple_attempt_to_install_package_name}" == "mongodb-mongosh-shared-openssl11" ]]; then
+        if ! "$(which dpkg)" -l libssl1.1 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui" && "$(which dpkg)" -l libssl3t64 libssl3 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+          multiple_attempt_to_install_package_name="mongodb-mongosh-shared-openssl3"
+        fi
+      fi
       if [[ "${attempt_to_install_package_attempts}" == '1' ]]; then
         try_different_mongodb_repo="true"
       elif [[ "${attempt_to_install_package_attempts}" == '2' ]]; then
@@ -4878,6 +4885,8 @@ if [[ "${mongodb_version_installed_no_dots::2}" -gt "${mongo_version_max}" ]]; t
                 mongodb_mongosh_install_package_name="mongodb-mongosh-shared-openssl3"
               elif [[ "${mongodb_mongosh_libssl_version}" == 'libssl1.1' ]]; then
                 mongodb_mongosh_install_package_name="mongodb-mongosh-shared-openssl11"
+              elif "$(which dpkg)" -l libssl3t64 libssl3 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+                mongodb_mongosh_install_package_name="mongodb-mongosh-shared-openssl3"
               else
                 mongodb_mongosh_install_package_name="mongodb-mongosh-shared-openssl11"
               fi
@@ -6164,8 +6173,15 @@ mongodb_installation() {
         mongodb_mongosh_install_package_name="mongodb-mongosh-shared-openssl3"
       elif [[ "${mongodb_mongosh_libssl_version}" == 'libssl1.1' ]]; then
         mongodb_mongosh_install_package_name="mongodb-mongosh-shared-openssl11"
+      elif "$(which dpkg)" -l libssl3t64 libssl3 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+        mongodb_mongosh_install_package_name="mongodb-mongosh-shared-openssl3"
       else
         mongodb_mongosh_install_package_name="mongodb-mongosh-shared-openssl11"
+      fi
+      if [[ "${mongodb_mongosh_install_package_name}" == "mongodb-mongosh-shared-openssl11" ]]; then
+        if ! "$(which dpkg)" -l libssl1.1 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui" && "$(which dpkg)" -l libssl3t64 libssl3 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+          mongodb_mongosh_install_package_name="mongodb-mongosh-shared-openssl3"
+        fi
       fi
       echo -e "${GRAY_R}#${RESET} Installing ${mongodb_mongosh_install_package_name}..."
       check_dpkg_lock

@@ -11,6 +11,19 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 9.8.9
+  
+ - Improved the MongoDB mongosh installation process.
+ - Fixed MongoDB upgrade failing when mongodb-server-core is installed.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 9.8.8
+  
+ - Improved logging.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 9.8.7
   
  - Added a check that disables/removes existing Adoptium repositories.

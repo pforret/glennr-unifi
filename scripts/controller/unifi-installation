@@ -11,6 +11,18 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 8.5.3
+  
+ - Improved the MongoDB mongosh installation process.
+ 
+ ####
+
+ |  UniFi Network Application Installation Script  |  Version 8.5.2
+  
+ - Improved logging.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 8.5.1
   
  - Added a check that disables/removes existing Adoptium repositories.
