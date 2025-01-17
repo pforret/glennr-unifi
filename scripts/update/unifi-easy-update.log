@@ -11,6 +11,12 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 9.9.0
+  
+ - Improved the MongoDB downgrade process.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 9.8.9
   
  - Improved the MongoDB mongosh installation process.

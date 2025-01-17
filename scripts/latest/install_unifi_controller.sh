@@ -58,7 +58,7 @@
 ###################################################################################################################################################################################################
 
 # Script                | UniFi Network Easy Installation Script
-# Version               | 8.5.3
+# Version               | 8.5.4
 # Application version   | 9.0.108-u598f2io2a
 # Debian Repo version   | 9.0.108-27982-1
 # Author                | Glenn Rietveld
@@ -6080,13 +6080,13 @@ mongodb_installation() {
   te_mongodb_org_server_version="${install_mongodb_version//./}"
   if "$(which dpkg)" -l mongodb-org-database-tools-extra 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui" && [[ "${te_mongodb_org_server_version::2}" -lt "44" ]]; then
     mongodb_tools_extra_dependencies=()
-    if "$(which dpkg)" -l | awk '{print $2}' | grep -ioq "mongodb-org-database$"; then tools_extra_dependency_1="mongodb-org-database"; mongodb_tools_extra_dependencies+=("mongodb-org-database"); fi
-    if "$(which dpkg)" -l | awk '{print $2}' | grep -ioq "mongodb-org-tools$"; then tools_extra_dependency_2="mongodb-org-tools"; mongodb_tools_extra_dependencies+=("mongodb-org-tools"); fi
-    if "$(which dpkg)" -l | awk '{print $2}' | grep -ioq "mongodb-org$"; then tools_extra_dependency_3="mongodb-org"; mongodb_tools_extra_dependencies+=("mongodb-org"); fi
+    if "$(which dpkg)" -l | awk '{print $2}' | grep -ioq "mongodb-org-database$"; then mongodb_tools_extra_dependencies+=("mongodb-org-database"); fi
+    if "$(which dpkg)" -l | awk '{print $2}' | grep -ioq "mongodb-org-tools$"; then mongodb_tools_extra_dependencies+=("mongodb-org-tools"); fi
+    if "$(which dpkg)" -l | awk '{print $2}' | grep -ioq "mongodb-org$"; then mongodb_tools_extra_dependencies+=("mongodb-org"); fi
     if [[ "${#mongodb_tools_extra_dependencies[@]}" -gt 0 ]]; then tools_extra_dependency_extra_packages_message=", $(IFS=,; echo "${mongodb_tools_extra_dependencies[*]}" | sed 's/,/, /g; s/,\([^,]*\)$/ and\1/')"; fi
     check_dpkg_lock
     echo -e "${GRAY_R}#${RESET} Purging package mongodb-org-database-tools-extra${tools_extra_dependency_extra_packages_message}..."
-    if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' purge "mongodb-org-database-tools-extra" "${tools_extra_dependency_1}" "${tools_extra_dependency_2}" "${tools_extra_dependency_3}" &>> "${eus_dir}/logs/unifi-database-required.log"; then
+    if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' purge "mongodb-org-database-tools-extra" "${mongodb_tools_extra_dependencies[*]}" &>> "${eus_dir}/logs/unifi-database-required.log"; then
       echo -e "${GREEN}#${RESET} Successfully purged mongodb-org-database-tools-extra${tools_extra_dependency_extra_packages_message}! \\n"
     else
       echo -e "${RED}#${RESET} Failed to purge mongodb-org-database-tools-extra${tools_extra_dependency_extra_packages_message}...\\n"
@@ -6680,15 +6680,25 @@ if [[ "${mongo_version_locked}" == '4.4.18' ]] || [[ "${unsupported_database_ver
     awk '{ if ($0 == "mongodb-server") { server_found = 1; } else if ($0 == "mongodb-server-core") { core_found = 1; } if (!found_both) { original[NR] = $0; } } END { if (server_found && core_found) { found_both = 1; printed_server = 0; printed_core = 0; for (i = 1; i <= NR; i++) { if (original[i] == "mongodb-server" && !printed_server) { printed_server = 1; continue; } else if (original[i] == "mongodb-server-core" && !printed_core) { printed_core = 1; print "mongodb-server"; } print original[i]; } } else { for (i = 1; i <= NR; i++) { print original[i]; } } }' /tmp/EUS/mongodb/packages_remove_list &> /tmp/EUS/mongodb/packages_remove_list.tmp && mv /tmp/EUS/mongodb/packages_remove_list.tmp /tmp/EUS/mongodb/packages_remove_list
     if grep -iq "unifi" /tmp/EUS/mongodb/packages_remove_list; then reinstall_unifi="true"; fi
     while read -r package; do
-      if [[ "${package}" == "mongodb-org-"* ]] && "$(which dpkg)" -l | grep -i "^ii\\|^hi\\|^ri\\|^pi\\|^ui" | awk '{print $2}' | grep -ioq "mongodb-org$"; then package2="mongodb-org"; fi
-      echo -e "${GRAY_R}#${RESET} Removing ${package}..."
+      mongodb_extra_dependencies=()
+      while read -r mongodb_extra_dependency; do
+        if "$(which dpkg)" -l | awk '{print $2}' | grep -ioq "${mongodb_extra_dependency}$"; then mongodb_extra_dependencies+=("${mongodb_extra_dependency}"); fi
+      done < <(apt-cache rdepends "${package}" 2> /dev/null | awk -v pkg="${package}" '($0 ~ /mongodb-/ || $0 ~ /unifi/) && $0 != pkg && !seen[$0]++ {gsub(/ /, "", $0); print}' 2> /dev/null)
+      if [[ "${package}" == "mongodb-org-"* ]] && dpkg -l | grep -i "^ii\\|^hi\\|^ri\\|^pi\\|^ui" | awk '{print $2}' | grep -ioq "mongodb-org$"; then
+        for dep in "${mongodb_extra_dependencies[@]}"; do if [[ "${dep}" == "mongodb-org" ]]; then located_mongodb_org_dep="true"; break; fi; done
+        if [[ "${located_mongodb_org_dep}" != "true" ]]; then mongodb_extra_dependencies+=("mongodb-org"); fi
+      fi
+      for dep in "${mongodb_extra_dependencies[@]}"; do if [[ "${dep}" == "unifi" ]]; then reinstall_unifi="true"; break; fi; done
+      if [[ "${#mongodb_extra_dependencies[@]}" -gt 0 ]]; then mongodb_extra_dependencies_message=", $(IFS=,; echo "${mongodb_extra_dependencies[*]}" | sed 's/,/, /g; s/,\([^,]*\)$/ and\1/')"; fi
+      echo -e "${GRAY_R}#${RESET} Removing ${package}${mongodb_extra_dependencies_message}..."
       check_dpkg_lock
-      if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_downgrade_option[@]}" "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' remove "${package}" "${package2}" &>> "${eus_dir}/logs/mongodb-unsupported-version-change.log"; then
-        echo -e "${GREEN}#${RESET} Successfully removed ${package}! \\n"
+      if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_downgrade_option[@]}" "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' remove "${package}" "${mongodb_extra_dependencies[*]}" &>> "${eus_dir}/logs/mongodb-unsupported-version-change.log"; then
+        echo -e "${GREEN}#${RESET} Successfully removed ${package}${mongodb_extra_dependencies_message}! \\n"
       else
-        abort_reason="Failed to remove ${package} during the downgrade process."
+        abort_reason="Failed to remove ${package}${mongodb_extra_dependencies_message} during the downgrade process."
         abort
       fi
+      unset mongodb_extra_dependencies
     done < /tmp/EUS/mongodb/packages_remove_list
     while read -r mongodb_package; do
       if [[ "${previous_mongodb_version::2}" == "24" ]]; then
