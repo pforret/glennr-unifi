@@ -11,6 +11,26 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 9.9.4
+  
+ - Improved proxy detection by also checking apt and wget configuration files.
+ - Fixed an issue where the script would get stuck if HTTP/HTTPS proxies were not configured in /etc/environment or /etc/profile.d/.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 9.9.3
+  
+ - Improved the dpkg lock check.
+ - Improved the EUS tmp directory creation process.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 9.9.2
+  
+ - Improved the Java installation process.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 9.9.1
   
  - Fixed an issue where the MongoDB downgrade process could fail.

@@ -11,6 +11,19 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Encrypt Script  |  Version 3.4.5
+  
+ - Improved proxy detection by also checking apt and wget configuration files.
+ - Fixed an issue where the script would get stuck if HTTP/HTTPS proxies were not configured in /etc/environment or /etc/profile.d/.
+ 
+ ####
+
+ |  UniFi Easy Encrypt Script  |  Version 3.4.4
+  
+ - Improved the dpkg lock check.
+ 
+ ####
+
  |  UniFi Easy Encrypt Script  |  Version 3.4.3
   
  - Improved getting the MongoDB version.

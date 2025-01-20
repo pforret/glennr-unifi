@@ -2,7 +2,7 @@
 
 # UniFi Network Application Easy Update Script.
 # Script   | UniFi Network Easy Update Script
-# Version  | 9.9.1
+# Version  | 9.9.4
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -213,16 +213,40 @@ check_apt_listbugs() {
   fi
 }
 
+locate_http_proxy() {
+  env_proxies="$(grep -E "^[^#]*http_proxy|^[^#]*https_proxy" "/etc/environment" | awk -F '=' '{print $2}' | tr -d '"')"
+  profile_proxies="$(find /etc/profile.d/ -type f -exec sh -c 'grep -E "^[^#]*http_proxy|^[^#]*https_proxy" "$1" | awk -F "=" "{print \$2}" | tr -d "\"" ' _ {} \;)"
+  apt_proxies="$(grep -iE "proxy" /etc/apt/apt.conf /etc/apt/apt.conf.d/* 2> /dev/null | awk -F '"' '{print $2}')"
+  wget_proxies="$(grep -E "^[^#]*http_proxy|^[^#]*https_proxy" "/etc/wgetrc" | awk -F '=' '{print $2}' | tr -d '"')"
+  # Combine, normalize (remove trailing slashes), and sort unique proxies
+  all_proxies="$(echo -e "$env_proxies\n$profile_proxies\n$apt_proxies\n$wget_proxies" | sed 's:/*$::' | sort -u | grep -v '^$')"
+  http_proxy="$(echo "$all_proxies" | tail -n1)"
+  if [[ -n "$(command -v jq)" && -e "${eus_dir}/db/db.json" ]]; then
+    if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
+      json_proxies="$(echo "$all_proxies" | jq -R -s 'split("\n") | map(select(length > 0))')"
+      jq --argjson proxies "$json_proxies" '.database."http-proxy" = $proxies' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+    else
+      json_proxies="$(echo "$all_proxies" | awk 'NF' | awk '{ printf "%s\n", $0 }' | sed 's/^/"/;s/$/"/' | paste -sd, - | sed 's/^/[/;s/$/]/')"
+      jq '.database["http-proxy"] = '"$json_proxies"'' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+    fi
+    eus_database_move
+  fi
+  if [[ -n "${http_proxy}" ]]; then noproxy_curl_argument=('--noproxy' '127.0.0.1,localhost'); fi
+  if [[ -z "${env_proxies}" && -n "${http_proxy}" ]]; then curl_proxy_arg=('--proxy' "${http_proxy}"); fi
+}
+
 set_curl_arguments() {
-  if [[ "$(command -v jq)" ]]; then ssl_check_status="$(curl --silent "https://api.glennr.nl/api/ssl-check" 2> /dev/null | jq -r '.status' 2> /dev/null)"; else ssl_check_status="$(curl --silent "https://api.glennr.nl/api/ssl-check" 2> /dev/null | grep -oP '(?<="status":")[^"]+')"; fi
+  locate_http_proxy
+  if [[ "$(command -v jq)" ]]; then ssl_check_status="$(curl "${curl_proxy_arg[@]}" --silent "https://api.glennr.nl/api/ssl-check" 2> /dev/null | jq -r '.status' 2> /dev/null)"; else ssl_check_status="$(curl "${curl_proxy_arg[@]}" --silent "https://api.glennr.nl/api/ssl-check" 2> /dev/null | grep -oP '(?<="status":")[^"]+')"; fi
   if [[ "${ssl_check_status}" != "OK" ]]; then
     if [[ -e "/etc/ssl/certs/" ]]; then
-      if [[ "$(command -v jq)" ]]; then ssl_check_status="$(curl --silent --capath /etc/ssl/certs/ "https://api.glennr.nl/api/ssl-check" 2> /dev/null | jq -r '.status' 2> /dev/null)"; else ssl_check_status="$(curl --silent --capath /etc/ssl/certs/ "https://api.glennr.nl/api/ssl-check" 2> /dev/null | grep -oP '(?<="status":")[^"]+')"; fi
+      if [[ "$(command -v jq)" ]]; then ssl_check_status="$(curl "${curl_proxy_arg[@]}" --silent --capath /etc/ssl/certs/ "https://api.glennr.nl/api/ssl-check" 2> /dev/null | jq -r '.status' 2> /dev/null)"; else ssl_check_status="$(curl "${curl_proxy_arg[@]}" --silent --capath /etc/ssl/certs/ "https://api.glennr.nl/api/ssl-check" 2> /dev/null | grep -oP '(?<="status":")[^"]+')"; fi
       if [[ "${ssl_check_status}" == "OK" ]]; then curl_args="--capath /etc/ssl/certs/"; fi
     fi
     if [[ -z "${curl_args}" && "${ssl_check_status}" != "OK" ]]; then curl_args="--insecure"; fi
   fi
   if [[ -z "${curl_args}" ]]; then curl_args="--silent"; elif [[ "${curl_args}" != *"--silent"* ]]; then curl_args+=" --silent"; fi
+  if [[ -n "${curl_proxy_arg[*]}" ]]; then curl_args+=" ${curl_proxy_arg[*]}"; fi
   if [[ "${curl_args}" != *"--show-error"* ]]; then curl_args+=" --show-error"; fi
   if [[ "${curl_args}" != *"--retry"* ]]; then curl_args+=" --retry 3"; fi
   IFS=' ' read -r -a curl_argument <<< "${curl_args}"
@@ -266,25 +290,6 @@ check_lxc_setup() {
     fi
     eus_database_move
   fi
-}
-
-locate_http_proxy() {
-  env_proxies="$(grep -E "^[^#]*http_proxy|^[^#]*https_proxy" "/etc/environment" | awk -F '=' '{print $2}' | tr -d '"')"
-  profile_proxies="$(find /etc/profile.d/ -type f -exec sh -c 'grep -E "^[^#]*http_proxy|^[^#]*https_proxy" "$1" | awk -F "=" "{print \$2}" | tr -d "\"" ' _ {} \;)"
-  # Combine, normalize (remove trailing slashes), and sort unique proxies
-  all_proxies="$(echo -e "$env_proxies\n$profile_proxies" | sed 's:/*$::' | sort -u | grep -v '^$')"
-  http_proxy="$(echo "$all_proxies" | tail -n1)"
-  if [[ -n "$(command -v jq)" && -e "${eus_dir}/db/db.json" ]]; then
-    if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
-      json_proxies="$(echo "$all_proxies" | jq -R -s 'split("\n") | map(select(length > 0))')"
-      jq --argjson proxies "$json_proxies" '.database."http-proxy" = $proxies' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
-    else
-      json_proxies="$(echo "$all_proxies" | awk 'NF' | awk '{ printf "%s\n", $0 }' | sed 's/^/"/;s/$/"/' | paste -sd, - | sed 's/^/[/;s/$/]/')"
-      jq '.database["http-proxy"] = '"$json_proxies"'' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
-    fi
-    eus_database_move
-  fi
-  if [[ -n "${http_proxy}" ]]; then noproxy_curl_argument=('--noproxy' '127.0.0.1,localhost'); fi
 }
 
 update_eus_db() {
@@ -885,9 +890,15 @@ eus_tmp_directory_check() {
   if [[ "${eus_tmp_directory_cleanup_done}" != 'true' ]] || [[ "${eus_tmp_directory_cleanup}" == 'true' ]]; then find "${eus_dir}/tmp/" -mindepth 1 -maxdepth 1 -type d -exec rm -rf {} + 2> /dev/null; eus_tmp_directory_cleanup_done="true"; fi
   if [[ "${eus_tmp_directory_cleanup}" == 'true' ]]; then return 0; fi
   eus_tmp_directory_create_attempts="${eus_tmp_directory_create_attempts:-0}"
-  if [[ -z "${eus_tmp_directory_location}" ]]; then eus_tmp_directory_location="$(mktemp -d "$(date +%Y%m%d)_XXXXX" --tmpdir="${eus_dir}/tmp/" 2>> "${eus_dir}/logs/create-tmp-dir-file.log")"; fi
+  if [[ -n "${eus_tmp_directory_location}" && -d "${eus_tmp_directory_location}" ]]; then
+    echo -e "$(date +%F-%R) | EUS temporary directory already exists: ${eus_tmp_directory_location}" &>> "${eus_dir}/logs/create-tmp-dir-file.log"
+    return 0
+  elif [[ -z "${eus_tmp_directory_location}" ]]; then
+    eus_tmp_directory_location="$(mktemp -d "$(date +%Y%m%d)_XXXXX" --tmpdir="${eus_dir}/tmp/" 2>> "${eus_dir}/logs/create-tmp-dir-file.log")"
+    echo -e "$(date +%F-%R) | Creating EUS temporary directory: ${eus_tmp_directory_location}" &>> "${eus_dir}/logs/create-tmp-dir-file.log"
+  fi
   if [[ -d "${eus_tmp_directory_location}" ]]; then
-    if [[ "${eus_tmp_directory_location}" != "${eus_tmp_created_directory_location}" ]]; then eus_tmp_created_directory_location="${eus_tmp_directory_location}"; echo -e "$(date +%F-%R) | EUS Temporary directory created: ${eus_tmp_directory_location}" &>> "${eus_dir}/logs/create-tmp-dir-file.log"; fi
+    if [[ "${eus_tmp_directory_location}" != "${eus_tmp_created_directory_location}" ]]; then eus_tmp_created_directory_location="${eus_tmp_directory_location}"; echo -e "$(date +%F-%R) | EUS temporary directory created: ${eus_tmp_directory_location}" &>> "${eus_dir}/logs/create-tmp-dir-file.log"; fi
   else
     unset eus_tmp_directory_location
     ((eus_tmp_directory_create_attempts++))
@@ -1704,7 +1715,7 @@ release_wanted () {
         1*|"")
           release_stage="S"
           release_stage_friendly="Stable"
-          if [[ "${unifi}" == '8.3.32' ]]; then
+          if [[ "${unifi}" == "${latest_release}" ]]; then
             header_red
             echo -e "${GRAY_R}#${RESET} There are currently no newer Stable Releases."
             echo -e "${GRAY_R}#${RESET} Release Stage set to | Release Candidate.\\n\\n"
@@ -2302,13 +2313,21 @@ check_dpkg_lock() {
       lock_owner="$(fuser "${lock_file}" 2>/dev/null)"
     fi
     if [[ -n "${lock_owner}" ]]; then
-      echo -e "${GRAY_R}#${RESET} $(echo "${lock_file}" | cut -d'/' -f4) is currently locked by process ${lock_owner}... We'll give it 2 minutes to finish."
-      echo -e "$(date +%F-%R) | $(echo "${lock_file}" | cut -d'/' -f4) is currently locked by process ${lock_owner}... We'll give it 2 minutes to finish." &>> "${eus_dir}/logs/dpkg-lock.log"
+      IFS=$'\n' read -rd '' -a lock_owner_array <<< "$lock_owner"
+      if [[ "${#lock_owner_array[@]}" -eq "2" ]]; then
+        lock_owner_message="${lock_owner_array[0]} and ${lock_owner_array[1]}"
+      else
+        lock_owner_message="${lock_owner_array[0]}"
+        for ((i = 1; i < "${#lock_owner_array[@]}" - 1; i++)); do lock_owner_message+=", ${lock_owner_array[i]}"; done
+        if [[ "${#lock_owner_array[@]}" -gt "1" ]]; then lock_owner_message+=" and ${lock_owner_array[-1]}"; fi
+      fi
+      echo -e "${GRAY_R}#${RESET} $(echo "${lock_file}" | cut -d'/' -f4) is currently locked by process ${lock_owner_message}... We'll give it 2 minutes to finish."
+      echo -e "$(date +%F-%R) | $(echo "${lock_file}" | cut -d'/' -f4) is currently locked by process ${lock_owner_message}... We'll give it 2 minutes to finish." &>> "${eus_dir}/logs/dpkg-lock.log"
       local timeout="120"
       local start_time
       start_time="$(date +%s)"
       while true; do
-        kill -0 "${lock_owner}" &>/dev/null
+        kill -0 "${lock_owner_array[@]}" &>/dev/null
         local kill_result="$?"
         if [[ "$kill_result" -eq "0" ]]; then
           local current_time
@@ -2316,9 +2335,9 @@ check_dpkg_lock() {
           local elapsed_time="$((current_time - start_time))"
           if [[ "${elapsed_time}" -ge "${timeout}" ]]; then
             process_killed="true"
-            echo -e "$(date +%F-%R) | Timeout reached. Killing process ${lock_owner} forcefully." &>> "${eus_dir}/logs/dpkg-lock.log"
-            echo -e "${YELLOW}#${RESET} Timeout reached. Killing process ${lock_owner} forcefully. \\n"
-            kill -9 "${lock_owner}" &>> "${eus_dir}/logs/dpkg-lock.log"
+            echo -e "$(date +%F-%R) | Timeout reached. Killing process ${lock_owner_message} forcefully." &>> "${eus_dir}/logs/dpkg-lock.log"
+            echo -e "${YELLOW}#${RESET} Timeout reached. Killing process ${lock_owner_message} forcefully. \\n"
+            kill -9 "${lock_owner_array[@]}" &>> "${eus_dir}/logs/dpkg-lock.log"
             rm -f "${lock_file}" &>> "${eus_dir}/logs/dpkg-lock.log"
             break
           else
@@ -4706,7 +4725,7 @@ java_install_check() {
       fi
     fi
   fi
-  if ! "$(which dpkg)" -l | grep "^ii\\|^hi" | grep -iq "openjdk-${required_java_version_short}.*:${architecture}\\|temurin-${required_java_version_short}.*:${architecture}"; then incorrect_architecture_java="true"; java_architecture_flag=":${architecture}"; fi
+  if [[ -n "$(dpkg --print-foreign-architectures)" ]]; then if ! dpkg-query --show --showformat='${Package}:${Architecture}\n' | grep -iq "openjdk-${required_java_version_short}.*:${architecture}\\|temurin-${required_java_version_short}.*:${architecture}"; then incorrect_architecture_java="true"; java_architecture_flag=":${architecture}"; fi; fi
   if ! "$(which dpkg)" -l | grep "^ii\\|^hi" | grep -iq "openjdk-${required_java_version_short}\\|temurin-${required_java_version_short}" || [[ "${incorrect_architecture_java}" == 'true' ]] || [[ "${old_openjdk_version}" == 'true' ]] || [[ "${temurin_jdk_to_jre}" == 'true' ]]; then
     if [[ "${old_openjdk_version}" == 'true' ]]; then
       header_red
@@ -13488,7 +13507,6 @@ elif [[ "${first_digit_unifi}" == '8' && "${second_digit_unifi}" == '5' ]]; then
 elif [[ "${first_digit_unifi}" == '8' && "${second_digit_unifi}" == '6' ]]; then
   if [[ "${third_digit_unifi}" -gt '9' ]]; then not_supported_version; fi
   release_wanted
-  if [[ "${release_stage}" == 'S' ]]; then if [[ "${unifi}" == "${latest_release}" ]]; then debug_check_no_upgrade; unifi_update_latest; fi; fi
   header
   echo "  To what UniFi Network Application version would you like to update?"
   echo -e "  Currently your UniFi Network Application is on version ${GRAY_R}$unifi${RESET}"
@@ -13572,6 +13590,7 @@ elif [[ "${first_digit_unifi}" == '8' && "${second_digit_unifi}" == '6' ]]; then
 elif [[ "${first_digit_unifi}" == '9' && "${second_digit_unifi}" == '0' ]]; then
   if [[ "${third_digit_unifi}" -gt '108' ]]; then not_supported_version; fi
   release_wanted
+  if [[ "${release_stage}" == 'S' ]]; then if [[ "${unifi}" == "${latest_release}" ]]; then debug_check_no_upgrade; unifi_update_latest; fi; fi
   if [[ "${release_stage}" == 'RC' ]]; then if [[ "${unifi}" == "${rc_version_available}" ]]; then debug_check_no_upgrade; unifi_update_latest; fi; fi
   header
   echo "  To what UniFi Network Application version would you like to update?"

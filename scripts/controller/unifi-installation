@@ -11,6 +11,26 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 8.5.8
+  
+ - Improved proxy detection by also checking apt and wget configuration files.
+ - Fixed an issue where the script would get stuck if HTTP/HTTPS proxies were not configured in /etc/environment or /etc/profile.d/.
+ 
+ ####
+
+ |  UniFi Network Application Installation Script  |  Version 8.5.7
+  
+ - Improved the dpkg lock check.
+ - Improved the EUS tmp directory creation process.
+ 
+ ####
+
+ |  UniFi Network Application Installation Script  |  Version 8.5.6
+  
+ - Improved the Java installation process.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 8.5.5
   
  - Fixed an issue where the MongoDB downgrade process could fail.
