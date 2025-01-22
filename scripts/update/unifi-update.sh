@@ -2,7 +2,7 @@
 
 # UniFi Network Application Easy Update Script.
 # Script   | UniFi Network Easy Update Script
-# Version  | 9.9.4
+# Version  | 9.9.5
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -5408,7 +5408,14 @@ if [[ "${mongo_version_locked}" == '4.4.18' ]] || [[ "${unsupported_database_ver
         fi
         sed -i "/${installed_mongodb_package}/d" /tmp/EUS/mongodb/packages_list
       fi
-      if [[ "${installed_mongodb_package}" == 'mongodb-org-server' && "${previous_mongodb_version::2}" =~ (70|80) && "${glennr_compiled_mongod}" == 'true' ]]; then if sed -i "s/mongodb-org-server$/${gr_mongod_name}/g" /tmp/EUS/mongodb/packages_list; then echo "mongodb-org-server" &>> /tmp/EUS/mongodb/packages_remove_list; fi; fi
+      if [[ "${installed_mongodb_package}" == 'mongodb-org-server' && "${previous_mongodb_version::2}" =~ (70|80) && "${glennr_compiled_mongod}" == 'true' ]]; then
+        if sed -i "s/mongodb-org-server$/${gr_mongod_name}/g" /tmp/EUS/mongodb/packages_list; then
+          echo "mongodb-org-server" &>> /tmp/EUS/mongodb/packages_remove_list
+          while read -r mongodb_org_server_dep; do
+            if "$(which dpkg)" -l | awk '{print $2}' | grep -ioq "${mongodb_org_server_dep}$" && ! grep -ioq "${mongodb_org_server_dep}" /tmp/EUS/mongodb/packages_remove_list; then echo "${mongodb_org_server_dep}" &>> /tmp/EUS/mongodb/packages_remove_list; fi
+          done < <(apt-cache rdepends "mongodb-org-server" 2> /dev/null | awk -v pkg="${package}" '($0 ~ /mongod/ ) && $0 != pkg && !seen[$0]++ {gsub(/ /, "", $0); print}' 2> /dev/null)
+        fi
+      fi
     done < "/tmp/EUS/mongodb/packages_list.tmp"
     if "$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep -iq "${gr_mongod_name}" && [[ ! "${recovery_install_mongodb_version::2}" =~ (70|80) ]]; then if sed -i "s/${gr_mongod_name}/mongodb-org-server/g" /tmp/EUS/mongodb/packages_list; then echo "${gr_mongod_name}" &>> /tmp/EUS/mongodb/packages_remove_list; fi; fi
     rm --force "/tmp/EUS/mongodb/packages_list.tmp" &> /dev/null

@@ -11,6 +11,13 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 8.5.9
+  
+ - Improved the MongoDB downgrade process.
+ - Fixed an issue where the script doesn't add the MongoDB repository when using MongoDB compiled Glenn R.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 8.5.8
   
  - Improved proxy detection by also checking apt and wget configuration files.
