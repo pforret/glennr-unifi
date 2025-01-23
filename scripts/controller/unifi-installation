@@ -11,6 +11,22 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 8.6.1
+  
+ - Improved the MongoDB downgrade process.
+ 
+ ####
+
+ |  UniFi Network Application Installation Script  |  Version 8.6.0
+  
+ - Improved the deb package download process.
+ - Improved script performance.
+ - Fixed an issue where the script could upgrade bookworm to trixie while attempting to install MongoDB 8.0 on arm64 platforms running Debian Bookworm.
+ - Fixed an issue where the script could throw grep errors.
+ - Fixed an issue where the script would throw errors when running --support-file argument on a fresh setup.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 8.5.9
   
  - Improved the MongoDB downgrade process.

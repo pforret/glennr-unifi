@@ -11,6 +11,14 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Encrypt Script  |  Version 3.4.6
+  
+ - Improved script performance.
+ - Fixed an issue where the script could throw grep errors.
+ - Fixed an issue where the script would throw errors when running --support-file argument on a fresh setup.
+ 
+ ####
+
  |  UniFi Easy Encrypt Script  |  Version 3.4.5
   
  - Improved proxy detection by also checking apt and wget configuration files.
