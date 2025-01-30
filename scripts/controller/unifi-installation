@@ -11,6 +11,15 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 8.6.2
+  
+ - Improved the MongoDB 2.6 installation recovery for 64-bit systems.
+ - Improved AVX debug information.
+ - Improved support files.
+ - Improved logging.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 8.6.1
   
  - Improved the MongoDB downgrade process.

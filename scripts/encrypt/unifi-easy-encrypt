@@ -11,6 +11,13 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Encrypt Script  |  Version 3.4.7
+  
+ - Improved support files.
+ - Improved logging.
+ 
+ ####
+
  |  UniFi Easy Encrypt Script  |  Version 3.4.6
   
  - Improved script performance.
