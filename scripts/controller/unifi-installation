@@ -11,6 +11,18 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 8.6.4
+  
+ - Improved the scripts version check.
+ 
+ ####
+
+ |  UniFi Network Application Installation Script  |  Version 8.6.3
+  
+ - Improved the unmet dependecy recovery process.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 8.6.2
   
  - Improved the MongoDB 2.6 installation recovery for 64-bit systems.

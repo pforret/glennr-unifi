@@ -2,7 +2,7 @@
 
 # UniFi Easy Encrypt script.
 # Script   | UniFi Network Easy Encrypt Script
-# Version  | 3.4.7
+# Version  | 3.4.9
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -1638,6 +1638,11 @@ check_unmet_dependencies() {
       while read -r dependency; do
         if [[ "${check_unmet_dependencies_repositories_added}" != "true" ]]; then check_default_repositories; check_unmet_dependencies_repositories_added="true"; fi
         dependency_no_version="$(echo "${dependency}" | awk -F' ' '{print $1}')"
+        if [[ "${original_dependency_no_version}" == "${dependency_no_version}" ]]; then
+          sed -i "s/Depends: ${dependency_no_version}/Depends (completed): ${dependency_no_version}/g" "${log_file}" 2>> "${eus_dir}/logs/unmet-dependency-sed.log"
+          continue
+        fi
+        original_dependency_no_version="${dependency_no_version}"
         dependency="$(echo "${dependency}" | tr -d '()' | tr -d ',' | sed -e 's/ *= */=/g' -e 's/~//g')"
         if echo "${dependency}" | grep -ioq ">="; then dependency_to_install="${dependency_no_version}"; else dependency_to_install="${dependency}"; fi
         if [[ -n "${dependency_to_install}" ]]; then
@@ -1677,10 +1682,11 @@ check_unmet_dependencies() {
                 break
               fi
             done <<< "${list_of_distro_versions}"
+	        cleanup_codename_mismatch_repos
             if [[ -e "/etc/apt/sources.list.d/glennr-install-script-unmet.${source_file_format}" ]]; then rm --force "/etc/apt/sources.list.d/glennr-install-script-unmet.${source_file_format}" &> /dev/null; fi
           fi
         fi
-      done < <(grep "Depends:" "${log_file}" | sed 's/.*Depends: //' | sed -e 's/ but it is not going to be installed//' -e 's/).*//' | sort | uniq)
+      done < <(grep "Depends:" "${log_file}" | sed 's/.*Depends: //' | sed -e 's/ but it.*//' -e 's/).*//' | sort | uniq)
       while read -r breaking_package; do
         echo -e "${GRAY_R}#${RESET} Attempting to prevent ${breaking_package} from screwing over apt..."
         if echo "${breaking_package} hold" | "$(which dpkg)" --set-selections &>> "${eus_dir}/logs/unmet-dependency-break.log"; then
@@ -1767,9 +1773,22 @@ check_dpkg_lock() {
   check_dpkg_interrupted
 }
 
+update_script() {
+  check_apt_listbugs
+  header_red
+  echo -e "${GRAY_R}#${RESET} You're currently running script version ${local_version} while ${online_version} is the latest!"
+  echo -e "${GRAY_R}#${RESET} Downloading and executing version ${online_version} of the script...\\n\\n"
+  sleep 3
+  rm --force "${script_location}" 2> /dev/null
+  rm --force unifi-update.sh 2> /dev/null
+  # shellcheck disable=SC2068
+  curl "${curl_argument[@]}" --remote-name https://get.glennr.nl/unifi/extra/unifi-easy-encrypt.sh && bash unifi-easy-encrypt.sh ${script_options[@]}; exit 0
+}
+
 script_version_check() {
   local local_version
   local online_version
+  version="$(grep -i "# Application version" "${script_location}" | head -n 1 | cut -d'|' -f2 | sed 's/ //g' | cut -d'-' -f1)"
   local_version="$(grep -i "# Version" "${script_location}" | head -n 1 | cut -d'|' -f2 | sed 's/ //g')"
   if [[ -n "$(command -v jq)" ]]; then
     online_version="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-script-version?script=unifi-easy-encrypt" 2> /dev/null | jq -r '."latest-script-version"' 2> /dev/null)"
@@ -1778,38 +1797,17 @@ script_version_check() {
   fi
   IFS='.' read -r -a local_parts <<< "${local_version}"
   IFS='.' read -r -a online_parts <<< "${online_version}"
-  if [[ "${#local_parts[@]}" -gt "${#online_parts[@]}" ]]; then max_length="${#local_parts[@]}"; else max_length="${#online_parts[@]}"; fi
-  local local_adjusted=()
-  local online_adjusted=()
-  for ((i = 0; i < max_length; i++)) do
+  local max_length=$(( ${#local_parts[@]} > ${#online_parts[@]} ? ${#local_parts[@]} : ${#online_parts[@]} ))
+  for ((i = 0; i < max_length; i++)); do
     local local_segment="${local_parts[$i]:-0}"
     local online_segment="${online_parts[$i]:-0}"
-    local max_segment_length="${#local_segment}"
-    [[ "${#online_segment}" -gt "${max_segment_length}" ]] && max_segment_length="${#online_segment}"
-    if [[ "${#local_segment}" -lt max_segment_length ]]; then
-      local_segment="$(printf "%s%s" "${local_segment}" "$(printf '0%.0s' $(seq $((max_segment_length - ${#local_segment}))) )")"
+    if (( local_segment < online_segment )); then
+      update_script
+      return
+    elif (( local_segment > online_segment )); then
+      return
     fi
-    if [[ "${#online_segment}" -lt max_segment_length ]]; then
-      online_segment="$(printf "%s%s" "${online_segment}" "$(printf '0%.0s' $(seq $((max_segment_length - ${#online_segment}))) )")"
-    fi
-    local_adjusted+=("$local_segment")
-    online_adjusted+=("$online_segment")
   done
-  local local_version_adjusted
-  local online_version_adjusted
-  local_version_adjusted="$(IFS=; echo "${local_adjusted[*]}")"
-  online_version_adjusted="$(IFS=; echo "${online_adjusted[*]}")"
-  if [[ "${local_version_adjusted}" -lt "${online_version_adjusted}" ]]; then
-    check_apt_listbugs
-    header_red
-    echo -e "${GRAY_R}#${RESET} You're currently running script version ${local_version} while ${online_version} is the latest!"
-    echo -e "${GRAY_R}#${RESET} Downloading and executing version ${online_version} of the script...\\n\\n"
-    sleep 3
-    rm --force "${script_location}" 2> /dev/null
-    rm --force unifi-update.sh 2> /dev/null
-    # shellcheck disable=SC2068
-    curl "${curl_argument[@]}" --remote-name https://get.glennr.nl/unifi/extra/unifi-easy-encrypt.sh && bash unifi-easy-encrypt.sh ${script_options[@]}; exit 0
-  fi
 }
 if [[ "$(command -v curl)" ]]; then script_version_check; fi
 

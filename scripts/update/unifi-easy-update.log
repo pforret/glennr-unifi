@@ -11,6 +11,26 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 10.0.1
+  
+ - Updated the API endpoint for checking for latest script versions.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 10.0.0
+  
+ - Fixed the inability to see the upgrade to 9.0.114 RC.
+ - Improved the scripts version check.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 9.9.9
+  
+ - Added support for updating to 9.0.114 RC.
+ - Improved the unmet dependecy recovery process.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 9.9.8
   
  - Improved AVX debug information.

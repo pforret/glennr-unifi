@@ -11,6 +11,18 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Encrypt Script  |  Version 3.4.9
+  
+ - Improved the scripts version check.
+ 
+ ####
+
+ |  UniFi Easy Encrypt Script  |  Version 3.4.8
+  
+ - Improved the unmet dependecy recovery process.
+ 
+ ####
+
  |  UniFi Easy Encrypt Script  |  Version 3.4.7
   
  - Improved support files.

@@ -58,7 +58,7 @@
 ###################################################################################################################################################################################################
 
 # Script                | UniFi Network Easy Installation Script
-# Version               | 8.6.2
+# Version               | 8.6.4
 # Application version   | 7.2.92-c5bb7ccb18
 # Debian Repo version   | 7.2.92-18687-1
 # Author                | Glenn Rietveld
@@ -2812,8 +2812,19 @@ check_and_add_to_path "/usr/local/sbin"
 check_and_add_to_path "/usr/sbin"
 check_and_add_to_path "/sbin"
 
+update_script() {
+  check_apt_listbugs
+  header_red
+  echo -e "${GRAY_R}#${RESET} You're currently running script version ${local_version} while ${online_version} is the latest!"
+  echo -e "${GRAY_R}#${RESET} Downloading and executing version ${online_version} of the script...\\n\\n"
+  sleep 3
+  rm --force "${script_location}" 2> /dev/null
+  rm --force "unifi-${version}.sh" 2> /dev/null
+  # shellcheck disable=SC2068
+  curl "${curl_argument[@]}" --remote-name "https://get.glennr.nl/unifi/install/unifi-${version}.sh" && bash "unifi-${version}.sh" ${script_options[@]}; exit 0
+}
+
 script_version_check() {
-  local version
   local local_version
   local online_version
   version="$(grep -i "# Application version" "${script_location}" | head -n 1 | cut -d'|' -f2 | sed 's/ //g' | cut -d'-' -f1)"
@@ -2825,38 +2836,17 @@ script_version_check() {
   fi
   IFS='.' read -r -a local_parts <<< "${local_version}"
   IFS='.' read -r -a online_parts <<< "${online_version}"
-  if [[ "${#local_parts[@]}" -gt "${#online_parts[@]}" ]]; then max_length="${#local_parts[@]}"; else max_length="${#online_parts[@]}"; fi
-  local local_adjusted=()
-  local online_adjusted=()
-  for ((i = 0; i < max_length; i++)) do
+  local max_length=$(( ${#local_parts[@]} > ${#online_parts[@]} ? ${#local_parts[@]} : ${#online_parts[@]} ))
+  for ((i = 0; i < max_length; i++)); do
     local local_segment="${local_parts[$i]:-0}"
     local online_segment="${online_parts[$i]:-0}"
-    local max_segment_length="${#local_segment}"
-    [[ "${#online_segment}" -gt "${max_segment_length}" ]] && max_segment_length="${#online_segment}"
-    if [[ "${#local_segment}" -lt max_segment_length ]]; then
-      local_segment="$(printf "%s%s" "${local_segment}" "$(printf '0%.0s' $(seq $((max_segment_length - ${#local_segment}))) )")"
+    if (( local_segment < online_segment )); then
+      update_script
+      return
+    elif (( local_segment > online_segment )); then
+      return
     fi
-    if [[ "${#online_segment}" -lt max_segment_length ]]; then
-      online_segment="$(printf "%s%s" "${online_segment}" "$(printf '0%.0s' $(seq $((max_segment_length - ${#online_segment}))) )")"
-    fi
-    local_adjusted+=("$local_segment")
-    online_adjusted+=("$online_segment")
   done
-  local local_version_adjusted
-  local online_version_adjusted
-  local_version_adjusted="$(IFS=; echo "${local_adjusted[*]}")"
-  online_version_adjusted="$(IFS=; echo "${online_adjusted[*]}")"
-  if [[ "${local_version_adjusted}" -lt "${online_version_adjusted}" ]]; then
-    check_apt_listbugs
-    header_red
-    echo -e "${GRAY_R}#${RESET} You're currently running script version ${local_version} while ${online_version} is the latest!"
-    echo -e "${GRAY_R}#${RESET} Downloading and executing version ${online_version} of the script...\\n\\n"
-    sleep 3
-    rm --force "${script_location}" 2> /dev/null
-    rm --force "unifi-${version}.sh" 2> /dev/null
-    # shellcheck disable=SC2068
-    curl "${curl_argument[@]}" --remote-name "https://get.glennr.nl/unifi/install/unifi-${version}.sh" && bash "unifi-${version}.sh" ${script_options[@]}; exit 0
-  fi
 }
 if [[ "$(command -v curl)" ]]; then script_version_check; fi
 
@@ -3027,10 +3017,11 @@ check_unmet_dependencies() {
                 break
               fi
             done <<< "${list_of_distro_versions}"
+            cleanup_codename_mismatch_repos
             if [[ -e "/etc/apt/sources.list.d/glennr-install-script-unmet.${source_file_format}" ]]; then rm --force "/etc/apt/sources.list.d/glennr-install-script-unmet.${source_file_format}" &> /dev/null; fi
           fi
         fi
-      done < <(grep "Depends:" "${log_file}" | sed 's/.*Depends: //' | sed -e 's/ but it is not going to be installed//' -e 's/).*//' | sort | uniq)
+      done < <(grep "Depends:" "${log_file}" | sed 's/.*Depends: //' | sed -e 's/ but it.*//' -e 's/).*//' | sort | uniq)
       while read -r breaking_package; do
         echo -e "${GRAY_R}#${RESET} Attempting to prevent ${breaking_package} from screwing over apt..."
         if echo "${breaking_package} hold" | "$(which dpkg)" --set-selections &>> "${eus_dir}/logs/unmet-dependency-break.log"; then
