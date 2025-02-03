@@ -58,7 +58,7 @@
 ###################################################################################################################################################################################################
 
 # Script                | UniFi Network Easy Installation Script
-# Version               | 8.6.4
+# Version               | 8.6.5
 # Application version   | 9.0.114-k5dy363g65
 # Debian Repo version   | 9.0.114-28033-1
 # Author                | Glenn Rietveld
@@ -3223,7 +3223,21 @@ if [[ -n "${unifi_package}" ]] || [[ "${recovery_required}" == 'true' ]]; then
       if [[ "${mongodb_version_installed_no_dots::2}" -lt "${minimum_required_mongodb_version}" ]]; then
         continue
       else
-        broken_unifi_install_version="${unifi_version}"
+        if [[ "$(curl "${curl_argument[@]}" https://api.glennr.nl/api/network-supported-upgrade?status 2> /dev/null | jq -r '.[]' 2> /dev/null)" == "OK" && -n "${broken_unifi_install_version1}" ]]; then
+          net_update_supported="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-supported-upgrade?current_version=${broken_unifi_install_version1}&new_version=${unifi_version}" 2> /dev/null | jq -r '.supported' 2> /dev/null | sed '/null/d' 2> "${eus_dir}/logs/glennr-api.log")"
+          if [[ "${net_update_supported}" == 'true' ]]; then
+            broken_unifi_install_version="${unifi_version}"
+          elif [[ "${net_update_supported}" == 'false' ]]; then\
+            unifi_next_possible_version="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-supported-upgrade?current_version=${broken_unifi_install_version1}&new_version=${unifi_version}" 2> /dev/null | jq -r '.next_possible_version' 2> /dev/null | sed '/null/d' 2> "${eus_dir}/logs/glennr-api.log")"
+            if [[ -n "${unifi_next_possible_version}" ]]; then
+              broken_unifi_install_version="${unifi_next_possible_version}"
+            else
+              broken_unifi_install_version="${unifi_version}"
+            fi
+          fi
+        else
+          broken_unifi_install_version="${unifi_version}"
+        fi
       fi
     done < <(printf "%s\n" "${broken_unifi_install_versions[@]}" | sort -V | awk '!seen[$0]++')
     if [[ -z "${broken_unifi_install_version}" ]]; then broken_unifi_install_version="$(printf "%s\n" "${broken_unifi_install_versions[@]}" | sort -V | tail -n1)"; fi

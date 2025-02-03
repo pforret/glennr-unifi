@@ -2,7 +2,7 @@
 
 # UniFi Network Application Easy Update Script.
 # Script   | UniFi Network Easy Update Script
-# Version  | 10.0.1
+# Version  | 10.0.2
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -8416,15 +8416,24 @@ custom_url_upgrade_check() {
         fi
       fi
     fi
-    echo -e "\\n${GRAY_R}----${RESET}\\n"
-    echo -e "${GRAY_R}#${RESET} You're about to upgrade your UniFi Network Application from \"${current_application_version}\" to \"${custom_application_version}\"."
-    read -rp $'\033[39m#\033[0m Did you confirm that this upgrade is supported? (y/N) ' yes_no
-    case "$yes_no" in
-        [Yy]*) custom_url_install;;
-        [Nn]*|"")
-          echo -e "${GRAY_R}#${RESET} Canceling the script.."
-          cancel_script;;
-    esac
+    if [[ "$(curl "${curl_argument[@]}" https://api.glennr.nl/api/network-supported-upgrade?status 2> /dev/null | jq -r '.[]' 2> /dev/null)" == "OK" ]]; then
+      net_update_supported="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-supported-upgrade?current_version=${current_application_version}&new_version=${custom_application_version}" 2> /dev/null | jq -r '.supported' 2> /dev/null | sed '/null/d' 2> "${eus_dir}/logs/glennr-api.log")"
+      if [[ "${net_update_supported}" == 'true' ]]; then
+        custom_url_install
+      elif [[ "${net_update_supported}" == 'false' ]]; then
+        echo -e "\\n${GRAY_R}----${RESET}\\n"
+        echo -e "${GRAY_R}#${RESET} You're about to perform a unsupported UniFi Network Application update from \"${current_application_version}\" to \"${custom_application_version}\"..."
+        echo -e "${GRAY_R}#${RESET} Canceling the script..."; cancel_script
+      fi
+    else
+      echo -e "\\n${GRAY_R}----${RESET}\\n"
+      echo -e "${GRAY_R}#${RESET} You're about to upgrade your UniFi Network Application from \"${current_application_version}\" to \"${custom_application_version}\"."
+      read -rp $'\033[39m#\033[0m Did you confirm that this upgrade is supported? (y/N) ' yes_no
+      case "$yes_no" in
+          [Yy]*) custom_url_install;;
+          [Nn]*|"") echo -e "${GRAY_R}#${RESET} Canceling the script.."; cancel_script;;
+      esac
+    fi
   elif [[ "${application_upgrade}" == 'match' ]]; then
     header
 	echo -e "${GRAY_R}#${RESET} Your UniFi Network Application is already running \"${current_application_version}\"...\\n\\n"
