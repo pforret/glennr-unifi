@@ -11,6 +11,12 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 10.0.3
+  
+ - Added support for upgrading to 9.0.114 Stable/Official.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 10.0.2
   
  - Improved the custom upgrade process by using the Glenn R. API to confirm if an upgrade is supported or not.
