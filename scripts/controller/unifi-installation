@@ -11,6 +11,17 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 8.6.6
+  
+ - Added support for HTTPS ubuntu repositories.
+ - Added support for Ubuntu Plucky Puffin 25.04.
+ - Improved the unsupported MongoDB upgrade recovery process.
+ - Improved the netcat installation process.
+ - Improved the UniFi Network Application download speed for non-EU countries.
+ - Fixed an issue where things were logged to an incorrect file.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 8.6.5
   
  - Improved the UniFi Network Application recovery process by using the Glenn R. API to confirm if the possible recovery upgrade is supported or not.

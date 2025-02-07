@@ -11,6 +11,16 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 10.0.4
+  
+ - Added support for HTTPS ubuntu repositories.
+ - Added support for Ubuntu Plucky Puffin 25.04.
+ - Improved the unsupported MongoDB upgrade recovery process.
+ - Improved the UniFi Network Application download speed for non-EU countries.
+ - Fixed an issue where things were logged to an incorrect file.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 10.0.3
   
  - Added support for upgrading to 9.0.114 Stable/Official.

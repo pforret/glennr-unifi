@@ -11,6 +11,13 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Encrypt Script  |  Version 3.5.0
+  
+ - Added support for HTTPS ubuntu repositories.
+ - Added support for Ubuntu Plucky Puffin 25.04.
+ 
+ ####
+
  |  UniFi Easy Encrypt Script  |  Version 3.4.9
   
  - Improved the scripts version check.

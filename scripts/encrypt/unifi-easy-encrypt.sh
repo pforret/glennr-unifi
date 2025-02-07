@@ -2,7 +2,7 @@
 
 # UniFi Easy Encrypt script.
 # Script   | UniFi Network Easy Encrypt Script
-# Version  | 3.4.9
+# Version  | 3.5.0
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -1267,7 +1267,7 @@ get_distro() {
       get_distro
       return
     elif [[ "${os_codename}" == 'lts' ]]; then
-      os_codename="$(grep -io "wheezy\\|jessie\\|stretch\\|buster\\|bullseye\\|bookworm\\|trixie\\|forky\\|precise\\|trusty\\|xenial\\|bionic\\|cosmic\\|disco\\|eoan\\|focal\\|groovy\\|hirsute\\|impish\\|jammy\\|kinetic\\|lunar\\|mantic\\|noble\\|oracular" /etc/os-release | tr '[:upper:]' '[:lower:]' | awk '!NF || !seen[$0]++' | head -n1)"
+      os_codename="$(grep -io "wheezy\\|jessie\\|stretch\\|buster\\|bullseye\\|bookworm\\|trixie\\|forky\\|precise\\|trusty\\|xenial\\|bionic\\|cosmic\\|disco\\|eoan\\|focal\\|groovy\\|hirsute\\|impish\\|jammy\\|kinetic\\|lunar\\|mantic\\|noble\\|oracular\\|plucky" /etc/os-release | tr '[:upper:]' '[:lower:]' | awk '!NF || !seen[$0]++' | head -n1)"
     fi
   fi
   if [[ "${unsupported_no_modify}" != 'true' ]]; then
@@ -1280,6 +1280,7 @@ get_distro() {
     elif [[ "${os_codename}" =~ ^(jammy|vanessa|vera|victoria|virginia|horus|cade)$ ]]; then repo_codename="jammy"; os_codename="jammy"; os_id="ubuntu"
     elif [[ "${os_codename}" =~ ^(noble|wilma|xia|scootski|circe)$ ]]; then repo_codename="noble"; os_codename="noble"; os_id="ubuntu"
     elif [[ "${os_codename}" =~ ^(oracular)$ ]]; then repo_codename="oracular"; os_codename="oracular"; os_id="ubuntu"
+    elif [[ "${os_codename}" =~ ^(plucky)$ ]]; then repo_codename="plucky"; os_codename="plucky"; os_id="ubuntu"
     elif [[ "${os_codename}" =~ ^(jessie|betsy)$ ]]; then repo_codename="jessie"; os_codename="jessie"; os_id="debian"
     elif [[ "${os_codename}" =~ ^(stretch|continuum|helium|cindy)$ ]]; then repo_codename="stretch"; os_codename="stretch"; os_id="debian"
     elif [[ "${os_codename}" =~ ^(buster|debbie|parrot|engywuck-backports|engywuck|deepin|lithium|beowulf)$ ]]; then repo_codename="buster"; os_codename="buster"; os_id="debian"
@@ -1334,12 +1335,12 @@ get_repo_url() {
       if [[ "$(command -v jq)" ]]; then repo_url="$(echo "${distro_api_output}" | jq -r ".${get_repo_url_url_argument}")"; else repo_url="$(echo "${distro_api_output}" | grep -oP "\"${get_repo_url_url_argument}\":\s*\"\K[^\"]+")"; fi
       distro_api="true"
     else
-      if [[ "${os_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then
+      if [[ "${os_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky) ]]; then
         if curl "${curl_argument[@]}" "${http_or_https}://old-releases.ubuntu.com/ubuntu/dists/" 2> /dev/null | grep -iq "${os_codename}" 2> /dev/null; then archived_repo="true"; fi
         if [[ "${architecture}" =~ (amd64|i386) ]]; then
-          if [[ "${archived_repo}" == "true" ]]; then repo_url="${http_or_https}://old-releases.ubuntu.com/ubuntu"; else repo_url="http://archive.ubuntu.com/ubuntu"; fi
+          if [[ "${archived_repo}" == "true" ]]; then repo_url="${http_or_https}://old-releases.ubuntu.com/ubuntu"; else repo_url="${http_or_https}://archive.ubuntu.com/ubuntu"; fi
         else
-          if [[ "${archived_repo}" == "true" ]]; then repo_url="${http_or_https}://old-releases.ubuntu.com/ubuntu"; else repo_url="http://ports.ubuntu.com"; fi
+          if [[ "${archived_repo}" == "true" ]]; then repo_url="${http_or_https}://old-releases.ubuntu.com/ubuntu"; else repo_url="${http_or_https}://ports.ubuntu.com"; fi
         fi
       elif [[ "${os_codename}" =~ (wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky|unstable) ]]; then
         if curl "${curl_argument[@]}" "${http_or_https}://archive.debian.org/debian/dists/" 2> /dev/null | grep -iq "${os_codename}" 2> /dev/null; then archived_repo="true"; fi
@@ -1347,8 +1348,8 @@ get_repo_url() {
       fi
     fi
   else
-    if [[ "${os_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then
-      repo_url="http://archive.ubuntu.com/ubuntu"
+    if [[ "${os_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky) ]]; then
+      repo_url="${http_or_https}://archive.ubuntu.com/ubuntu"
     elif [[ "${os_codename}" =~ (wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky|unstable) ]]; then
       repo_url="${http_or_https}://deb.debian.org/debian"
     fi
@@ -1811,7 +1812,7 @@ script_version_check() {
 }
 if [[ "$(command -v curl)" ]]; then script_version_check; fi
 
-if ! [[ "${os_codename}" =~ (precise|maya|trusty|qiana|rebecca|rafaela|rosa|xenial|sarah|serena|sonya|sylvia|bionic|tara|tessa|tina|tricia|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky|unstable) ]]; then
+if ! [[ "${os_codename}" =~ (precise|maya|trusty|qiana|rebecca|rafaela|rosa|xenial|sarah|serena|sonya|sylvia|bionic|tara|tessa|tina|tricia|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky|wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky|unstable) ]]; then
   if [[ -e "/etc/os-release" ]]; then full_os_details="$(sed ':a;N;$!ba;s/\n/\\n/g' /etc/os-release | sed 's/"/\\"/g')"; fi
   if [[ -z "$(which apt)" ]]; then non_apt_based_linux="true"; fi
   unsupported_no_modify="true"
@@ -2495,10 +2496,10 @@ if ! "$(which dpkg)" -l gnupg 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|
   echo -e "${GRAY_R}#${RESET} Installing gnupg..."
   if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install gnupg &>> "${eus_dir}/logs/required.log"; then
     echo -e "${RED}#${RESET} Failed to install gnupg in the first run...\\n"
-    if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then
+    if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky) ]]; then
       if [[ "${repo_codename}" =~ (precise|trusty|xenial) ]]; then repo_codename_argument="-security"; repo_component="main"; fi
       if [[ "${repo_codename}" =~ (bionic|cosmic) ]]; then repo_codename_argument="-security"; repo_component="main universe"; fi
-      if [[ "${repo_codename}" =~ (disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then repo_component="main universe"; fi
+      if [[ "${repo_codename}" =~ (disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky) ]]; then repo_component="main universe"; fi
     elif [[ "${repo_codename}" =~ (wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky|unstable) ]]; then
       repo_component="main"
     fi
@@ -2524,9 +2525,9 @@ if ! "$(which dpkg)" -l jq 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi
   echo -e "${GRAY_R}#${RESET} Installing jq..."
   if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install jq &>> "${eus_dir}/logs/required.log"; then
     echo -e "${RED}#${RESET} Failed to install jq in the first run...\\n"
-    if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then
+    if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky) ]]; then
       if [[ "${repo_codename}" =~ (bionic|cosmic|disco|eoan|focal|focal|groovy|hirsute|impish) ]]; then repo_component="main universe"; add_repositories; fi
-      if [[ "${repo_codename}" =~ (jammy|kinetic|lunar|mantic|noble|oracular) ]]; then repo_component="main"; add_repositories; fi
+      if [[ "${repo_codename}" =~ (jammy|kinetic|lunar|mantic|noble|oracular|plucky) ]]; then repo_component="main"; add_repositories; fi
       repo_codename_argument="-security"; repo_component="main universe"
     elif [[ "${repo_codename}" =~ (wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky|unstable) ]]; then
       if [[ "${repo_codename}" =~ (wheezy|jessie|stretch|buster) ]]; then repo_url_arguments="-security/"; repo_codename_argument="/updates"; repo_component="main"; add_repositories; fi
@@ -2593,8 +2594,8 @@ if [[ -n "${auto_dns_challenge_provider}" ]]; then
       echo -e "${GRAY_R}#${RESET} Installing python3-certbot-dns-${auto_dns_challenge_provider}..."
       if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "python3-certbot-dns-${auto_dns_challenge_provider}" &>> "${eus_dir}/logs/required.log"; then
         echo -e "${RED}#${RESET} Failed to install python3-certbot-dns-${auto_dns_challenge_provider} in the first run...\\n"
-        if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then
-          if [[ "${repo_codename}" =~ (focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then repo_component="main universe"; add_repositories; fi
+        if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky) ]]; then
+          if [[ "${repo_codename}" =~ (focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky) ]]; then repo_component="main universe"; add_repositories; fi
           repo_codename_argument="-security"
           repo_component="main universe"
         elif [[ "${repo_codename}" =~ (wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky|unstable) ]]; then
@@ -2616,8 +2617,8 @@ if [[ -n "${auto_dns_challenge_provider}" ]]; then
       echo -e "${GRAY_R}#${RESET} Installing python3-certbot..."
       if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install python3-certbot &>> "${eus_dir}/logs/required.log"; then
         echo -e "${RED}#${RESET} Failed to install python3-certbot in the first run...\\n"
-        if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then
-          if [[ "${repo_codename}" =~ (focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then repo_component="main universe"; add_repositories; fi
+        if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky) ]]; then
+          if [[ "${repo_codename}" =~ (focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky) ]]; then repo_component="main universe"; add_repositories; fi
           repo_codename_argument="-security"
           repo_component="main universe"
         elif [[ "${repo_codename}" =~ (wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky|unstable) ]]; then
@@ -2641,8 +2642,8 @@ if [[ -n "${auto_dns_challenge_provider}" ]]; then
         echo -e "${GRAY_R}#${RESET} Installing ${package}..."
         if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${package}" &>> "${eus_dir}/logs/required.log"; then
           echo -e "${RED}#${RESET} Failed to install ${package} in the first run...\\n"
-          if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then
-            if [[ "${repo_codename}" =~ (focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then repo_component="main universe"; add_repositories; fi
+          if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky) ]]; then
+            if [[ "${repo_codename}" =~ (focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky) ]]; then repo_component="main universe"; add_repositories; fi
             repo_codename_argument="-security"
             repo_component="main universe"
           elif [[ "${repo_codename}" =~ (wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky|unstable) ]]; then
@@ -2788,7 +2789,7 @@ certbot_auto_install_run() {
   sleep 2
   if [[ "${os_codename}" =~ (wheezy|jessie) ]]; then
     if ! dpkg -l | awk '{print$2}' | grep -iq "libssl-dev"; then
-      echo deb http://archive.debian.org/debian jessie-backports main >>/etc/apt/sources.list.d/glennr-install-script.list
+      echo deb "${http_or_https}://archive.debian.org/debian" jessie-backports main >>/etc/apt/sources.list.d/glennr-install-script.list
       echo -e "${GRAY_R}#${RESET} Running apt-get update..."
       if apt-get update -o Acquire::Check-Valid-Until=false &>> "${eus_dir}/logs/required.log"; then echo -e "${GREEN}#${RESET} Successfully ran apt-get update! \\n"; else echo -e "${YELLOW}#${RESET} Something went wrong during apt-get update...\\n"; fi
       echo -e "${GRAY_R}#${RESET} Installing a required package..."
@@ -5159,7 +5160,7 @@ get_distro() {
       get_distro
       return
     elif [[ "\${os_codename}" == 'lts' ]]; then
-      os_codename="$(grep -io "wheezy\\|jessie\\|stretch\\|buster\\|bullseye\\|bookworm\\|trixie\\|forky\\|precise\\|trusty\\|xenial\\|bionic\\|cosmic\\|disco\\|eoan\\|focal\\|groovy\\|hirsute\\|impish\\|jammy\\|kinetic\\|lunar\\|mantic\\|noble\\|oracular" /etc/os-release | tr '[:upper:]' '[:lower:]' | awk '!NF || !seen[\$0]++' | head -n1)"
+      os_codename="$(grep -io "wheezy\\|jessie\\|stretch\\|buster\\|bullseye\\|bookworm\\|trixie\\|forky\\|precise\\|trusty\\|xenial\\|bionic\\|cosmic\\|disco\\|eoan\\|focal\\|groovy\\|hirsute\\|impish\\|jammy\\|kinetic\\|lunar\\|mantic\\|noble\\|oracular\\|plucky" /etc/os-release | tr '[:upper:]' '[:lower:]' | awk '!NF || !seen[\$0]++' | head -n1)"
     fi
   fi
   if [[ ! "${os_id}" =~ (ubuntu|debian) ]] && [[ -e "/etc/os-release" ]]; then os_id="\$(grep -io "debian\\|ubuntu" /etc/os-release | tr '[:upper:]' '[:lower:]' | head -n1)"; fi
@@ -5171,6 +5172,7 @@ get_distro() {
   elif [[ "\${os_codename}" =~ ^(jammy|vanessa|vera|victoria|virginia|horus)$ ]]; then repo_codename="jammy"; os_codename="jammy"; os_id="ubuntu"
   elif [[ "\${os_codename}" =~ ^(noble|wilma|xia|scootski|circe)$ ]]; then repo_codename="noble"; os_codename="noble"; os_id="ubuntu"
   elif [[ "\${os_codename}" =~ ^(oracular)$ ]]; then repo_codename="oracular"; os_codename="oracular"; os_id="ubuntu"
+  elif [[ "\${os_codename}" =~ ^(plucky)$ ]]; then repo_codename="plucky"; os_codename="plucky"; os_id="ubuntu"
   elif [[ "\${os_codename}" =~ ^(jessie|betsy)$ ]]; then repo_codename="jessie"; os_codename="jessie"; os_id="debian"
   elif [[ "\${os_codename}" =~ ^(stretch|continuum|helium|cindy)$ ]]; then repo_codename="stretch"; os_codename="stretch"; os_id="debian"
   elif [[ "\${os_codename}" =~ ^(buster|debbie|parrot|engywuck-backports|engywuck|deepin|lithium)$ ]]; then repo_codename="buster"; os_codename="buster"; os_id="debian"
@@ -5204,15 +5206,15 @@ get_repo_url() {
   fi
   if dpkg -l curl 2> /dev/null | awk '{print \$1}' | grep -iq "^ii\\|^hi"; then
     if [[ "\${os_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic) ]]; then
-      if curl -s http://old-releases.ubuntu.com/ubuntu/dists/ | grep -iq "\${os_codename}" 2> /dev/null; then archived_repo="true"; fi
-      if [[ "\${archived_repo}" == "true" ]]; then repo_url="http://old-releases.ubuntu.com/ubuntu"; else repo_url="http://archive.ubuntu.com/ubuntu"; fi
+      if curl -s ${http_or_https}://old-releases.ubuntu.com/ubuntu/dists/ | grep -iq "\${os_codename}" 2> /dev/null; then archived_repo="true"; fi
+      if [[ "\${archived_repo}" == "true" ]]; then repo_url="${http_or_https}://old-releases.ubuntu.com/ubuntu"; else repo_url="${http_or_https}://archive.ubuntu.com/ubuntu"; fi
     elif [[ "\${os_codename}" =~ (wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky|unstable) ]]; then
-      if curl -s http://archive.debian.org/debian/dists/ | grep -iq "\${os_codename}" 2> /dev/null; then archived_repo="true"; fi
+      if curl -s ${http_or_https}://archive.debian.org/debian/dists/ | grep -iq "\${os_codename}" 2> /dev/null; then archived_repo="true"; fi
       if [[ "\${archived_repo}" == "true" ]]; then repo_url="\${http_or_https}://archive.debian.org/debian"; else repo_url="\${http_or_https}://ftp.debian.org/debian"; fi
     fi
   else
     if [[ "\${os_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic) ]]; then
-      repo_url="http://archive.ubuntu.com/ubuntu"
+      repo_url="${http_or_https}://archive.ubuntu.com/ubuntu"
     elif [[ "\${os_codename}" =~ (wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky|unstable) ]]; then
       repo_url="\${http_or_https}://deb.debian.org/debian"
     fi
@@ -5327,7 +5329,7 @@ if ! dpkg -l certbot 2> /dev/null | awk '{print \$1}' | grep -iq "^ii\\|^hi"; th
     fi
     if ! dpkg -l libssl-dev 2> /dev/null | awk '{print \$1}' | grep -iq "^ii\\|^hi"; then
       if ! apt-get install libssl-dev -y; then
-        echo deb http://archive.debian.org/debian jessie-backports main >>/etc/apt/sources.list.d/glennr-install-script.list
+        echo deb ${http_or_https}://archive.debian.org/debian jessie-backports main >>/etc/apt/sources.list.d/glennr-install-script.list
         apt-get update -o Acquire::Check-Valid-Until=false &>>${eus_dir}/logs/cronjob_install.log
         apt-get install -t jessie-backports libssl-dev -y &>>${eus_dir}/logs/cronjob_install.log
         sed -i '/jessie-backports/d' /etc/apt/sources.list.d/glennr-install-script.list &>>${eus_dir}/logs/cronjob_install.log
@@ -5359,9 +5361,9 @@ if [[ -n "\${auto_dns_challenge_provider}" ]]; then
   if [[ "${certbot_native_plugin}" == 'true' ]]; then
     if ! dpkg -l "python3-certbot-dns-${auto_dns_challenge_provider}" 2> /dev/null | awk '{print \$1}' | grep -iq "^ii\\|^hi"; then
       if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "python3-certbot-dns-${auto_dns_challenge_provider}" &>> "${eus_dir}/logs/required.log"; then
-        if [[ "\${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then
+        if [[ "\${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky) ]]; then
           if [[ "\${repo_codename}" =~ (focal|groovy|hirsute|impish) ]]; then repo_component="main universe"; add_repositories; fi
-          if [[ "\${repo_codename}" =~ (jammy|kinetic|lunar|mantic|noble|oracular) ]]; then repo_component="main"; add_repositories; fi
+          if [[ "\${repo_codename}" =~ (jammy|kinetic|lunar|mantic|noble|oracular|plucky) ]]; then repo_component="main"; add_repositories; fi
           repo_codename_argument="-security"
           repo_component="main universe"
         elif [[ "\${repo_codename}" =~ (wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky|unstable) ]]; then
@@ -5375,9 +5377,9 @@ if [[ -n "\${auto_dns_challenge_provider}" ]]; then
     fi
     if ! dpkg -l python3-certbot 2> /dev/null | awk '{print \$1}' | grep -iq "^ii\\|^hi"; then
       if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install python3-certbot &>> "${eus_dir}/logs/required.log"; then
-        if [[ "\${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then
+        if [[ "\${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky) ]]; then
           if [[ "\${repo_codename}" =~ (focal|groovy|hirsute|impish) ]]; then repo_component="main universe"; add_repositories; fi
-          if [[ "\${repo_codename}" =~ (jammy|kinetic|lunar|mantic|noble|oracular) ]]; then repo_component="main"; add_repositories; fi
+          if [[ "\${repo_codename}" =~ (jammy|kinetic|lunar|mantic|noble|oracular|plucky) ]]; then repo_component="main"; add_repositories; fi
           repo_codename_argument="-security"
           repo_component="main universe"
         elif [[ "\${repo_codename}" =~ (wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky|unstable) ]]; then

@@ -2,7 +2,7 @@
 
 # UniFi Network Application Easy Update Script.
 # Script   | UniFi Network Easy Update Script
-# Version  | 10.0.3
+# Version  | 10.0.4
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -1287,7 +1287,7 @@ get_distro() {
       get_distro
       return
     elif [[ "${os_codename}" == 'lts' ]]; then
-      os_codename="$(grep -io "wheezy\\|jessie\\|stretch\\|buster\\|bullseye\\|bookworm\\|trixie\\|forky\\|precise\\|trusty\\|xenial\\|bionic\\|cosmic\\|disco\\|eoan\\|focal\\|groovy\\|hirsute\\|impish\\|jammy\\|kinetic\\|lunar\\|mantic\\|noble\\|oracular" /etc/os-release | tr '[:upper:]' '[:lower:]' | awk '!NF || !seen[$0]++' | head -n1)"
+      os_codename="$(grep -io "wheezy\\|jessie\\|stretch\\|buster\\|bullseye\\|bookworm\\|trixie\\|forky\\|precise\\|trusty\\|xenial\\|bionic\\|cosmic\\|disco\\|eoan\\|focal\\|groovy\\|hirsute\\|impish\\|jammy\\|kinetic\\|lunar\\|mantic\\|noble\\|oracular\\|plucky" /etc/os-release | tr '[:upper:]' '[:lower:]' | awk '!NF || !seen[$0]++' | head -n1)"
     fi
   fi
   if [[ "${unsupported_no_modify}" != 'true' ]]; then
@@ -1300,6 +1300,7 @@ get_distro() {
     elif [[ "${os_codename}" =~ ^(jammy|vanessa|vera|victoria|virginia|horus|cade)$ ]]; then repo_codename="jammy"; os_codename="jammy"; os_id="ubuntu"
     elif [[ "${os_codename}" =~ ^(noble|wilma|xia|scootski|circe)$ ]]; then repo_codename="noble"; os_codename="noble"; os_id="ubuntu"
     elif [[ "${os_codename}" =~ ^(oracular)$ ]]; then repo_codename="oracular"; os_codename="oracular"; os_id="ubuntu"
+    elif [[ "${os_codename}" =~ ^(plucky)$ ]]; then repo_codename="plucky"; os_codename="plucky"; os_id="ubuntu"
     elif [[ "${os_codename}" =~ ^(jessie|betsy)$ ]]; then repo_codename="jessie"; os_codename="jessie"; os_id="debian"
     elif [[ "${os_codename}" =~ ^(stretch|continuum|helium|cindy)$ ]]; then repo_codename="stretch"; os_codename="stretch"; os_id="debian"
     elif [[ "${os_codename}" =~ ^(buster|debbie|parrot|engywuck-backports|engywuck|deepin|lithium|beowulf)$ ]]; then repo_codename="buster"; os_codename="buster"; os_id="debian"
@@ -1354,21 +1355,21 @@ get_repo_url() {
       if [[ "$(command -v jq)" ]]; then repo_url="$(echo "${distro_api_output}" | jq -r ".${get_repo_url_url_argument}")"; else repo_url="$(echo "${distro_api_output}" | grep -oP "\"${get_repo_url_url_argument}\":\s*\"\K[^\"]+")"; fi
       distro_api="true"
     else
-      if [[ "${os_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|oracular) ]]; then
+      if [[ "${os_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky) ]]; then
         if curl "${curl_argument[@]}" "${http_or_https}://old-releases.ubuntu.com/ubuntu/dists/" 2> /dev/null | grep -iq "${os_codename}" 2> /dev/null; then archived_repo="true"; fi
         if [[ "${architecture}" =~ (amd64|i386) ]]; then
           if [[ "${archived_repo}" == "true" ]]; then
             repo_url="${http_or_https}://old-releases.ubuntu.com/ubuntu"
           else
             if [[ "${get_repo_url_security_url}" == "true" ]]; then
-              repo_url="http://security.ubuntu.com/ubuntu"
+              repo_url="${http_or_https}://security.ubuntu.com/ubuntu"
               unset get_repo_url_security_url
             else
-              repo_url="http://archive.ubuntu.com/ubuntu"
+              repo_url="${http_or_https}://archive.ubuntu.com/ubuntu"
             fi
           fi
         else
-          if [[ "${archived_repo}" == "true" ]]; then repo_url="${http_or_https}://old-releases.ubuntu.com/ubuntu"; else repo_url="http://ports.ubuntu.com"; fi
+          if [[ "${archived_repo}" == "true" ]]; then repo_url="${http_or_https}://old-releases.ubuntu.com/ubuntu"; else repo_url="${http_or_https}://ports.ubuntu.com"; fi
         fi
       elif [[ "${os_codename}" =~ (wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky|unstable) ]]; then
         if curl "${curl_argument[@]}" "${http_or_https}://archive.debian.org/debian/dists/" 2> /dev/null | grep -iq "${os_codename}" 2> /dev/null; then archived_repo="true"; fi
@@ -1387,8 +1388,8 @@ get_repo_url() {
       fi
     fi
   else
-    if [[ "${os_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|oracular) ]]; then
-      repo_url="http://archive.ubuntu.com/ubuntu"
+    if [[ "${os_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky) ]]; then
+      repo_url="${http_or_https}://archive.ubuntu.com/ubuntu"
     elif [[ "${os_codename}" =~ (wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky|unstable) ]]; then
       repo_url="${http_or_https}://deb.debian.org/debian"
       #if [[ "${architecture}" == 'armhf' ]]; then
@@ -2190,9 +2191,9 @@ cleanup_multiple_default_lan_networks() {
 # Add default repositories
 check_default_repositories() {
   get_repo_url
-  if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then
+  if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky) ]]; then
     if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish) ]]; then repo_component="main universe multiverse"; add_repositories; fi
-    if [[ "${repo_codename}" =~ (jammy|kinetic|lunar|mantic|noble|oracular) ]]; then repo_component="main universe multiverse"; add_repositories; fi
+    if [[ "${repo_codename}" =~ (jammy|kinetic|lunar|mantic|noble|oracular|plucky) ]]; then repo_component="main universe multiverse"; add_repositories; fi
     repo_codename_argument="-security"
     repo_component="main universe multiverse"
   elif [[ "${repo_codename}" =~ (wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky|unstable) ]]; then
@@ -2432,7 +2433,7 @@ script_version_check() {
 }
 if [[ "$(command -v curl)" ]]; then script_version_check; fi
 
-if ! [[ "${os_codename}" =~ (precise|maya|trusty|qiana|rebecca|rafaela|rosa|xenial|sarah|serena|sonya|sylvia|bionic|tara|tessa|tina|tricia|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky|unstable) ]]; then
+if ! [[ "${os_codename}" =~ (precise|maya|trusty|qiana|rebecca|rafaela|rosa|xenial|sarah|serena|sonya|sylvia|bionic|tara|tessa|tina|tricia|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky|wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky|unstable) ]]; then
   if [[ -e "/etc/os-release" ]]; then full_os_details="$(sed ':a;N;$!ba;s/\n/\\n/g' /etc/os-release | sed 's/"/\\"/g')"; fi
   if [[ -z "$(which apt)" ]]; then non_apt_based_linux="true"; fi
   unsupported_no_modify="true"
@@ -2867,6 +2868,8 @@ add_glennr_mongod_repo() {
       mongod_codename="repo jammy"
     elif [[ "${os_codename}" =~ (noble|oracular) ]]; then
       mongod_codename="repo noble"
+    elif [[ "${os_codename}" =~ (plucky) ]]; then
+      mongod_codename="repo plucky"
     else
       mongod_codename="repo xenial"
     fi
@@ -2890,6 +2893,8 @@ add_glennr_mongod_repo() {
       mongod_codename="repo jammy"
     elif [[ "${os_codename}" =~ (noble|oracular) ]]; then
       mongod_codename="repo noble"
+    elif [[ "${os_codename}" =~ (plucky) ]]; then
+      mongod_codename="repo plucky"
     else
       mongod_codename="repo xenial"
     fi
@@ -2967,7 +2972,7 @@ add_glennr_mongod_repo() {
 add_extra_repo_mongodb() {
   unset repo_component
   unset repo_url
-  if [[ "${os_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then
+  if [[ "${os_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky) ]]; then
     if [[ "${architecture}" =~ (amd64|i386) ]]; then
       if [[ "${add_extra_repo_mongodb_security}" == 'true' ]]; then
         get_repo_url_security_url="true"
@@ -2976,7 +2981,7 @@ add_extra_repo_mongodb() {
         repo_component="main"
       fi
     else
-      repo_url="http://ports.ubuntu.com"
+      repo_url="${http_or_https}://ports.ubuntu.com"
     fi
   fi
   if [[ -z "${repo_component}" ]]; then repo_component="main"; fi
@@ -3053,10 +3058,10 @@ add_mongodb_repo() {
       if [[ "${os_codename}" =~ (trusty|qiana|rebecca|rafaela|rosa) ]]; then
         mongodb_codename="ubuntu trusty"
         mongodb_repo_type="multiverse"
-      elif [[ "${os_codename}" =~ (xenial|sarah|serena|sonya|sylvia|bionic|tara|tessa|tina|tricia|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|stretch|buster|bullseye|bookworm|trixie|forky|unstable) ]]; then
+      elif [[ "${os_codename}" =~ (xenial|sarah|serena|sonya|sylvia|bionic|tara|tessa|tina|tricia|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky|stretch|buster|bullseye|bookworm|trixie|forky|unstable) ]]; then
         mongodb_codename="ubuntu xenial"
         mongodb_repo_type="multiverse"
-      elif [[ "${os_codename}" =~ (bionic|tara|tessa|tina|tricia|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|bullseye|bookworm|trixie|forky|unstable) ]]; then
+      elif [[ "${os_codename}" =~ (bionic|tara|tessa|tina|tricia|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky|bullseye|bookworm|trixie|forky|unstable) ]]; then
         mongodb_codename="ubuntu bionic"
         mongodb_repo_type="multiverse"
       else
@@ -3067,7 +3072,7 @@ add_mongodb_repo() {
       if [[ "${os_codename}" =~ (trusty|qiana|rebecca|rafaela|rosa) ]]; then
         mongodb_codename="ubuntu xenial"
         mongodb_repo_type="multiverse"
-      elif [[ "${os_codename}" =~ (xenial|sarah|serena|sonya|sylvia|bionic|tara|tessa|tina|tricia|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then
+      elif [[ "${os_codename}" =~ (xenial|sarah|serena|sonya|sylvia|bionic|tara|tessa|tina|tricia|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky) ]]; then
         mongodb_codename="ubuntu xenial"
         mongodb_repo_type="multiverse"
       elif [[ "${os_codename}" == "jessie" ]]; then
@@ -3091,7 +3096,7 @@ add_mongodb_repo() {
       elif [[ "${os_codename}" =~ (xenial|sarah|serena|sonya|sylvia) ]]; then
         mongodb_codename="ubuntu xenial"
         mongodb_repo_type="multiverse"
-      elif [[ "${os_codename}" =~ (bionic|tara|tessa|tina|tricia|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|bullseye|bookworm|trixie|forky|unstable) ]]; then
+      elif [[ "${os_codename}" =~ (bionic|tara|tessa|tina|tricia|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky|bullseye|bookworm|trixie|forky|unstable) ]]; then
         mongodb_codename="ubuntu bionic"
         mongodb_repo_type="multiverse"
       else
@@ -3105,7 +3110,7 @@ add_mongodb_repo() {
       elif [[ "${os_codename}" =~ (xenial|sarah|serena|sonya|sylvia) ]]; then
         mongodb_codename="ubuntu xenial"
         mongodb_repo_type="multiverse"
-      elif [[ "${os_codename}" =~ (bionic|tara|tessa|tina|tricia|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then
+      elif [[ "${os_codename}" =~ (bionic|tara|tessa|tina|tricia|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky) ]]; then
         mongodb_codename="ubuntu bionic"
         mongodb_repo_type="multiverse"
       elif [[ "${os_codename}" == "jessie" ]]; then
@@ -3123,7 +3128,7 @@ add_mongodb_repo() {
   if [[ "${mongodb_org_v::2}" == '42' ]] || [[ "${add_mongodb_42_repo}" == 'true' ]]; then
     mongodb_version_major_minor="4.2"
     if [[ "${try_different_mongodb_repo}" == 'true' ]] || [[ "${architecture}" != "amd64" ]]; then
-      if [[ "${os_codename}" =~ (stretch|buster|bullseye|bookworm|trixie|forky|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then
+      if [[ "${os_codename}" =~ (stretch|buster|bullseye|bookworm|trixie|forky|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky) ]]; then
         mongodb_codename="ubuntu bionic"
         mongodb_repo_type="multiverse"
       else
@@ -3140,7 +3145,7 @@ add_mongodb_repo() {
       elif [[ "${os_codename}" =~ (xenial|sarah|serena|sonya|sylvia|loki) ]]; then
         mongodb_codename="ubuntu xenial"
         mongodb_repo_type="multiverse"
-      elif [[ "${os_codename}" =~ (bionic|tara|tessa|tina|tricia|hera|juno|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then
+      elif [[ "${os_codename}" =~ (bionic|tara|tessa|tina|tricia|hera|juno|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky) ]]; then
         mongodb_codename="ubuntu bionic"
         mongodb_repo_type="multiverse"
       else
@@ -3156,7 +3161,7 @@ add_mongodb_repo() {
       if [[ "${os_codename}" =~ (stretch|bionic|tara|tessa|tina|tricia|hera|juno) ]]; then
         mongodb_codename="ubuntu bionic"
         mongodb_repo_type="multiverse"
-      elif [[ "${os_codename}" =~ (buster|bullseye|bookworm|trixie|forky|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then
+      elif [[ "${os_codename}" =~ (buster|bullseye|bookworm|trixie|forky|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky) ]]; then
         mongodb_codename="ubuntu focal"
         mongodb_repo_type="multiverse"
       else
@@ -3176,7 +3181,7 @@ add_mongodb_repo() {
       elif [[ "${os_codename}" =~ (bionic|tara|tessa|tina|tricia|hera|juno) ]]; then
         mongodb_codename="ubuntu bionic"
         mongodb_repo_type="multiverse"
-      elif [[ "${os_codename}" =~ (focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then
+      elif [[ "${os_codename}" =~ (focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky) ]]; then
         mongodb_codename="ubuntu focal"
         mongodb_repo_type="multiverse"
       else
@@ -3188,7 +3193,7 @@ add_mongodb_repo() {
   if [[ "${mongodb_org_v::2}" == '50' ]] || [[ "${add_mongodb_50_repo}" == 'true' ]]; then
     mongodb_version_major_minor="5.0"
     if [[ "${try_different_mongodb_repo}" == 'true' ]] || [[ "${architecture}" != "amd64" ]]; then
-      if [[ "${os_codename}" =~ (stretch|buster|bullseye|bookworm|trixie|forky|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then
+      if [[ "${os_codename}" =~ (stretch|buster|bullseye|bookworm|trixie|forky|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky) ]]; then
         mongodb_codename="ubuntu focal"
         mongodb_repo_type="multiverse"
       else
@@ -3211,7 +3216,7 @@ add_mongodb_repo() {
       elif [[ "${os_codename}" =~ (bionic|tara|tessa|tina|tricia|hera|juno) ]]; then
         mongodb_codename="ubuntu bionic"
         mongodb_repo_type="multiverse"
-      elif [[ "${os_codename}" =~ (focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then
+      elif [[ "${os_codename}" =~ (focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky) ]]; then
         mongodb_codename="ubuntu focal"
         mongodb_repo_type="multiverse"
       else
@@ -3223,7 +3228,7 @@ add_mongodb_repo() {
   if [[ "${mongodb_org_v::2}" == '60' ]] || [[ "${add_mongodb_60_repo}" == 'true' ]]; then
     mongodb_version_major_minor="6.0"
     if [[ "${try_different_mongodb_repo}" == 'true' ]] || [[ "${architecture}" != "amd64" ]]; then
-      if [[ "${os_codename}" =~ (stretch|buster|bullseye|bookworm|trixie|forky|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then
+      if [[ "${os_codename}" =~ (stretch|buster|bullseye|bookworm|trixie|forky|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky) ]]; then
         mongodb_codename="ubuntu jammy"
         mongodb_repo_type="multiverse"
       else
@@ -3246,7 +3251,7 @@ add_mongodb_repo() {
       elif [[ "${os_codename}" =~ (focal|groovy|hirsute|impish) ]]; then
         mongodb_codename="ubuntu focal"
         mongodb_repo_type="multiverse"
-      elif [[ "${os_codename}" =~ (jammy|kinetic|lunar|mantic|noble|oracular) ]]; then
+      elif [[ "${os_codename}" =~ (jammy|kinetic|lunar|mantic|noble|oracular|plucky) ]]; then
         mongodb_codename="ubuntu jammy"
         mongodb_repo_type="multiverse"
       else
@@ -3265,7 +3270,7 @@ add_mongodb_repo() {
           add_extra_repo_mongodb_codename="bullseye"
           add_extra_repo_mongodb
         fi
-      elif [[ "${os_codename}" =~ (bookworm|trixie|forky|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then
+      elif [[ "${os_codename}" =~ (bookworm|trixie|forky|jammy|kinetic|lunar|mantic|noble|oracular|plucky) ]]; then
         mongodb_codename="ubuntu jammy"
         mongodb_repo_type="multiverse"
       else
@@ -3303,7 +3308,7 @@ add_mongodb_repo() {
           add_extra_repo_mongodb_codename="focal"
           add_extra_repo_mongodb
         fi
-      elif [[ "${os_codename}" =~ (jammy|kinetic|lunar|mantic|noble|oracular) ]]; then
+      elif [[ "${os_codename}" =~ (jammy|kinetic|lunar|mantic|noble|oracular|plucky) ]]; then
         mongodb_codename="ubuntu jammy"
         mongodb_repo_type="multiverse"
       else
@@ -3325,7 +3330,7 @@ add_mongodb_repo() {
       elif [[ "${os_codename}" =~ (jammy|kinetic|lunar|mantic|bookworm) ]]; then
         mongodb_codename="ubuntu jammy"
         mongodb_repo_type="multiverse"
-      elif [[ "${os_codename}" =~ (trixie|forky|noble|oracular) ]]; then
+      elif [[ "${os_codename}" =~ (trixie|forky|noble|oracular|plucky) ]]; then
         mongodb_codename="ubuntu noble"
         mongodb_repo_type="multiverse"
       else
@@ -3363,7 +3368,7 @@ add_mongodb_repo() {
       elif [[ "${os_codename}" =~ (jammy|kinetic|lunar|mantic) ]]; then
         mongodb_codename="ubuntu jammy"
         mongodb_repo_type="multiverse"
-      elif [[ "${os_codename}" =~ (noble|oracular) ]]; then
+      elif [[ "${os_codename}" =~ (noble|oracular|plucky) ]]; then
         mongodb_codename="ubuntu noble"
         mongodb_repo_type="multiverse"
       else
@@ -3562,9 +3567,9 @@ unifi_required_packages() {
     echo -e "${GRAY_R}#${RESET} Installing curl..."
     if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install curl &>> "${eus_dir}/logs/required.log"; then
       echo -e "${RED}#${RESET} Failed to install curl in the first run...\\n"
-      if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then
+      if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky) ]]; then
         if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic) ]]; then repo_codename_argument="-security"; repo_component="main"; fi
-        if [[ "${repo_codename}" =~ (disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then repo_component="main"; fi
+        if [[ "${repo_codename}" =~ (disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky) ]]; then repo_component="main"; fi
       elif [[ "${repo_codename}" == "jessie" ]]; then
         repo_codename_argument="/updates"
         repo_component="main"
@@ -3588,7 +3593,7 @@ unifi_required_packages() {
     echo -e "${GRAY_R}#${RESET} Installing logrotate..."
     if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install logrotate &>> "${eus_dir}/logs/required.log"; then
       echo -e "${RED}#${RESET} Failed to install logrotate in the first run...\\n"
-      if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then
+      if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky) ]]; then
         repo_component="universe"
       elif [[ "${repo_codename}" =~ (wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky|unstable) ]]; then
         repo_component="main"
@@ -3609,9 +3614,9 @@ if ! "$(which dpkg)" -l jq 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi
   echo -e "${GRAY_R}#${RESET} Installing jq..."
   if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install jq &>> "${eus_dir}/logs/required.log"; then
     echo -e "${RED}#${RESET} Failed to install jq in the first run...\\n"
-    if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then
+    if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky) ]]; then
       if [[ "${repo_codename}" =~ (bionic|cosmic|disco|eoan|focal|focal|groovy|hirsute|impish) ]]; then repo_component="main universe"; add_repositories; fi
-      if [[ "${repo_codename}" =~ (jammy|kinetic|lunar|mantic|noble|oracular) ]]; then repo_component="main"; add_repositories; fi
+      if [[ "${repo_codename}" =~ (jammy|kinetic|lunar|mantic|noble|oracular|plucky) ]]; then repo_component="main"; add_repositories; fi
       repo_codename_argument="-security"; repo_component="main universe"
     elif [[ "${repo_codename}" =~ (wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky|unstable) ]]; then
       if [[ "${repo_codename}" =~ (wheezy|jessie|stretch|buster) ]]; then repo_url_arguments="-security/"; repo_codename_argument="/updates"; repo_component="main"; add_repositories; fi
@@ -3637,7 +3642,7 @@ if [[ "${unifi_core_system}" != 'true' ]]; then
     echo -e "${GRAY_R}#${RESET} Installing dirmngr..."
     if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install dirmngr &>> "${eus_dir}/logs/required.log"; then
       echo -e "${RED}#${RESET} Failed to install dirmngr in the first run...\\n"
-      if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then
+      if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky) ]]; then
         repo_component="universe"
         add_repositories
         repo_component="main restricted"
@@ -3661,10 +3666,10 @@ if "$(which dpkg)" -l apt 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\
       echo -e "${GRAY_R}#${RESET} Installing apt-transport-https..."
       if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install apt-transport-https &>> "${eus_dir}/logs/required.log"; then
         echo -e "${RED}#${RESET} Failed to install apt-transport-https in the first run...\\n"
-        if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then
+        if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky) ]]; then
           if [[ "${repo_codename}" =~ (precise|trusty|xenial) ]]; then repo_codename_argument="-security"; repo_component="main"; fi
           if [[ "${repo_codename}" =~ (bionic|cosmic) ]]; then repo_codename_argument="-security"; repo_component="main universe"; fi
-          if [[ "${repo_codename}" =~ (disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then repo_component="main universe"; fi
+          if [[ "${repo_codename}" =~ (disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky) ]]; then repo_component="main universe"; fi
         elif [[ "${repo_codename}" == "jessie" ]]; then
           repo_codename_argument="/updates"
           repo_component="main"
@@ -3689,9 +3694,9 @@ if ! "$(which dpkg)" -l psmisc 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\
   echo -e "${GRAY_R}#${RESET} Installing psmisc..."
   if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install psmisc &>> "${eus_dir}/logs/required.log"; then
     echo -e "${RED}#${RESET} Failed to install psmisc in the first run...\\n"
-    if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then
+    if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky) ]]; then
       if [[ "${repo_codename}" =~ (precise) ]]; then repo_codename_argument="-updates"; repo_component="main restricted"; fi
-      if [[ "${repo_codename}" =~ (trusty|xenial|bionic|cosmicdisco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then repo_component="universe"; fi
+      if [[ "${repo_codename}" =~ (trusty|xenial|bionic|cosmicdisco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky) ]]; then repo_component="universe"; fi
     elif [[ "${repo_codename}" =~ (wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky|unstable) ]]; then
       repo_component="main"
     fi
@@ -3710,7 +3715,7 @@ if ! "$(which dpkg)" -l lsb-release 2> /dev/null | awk '{print $1}' | grep -iq "
   echo -e "${GRAY_R}#${RESET} Installing lsb-release..."
   if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install lsb-release &>> "${eus_dir}/logs/required.log"; then
     echo -e "${RED}#${RESET} Failed to install lsb-release in the first run...\\n"
-    if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then
+    if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky) ]]; then
       repo_component="main universe"
     elif [[ "${repo_codename}" =~ (wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky|unstable) ]]; then
       repo_component="main"
@@ -3728,10 +3733,10 @@ if ! "$(which dpkg)" -l gnupg 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|
   echo -e "${GRAY_R}#${RESET} Installing gnupg..."
   if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install gnupg &>> "${eus_dir}/logs/required.log"; then
     echo -e "${RED}#${RESET} Failed to install gnupg in the first run...\\n"
-    if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then
+    if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky) ]]; then
       if [[ "${repo_codename}" =~ (precise|trusty|xenial) ]]; then repo_codename_argument="-security"; repo_component="main"; fi
       if [[ "${repo_codename}" =~ (bionic|cosmic) ]]; then repo_codename_argument="-security"; repo_component="main universe"; fi
-      if [[ "${repo_codename}" =~ (disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then repo_component="main universe"; fi
+      if [[ "${repo_codename}" =~ (disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky) ]]; then repo_component="main universe"; fi
     elif [[ "${repo_codename}" =~ (wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky|unstable) ]]; then
       repo_component="main"
     fi
@@ -3757,9 +3762,9 @@ if ! "$(which dpkg)" -l perl 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^
   echo -e "${GRAY_R}#${RESET} Installing perl..."
   if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install perl &>> "${eus_dir}/logs/required.log"; then
     echo -e "${RED}#${RESET} Failed to install perl in the first run...\\n"
-    if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then
+    if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky) ]]; then
       if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic) ]]; then repo_codename_argument="-security"; repo_component="main"; fi
-      if [[ "${repo_codename}" =~ (disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then repo_component="main"; fi
+      if [[ "${repo_codename}" =~ (disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky) ]]; then repo_component="main"; fi
     elif [[ "${repo_codename}" == "jessie" ]]; then
       repo_codename_argument="/updates"
       repo_component="main"
@@ -3781,7 +3786,7 @@ if ! "$(which dpkg)" -l adduser 2> /dev/null | awk '{print $1}' | grep -iq "^ii\
   echo -e "${GRAY_R}#${RESET} Installing adduser..."
   if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install adduser &>> "${eus_dir}/logs/required.log"; then
     echo -e "${RED}#${RESET} Failed to install adduser in the first run...\\n"
-    if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then
+    if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky) ]]; then
       repo_component="universe"
     elif [[ "${repo_codename}" =~ (wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky|unstable) ]]; then
       repo_component="main"
@@ -3801,8 +3806,8 @@ if ! "$(which dpkg)" -l procps 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\
   echo -e "${GRAY_R}#${RESET} Installing procps..."
   if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install procps &>> "${eus_dir}/logs/required.log"; then
     echo -e "${RED}#${RESET} Failed to install procps in the first run...\\n"
-    if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then
-      if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then repo_codename_argument="-security"; repo_component="main"; fi
+    if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky) ]]; then
+      if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky) ]]; then repo_codename_argument="-security"; repo_component="main"; fi
     elif [[ "${repo_codename}" == "jessie" ]]; then
       repo_codename_argument="/updates"
       repo_component="main"
@@ -3825,7 +3830,7 @@ repackage_deb_file_required_package() {
       if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish) ]]; then
         repo_codename_argument="-security"
         repo_component="main"
-      elif [[ "${repo_codename}" =~ (jammy|kinetic|lunar|mantic|noble|oracular) ]]; then
+      elif [[ "${repo_codename}" =~ (jammy|kinetic|lunar|mantic|noble|oracular|plucky) ]]; then
         repo_component="main"
       elif [[ "${repo_codename}" =~ (wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky|unstable) ]]; then
         repo_component="main"
@@ -3842,7 +3847,7 @@ repackage_deb_file_required_package() {
     echo -e "${GRAY_R}#${RESET} Installing binutils..."
     if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install binutils &>> "${eus_dir}/logs/required.log"; then
       echo -e "${RED}#${RESET} Failed to install binutils in the first run...\\n"
-      if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then
+      if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky) ]]; then
         repo_codename_argument="-security"
         repo_component="main"
       elif [[ "${repo_codename}" =~ (wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky|unstable) ]]; then
@@ -4562,19 +4567,19 @@ openjdk_java() {
       repo_key="EB9B1D8886F44E2A"
       repo_key_name="openjdk-ppa"
     else
-      repo_url="http://ports.ubuntu.com"
+      repo_url="${http_or_https}://ports.ubuntu.com"
       repo_codename_argument="-security"
       repo_component="main universe"
     fi
     add_repositories
-  elif [[ "${repo_codename}" =~ (disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then
+  elif [[ "${repo_codename}" =~ (disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky) ]]; then
     if [[ "${architecture}" =~ (amd64|i386) ]]; then
       get_repo_url_security_url="true"
       get_repo_url
       repo_codename_argument="-security"
       repo_component="main universe"
     else
-      repo_url="http://ports.ubuntu.com"
+      repo_url="${http_or_https}://ports.ubuntu.com"
       repo_codename_argument="-security"
       repo_component="main universe"
     fi
@@ -4587,7 +4592,7 @@ openjdk_java() {
     if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install -t jessie-backports "${required_java_version}-jre-headless" &>> "${eus_dir}/logs/apt.log" || [[ "${old_openjdk_version}" == 'true' ]]; then
       echo -e "${RED}#${RESET} Failed to ${openjdk_variable_3} ${required_java_version}-jre-headless in the first run...\\n"
       if [[ "$(find /etc/apt/ -name "*.list" -type f -print0 | xargs -0 cat | grep -P -c "^deb http[s]*://archive.debian.org/debian jessie-backports main")" -eq "0" ]]; then
-        echo "deb http://archive.debian.org/debian jessie-backports main" >>/etc/apt/sources.list.d/glennr-install-script.list || abort
+        echo "deb ${http_or_https}://archive.debian.org/debian jessie-backports main" >>/etc/apt/sources.list.d/glennr-install-script.list || abort
         locate_http_proxy
         if [[ -n "$http_proxy" ]]; then
           apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --keyserver-options http-proxy="${http_proxy}" --recv-keys 8B48AD6246925553 7638D0442B90D010 || abort
@@ -4638,7 +4643,7 @@ unifi_dependencies_check() {
       echo -e "\\n------- UniFi Dependecy \"${unifi_dependency}\" installation ------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/apt.log"
       if ! apt-cache search --names-only ^"${unifi_dependency}" | awk '{print $1}' | grep -ioq "${unifi_dependency}"; then
         get_repo_url
-        if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular) ]]; then
+        if [[ "${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky) ]]; then
           repo_component="main universe"
         elif [[ "${repo_codename}" =~ (wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky|unstable) ]]; then
           repo_component="main"
@@ -4950,20 +4955,20 @@ libssl_installation_check() {
       libssl_repo_url="${http_or_https}://deb.debian.org/debian"
     else
       if [[ "${architecture}" =~ (amd64|i386) ]]; then
-        libssl_repo_url="http://security.ubuntu.com/ubuntu"
+        libssl_repo_url="${http_or_https}://security.ubuntu.com/ubuntu"
       else
-        libssl_repo_url="http://ports.ubuntu.com"
+        libssl_repo_url="${http_or_https}://ports.ubuntu.com"
       fi
     fi
     if [[ "${libssl_install_required}" == 'true' ]]; then
       if [[ "$(dpkg-query --showformat='${version}' --show libc6 2> /dev/null | sed 's/.*://' | sed 's/-.*//g' | cut -d'.' -f1)" -lt "2" ]] || [[ "$(dpkg-query --showformat='${version}' --show libc6 2> /dev/null | sed 's/.*://' | sed 's/-.*//g' | cut -d'.' -f1)" == "2" && "$(dpkg-query --showformat='${version}' --show libc6 2> /dev/null | sed 's/.*://' | sed 's/-.*//g' | cut -d'.' -f2)" -lt "34" ]]; then
         if [[ "${os_codename}" =~ (trusty|qiana|rebecca|rafaela|rosa|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish) ]]; then
           if [[ "${architecture}" =~ (amd64|i386) ]]; then
-            repo_url="http://security.ubuntu.com/ubuntu"
+            repo_url="${http_or_https}://security.ubuntu.com/ubuntu"
             repo_codename_argument="-security"
             repo_component="main"
           else
-            repo_url="http://ports.ubuntu.com"
+            repo_url="${http_or_https}://ports.ubuntu.com"
             repo_codename_argument="-security"
             repo_component="main universe"
           fi
@@ -4990,9 +4995,9 @@ libssl_installation_check() {
       libssl_repo_url="${http_or_https}://deb.debian.org/debian"
     else
       if [[ "${architecture}" =~ (amd64|i386) ]]; then
-        libssl_repo_url="http://security.ubuntu.com/ubuntu"
+        libssl_repo_url="${http_or_https}://security.ubuntu.com/ubuntu"
       else
-        libssl_repo_url="http://ports.ubuntu.com"
+        libssl_repo_url="${http_or_https}://ports.ubuntu.com"
       fi
     fi
     if [[ "${libssl_install_required}" == 'true' ]]; then
@@ -5004,7 +5009,7 @@ libssl_installation_check() {
             repo_codename_argument="-security"
             repo_component="main"
           else
-            repo_url="http://ports.ubuntu.com"
+            repo_url="${http_or_https}://ports.ubuntu.com"
             repo_component="main universe"
           fi
           repo_codename="focal"
@@ -5028,9 +5033,9 @@ libssl_installation_check() {
       libssl_install_required="true"
     fi
     if [[ "${architecture}" =~ (amd64|i386) ]]; then
-      libssl_repo_url="http://security.ubuntu.com/ubuntu"
+      libssl_repo_url="${http_or_https}://security.ubuntu.com/ubuntu"
     else
-      libssl_repo_url="http://ports.ubuntu.com"
+      libssl_repo_url="${http_or_https}://ports.ubuntu.com"
     fi
   else
     echo -e "$(date +%F-%R) | ${mongodb_package_libssl} doesn't appear to required libssl..." &>> "${eus_dir}/logs/libssl-dynamic-failure.log"
@@ -5064,13 +5069,13 @@ mongo_last_attempt() {
     fi
   fi
   if [[ "${mongo_last_attempt_type}" == 'tools' ]]; then
-    repo_archive_array=( "http://archive.ubuntu.com/ubuntu/pool/universe/m/mongo-tools/" "http://ports.ubuntu.com/pool/universe/m/mongo-tools/" "${http_or_https}://old-releases.ubuntu.com/ubuntu/pool/universe/m/mongo-tools/" "${http_or_https}://archive.debian.org/debian/pool/main/m/mongo-tools/" )
+    repo_archive_array=( "${http_or_https}://archive.ubuntu.com/ubuntu/pool/universe/m/mongo-tools/" "${http_or_https}://ports.ubuntu.com/pool/universe/m/mongo-tools/" "${http_or_https}://old-releases.ubuntu.com/ubuntu/pool/universe/m/mongo-tools/" "${http_or_https}://archive.debian.org/debian/pool/main/m/mongo-tools/" )
     mongo_last_attempt_name="mongo-tools"
   elif [[ "${mongo_last_attempt_type}" == 'clients' ]]; then
-    repo_archive_array=( "http://archive.ubuntu.com/ubuntu/pool/universe/m/mongodb/" "http://ports.ubuntu.com/pool/universe/m/mongodb/" "${http_or_https}://old-releases.ubuntu.com/ubuntu/pool/universe/m/mongodb/" "${http_or_https}://archive.debian.org/debian/pool/main/m/mongodb/" )
+    repo_archive_array=( "${http_or_https}://archive.ubuntu.com/ubuntu/pool/universe/m/mongodb/" "${http_or_https}://ports.ubuntu.com/pool/universe/m/mongodb/" "${http_or_https}://old-releases.ubuntu.com/ubuntu/pool/universe/m/mongodb/" "${http_or_https}://archive.debian.org/debian/pool/main/m/mongodb/" )
     mongo_last_attempt_name="mongodb-clients"
   elif [[ "${mongo_last_attempt_type}" == 'server' ]]; then
-    repo_archive_array=( "http://archive.ubuntu.com/ubuntu/pool/universe/m/mongodb/" "http://ports.ubuntu.com/pool/universe/m/mongodb/" "${http_or_https}://old-releases.ubuntu.com/ubuntu/pool/universe/m/mongodb/" "${http_or_https}://archive.debian.org/debian/pool/main/m/mongodb/" )
+    repo_archive_array=( "${http_or_https}://archive.ubuntu.com/ubuntu/pool/universe/m/mongodb/" "${http_or_https}://ports.ubuntu.com/pool/universe/m/mongodb/" "${http_or_https}://old-releases.ubuntu.com/ubuntu/pool/universe/m/mongodb/" "${http_or_https}://archive.debian.org/debian/pool/main/m/mongodb/" )
     mongo_last_attempt_name="mongodb-server"
   fi
   for repo_archive in "${repo_archive_array[@]}"; do
@@ -5140,14 +5145,14 @@ mongo_last_attempt() {
         else
           jq --arg mongodb_json_time "$mongodb_json_time" --arg mongodb_curl_results "$(</tmp/EUS/mongodb.html)" '.["MongoDB Last Attempt Failures"][$mongodb_json_time]["Curl Results"] = $mongodb_curl_results' "${eus_dir}/logs/mongodb-last-attempt-failure-debug-info.json" > "${eus_dir}/logs/mongodb-last-attempt-failure-debug-info.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
         fi
-        eus_database_move_file="${eus_dir}/logs/libssl-failure-debug-info.json"; eus_database_move_log_file="${eus_dir}/logs/libssl-failure-debug-info.log"; eus_database_move
+        eus_database_move_file="${eus_dir}/logs/mongodb-last-attempt-failure-debug-info.json"; eus_database_move_log_file="${eus_dir}/logs/mongodb-last-attempt-failure-debug-info.log"; eus_database_move
       else
         if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
           jq --arg mongo_last_attempt_version "${mongo_last_attempt_version}" --arg repo_archive "${repo_archive}" --arg architecture "${architecture}" --arg mongo_last_attempt_package "${mongo_last_attempt_package}" --arg mongodb_curl_results "$(</tmp/EUS/mongodb.html)" '."MongoDB Last Attempt Failures" += {"'"$(date +%F-%R)"'": {"version": $mongo_last_attempt_version, "Repository URL": $repo_archive, "Architecture": $architecture, "Package": $mongo_last_attempt_package, "Curl Results": $mongodb_curl_results}}' "${eus_dir}/logs/mongodb-last-attempt-failure-debug-info.json" > "${eus_dir}/logs/mongodb-last-attempt-failure-debug-info.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
         else
           jq --arg mongo_last_attempt_version "$mongo_last_attempt_version" --arg repo_archive "$repo_archive" --arg architecture "$architecture" --arg mongo_last_attempt_package "$mongo_last_attempt_package" --arg mongodb_curl_results "$(</tmp/EUS/mongodb.html)" --arg libssl_curl_results "$(</tmp/EUS/libssl.html)" --arg current_time "$current_time" '.["MongoDB Last Attempt Failures"][$current_time] = {"version": $mongo_last_attempt_version, "Repository URL": $repo_archive, "Architecture": $architecture, "Package": $mongo_last_attempt_package, "Curl Results": $mongodb_curl_results}' "${eus_dir}/logs/mongodb-last-attempt-failure-debug-info.json" > "${eus_dir}/logs/mongodb-last-attempt-failure-debug-info.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
         fi
-        eus_database_move_file="${eus_dir}/logs/libssl-failure-debug-info.json"; eus_database_move_log_file="${eus_dir}/logs/libssl-failure-debug-info.log"; eus_database_move
+        eus_database_move_file="${eus_dir}/logs/mongodb-last-attempt-failure-debug-info.json"; eus_database_move_log_file="${eus_dir}/logs/mongodb-last-attempt-failure-debug-info.log"; eus_database_move
       fi
     fi
     if [[ "${mongo_last_attempt_install_success}" == 'true' ]]; then break; fi
@@ -5227,7 +5232,7 @@ if "$(which dpkg)" -l mongodb-server 2> /dev/null | awk '{print $1}' | grep -iq 
     echo -e "${GRAY_R}#${RESET} Installing required package mongodb-clients..."
     if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install mongodb-clients &>> "${eus_dir}/logs/unifi-easy-update-script-required.log"; then
       echo -e "${RED}#${RESET} Failed to install mongodb-clients...\\n"
-      if [[ "${os_codename}" =~ (trusty|qiana|rebecca|rafaela|rosa|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|sarah|serena|sonya|sylvia|tara|tessa|tina|tricia) ]]; then
+      if [[ "${os_codename}" =~ (trusty|qiana|rebecca|rafaela|rosa|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky|sarah|serena|sonya|sylvia|tara|tessa|tina|tricia) ]]; then
         repo_component="main universe"
         repo_codename="xenial"
         get_repo_url
@@ -5378,7 +5383,10 @@ if [[ "${unsupported_database_version_change}" == 'true' ]]; then
 fi
 
 if [[ "${mongo_version_locked}" == '4.4.18' ]] || [[ "${unsupported_database_version_change}" == 'true' ]]; then
-  if "$(which dpkg)" -l mongodb-org-server 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+  if "$(which dpkg)" -l "${gr_mongod_name}" 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+    mongodb_org_version="$(dpkg-query --showformat='${version}' --show "${gr_mongod_name}" 2> /dev/null | sed 's/.*://' | sed 's/-.*//g')"
+    mongodb_org_version_no_dots="${mongodb_org_version//./}"
+  elif "$(which dpkg)" -l mongodb-org-server 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
     mongodb_org_version="$(dpkg-query --showformat='${version}' --show mongodb-org-server 2> /dev/null | sed 's/.*://' | sed 's/-.*//g')"
     mongodb_org_version_no_dots="${mongodb_org_version//./}"
   elif "$(which dpkg)" -l mongodb-server 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
@@ -5460,7 +5468,17 @@ if [[ "${mongo_version_locked}" == '4.4.18' ]] || [[ "${unsupported_database_ver
         for dep in "${mongodb_extra_dependencies[@]}"; do if [[ "${dep}" == "mongodb-org" ]]; then located_mongodb_org_dep="true"; break; fi; done
         if [[ "${located_mongodb_org_dep}" != "true" ]]; then mongodb_extra_dependencies+=("mongodb-org"); fi
       fi
-      for dep in "${mongodb_extra_dependencies[@]}"; do if [[ "${dep}" == "unifi" ]]; then reinstall_unifi="true"; break; fi; done
+      for dep in "${mongodb_extra_dependencies[@]}"; do
+        if [[ "${dep}" == "unifi" && "${reinstall_unifi}" != 'true' ]]; then reinstall_unifi="true"; fi
+        if [[ "${dep}" == "mongodb-org"* && "${glennr_compiled_mongod}" == 'true' ]]; then
+          if grep -iq "${dep}" /tmp/EUS/mongodb/packages_list; then
+            echo -e "$(date +%F-%R) | Located \"${dep}\" in \"/tmp/EUS/mongodb/packages_list\", removing it..." &>> "${eus_dir}/logs/mongodb-unsupported-version-change-locate.log"
+            if sed -i "/${dep}/d" /tmp/EUS/mongodb/packages_list; then
+              echo -e "$(date +%F-%R) | Successfully removed \"${dep}\" from \"/tmp/EUS/mongodb/packages_list\"!" &>> "${eus_dir}/logs/mongodb-unsupported-version-change-locate.log"
+            fi
+          fi
+        fi
+      done
       if [[ "${#mongodb_extra_dependencies[@]}" -gt 0 ]]; then mongodb_extra_dependencies_message=", $(IFS=,; echo "${mongodb_extra_dependencies[*]}" | sed 's/,/, /g; s/,\([^,]*\)$/ and\1/')"; fi
       if "$(which dpkg)" -l | awk '{print $2}' | grep -ioq "${package}$"; then
         echo -e "${GRAY_R}#${RESET} Removing ${package}${mongodb_extra_dependencies_message}..."
@@ -8785,7 +8803,7 @@ mongodb_upgrade() {
         echo -e "${GRAY_R}#${RESET} Installing mongo-tools..."
         if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install mongo-tools &>> "${eus_dir}/logs/unifi-database-required.log"; then
           echo -e "${RED}#${RESET} Failed to install mongo-tools...\\n"
-          if [[ "${os_codename}" =~ (trusty|qiana|rebecca|rafaela|rosa|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|sarah|serena|sonya|sylvia|tara|tessa|tina|tricia) ]]; then
+          if [[ "${os_codename}" =~ (trusty|qiana|rebecca|rafaela|rosa|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky|sarah|serena|sonya|sylvia|tara|tessa|tina|tricia) ]]; then
             repo_component="main universe"
             repo_codename="xenial"
             get_repo_url
@@ -8803,7 +8821,7 @@ mongodb_upgrade() {
           echo -e "${GRAY_R}#${RESET} Trying to install mongo-tools for the second time..."
           if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install mongo-tools &>> "${eus_dir}/logs/unifi-database-required.log"; then
             echo -e "${RED}#${RESET} Failed to install mongo-tools in the second run...\\n"
-            if [[ "${os_codename}" =~ (noble|oracular) ]]; then
+            if [[ "${os_codename}" =~ (noble|oracular|plucky) ]]; then
               repo_component="main"
               repo_codename="jammy"
               get_repo_url
@@ -8827,7 +8845,7 @@ mongodb_upgrade() {
       echo -e "${GRAY_R}#${RESET} Installing mongodb-clients..."
       if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install mongodb-clients &>> "${eus_dir}/logs/unifi-database-required.log"; then
         echo -e "${RED}#${RESET} Failed to install mongodb-clients...\\n"
-          if [[ "${os_codename}" =~ (trusty|qiana|rebecca|rafaela|rosa|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|sarah|serena|sonya|sylvia|tara|tessa|tina|tricia) ]]; then
+          if [[ "${os_codename}" =~ (trusty|qiana|rebecca|rafaela|rosa|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky|sarah|serena|sonya|sylvia|tara|tessa|tina|tricia) ]]; then
             repo_component="main universe"
             repo_codename="xenial"
             get_repo_url
@@ -9241,11 +9259,11 @@ mongodb_upgrade() {
         if dpkg --compare-versions "${installed_libc_version}" lt "${glennr_mongod_libc6_required_version}"; then
           if [[ "${os_codename}" =~ (trusty|qiana|rebecca|rafaela|rosa|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy) ]]; then
             if [[ "${architecture}" =~ (amd64|i386) ]]; then
-              repo_url="http://security.ubuntu.com/ubuntu"
+              repo_url="${http_or_https}://security.ubuntu.com/ubuntu"
               repo_codename_argument="-security"
               repo_component="main"
             else
-              repo_url="http://ports.ubuntu.com"
+              repo_url="${http_or_https}://ports.ubuntu.com"
               repo_codename_argument="-security"
               repo_component="main universe"
             fi
@@ -10374,8 +10392,13 @@ application_upgrade_releases() {
     fi
   fi
   unifi_download_urls=()
-  if [[ -n "${fw_update_gr_dl_link}" ]]; then unifi_download_urls+=("${fw_update_gr_dl_link}"); fi
-  if [[ -n "${fw_update_dl_link}" ]]; then unifi_download_urls+=("${fw_update_dl_link}"); fi
+  if [[ "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/geo" 2> /dev/null | jq -r '."continent_code"' 2> /dev/null)" == "EU" ]]; then
+    if [[ -n "${fw_update_gr_dl_link}" ]]; then unifi_download_urls+=("${fw_update_gr_dl_link}"); fi
+    if [[ -n "${fw_update_dl_link}" ]]; then unifi_download_urls+=("${fw_update_dl_link}"); fi
+  else
+    if [[ -n "${fw_update_dl_link}" ]]; then unifi_download_urls+=("${fw_update_dl_link}"); fi
+    if [[ -n "${fw_update_gr_dl_link}" ]]; then unifi_download_urls+=("${fw_update_gr_dl_link}"); fi
+  fi
   if [[ -n "${application_version}" ]]; then unifi_download_urls+=("https://dl.ui.com/unifi/${application_version}/${unifi_deb_file_name}.deb"); fi
   if [[ -n "${application_version_release}" ]]; then unifi_download_urls+=("https://dl.ui.com/unifi/${application_version_release}/${unifi_deb_file_name}.deb"); fi
   for unifi_download_url in "${unifi_download_urls[@]}"; do
