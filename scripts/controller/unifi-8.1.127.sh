@@ -59,7 +59,7 @@
 ###################################################################################################################################################################################################
 
 # Script                | UniFi Network Easy Installation Script
-# Version               | 8.6.6
+# Version               | 8.6.7
 # Application version   | 8.1.127-810cd1e59a
 # Debian Repo version   | 8.1.127-25320-1
 # Author                | Glenn Rietveld
@@ -267,7 +267,7 @@ check_apt_listbugs() {
 locate_http_proxy() {
   env_proxies="$(grep -sE "^[^#]*http_proxy|^[^#]*https_proxy" "/etc/environment" 2> /dev/null | awk -F '=' '{print $2}' | tr -d '"')"
   profile_proxies="$(find /etc/profile.d/ -type f -exec sh -c 'grep -E "^[^#]*http_proxy|^[^#]*https_proxy" "$1" | awk -F "=" "{print \$2}" | tr -d "\"" ' _ {} \;)"
-  apt_proxies="$(grep -siE "proxy" /etc/apt/apt.conf /etc/apt/apt.conf.d/* 2> /dev/null | awk -F '"' '{print $2}')"
+  apt_proxies="$(grep -siE "^[^#]*proxy" /etc/apt/apt.conf /etc/apt/apt.conf.d/* 2> /dev/null | awk -F '"' '{print $2}')"
   wget_proxies="$(grep -sE "^[^#]*http_proxy|^[^#]*https_proxy" "/etc/wgetrc" 2> /dev/null | awk -F '=' '{print $2}' | tr -d '"')"
   # Combine, normalize (remove trailing slashes), and sort unique proxies
   all_proxies="$(echo -e "$env_proxies\n$profile_proxies\n$apt_proxies\n$wget_proxies" | sed 's:/*$::' | sort -u | grep -v '^$')"

@@ -11,6 +11,12 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 8.6.7
+  
+ - Fixed an issue where the script would use commented out apt proxies.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 8.6.6
   
  - Added support for HTTPS ubuntu repositories.

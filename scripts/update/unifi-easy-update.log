@@ -11,6 +11,12 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 10.0.5
+  
+ - Fixed an issue where the script would use commented out apt proxies.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 10.0.4
   
  - Added support for HTTPS ubuntu repositories.
