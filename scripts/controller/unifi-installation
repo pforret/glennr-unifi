@@ -11,6 +11,14 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 8.6.8
+  
+ - Improved the broken UniFi Network Application installation recovery process.
+ - Improved the MongoDB installation process for arm64 systems with modified memory allocations.
+ - Improved AVX debugging.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 8.6.7
   
  - Fixed an issue where the script would use commented out apt proxies.

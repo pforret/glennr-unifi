@@ -59,7 +59,7 @@
 ###################################################################################################################################################################################################
 
 # Script                | UniFi Network Easy Installation Script
-# Version               | 8.6.7
+# Version               | 8.6.8
 # Application version   | 9.0.114-k5dy363g65
 # Debian Repo version   | 9.0.114-28033-1
 # Author                | Glenn Rietveld
@@ -74,7 +74,7 @@
 
 RESET='\033[0m'
 YELLOW='\033[1;33m'
-WHITE_R='\033[1;37m'
+WHITE_R='\033[39m' # Same as GRAY_R for terminals with white background.
 GRAY_R='\033[39m'
 RED='\033[1;31m' # Light Red.
 GREEN='\033[1;32m' # Light Green.
@@ -3114,10 +3114,11 @@ check_dpkg_lock() {
   check_dpkg_interrupted
 }
 
-# Check if we should handle broken UniFi installation process if we found old database files. 
-if [[ -d "/usr/lib/unifi/logs/" ]]; then
+# Check if we should handle broken UniFi installation process if we found old database files.
+if [[ -d "/usr/lib/unifi/logs/" ]]; then unifi_logs_location="$(readlink -f /usr/lib/unifi/logs)"; else unifi_logs_location="/var/log/unifi"; fi
+if [[ -d "${unifi_logs_location}" ]]; then
   if [[ "$(command -v zgrep)" ]]; then grep_command="zgrep"; else grep_command="grep"; fi
-  if [[ "$(du -b "/usr/lib/unifi/logs/mongod.log" 2> /dev/null | awk '{print$1}')" -gt "5368709120 " ]]; then grep_matches="-m 10"; fi
+  if [[ "$(du -b "${unifi_logs_location}/mongod.log" 2> /dev/null | awk '{print$1}')" -gt "5368709120 " ]]; then grep_matches="-m 10"; fi
   while read -r found_mongodb_version; do
     found_mongodb_version_fd="$(echo "${found_mongodb_version}" | cut -d'.' -f1)"
     found_mongodb_version_sd="$(echo "${found_mongodb_version}" | cut -d'.' -f2)"
@@ -3131,14 +3132,14 @@ if [[ -d "/usr/lib/unifi/logs/" ]]; then
         if [[ -n "${last_known_good_mongodb_version}" && "${last_known_good_mongodb_version}" == "${found_mongodb_version}" ]]; then unset last_known_good_mongodb_version; fi
         echo -e "$(date +%F-%R) | \"${found_mongodb_version}\" is marked as bad in \"${file}\"..." &>> "${eus_dir}/logs/mongodb-unsupported-version-change-locate.log"; wait; break
       fi
-    done < <(find /usr/lib/unifi/logs/ -maxdepth 1 -type f -print0 | while IFS= read -r -d '' file; do if "${grep_command}" ${grep_matches:+${grep_matches}} -Eial "db version v${found_mongodb_version}|buildInfo\":{\"version\":\"${found_mongodb_version}\"" "$file" > /dev/null 2>&1; then if [[ -e "$file" ]]; then stat --format '%Y %n' "$file"; fi; fi; done | sort -nr | awk '{print $2}')
+    done < <(find "${unifi_logs_location}/" -maxdepth 1 -type f -print0 | while IFS= read -r -d '' file; do if "${grep_command}" ${grep_matches:+${grep_matches}} -Eial "db version v${found_mongodb_version}|buildInfo\":{\"version\":\"${found_mongodb_version}\"" "$file" > /dev/null 2>&1; then if [[ -e "$file" ]]; then stat --format '%Y %n' "$file"; fi; fi; done | sort -nr | awk '{print $2}')
     if [[ -n "${last_known_good_mongodb_version}" ]]; then wait; break; fi
-  done < <(find /usr/lib/unifi/logs/ -maxdepth 1 -type f -print0 | xargs -0 "${grep_command}" ${grep_matches:+${grep_matches}} -sEioa "db version v[0-9].[0-9].[0-9]{1,2}|buildInfo\":{\"version\":\"[0-9].[0-9].[0-9]{1,2}\"" | sed -e 's/^.*://' -e 's/db version v//g' -e 's/buildInfo":{"version":"//g' -e 's/"//g' | sort -rV | uniq)
+  done < <(find "${unifi_logs_location}/" -maxdepth 1 -type f -print0 | xargs -0 "${grep_command}" ${grep_matches:+${grep_matches}} -sEioa "db version v[0-9].[0-9].[0-9]{1,2}|buildInfo\":{\"version\":\"[0-9].[0-9].[0-9]{1,2}\"" | sed -e 's/^.*://' -e 's/db version v//g' -e 's/buildInfo":{"version":"//g' -e 's/"//g' | sort -rV | uniq)
   if [[ -z "${last_known_good_mongodb_version}" ]] && "$(which dpkg)" -l | grep -E "(mongodb-server|mongodb-org-server|mongod-armv8|mongod-amd64)[[:space:]]" | grep -viq "^ii\\|^hi"; then
     get_unifi_api_ports
     get_unifi_application_status
     if [[ "${application_up}" != 'true' ]]; then
-      if [[ "$(find /usr/lib/unifi/logs/ -maxdepth 1 -type f -print0 | wc -l)" == "0" ]] || [[ "$(find /usr/lib/unifi/logs/ -type f -name "mongod.log*" | wc -l)" == "0" ]]; then 
+      if [[ "$(find "${unifi_logs_location}/" -maxdepth 1 -type f -print0 | wc -l)" == "0" ]] || [[ "$(find "${unifi_logs_location}/" -type f -name "mongod.log*" | wc -l)" == "0" ]]; then 
         last_known_installed_mongodb_version="$("$(which dpkg)" -l | grep -E "(mongodb-server|mongodb-org-server|mongod-armv8|mongod-amd64)[[:space:]]" | grep -vi "^ii\\|^hi" | awk '{print $3}' | sed -e 's/.*://' -e 's/-.*//g' -e 's/+.*//g')"
       fi
     fi
@@ -3220,7 +3221,7 @@ if [[ -n "${unifi_package}" ]] || [[ "${recovery_required}" == 'true' ]]; then
     header_red
     echo -e "${RED}#${RESET} You have a broken UniFi Network Application installation...\\n"
     if [[ -e "${unifi_db_version_path}" ]]; then broken_unifi_install_version1="$(head -n1 "${unifi_db_version_path}")"; fi
-    broken_unifi_install_version2="$(grep -saEio "UniFi [0-9].[0-9].[0-9]{1,3}" /usr/lib/unifi/logs/server.log* | sed 's/UniFi //g' | sort -V | tail -n1 | sed 's/^.*://')"
+    broken_unifi_install_version2="$(grep -saEio "UniFi [0-9].[0-9].[0-9]{1,3}" "${unifi_logs_location}/server.log"* | sed 's/UniFi //g' | sort -V | tail -n1 | sed 's/^.*://')"
     broken_unifi_install_version3="$("$(which dpkg)" -l unifi | tail -n1 | awk '{print $3}' | cut -d"-" -f1)"
     broken_unifi_install_versions=("${broken_unifi_install_version1}" "${broken_unifi_install_version2}" "${broken_unifi_install_version3}")
     while read -r unifi_version; do
@@ -3229,12 +3230,13 @@ if [[ -n "${unifi_package}" ]] || [[ "${recovery_required}" == 'true' ]]; then
       if [[ "${mongodb_version_installed_no_dots::2}" -lt "${minimum_required_mongodb_version}" ]]; then
         continue
       else
-        if [[ "$(curl "${curl_argument[@]}" https://api.glennr.nl/api/network-supported-upgrade?status 2> /dev/null | jq -r '.[]' 2> /dev/null)" == "OK" && -n "${broken_unifi_install_version1}" ]]; then
-          net_update_supported="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-supported-upgrade?current_version=${broken_unifi_install_version1}&new_version=${unifi_version}" 2> /dev/null | jq -r '.supported' 2> /dev/null | sed '/null/d' 2> "${eus_dir}/logs/glennr-api.log")"
+        if [[ "$(command -v jq)" ]]; then net_update_supported_api_status="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-supported-upgrade?status" 2> /dev/null | jq -r '.availability' 2> /dev/null)"; else net_update_supported_api_status="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-supported-upgrade?status" 2> /dev/null | grep -oP '(?<="availability":")[^"]+')"; fi
+        if [[ "${net_update_supported_api_status}" == "OK" && -n "${broken_unifi_install_version1}" ]]; then
+          if [[ "$(command -v jq)" ]]; then net_update_supported="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-supported-upgrade?current_version=${broken_unifi_install_version1}&new_version=${unifi_version}" 2> /dev/null | jq -r '.supported' 2> /dev/null | sed '/null/d' 2> "${eus_dir}/logs/glennr-api.log")"; else net_update_supported="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-supported-upgrade?current_version=${broken_unifi_install_version1}&new_version=${unifi_version}" 2> /dev/null | grep -oP '(?<="supported":")[^"]+')"; fi
           if [[ "${net_update_supported}" == 'true' ]]; then
             broken_unifi_install_version="${unifi_version}"
-          elif [[ "${net_update_supported}" == 'false' ]]; then\
-            unifi_next_possible_version="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-supported-upgrade?current_version=${broken_unifi_install_version1}&new_version=${unifi_version}" 2> /dev/null | jq -r '.next_possible_version' 2> /dev/null | sed '/null/d' 2> "${eus_dir}/logs/glennr-api.log")"
+          elif [[ "${net_update_supported}" == 'false' ]]; then
+            if [[ "$(command -v jq)" ]]; then unifi_next_possible_version="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-supported-upgrade?current_version=${broken_unifi_install_version1}&new_version=${unifi_version}" 2> /dev/null | jq -r '.next_possible_version' 2> /dev/null | sed '/null/d' 2> "${eus_dir}/logs/glennr-api.log")"; else unifi_next_possible_version="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-supported-upgrade?current_version=${broken_unifi_install_version1}&new_version=${unifi_version}" 2> /dev/null | grep -oP '(?<="next_possible_version":")[^"]+')"; fi
             if [[ -n "${unifi_next_possible_version}" ]]; then
               broken_unifi_install_version="${unifi_next_possible_version}"
             else
@@ -4484,25 +4486,33 @@ mongodb_avx_support_check() {
     cpu_model_name="$(lscpu | tr '[:upper:]' '[:lower:]' | grep -i '^model name' | cut -f 2 -d ":" | awk '{$1=$1}1')"
     if [[ -z "${cpu_model_name}" ]]; then cpu_model_name="$(lscpu | tr '[:upper:]' '[:lower:]' | sed -n 's/^model name:[[:space:]]*//p')"; fi
     if [[ "${architecture}" == "arm64" && -n "${cpu_model_name}" ]]; then
+      if grep -iqs "numa=fake\\|system_heap" /proc/cmdline; then memory_allocation_modifications="true"; fi
       cpu_model_regex="^(cortex-a55|cortex-a65|cortex-a65ae|cortex-a75|cortex-a76|cortex-a77|cortex-a78|cortex-x1|cortex-x2|cortex-x3|cortex-x4|neoverse-n1|neoverse-n2|neoverse-n3|neoverse-e1|neoverse-e2|neoverse-v1|neoverse-v2|neoverse-v3|cortex-a510|cortex-a520|cortex-a715|cortex-a720)$"
-      if ! [[ "${cpu_model_name}" =~ ${cpu_model_regex} ]]; then
+      if ! [[ "${cpu_model_name}" =~ ${cpu_model_regex} ]] || [[ "${memory_allocation_modifications}" == 'true' ]]; then
         if [[ "${mongo_version_max}" =~ (70|80) ]]; then
           if "$(which dpkg)" -l | grep "^ii\\|^hi" | grep -iq "mongod-armv8" || [[ "${script_option_skip}" == 'true' ]] || [[ "${glennr_compiled_mongod}" == 'true' ]]; then
+            echo -e "$(date +%F-%R) | Automatically answered \"YES\" to the Glenn R. MongoDB Compiled question." &>> "${eus_dir}/logs/avx-questionnaire.log"
             mongod_armv8_installed="true"
             yes_no="y"
           else
             echo -e "${GRAY_R}----${RESET}\\n"
-            echo -e "${YELLOW}#${RESET} Your CPU is no longer officially supported by MongoDB themselves..."
+            if [[ "${memory_allocation_modifications}" == 'true' ]]; then
+              echo -e "${YELLOW}#${RESET} The script detected system modifications that might affect memory allocation, which\\n${YELLOW}#${RESET} could result in issues with the official MongoDB package..."
+            else
+              echo -e "${YELLOW}#${RESET} Your CPU is no longer officially supported by MongoDB themselves..."
+            fi
             read -rp $'\033[39m#\033[0m Would you like to use mongod compiled from MongoDB source code specifically for your CPU by Glenn R.? (Y/n) ' yes_no
           fi
           case "$yes_no" in
               [Yy]*|"")
+                 echo -e "$(date +%F-%R) | Answered \"YES\" to the Glenn R. MongoDB Compiled question." &>> "${eus_dir}/logs/avx-questionnaire.log"
                  if [[ "${mongo_version_max}" == "80" ]]; then add_mongod_80_repo="true"; elif [[ "${mongo_version_max}" == "70" ]]; then add_mongod_70_repo="true"; fi
                  glennr_compiled_mongod="true"
                  if [[ "${broken_unifi_install}" == 'true' ]]; then broken_glennr_compiled_mongod="true"; fi
                  cleanup_unifi_repos
                  if [[ "${mongod_armv8_installed}" != 'true' ]]; then echo ""; fi;;
               [Nn]*)
+                 echo -e "$(date +%F-%R) | Answered \"NO\" to the Glenn R. MongoDB Compiled question." &>> "${eus_dir}/logs/avx-questionnaire.log"
                  unset add_mongodb_70_repo
                  unset add_mongodb_80_repo
                  add_mongodb_44_repo="true"
@@ -4513,6 +4523,7 @@ mongodb_avx_support_check() {
           esac
           unset yes_no
         else
+          echo -e "$(date +%F-%R) | Did not ask the Glenn R. MongoDB Compiled question." &>> "${eus_dir}/logs/avx-questionnaire.log"
           unset add_mongodb_70_repo
           unset add_mongodb_80_repo
           add_mongodb_44_repo="true"
@@ -4524,6 +4535,7 @@ mongodb_avx_support_check() {
     else
       if [[ "${mongo_version_max}" =~ (70|80) && "${glennr_mongod_compatible}" == "true" && "${official_mongodb_compatible}" != 'true' ]]; then
         if "$(which dpkg)" -l | grep "^ii\\|^hi" | grep -iq "mongod-amd64" || [[ "${script_option_skip}" == 'true' ]] || [[ "${glennr_compiled_mongod}" == 'true' ]]; then
+          echo -e "$(date +%F-%R) | Automatically answered \"YES\" to the Glenn R. MongoDB Compiled question." &>> "${eus_dir}/logs/avx-questionnaire.log"
           mongod_amd64_installed="true"
           yes_no="y"
         else
@@ -4533,12 +4545,14 @@ mongodb_avx_support_check() {
         fi
         case "$yes_no" in
             [Yy]*|"")
+               echo -e "$(date +%F-%R) | Answered \"YES\" to the Glenn R. MongoDB Compiled question." &>> "${eus_dir}/logs/avx-questionnaire.log"
                if [[ "${mongo_version_max}" == "80" ]]; then add_mongod_80_repo="true"; elif [[ "${mongo_version_max}" == "70" ]]; then add_mongod_70_repo="true"; fi
                glennr_compiled_mongod="true"
                if [[ "${broken_unifi_install}" == 'true' ]]; then broken_glennr_compiled_mongod="true"; fi
                cleanup_unifi_repos
                if [[ "${mongod_amd64_installed}" != 'true' ]]; then echo ""; fi;;
             [Nn]*)
+               echo -e "$(date +%F-%R) | Answered \"NO\" to the Glenn R. MongoDB Compiled question." &>> "${eus_dir}/logs/avx-questionnaire.log"
                unset add_mongodb_70_repo
                unset add_mongodb_80_repo
                add_mongodb_44_repo="true"
@@ -4549,7 +4563,9 @@ mongodb_avx_support_check() {
         esac
         unset yes_no
       else
+        echo -e "$(date +%F-%R) | Did not ask the Glenn R. MongoDB Compiled question." &>> "${eus_dir}/logs/avx-questionnaire.log"
         if [[ "${avx_compatible}" != 'true' ]]; then
+          echo -e "$(date +%F-%R) | System is not AVX compatible." &>> "${eus_dir}/logs/avx-questionnaire.log"
           unset add_mongodb_70_repo
           unset add_mongodb_80_repo
           add_mongodb_44_repo="true"
@@ -6453,7 +6469,7 @@ if [[ "${mongodb_installed}" != 'true' ]]; then
   echo ""
   remove_older_mongodb_repositories
   if [[ "${broken_unifi_install}" == 'true' ]]; then
-    if [[ -z "${previous_mongodb_version}" && "${mongodb_unsupported_uninstall}" != 'true' ]]; then previous_mongodb_version="$(grep ${grep_matches:+${grep_matches}} -sEio "db version v[0-9].[0-9].[0-9]{1,2}|buildInfo\":{\"version\":\"[0-9].[0-9].[0-9]{1,2}\"" /usr/lib/unifi/logs/mongod.log  | tail -n1 | sed -e 's/db version v//g' -e 's/buildInfo":{"version":"//g' -e 's/"//g' | sed 's/\.//g')"; fi
+    if [[ -z "${previous_mongodb_version}" && "${mongodb_unsupported_uninstall}" != 'true' ]]; then previous_mongodb_version="$(grep ${grep_matches:+${grep_matches}} -sEio "db version v[0-9].[0-9].[0-9]{1,2}|buildInfo\":{\"version\":\"[0-9].[0-9].[0-9]{1,2}\"" "${unifi_logs_location}/mongod.log" | tail -n1 | sed -e 's/db version v//g' -e 's/buildInfo":{"version":"//g' -e 's/"//g' | sed 's/\.//g')"; fi
     if [[ -n "${previous_mongodb_version}" && "${success_setfeaturecompatibilityversion}" != "true" ]]; then
       unset add_mongodb_30_repo
       unset add_mongodb_32_repo

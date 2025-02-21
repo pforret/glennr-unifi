@@ -11,6 +11,15 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 10.0.6
+  
+ - Improved the MongoDB recovery process.
+ - Improved the MongoDB upgrade process for arm64 systems with modified memory allocations.
+ - Improved the supported upgrade check for custom download links.
+ - Improved AVX debugging.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 10.0.5
   
  - Fixed an issue where the script would use commented out apt proxies.
