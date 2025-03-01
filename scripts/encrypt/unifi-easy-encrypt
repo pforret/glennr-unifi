@@ -11,6 +11,12 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Encrypt Script  |  Version 3.5.2
+  
+ - Added support for PikaOS ( Nest ).
+ 
+ ####
+
  |  UniFi Easy Encrypt Script  |  Version 3.5.1
   
  - Fixed an issue where the script would use commented out apt proxies.

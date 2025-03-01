@@ -54,12 +54,13 @@
 #                       | Kaisen Linux
 #                       | Deepin Linux ( Beige )
 #                       | Pearl Linux ( Scootski | Cade | Preslee )
+#                       | PikaOS ( Nest )
 #                       | Kali Linux ( rolling )
 
 ###################################################################################################################################################################################################
 
 # Script                | UniFi Network Easy Installation Script
-# Version               | 8.6.8
+# Version               | 8.6.9
 # Application version   | 9.0.114-k5dy363g65
 # Debian Repo version   | 9.0.114-28033-1
 # Author                | Glenn Rietveld
@@ -1194,7 +1195,11 @@ glennr_mongod_repository_check() {
   if [[ "$(jq -r '.database["glennr-mongod-repository-check"]' "${eus_dir}/db/db.json" 2> /dev/null)" -lt "1733356800" ]]; then
     while read -r glennr_repo_list; do
       if [[ "${glennr_mongod_repository_check_date}" != "true" ]]; then echo -e "\\n------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/glennr-apt-repository-update.log"; glennr_mongod_repository_check_date="true"; fi
-      apt-get update -o Dir::Etc::SourceList="${glennr_repo_list}" --allow-releaseinfo-change &>> "${eus_dir}/logs/glennr-apt-repository-update.log"
+      if [[ "$("$(which dpkg)" -l apt | grep ^"ii" | awk '{print $2,$3}' | awk '{print $2}' | cut -d'.' -f1)" -gt "1" ]] || [[ "$("$(which dpkg)" -l apt | grep ^"ii" | awk '{print $2,$3}' | awk '{print $2}' | cut -d'.' -f1)" == "1" && "$("$(which dpkg)" -l apt | grep ^"ii" | awk '{print $2,$3}' | awk '{print $2}' | cut -d'.' -f2)" -ge "6" ]]; then
+        apt-get update -o Dir::Etc::SourceList="${glennr_repo_list}" --allow-releaseinfo-change &>> "${eus_dir}/logs/glennr-apt-repository-update.log"
+      else
+        apt-get update -o Dir::Etc::SourceList="${glennr_repo_list}" &>> "${eus_dir}/logs/glennr-apt-repository-update.log"
+      fi
     done < <(grep -riIl "apt.glennr.nl" /etc/apt/)
     glennr_mongod_repository_check_time="$(date +%s)"
     if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
@@ -1613,7 +1618,7 @@ run_apt_get_update() {
 
 check_add_mongodb_repo_variable() {
   if [[ -e "/tmp/EUS/mongodb/check_add_mongodb_repo_variable" ]]; then rm --force "/tmp/EUS/mongodb/check_add_mongodb_repo_variable" &> /dev/null; fi
-  check_add_mongodb_repo_variables=( "add_mongodb_30_repo" "add_mongodb_32_repo" "add_mongodb_34_repo" "add_mongodb_36_repo" "add_mongodb_40_repo" "add_mongodb_42_repo" "add_mongodb_44_repo" "add_mongodb_50_repo" "add_mongodb_60_repo" "add_mongodb_70_repo" "add_mongodb_80_repo" "add_mongod_70_repo" "add_mongod_80_repo" )
+  check_add_mongodb_repo_variables=( "add_mongodb_30_repo" "add_mongodb_32_repo" "add_mongodb_34_repo" "add_mongodb_36_repo" "add_mongodb_40_repo" "add_mongodb_42_repo" "add_mongodb_44_repo" "add_mongodb_50_repo" "add_mongod_50_repo" "add_mongodb_60_repo" "add_mongod_60_repo" "add_mongodb_70_repo" "add_mongod_70_repo" "add_mongodb_80_repo" "add_mongod_80_repo" )
   for mongodb_repo_variable in "${check_add_mongodb_repo_variables[@]}"; do if [[ "${!mongodb_repo_variable}" == 'true' ]]; then if echo "${mongodb_repo_variable}" &>> /tmp/EUS/mongodb/check_add_mongodb_repo_variable; then unset "${mongodb_repo_variable}"; fi; fi; done
 }
 
@@ -1633,55 +1638,42 @@ add_glennr_mongod_repo() {
   check_dns apt.glennr.nl
   repo_http_https="https"
   glennr_mongod_v="$("$(which dpkg)" -l | grep "${gr_mongod_name}" | grep -i "^ii\\|^hi\\|^ri\\|^pi\\|^ui" | awk '{print $3}' | sed 's/\.//g' | sed 's/.*://' | sed 's/-.*//g' | sed 's/+.*//g' | sort -V | tail -n 1)"
+  if [[ "${glennr_mongod_v::2}" == '50' ]] || [[ "${add_mongod_50_repo}" == 'true' ]]; then
+    mongod_version_major_minor="5.0"
+    mongod_repo_type="mongod/5.0"
+  fi
+  if [[ "${glennr_mongod_v::2}" == '60' ]] || [[ "${add_mongod_60_repo}" == 'true' ]]; then
+    mongod_version_major_minor="6.0"
+    mongod_repo_type="mongod/6.0"
+  fi
   if [[ "${glennr_mongod_v::2}" == '70' ]] || [[ "${add_mongod_70_repo}" == 'true' ]]; then
     mongod_version_major_minor="7.0"
     mongod_repo_type="mongod/7.0"
-    if [[ "${os_codename}" =~ (stretch) ]]; then
-      mongod_codename="repo stretch"
-    elif [[ "${os_codename}" =~ (buster|bullseye|bookworm|trixie|forky) ]]; then
-      mongod_codename="repo ${os_codename}"
-    elif [[ "${os_codename}" =~ (unstable) ]]; then
-      mongod_codename="repo forky"
-    elif [[ "${os_codename}" =~ (xenial|sarah|serena|sonya|sylvia|loki) ]]; then
-      mongod_codename="repo xenial"
-    elif [[ "${os_codename}" =~ (bionic|tara|tessa|tina|tricia|hera|juno) ]]; then
-      mongod_codename="repo bionic"
-    elif [[ "${os_codename}" =~ (focal|groovy|hirsute|impish) ]]; then
-      mongod_codename="repo focal"
-    elif [[ "${os_codename}" =~ (jammy|kinetic|lunar|mantic) ]]; then
-      mongod_codename="repo jammy"
-    elif [[ "${os_codename}" =~ (noble|oracular) ]]; then
-      mongod_codename="repo noble"
-    elif [[ "${os_codename}" =~ (plucky) ]]; then
-      mongod_codename="repo plucky"
-    else
-      mongod_codename="repo xenial"
-    fi
   fi
   if [[ "${glennr_mongod_v::2}" == '80' ]] || [[ "${add_mongod_80_repo}" == 'true' ]]; then
     mongod_version_major_minor="8.0"
     mongod_repo_type="mongod/8.0"
-    if [[ "${os_codename}" =~ (stretch) ]]; then
-      mongod_codename="repo stretch"
-    elif [[ "${os_codename}" =~ (buster|bullseye|bookworm|trixie|forky) ]]; then
-      mongod_codename="repo ${os_codename}"
-    elif [[ "${os_codename}" =~ (unstable) ]]; then
-      mongod_codename="repo forky"
-    elif [[ "${os_codename}" =~ (xenial|sarah|serena|sonya|sylvia|loki) ]]; then
-      mongod_codename="repo xenial"
-    elif [[ "${os_codename}" =~ (bionic|tara|tessa|tina|tricia|hera|juno) ]]; then
-      mongod_codename="repo bionic"
-    elif [[ "${os_codename}" =~ (focal|groovy|hirsute|impish) ]]; then
-      mongod_codename="repo focal"
-    elif [[ "${os_codename}" =~ (jammy|kinetic|lunar|mantic) ]]; then
-      mongod_codename="repo jammy"
-    elif [[ "${os_codename}" =~ (noble|oracular) ]]; then
-      mongod_codename="repo noble"
-    elif [[ "${os_codename}" =~ (plucky) ]]; then
-      mongod_codename="repo plucky"
-    else
-      mongod_codename="repo xenial"
-    fi
+  fi
+  if [[ "${os_codename}" =~ (stretch) ]]; then
+    mongod_codename="repo stretch"
+  elif [[ "${os_codename}" =~ (buster|bullseye|bookworm|trixie|forky) ]]; then
+    mongod_codename="repo ${os_codename}"
+  elif [[ "${os_codename}" =~ (unstable) ]]; then
+    mongod_codename="repo forky"
+  elif [[ "${os_codename}" =~ (xenial|sarah|serena|sonya|sylvia|loki) ]]; then
+    mongod_codename="repo xenial"
+  elif [[ "${os_codename}" =~ (bionic|tara|tessa|tina|tricia|hera|juno) ]]; then
+    mongod_codename="repo bionic"
+  elif [[ "${os_codename}" =~ (focal|groovy|hirsute|impish) ]]; then
+    mongod_codename="repo focal"
+  elif [[ "${os_codename}" =~ (jammy|kinetic|lunar|mantic) ]]; then
+    mongod_codename="repo jammy"
+  elif [[ "${os_codename}" =~ (noble|oracular) ]]; then
+    mongod_codename="repo noble"
+  elif [[ "${os_codename}" =~ (plucky) ]]; then
+    mongod_codename="repo plucky"
+  else
+    mongod_codename="repo xenial"
   fi
   if [[ "${try_http_glennr_mongod_repo}" == 'true' ]]; then repo_http_https="http"; try_http_glennr_mongod_repo_text_1=" using the HTTP protocol"; try_http_glennr_mongod_repo_text_2=" with the HTTP protocol"; fi
   if [[ -n "${mongod_version_major_minor}" ]]; then
@@ -1781,7 +1773,7 @@ add_mongodb_repo() {
   if [[ "${glennr_compiled_mongod}" == 'true' ]] || "$(which dpkg)" -l "${gr_mongod_name}" 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then add_glennr_mongod_repo; fi
   check_dns repo.mongodb.org
   # if any "add_mongodb_xx_repo" is true, (set skip_mongodb_org_v to true, this is disabled).
-  mongodb_add_repo_variables=( "add_mongodb_30_repo" "add_mongodb_32_repo" "add_mongodb_34_repo" "add_mongodb_36_repo" "add_mongodb_40_repo" "add_mongodb_42_repo" "add_mongodb_44_repo" "add_mongodb_50_repo" "add_mongodb_60_repo" "add_mongodb_70_repo" "add_mongodb_80_repo" "add_mongod_70_repo" "add_mongod_80_repo" )
+  mongodb_add_repo_variables=( "add_mongodb_30_repo" "add_mongodb_32_repo" "add_mongodb_34_repo" "add_mongodb_36_repo" "add_mongodb_40_repo" "add_mongodb_42_repo" "add_mongodb_44_repo" "add_mongodb_50_repo" "add_mongod_50_repo" "add_mongodb_60_repo" "add_mongod_60_repo" "add_mongodb_70_repo" "add_mongod_70_repo" "add_mongodb_80_repo" "add_mongod_80_repo" )
   for add_repo_variable in "${mongodb_add_repo_variables[@]}"; do if [[ "${!add_repo_variable}" == 'true' ]]; then mongodb_add_repo_variables_true_statements+=("${add_repo_variable}"); fi; done
   if [[ "${mongodb_key_update}" == 'true' ]]; then skip_mongodb_org_v="true"; fi
   if [[ "${skip_mongodb_org_v}" != 'true' ]]; then
@@ -2470,7 +2462,7 @@ get_distro() {
     elif [[ "${os_codename}" =~ ^(bookworm|lory|faye|boron|beige|preslee|daedalus)$ ]]; then repo_codename="bookworm"; os_codename="bookworm"; os_id="debian"
     elif [[ "${os_codename}" =~ ^(trixie|excalibur)$ ]]; then repo_codename="trixie"; os_codename="trixie"; os_id="debian"
     elif [[ "${os_codename}" =~ ^(forky|freia)$ ]]; then repo_codename="forky"; os_codename="forky"; os_id="debian"
-    elif [[ "${os_codename}" =~ ^(unstable|rolling)$ ]]; then repo_codename="unstable"; os_codename="unstable"; os_id="debian"
+    elif [[ "${os_codename}" =~ ^(unstable|rolling|nest)$ ]]; then repo_codename="unstable"; os_codename="unstable"; os_id="debian"
     else
       repo_codename="${os_codename}"
     fi
@@ -4258,7 +4250,7 @@ multiple_attempt_to_install_package() {
       echo -e "${GRAY_R}#${RESET} ${multiple_attempt_to_install_package_message_1} ${multiple_attempt_to_install_package_name}..."
     fi
     if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_downgrade_option[@]}" "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${multiple_attempt_to_install_package_name}""${multiple_attempt_to_install_package_version_with_equal_sign}" &>> "${eus_dir}/logs/${multiple_attempt_to_install_package_log}.log"; then
-      if tail -n20 "${eus_dir}/logs/unifi-easy-update-script-required.log" | grep -iq "uses unknown compression for member .*zst"; then
+      if tail -n20 "${eus_dir}/logs/${multiple_attempt_to_install_package_log}.log" | grep -iq "uses unknown compression for member .*zst"; then
         if [[ "${attempt_to_install_package_attempts}" -ge '1' ]]; then
           echo -e "${RED}#${RESET} Failed to $(echo "${multiple_attempt_to_install_package_message_3}"| tr '[:upper:]' '[:lower:]') ${multiple_attempt_to_install_package_name} ${attempt_message_2}...\\n"
         else
@@ -4482,14 +4474,14 @@ java_required_variables
 
 # Stick to 4.4 if cpu doesn't report avx support.
 mongodb_avx_support_check() {
-  if [[ "${mongo_version_max}" =~ (44|70|80) && "${unifi_core_system}" != 'true' ]]; then
+  if [[ "${mongo_version_max}" =~ (44|50|60|70|80) && "${unifi_core_system}" != 'true' ]]; then
     cpu_model_name="$(lscpu | tr '[:upper:]' '[:lower:]' | grep -i '^model name' | cut -f 2 -d ":" | awk '{$1=$1}1')"
     if [[ -z "${cpu_model_name}" ]]; then cpu_model_name="$(lscpu | tr '[:upper:]' '[:lower:]' | sed -n 's/^model name:[[:space:]]*//p')"; fi
     if [[ "${architecture}" == "arm64" && -n "${cpu_model_name}" ]]; then
       if grep -iqs "numa=fake\\|system_heap" /proc/cmdline; then memory_allocation_modifications="true"; fi
       cpu_model_regex="^(cortex-a55|cortex-a65|cortex-a65ae|cortex-a75|cortex-a76|cortex-a77|cortex-a78|cortex-x1|cortex-x2|cortex-x3|cortex-x4|neoverse-n1|neoverse-n2|neoverse-n3|neoverse-e1|neoverse-e2|neoverse-v1|neoverse-v2|neoverse-v3|cortex-a510|cortex-a520|cortex-a715|cortex-a720)$"
       if ! [[ "${cpu_model_name}" =~ ${cpu_model_regex} ]] || [[ "${memory_allocation_modifications}" == 'true' ]]; then
-        if [[ "${mongo_version_max}" =~ (70|80) ]]; then
+        if [[ "${mongo_version_max}" =~ (50|60|70|80) ]]; then
           if "$(which dpkg)" -l | grep "^ii\\|^hi" | grep -iq "mongod-armv8" || [[ "${script_option_skip}" == 'true' ]] || [[ "${glennr_compiled_mongod}" == 'true' ]]; then
             echo -e "$(date +%F-%R) | Automatically answered \"YES\" to the Glenn R. MongoDB Compiled question." &>> "${eus_dir}/logs/avx-questionnaire.log"
             mongod_armv8_installed="true"
@@ -4506,13 +4498,15 @@ mongodb_avx_support_check() {
           case "$yes_no" in
               [Yy]*|"")
                  echo -e "$(date +%F-%R) | Answered \"YES\" to the Glenn R. MongoDB Compiled question." &>> "${eus_dir}/logs/avx-questionnaire.log"
-                 if [[ "${mongo_version_max}" == "80" ]]; then add_mongod_80_repo="true"; elif [[ "${mongo_version_max}" == "70" ]]; then add_mongod_70_repo="true"; fi
+                 if [[ "${mongo_version_max}" == "80" ]]; then add_mongod_80_repo="true"; elif [[ "${mongo_version_max}" == "70" ]]; then add_mongod_70_repo="true"; elif [[ "${mongo_version_max}" == "60" ]]; then add_mongod_60_repo="true"; elif [[ "${mongo_version_max}" == "50" ]]; then add_mongod_50_repo="true"; fi
                  glennr_compiled_mongod="true"
                  if [[ "${broken_unifi_install}" == 'true' ]]; then broken_glennr_compiled_mongod="true"; fi
                  cleanup_unifi_repos
                  if [[ "${mongod_armv8_installed}" != 'true' ]]; then echo ""; fi;;
               [Nn]*)
                  echo -e "$(date +%F-%R) | Answered \"NO\" to the Glenn R. MongoDB Compiled question." &>> "${eus_dir}/logs/avx-questionnaire.log"
+                 unset add_mongodb_50_repo
+                 unset add_mongodb_60_repo
                  unset add_mongodb_70_repo
                  unset add_mongodb_80_repo
                  add_mongodb_44_repo="true"
@@ -4524,6 +4518,8 @@ mongodb_avx_support_check() {
           unset yes_no
         else
           echo -e "$(date +%F-%R) | Did not ask the Glenn R. MongoDB Compiled question." &>> "${eus_dir}/logs/avx-questionnaire.log"
+          unset add_mongodb_50_repo
+          unset add_mongodb_60_repo
           unset add_mongodb_70_repo
           unset add_mongodb_80_repo
           add_mongodb_44_repo="true"
@@ -4533,7 +4529,7 @@ mongodb_avx_support_check() {
         fi
       fi
     else
-      if [[ "${mongo_version_max}" =~ (70|80) && "${glennr_mongod_compatible}" == "true" && "${official_mongodb_compatible}" != 'true' ]]; then
+      if [[ "${mongo_version_max}" =~ (50|60|70|80) && "${glennr_mongod_compatible}" == "true" && "${official_mongodb_compatible}" != 'true' ]]; then
         if "$(which dpkg)" -l | grep "^ii\\|^hi" | grep -iq "mongod-amd64" || [[ "${script_option_skip}" == 'true' ]] || [[ "${glennr_compiled_mongod}" == 'true' ]]; then
           echo -e "$(date +%F-%R) | Automatically answered \"YES\" to the Glenn R. MongoDB Compiled question." &>> "${eus_dir}/logs/avx-questionnaire.log"
           mongod_amd64_installed="true"
@@ -4546,13 +4542,15 @@ mongodb_avx_support_check() {
         case "$yes_no" in
             [Yy]*|"")
                echo -e "$(date +%F-%R) | Answered \"YES\" to the Glenn R. MongoDB Compiled question." &>> "${eus_dir}/logs/avx-questionnaire.log"
-               if [[ "${mongo_version_max}" == "80" ]]; then add_mongod_80_repo="true"; elif [[ "${mongo_version_max}" == "70" ]]; then add_mongod_70_repo="true"; fi
+               if [[ "${mongo_version_max}" == "80" ]]; then add_mongod_80_repo="true"; elif [[ "${mongo_version_max}" == "70" ]]; then add_mongod_70_repo="true"; elif [[ "${mongo_version_max}" == "60" ]]; then add_mongod_60_repo="true"; elif [[ "${mongo_version_max}" == "50" ]]; then add_mongod_50_repo="true"; fi
                glennr_compiled_mongod="true"
                if [[ "${broken_unifi_install}" == 'true' ]]; then broken_glennr_compiled_mongod="true"; fi
                cleanup_unifi_repos
                if [[ "${mongod_amd64_installed}" != 'true' ]]; then echo ""; fi;;
             [Nn]*)
                echo -e "$(date +%F-%R) | Answered \"NO\" to the Glenn R. MongoDB Compiled question." &>> "${eus_dir}/logs/avx-questionnaire.log"
+               unset add_mongodb_50_repo
+               unset add_mongodb_60_repo
                unset add_mongodb_70_repo
                unset add_mongodb_80_repo
                add_mongodb_44_repo="true"
@@ -4566,6 +4564,8 @@ mongodb_avx_support_check() {
         echo -e "$(date +%F-%R) | Did not ask the Glenn R. MongoDB Compiled question." &>> "${eus_dir}/logs/avx-questionnaire.log"
         if [[ "${avx_compatible}" != 'true' ]]; then
           echo -e "$(date +%F-%R) | System is not AVX compatible." &>> "${eus_dir}/logs/avx-questionnaire.log"
+          unset add_mongodb_50_repo
+          unset add_mongodb_60_repo
           unset add_mongodb_70_repo
           unset add_mongodb_80_repo
           add_mongodb_44_repo="true"
@@ -5723,7 +5723,6 @@ unifi_deb_package_modification() {
       eus_tmp_deb_name="${unifi_deb_file_name}_${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi}"
       eus_tmp_deb_var="gr_unifi_temp"
       eus_tmp_directory_check
-      gr_unifi_temp="$(mktemp --tmpdir="${eus_tmp_directory_location}" "${unifi_deb_file_name}_${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi}_XXXXX.deb" 2>> "${eus_dir}/logs/create-tmp-dir-file.log")"
       echo -e "$(date +%F-%R) | Downloading ${pre_build_fw_update_dl_link} to ${gr_unifi_temp}" &>> "${eus_dir}/logs/unifi-download.log"
       echo -e "${GRAY_R}#${RESET} Downloading UniFi Network Application version ${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi} built for ${unifi_deb_package_modification_message_1}..."
       if curl "${nos_curl_argument[@]}" --output "$gr_unifi_temp" "${pre_build_fw_update_dl_link}" &>> "${eus_dir}/logs/unifi-download.log"; then
@@ -6558,11 +6557,25 @@ if [[ "${mongodb_installed}" != 'true' ]]; then
         #mongo_version_not_supported="5.1"
         mongo_version_max="50"
         mongo_version_max_with_dot="5.0"
+        if [[ "${broken_glennr_compiled_mongod}" == 'true' ]]; then
+          add_mongod_50_repo="true"
+          glennr_compiled_mongod="true"
+        elif [[ "${glennr_mongod_compatible}" == "true" ]]; then
+          add_mongod_50_repo="true"
+          glennr_compiled_mongod="true"
+        fi
       elif [[ "${previous_mongodb_version::2}" == '60' ]]; then
         add_mongodb_60_repo="true"
         #mongo_version_not_supported="6.1"
         mongo_version_max="60"
         mongo_version_max_with_dot="6.0"
+        if [[ "${broken_glennr_compiled_mongod}" == 'true' ]]; then
+          add_mongod_60_repo="true"
+          glennr_compiled_mongod="true"
+        elif [[ "${glennr_mongod_compatible}" == "true" ]]; then
+          add_mongod_60_repo="true"
+          glennr_compiled_mongod="true"
+        fi
       elif [[ "${previous_mongodb_version::2}" == '70' ]]; then
         add_mongodb_70_repo="true"
         #mongo_version_not_supported="7.1"
@@ -6632,7 +6645,7 @@ else
     if [[ "${mongodb_version_no_dots::2}" -ge '44' && "$(dpkg-query --showformat='${version}' --show mongodb-server 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' | awk -F. '{print $3}')" -ge "19" ]]; then if [[ "${glennr_mongod_compatible}" == "true" ]]; then unsupported_database_version_change="true"; fi; fi
     if [[ -n "${previous_mongodb_version}" ]]; then if [[ "${mongodb_version_no_dots::2}" != "${previous_mongodb_version::2}" ]] && [[ "${previous_mongodb_version::2}" != "$((${mongodb_version_no_dots::2} - 2))" ]]; then unsupported_database_version_change="true"; fi; fi
   fi
-  if "$(which dpkg)" -l mongodb-org-server 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui" && [[ "${glennr_compiled_mongod}" == 'true' && "${mongodb_version_installed_no_dots::2}" =~ (70|80) && "${unsupported_database_version_change}" != 'true' ]]; then
+  if "$(which dpkg)" -l mongodb-org-server 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui" && [[ "${glennr_compiled_mongod}" == 'true' && "${mongodb_version_installed_no_dots::2}" =~ (50|60|70|80) && "${unsupported_database_version_change}" != 'true' ]]; then
     rm --force /tmp/EUS/mongodb/arm64_mongodb_purge_list &> /dev/null
     if "$(which dpkg)" -l mongodb-org 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then echo "mongodb-org" &>> /tmp/EUS/mongodb/arm64_mongodb_purge_list; fi
     if "$(which dpkg)" -l mongodb-org-database 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then echo "mongodb-org" &>> /tmp/EUS/mongodb/arm64_mongodb_purge_list; fi
@@ -6720,7 +6733,7 @@ if [[ "${mongo_version_locked}" == '4.4.18' ]] || [[ "${unsupported_database_ver
     echo ""
     eus_directory_location="/tmp/EUS"
     eus_create_directories "mongodb"
-    if "$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | awk '{print$2}' | grep -iq "mongodb-org-server$" && [[ "${previous_mongodb_version::2}" =~ (70|80) ]]; then
+    if "$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | awk '{print$2}' | grep -iq "mongodb-org-server$" && [[ "${previous_mongodb_version::2}" =~ (50|60|70|80) ]]; then
       if [[ "${glennr_mongod_compatible}" == "true" ]]; then
         glennr_compiled_mongod="true"
       fi
@@ -6736,7 +6749,7 @@ if [[ "${mongo_version_locked}" == '4.4.18' ]] || [[ "${unsupported_database_ver
       fi
       mongodb_add_repo_downgrade_variable="add_mongodb_${previous_mongodb_version::2}_repo"
       declare "$mongodb_add_repo_downgrade_variable=true"
-      if [[ "${glennr_compiled_mongod}" == 'true' && "${previous_mongodb_version::2}" =~ (70|80) ]]; then
+      if [[ "${glennr_compiled_mongod}" == 'true' && "${previous_mongodb_version::2}" =~ (50|60|70|80) ]]; then
         mongod_add_repo_downgrade_variable="add_mongod_${previous_mongodb_version::2}_repo"
         declare "$mongod_add_repo_downgrade_variable=true"
       fi
@@ -6770,7 +6783,7 @@ if [[ "${mongo_version_locked}" == '4.4.18' ]] || [[ "${unsupported_database_ver
         fi
         sed -i "/${installed_mongodb_package}/d" /tmp/EUS/mongodb/packages_list
       fi
-      if [[ "${installed_mongodb_package}" == 'mongodb-org-server' && "${previous_mongodb_version::2}" =~ (70|80) && "${glennr_compiled_mongod}" == 'true' ]]; then
+      if [[ "${installed_mongodb_package}" == 'mongodb-org-server' && "${previous_mongodb_version::2}" =~ (50|60|70|80) && "${glennr_compiled_mongod}" == 'true' ]]; then
         if sed -i "s/mongodb-org-server$/${gr_mongod_name}/g" /tmp/EUS/mongodb/packages_list; then
           echo "mongodb-org-server" &>> /tmp/EUS/mongodb/packages_remove_list
           while read -r mongodb_org_server_dep; do
@@ -6779,7 +6792,7 @@ if [[ "${mongo_version_locked}" == '4.4.18' ]] || [[ "${unsupported_database_ver
         fi
       fi
     done < "/tmp/EUS/mongodb/packages_list.tmp"
-    if "$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep -iq "${gr_mongod_name}" && [[ ! "${recovery_install_mongodb_version::2}" =~ (70|80) ]]; then if sed -i "s/${gr_mongod_name}/mongodb-org-server/g" /tmp/EUS/mongodb/packages_list; then echo "${gr_mongod_name}" &>> /tmp/EUS/mongodb/packages_remove_list; fi; fi
+    if "$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep -iq "${gr_mongod_name}" && [[ ! "${recovery_install_mongodb_version::2}" =~ (50|60|70|80) ]]; then if sed -i "s/${gr_mongod_name}/mongodb-org-server/g" /tmp/EUS/mongodb/packages_list; then echo "${gr_mongod_name}" &>> /tmp/EUS/mongodb/packages_remove_list; fi; fi
     rm --force "/tmp/EUS/mongodb/packages_list.tmp" &> /dev/null
     awk '{ if ($0 == "mongodb-server") { server_found = 1; } else if ($0 == "mongodb-server-core") { core_found = 1; } if (!found_both) { original[NR] = $0; } } END { if (server_found && core_found) { found_both = 1; printed_server = 0; printed_core = 0; for (i = 1; i <= NR; i++) { if (original[i] == "mongodb-server" && !printed_server) { printed_server = 1; continue; } else if (original[i] == "mongodb-server-core" && !printed_core) { printed_core = 1; print "mongodb-server"; } print original[i]; } } else { for (i = 1; i <= NR; i++) { print original[i]; } } }' /tmp/EUS/mongodb/packages_remove_list &> /tmp/EUS/mongodb/packages_remove_list.tmp && mv /tmp/EUS/mongodb/packages_remove_list.tmp /tmp/EUS/mongodb/packages_remove_list
     if grep -iq "unifi" /tmp/EUS/mongodb/packages_remove_list; then reinstall_unifi="true"; fi
@@ -6797,8 +6810,9 @@ if [[ "${mongo_version_locked}" == '4.4.18' ]] || [[ "${unsupported_database_ver
         if [[ "${dep}" == "mongodb-org"* && "${glennr_compiled_mongod}" == 'true' ]]; then
           if grep -iq "${dep}" /tmp/EUS/mongodb/packages_list; then
             echo -e "$(date +%F-%R) | Located \"${dep}\" in \"/tmp/EUS/mongodb/packages_list\", removing it..." &>> "${eus_dir}/logs/mongodb-unsupported-version-change-locate.log"
-            if sed -i "/${dep}/d" /tmp/EUS/mongodb/packages_list; then
+            if sed -i "/^${dep}$/d" /tmp/EUS/mongodb/packages_list; then
               echo -e "$(date +%F-%R) | Successfully removed \"${dep}\" from \"/tmp/EUS/mongodb/packages_list\"!" &>> "${eus_dir}/logs/mongodb-unsupported-version-change-locate.log"
+              echo -e "$(date +%F-%R) | Packages \"$(awk 'ORS=", " { print $0 }' /tmp/EUS/mongodb/packages_list 2> /dev/null | sed 's/, $//')\" are still in \"/tmp/EUS/mongodb/packages_list\"!" &>> "${eus_dir}/logs/mongodb-unsupported-version-change-locate.log"
             fi
           fi
         fi

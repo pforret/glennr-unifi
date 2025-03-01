@@ -11,6 +11,15 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 10.0.7
+  
+ - Added support for PikaOS ( Nest ).
+ - Added support for Glenn R. Compiled MongoDB 5.0 and 6.0.
+ - Improved the UniFi Network Application installation process.
+ - Fixed an issue where the MongoDB Unsupported Downgrade/Upgrade recovery didn't work correctly if mongodb-org was installed.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 10.0.6
   
  - Improved the MongoDB recovery process.
