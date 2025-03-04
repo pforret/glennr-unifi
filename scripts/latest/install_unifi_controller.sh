@@ -60,7 +60,7 @@
 ###################################################################################################################################################################################################
 
 # Script                | UniFi Network Easy Installation Script
-# Version               | 8.6.9
+# Version               | 8.7.0
 # Application version   | 9.0.114-k5dy363g65
 # Debian Repo version   | 9.0.114-28033-1
 # Author                | Glenn Rietveld
@@ -1447,7 +1447,7 @@ cleanup_conflicting_repositories() {
             cleanup_conflicting_repositories_found_message_1="true"
           fi
           # Extract the conflicting source URL and remove trailing slash
-          source_url="$(echo "${line}" | grep -oP 'source \Khttps?://[^ /]*' | sed 's/ //g')"
+          source_url="$(echo "${line}" | grep -oP 'source \Khttps?://[^ /]*' | sed -e 's/ //g' -e 's/http[s]:\/\///g')"
           # Extract package name and version from the conflicting source URL
           package_name="$(echo "${line}" | awk -F'/' '{print $(NF-1)}' | sed 's/ //g')"
           version="$(echo "${line}" | awk -F'/' '{print $NF}' | sed 's/ //g')"
@@ -1459,7 +1459,7 @@ cleanup_conflicting_repositories() {
             fi
             if [[ "${file_with_conflict}" == *".sources" ]]; then
               # Handle deb822 format
-              entry_block_start_line="$(awk '!/^#/ && /Types:/ { types_line=NR } /'"${source_url}"'/ && !/^#/ && !seen[types_line]++ { print types_line }' "${file_with_conflict}" | head -n1)"
+              entry_block_start_line="$(awk -v source_url="${source_url}" '!/^#/ && /Types:/ { types_line=NR } index($0, source_url) && !/^#/ && !seen[types_line]++ { print types_line }' "${file_with_conflict}" | head -n1)"
               entry_block_end_line="$(awk -v start_line="$entry_block_start_line" 'NR > start_line && NF == 0 { print NR-1; exit } END { if (NR > start_line && NF > 0) print NR }' "${file_with_conflict}")"
               if [[ -z "${entry_block_end_line}" ]]; then entry_block_end_line="${entry_block_start_line}"; fi
               sed -i "${entry_block_start_line},${entry_block_end_line}s/^\([^#]\)/# \1/" "${file_with_conflict}" &>> "${eus_dir}/logs/trusted-repository-conflict.log"
@@ -1477,7 +1477,7 @@ cleanup_conflicting_repositories() {
                 1' "${file_with_conflict}" &> tmpfile; then mv tmpfile "${file_with_conflict}" &> /dev/null; cleanup_conflicting_repositories_changes_made="true"; fi
             fi
             echo -e "$(date +%F-%R) | awk command executed for ${file_with_conflict}" &>> "${eus_dir}/logs/trusted-repository-conflict.log"
-          done < <(grep -sl "^deb.*${source_url}.*${package_name}.*${version}\\|^URIs: *${source_url}" /etc/apt/sources.list /etc/apt/sources.list.d/* /etc/apt/sources.list.d/*.sources | awk '!NF || !seen[$0]++')
+          done < <(grep -sl "^deb.*${source_url}.*${package_name}.*${version}\\|^URIs: .*${source_url}" /etc/apt/sources.list /etc/apt/sources.list.d/* /etc/apt/sources.list.d/*.sources | awk '!NF || !seen[$0]++')
           break
         elif [[ ${line} == *"Conflicting values set for option Signed-By regarding source"* ]]; then
           if [[ "${cleanup_conflicting_repositories_found_message_2}" != 'true' ]]; then
@@ -1485,7 +1485,7 @@ cleanup_conflicting_repositories() {
             cleanup_conflicting_repositories_found_message_2="true"
           fi
           # Extract the conflicting source URL and keys
-          conflicting_source="$(echo "${line}" | grep -oP 'https?://[^ ]+' | sed 's/\/$//')"  # Remove trailing slash
+          conflicting_source="$(echo "${line}" | grep -oP 'https?://[^ ]+' | sed -e 's/\/$//' -e 's/http[s]:\/\///g')"  # Remove trailing slash and http[s]://
           key1="$(echo "${line}" | grep -oP '/\S+\.gpg' | head -n 1 | sed 's/ //g')"
           key2="$(echo "${line}" | grep -oP '!= \S+\.gpg' | sed 's/!= //g' | sed 's/ //g')"
           # Loop through each file and awk to comment out the conflicting source
@@ -1497,7 +1497,7 @@ cleanup_conflicting_repositories() {
             fi
             if [[ "${file_with_conflict}" == *".sources" ]]; then
               # Handle deb822 format
-              entry_block_start_line="$(awk '!/^#/ && /Types:/ { types_line=NR } /'"${source_url}"'/ && !/^#/ && !seen[types_line]++ { print types_line }' "${file_with_conflict}" | head -n1)"
+              entry_block_start_line="$(awk -v conflicting_source="${conflicting_source}" '!/^#/ && /Types:/ { types_line=NR } index($0, conflicting_source) && !/^#/ && !seen[types_line]++ { print types_line }' "${file_with_conflict}" | head -n1)"
               entry_block_end_line="$(awk -v start_line="$entry_block_start_line" 'NR > start_line && NF == 0 { print NR-1; exit } END { if (NR > start_line && NF > 0) print NR }' "${file_with_conflict}")"
               if [[ -z "${entry_block_end_line}" ]]; then entry_block_end_line="${entry_block_start_line}"; fi
               sed -i "${entry_block_start_line},${entry_block_end_line}s/^\([^#]\)/# \1/" "${file_with_conflict}" &>> "${eus_dir}/logs/trusted-repository-conflict.log"
@@ -1511,7 +1511,7 @@ cleanup_conflicting_repositories() {
                 1' "${file_with_conflict}" &> tmpfile; then mv tmpfile "${file_with_conflict}" &> /dev/null; cleanup_conflicting_repositories_changes_made="true"; fi
             fi
             echo -e "$(date +%F-%R) | awk command executed for ${file_with_conflict}" &>> "${eus_dir}/logs/signed-by-repository-conflict.log"
-          done < <(grep -sl "^deb.*${conflicting_source}\\|^URIs: *${conflicting_source}" /etc/apt/sources.list /etc/apt/sources.list.d/* /etc/apt/sources.list.d/*.sources | awk '!NF || !seen[$0]++')
+          done < <(grep -sl "^deb.*${conflicting_source}\\|^URIs: .*${conflicting_source}" /etc/apt/sources.list /etc/apt/sources.list.d/* /etc/apt/sources.list.d/*.sources | awk '!NF || !seen[$0]++')
           break
         fi
       done < "${logfile}"
@@ -6781,7 +6781,7 @@ if [[ "${mongo_version_locked}" == '4.4.18' ]] || [[ "${unsupported_database_ver
           if "$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | awk '{print$2}' | grep -iq "mongodb-org-tools$"; then echo -e "mongodb-org-tools" &>> /tmp/EUS/mongodb/packages_remove_list; fi
           echo -e "mongodb-org-database-tools-extra" &>> /tmp/EUS/mongodb/packages_remove_list
         fi
-        sed -i "/${installed_mongodb_package}/d" /tmp/EUS/mongodb/packages_list
+        sed -i "/^${installed_mongodb_package}$/d" /tmp/EUS/mongodb/packages_list
       fi
       if [[ "${installed_mongodb_package}" == 'mongodb-org-server' && "${previous_mongodb_version::2}" =~ (50|60|70|80) && "${glennr_compiled_mongod}" == 'true' ]]; then
         if sed -i "s/mongodb-org-server$/${gr_mongod_name}/g" /tmp/EUS/mongodb/packages_list; then

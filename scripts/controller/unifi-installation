@@ -11,6 +11,13 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 8.7.0
+  
+ - Improved the unsupported MongoDB upgrade recovery process.
+ - Improved cleaning up conflicting repository entries.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 8.6.9
   
  - Added support for PikaOS ( Nest ).

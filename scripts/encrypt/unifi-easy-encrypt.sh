@@ -2,7 +2,7 @@
 
 # UniFi Easy Encrypt script.
 # Script   | UniFi Network Easy Encrypt Script
-# Version  | 3.5.2
+# Version  | 3.5.3
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -2032,8 +2032,8 @@ cleanup_conflicting_repositories() {
             echo -e "${GRAY_R}#${RESET} There appear to be repositories with conflicting details..."
             cleanup_conflicting_repositories_found_message_1="true"
           fi
-          # Extract the conflicting source URL and remove trailing slash
-          source_url="$(echo "${line}" | grep -oP 'source \Khttps?://[^ /]*' | sed 's/ //g')"
+          # Extract the conflicting source URL and remove trailing slash and http[s]://
+          source_url="$(echo "${line}" | grep -oP 'source \Khttps?://[^ /]*' | sed -e 's/ //g' -e 's/http[s]:\/\///g')"
           # Extract package name and version from the conflicting source URL
           package_name="$(echo "${line}" | awk -F'/' '{print $(NF-1)}' | sed 's/ //g')"
           version="$(echo "${line}" | awk -F'/' '{print $NF}' | sed 's/ //g')"
@@ -2045,7 +2045,7 @@ cleanup_conflicting_repositories() {
             fi
             if [[ "${file_with_conflict}" == *".sources" ]]; then
               # Handle deb822 format
-              entry_block_start_line="$(awk '!/^#/ && /Types:/ { types_line=NR } /'"${source_url}"'/ && !/^#/ && !seen[types_line]++ { print types_line }' "${file_with_conflict}" | head -n1)"
+              entry_block_start_line="$(awk -v source_url="${source_url}" '!/^#/ && /Types:/ { types_line=NR } index($0, source_url) && !/^#/ && !seen[types_line]++ { print types_line }' "${file_with_conflict}" | head -n1)"
               entry_block_end_line="$(awk -v start_line="$entry_block_start_line" 'NR > start_line && NF == 0 { print NR-1; exit } END { if (NR > start_line && NF > 0) print NR }' "${file_with_conflict}")"
               if [[ -z "${entry_block_end_line}" ]]; then entry_block_end_line="${entry_block_start_line}"; fi
               sed -i "${entry_block_start_line},${entry_block_end_line}s/^\([^#]\)/# \1/" "${file_with_conflict}" &>> "${eus_dir}/logs/trusted-repository-conflict.log"
@@ -2063,7 +2063,7 @@ cleanup_conflicting_repositories() {
                 1' "${file_with_conflict}" &> tmpfile; then mv tmpfile "${file_with_conflict}" &> /dev/null; cleanup_conflicting_repositories_changes_made="true"; fi
             fi
             echo -e "$(date +%F-%R) | awk command executed for ${file_with_conflict}" &>> "${eus_dir}/logs/trusted-repository-conflict.log"
-          done < <(grep -sl "^deb.*${source_url}.*${package_name}.*${version}\\|^URIs: *${source_url}" /etc/apt/sources.list /etc/apt/sources.list.d/* /etc/apt/sources.list.d/*.sources | awk '!NF || !seen[$0]++')
+          done < <(grep -sl "^deb.*${source_url}.*${package_name}.*${version}\\|^URIs: .*${source_url}" /etc/apt/sources.list /etc/apt/sources.list.d/* /etc/apt/sources.list.d/*.sources | awk '!NF || !seen[$0]++')
           break
         elif [[ ${line} == *"Conflicting values set for option Signed-By regarding source"* ]]; then
           if [[ "${cleanup_conflicting_repositories_found_message_2}" != 'true' ]]; then
@@ -2071,7 +2071,7 @@ cleanup_conflicting_repositories() {
             cleanup_conflicting_repositories_found_message_2="true"
           fi
           # Extract the conflicting source URL and keys
-          conflicting_source="$(echo "${line}" | grep -oP 'https?://[^ ]+' | sed 's/\/$//')"  # Remove trailing slash
+          conflicting_source="$(echo "${line}" | grep -oP 'https?://[^ ]+' | sed -e 's/\/$//' -e 's/http[s]:\/\///g')"  # Remove trailing slash and http[s]://
           key1="$(echo "${line}" | grep -oP '/\S+\.gpg' | head -n 1 | sed 's/ //g')"
           key2="$(echo "${line}" | grep -oP '!= \S+\.gpg' | sed 's/!= //g' | sed 's/ //g')"
           # Loop through each file and awk to comment out the conflicting source
@@ -2083,7 +2083,7 @@ cleanup_conflicting_repositories() {
             fi
             if [[ "${file_with_conflict}" == *".sources" ]]; then
               # Handle deb822 format
-              entry_block_start_line="$(awk '!/^#/ && /Types:/ { types_line=NR } /'"${source_url}"'/ && !/^#/ && !seen[types_line]++ { print types_line }' "${file_with_conflict}" | head -n1)"
+              entry_block_start_line="$(awk -v conflicting_source="${conflicting_source}" '!/^#/ && /Types:/ { types_line=NR } index($0, conflicting_source) && !/^#/ && !seen[types_line]++ { print types_line }' "${file_with_conflict}" | head -n1)"
               entry_block_end_line="$(awk -v start_line="$entry_block_start_line" 'NR > start_line && NF == 0 { print NR-1; exit } END { if (NR > start_line && NF > 0) print NR }' "${file_with_conflict}")"
               if [[ -z "${entry_block_end_line}" ]]; then entry_block_end_line="${entry_block_start_line}"; fi
               sed -i "${entry_block_start_line},${entry_block_end_line}s/^\([^#]\)/# \1/" "${file_with_conflict}" &>> "${eus_dir}/logs/trusted-repository-conflict.log"
@@ -2097,7 +2097,7 @@ cleanup_conflicting_repositories() {
                 1' "${file_with_conflict}" &> tmpfile; then mv tmpfile "${file_with_conflict}" &> /dev/null; cleanup_conflicting_repositories_changes_made="true"; fi
             fi
             echo -e "$(date +%F-%R) | awk command executed for ${file_with_conflict}" &>> "${eus_dir}/logs/signed-by-repository-conflict.log"
-          done < <(grep -sl "^deb.*${conflicting_source}\\|^URIs: *${conflicting_source}" /etc/apt/sources.list /etc/apt/sources.list.d/* /etc/apt/sources.list.d/*.sources | awk '!NF || !seen[$0]++')
+          done < <(grep -sl "^deb.*${conflicting_source}\\|^URIs: .*${conflicting_source}" /etc/apt/sources.list /etc/apt/sources.list.d/* /etc/apt/sources.list.d/*.sources | awk '!NF || !seen[$0]++')
           break
         fi
       done < "${logfile}"
@@ -3404,7 +3404,12 @@ SSL
           fi
         fi
       fi
-      systemctl restart unifi-core
+      if [[ "\$(dpkg-query --showformat='\${Version}' --show unifi-core | awk -F'.' '{print \$1 \$2}')" -ge "40" ]]; then
+        unifi_core_cert_services=("nginx" "unifi-core")
+      else
+        unifi_core_cert_services=("unifi-core")
+      fi
+      systemctl restart "\${unifi_core_cert_services[@]}"
       time_date=\$(date +%Y%m%d_%H%M)
       if [[ "\${udm_device}" == 'true' && "\${uid_agent}" != 'true' ]]; then
         if [[ "\${debbox}" == 'true' ]]; then
@@ -3758,7 +3763,7 @@ SSL
       fi
     fi
   fi
-  if systemctl restart unifi-core; then echo -e "${GREEN}#${RESET} Successfully imported the SSL certificates into UniFi OS running on your ${unifi_core_device}!"; else echo -e "${RED}#${RESET} Failed to import the SSL certificates into UniFi OS running on your ${unifi_core_device}..."; sleep 2; fi
+  if systemctl restart "${unifi_core_cert_services[@]}"; then echo -e "${GREEN}#${RESET} Successfully imported the SSL certificates into UniFi OS running on your ${unifi_core_device}!"; else echo -e "${RED}#${RESET} Failed to import the SSL certificates into UniFi OS running on your ${unifi_core_device}..."; sleep 2; fi
   if dpkg -l unifi 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi" && [[ "${script_option_skip_network_application}" != 'true' ]] || [[ -e "/usr/lib/unifi/data/keystore" && "${script_option_skip_network_application}" != 'true' ]]; then
     unifi_network_application
   fi
@@ -4364,7 +4369,7 @@ restore_previous_certs() {
                       if rm --force /data/unifi-core/config/unifi-core.key /data/unifi-core/config/unifi-core.crt &> /dev/null; then
                         echo -e "${GREEN}#${RESET} Successfully restored UniFi OS certificates to original state! \\n"
                         echo -e "${GRAY_R}#${RESET} Restarting UniFi OS..."
-                        if systemctl restart unifi-core; then
+                        if systemctl restart "${unifi_core_cert_services[@]}"; then
                           echo -e "${GREEN}#${RESET} Successfully restarted UniFi OS! \\n"
                         else
                           abort_reason="Failed to restart UniFi OS."; abort
@@ -4376,7 +4381,7 @@ restore_previous_certs() {
                           if ! [[ -s "${unifi_core_config_path}" ]]; then rm --force "${unifi_core_config_path}" &> /dev/null; fi
                           echo -e "${GREEN}#${RESET} Successfully restored UniFi OS certificates to original state! \\n"
                           echo -e "${GRAY_R}#${RESET} Restarting UniFi OS..."
-                          if systemctl restart unifi-core; then
+                          if systemctl restart "${unifi_core_cert_services[@]}"; then
                             echo -e "${GREEN}#${RESET} Successfully restarted UniFi OS! \\n"
                           else
                             abort_reason="Failed to restart UniFi OS."; abort
@@ -4393,7 +4398,7 @@ restore_previous_certs() {
                     if cp "${eus_dir}/unifi-os/config_backups/${unifi_os_previous_config}" "${unifi_core_config_path}" &>> "${eus_dir}/logs/restore.log"; then
                       echo -e "${GREEN}#${RESET} Successfully restored \"${eus_dir}/unifi-os/config_backups/${unifi_os_previous_config}\"! \\n"
                       echo -e "${GRAY_R}#${RESET} Restarting UniFi OS..."
-                      if systemctl restart unifi-core; then
+                      if systemctl restart "${unifi_core_cert_services[@]}"; then
                         echo -e "${GREEN}#${RESET} Successfully restarted UniFi OS! \\n"
                       else
                         abort_reason="Failed to restart UniFi OS."; abort
@@ -4417,7 +4422,7 @@ restore_previous_certs() {
                       if rm --force /data/unifi-core/config/unifi-core.key /data/unifi-core/config/unifi-core.crt &> /dev/null; then
                         echo -e "${GREEN}#${RESET} Successfully restored UniFi OS certificates to original state! \\n"
                         echo -e "${GRAY_R}#${RESET} Restarting UniFi OS..."
-                        if systemctl restart unifi-core; then
+                        if systemctl restart "${unifi_core_cert_services[@]}"; then
                           echo -e "${GREEN}#${RESET} Successfully restarted UniFi OS! \\n"
                         else
                           abort_reason="Failed to restart UniFi OS."; abort
@@ -4427,7 +4432,7 @@ restore_previous_certs() {
                       if rm --force "${unifi_core_config_path}" &>> "${eus_dir}/logs/restore.log"; then
                         echo -e "${GREEN}#${RESET} Successfully restored default UniFi OS certificates! \\n"
                         echo -e "${GRAY_R}#${RESET} Restarting UniFi OS..."
-                        if systemctl restart unifi-core; then
+                        if systemctl restart "${unifi_core_cert_services[@]}"; then
                           echo -e "${GREEN}#${RESET} Successfully restarted UniFi OS! \\n"
                         else
                           abort_reason="Failed to restart UniFi OS."; abort
@@ -4945,6 +4950,11 @@ if dpkg -l unifi-core 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi"; th
   if [[ "$(echo "${unifi_core_version}" | cut -d'.' -f1)" == '3' && "$(echo "${unifi_core_version}" | cut -d'.' -f2)" == '2' && "$(echo "${unifi_core_version}" | cut -d'.' -f3)" -lt '155' ]]; then unifi_core_certificate_copy="true"; fi
   if ! [[ -d "$(dirname "${unifi_core_config_path}")" ]]; then mkdir -p "$(dirname "${unifi_core_config_path}")" &> /dev/null; fi
   if ! grep -ioq "NODE_CONFIG_DIR" /etc/default/unifi-core; then awk '/NODE_CONFIG_DIR/' /mnt/.rofs/etc/default/unifi-core &>> /etc/default/unifi-core; fi
+  if [[ "$(dpkg-query --showformat='${Version}' --show unifi-core | awk -F'.' '{print $1 $2}')" -ge "40" ]]; then
+    unifi_core_cert_services=("nginx" "unifi-core")
+  else
+    unifi_core_cert_services=("unifi-core")
+  fi
 fi
 
 remove_old_post_pre_hook() {

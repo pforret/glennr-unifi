@@ -11,6 +11,13 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Encrypt Script  |  Version 3.5.3
+  
+ - Improved applying certificates on UniFi OS 4.0 and newer.
+ - Improved cleaning up conflicting repository entries.
+ 
+ ####
+
  |  UniFi Easy Encrypt Script  |  Version 3.5.2
   
  - Added support for PikaOS ( Nest ).
