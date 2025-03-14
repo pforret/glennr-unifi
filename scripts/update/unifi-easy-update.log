@@ -11,6 +11,20 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 10.1.0
+  
+ - Fixed proxy errors when running the script when the system doesn't have any proxies configured.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 10.0.9
+  
+ - Added HTTP proxy validation.
+ - Improved the unsupported MongoDB upgrade recovery process.
+ - Improved adding repositories.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 10.0.8
   
  - Improved the unsupported MongoDB upgrade recovery process.

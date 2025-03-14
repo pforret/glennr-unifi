@@ -11,6 +11,20 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 8.7.2
+  
+ - Fixed proxy errors when running the script when the system doesn't have any proxies configured.
+ 
+ ####
+
+ |  UniFi Network Application Installation Script  |  Version 8.7.1
+  
+ - Added HTTP proxy validation.
+ - Improved the unsupported MongoDB upgrade recovery process.
+ - Improved adding repositories.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 8.7.0
   
  - Improved the unsupported MongoDB upgrade recovery process.

@@ -2,7 +2,7 @@
 
 # UniFi Easy Encrypt script.
 # Script   | UniFi Network Easy Encrypt Script
-# Version  | 3.5.3
+# Version  | 3.5.5
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -200,9 +200,9 @@ eus_database_move() {
     mv "${eus_database_move_file}.tmp" "${eus_database_move_file}" &>> "${eus_database_move_log_file}"
   else
     if ! [[ -s "${eus_database_move_file}.tmp" ]]; then
-      echo -e "$(date +%F-%R) | \"${eus_database_move_file}.tmp\" is empty." >> "${eus_database_move_log_file}"
+      echo -e "$(date +%F-%T.%6N) | \"${eus_database_move_file}.tmp\" is empty." >> "${eus_database_move_log_file}"
     else
-      echo -e "$(date +%F-%R) | \"${eus_database_move_file}.tmp\" does not contain valid JSON. Contents:" >> "${eus_database_move_log_file}"
+      echo -e "$(date +%F-%T.%6N) | \"${eus_database_move_file}.tmp\" does not contain valid JSON. Contents:" >> "${eus_database_move_log_file}"
       cat "${eus_database_move_file}.tmp" >> "${eus_database_move_log_file}"
     fi
   fi
@@ -624,20 +624,20 @@ check_dns() {
   elif command -v ping &> /dev/null; then
     dns_check_command="ping -c 1 -W2"
   else
-    echo -e "$(date +%F-%R) | No DNS check command available (host or ping)..." &>> "${eus_dir}/logs/dns-check.log"
+    echo -e "$(date +%F-%T.%6N) | No DNS check command available (host or ping)..." &>> "${eus_dir}/logs/dns-check.log"
     return 1
   fi
   if [[ -n "${dns_check_command}" ]]; then
     for domain in "${domains[@]}"; do
       if ! ${dns_check_command} "${domain}" &> /dev/null; then
-        echo -e "$(date +%F-%R) | Failed to resolve ${domain}..." &>> "${eus_dir}/logs/dns-check.log"
+        echo -e "$(date +%F-%T.%6N) | Failed to resolve ${domain}..." &>> "${eus_dir}/logs/dns-check.log"
         local dns_servers=("1.1.1.1" "8.8.8.8")
         for dns_server in "${dns_servers[@]}"; do
           if ! grep -qF "${dns_server}" /etc/resolv.conf; then
             if echo "nameserver ${dns_server}" | tee -a /etc/resolv.conf >/dev/null; then
-              echo -e "$(date +%F-%R) | Added ${dns_server} to /etc/resolv.conf..." &>> "${eus_dir}/logs/dns-check.log"
+              echo -e "$(date +%F-%T.%6N) | Added ${dns_server} to /etc/resolv.conf..." &>> "${eus_dir}/logs/dns-check.log"
               if ${dns_check_command} "${domain}" &> /dev/null; then
-                echo -e "$(date +%F-%R) | Successfully resolved ${domain} after adding ${dns_server}." &>> "${eus_dir}/logs/dns-check.log"
+                echo -e "$(date +%F-%T.%6N) | Successfully resolved ${domain} after adding ${dns_server}." &>> "${eus_dir}/logs/dns-check.log"
                 return 0
               fi
             fi
@@ -653,9 +653,9 @@ check_dns() {
 check_repository_key_permissions() {
   if [[ "$(stat -c %a "${repository_key_location}")" != "644" ]]; then
     if chmod 644 "${repository_key_location}" &>> "${eus_dir}/logs/update-repository-key-permissions.log"; then
-      echo -e "$(date +%F-%R) | Successfully updated the permissions for ${repository_key_location} to 644!" &>> "${eus_dir}/logs/update-repository-key-permissions.log"
+      echo -e "$(date +%F-%T.%6N) | Successfully updated the permissions for ${repository_key_location} to 644!" &>> "${eus_dir}/logs/update-repository-key-permissions.log"
     else
-      echo -e "$(date +%F-%R) | Failed to set the permissions for ${repository_key_location} to 644..." &>> "${eus_dir}/logs/update-repository-key-permissions.log"
+      echo -e "$(date +%F-%T.%6N) | Failed to set the permissions for ${repository_key_location} to 644..." &>> "${eus_dir}/logs/update-repository-key-permissions.log"
     fi
   fi
   unset repository_key_location
@@ -671,25 +671,69 @@ check_apt_listbugs() {
   fi
 }
 
+validate_http_proxy() {
+  local proxy="$1"
+  if [[ "${proxy}" =~ ^(http|https):// ]]; then
+    local host_port="${proxy#*://}"
+    local host="${host_port%%:*}"
+    local port="${host_port##*:}"
+    if command -v getent >/dev/null 2>&1; then
+      if ! getent hosts "${host}" >/dev/null; then
+        echo -e "$(date +%F-%T.%6N) | Invalid proxy detected: ${proxy} (Unresolvable hostname via getent)" &>> "${eus_dir}/logs/http-proxy.log"
+        return 1
+      fi
+    else
+      if command -v host >/dev/null 2>&1; then
+        if ! host "${host}" >/dev/null 2>&1; then
+          echo -e "$(date +%F-%T.%6N) | Invalid proxy detected: ${proxy} (Unresolvable hostname via host)" &>> "${eus_dir}/logs/http-proxy.log"
+          return 1
+        fi
+      else
+        echo -e "$(date +%F-%T.%6N) | Warning: Neither getent nor host found, skipping hostname validation." &>> "${eus_dir}/logs/http-proxy.log"
+      fi
+    fi
+    if ! [[ "${port}" =~ ^[0-9]+$ ]]; then
+      echo -e "$(date +%F-%T.%6N) | Invalid proxy detected: ${proxy} (Invalid port: ${port})" &>> "${eus_dir}/logs/http-proxy.log"
+      return 1
+    fi
+    if (echo > "/dev/tcp/${host}/${port}") 2>/dev/null; then
+      return 0 # Proxy is valid
+    else
+      echo -e "$(date +%F-%T.%6N) | Invalid proxy detected: ${proxy} (Port unreachable)" &>> "${eus_dir}/logs/http-proxy.log"
+      return 1
+    fi
+  else
+    echo -e "$(date +%F-%T.%6N) | Invalid proxy detected: ${proxy} (Incorrect format)" &>> "${eus_dir}/logs/http-proxy.log"
+    return 1
+  fi
+}
+
 locate_http_proxy() {
   env_proxies="$(grep -sE "^[^#]*http_proxy|^[^#]*https_proxy" "/etc/environment" 2> /dev/null | awk -F '=' '{print $2}' | tr -d '"')"
   profile_proxies="$(find /etc/profile.d/ -type f -exec sh -c 'grep -E "^[^#]*http_proxy|^[^#]*https_proxy" "$1" | awk -F "=" "{print \$2}" | tr -d "\"" ' _ {} \;)"
   apt_proxies="$(grep -siE "^[^#]*proxy" /etc/apt/apt.conf /etc/apt/apt.conf.d/* 2> /dev/null | awk -F '"' '{print $2}')"
   wget_proxies="$(grep -sE "^[^#]*http_proxy|^[^#]*https_proxy" "/etc/wgetrc" 2> /dev/null | awk -F '=' '{print $2}' | tr -d '"')"
-  # Combine, normalize (remove trailing slashes), and sort unique proxies
-  all_proxies="$(echo -e "$env_proxies\n$profile_proxies\n$apt_proxies\n$wget_proxies" | sed 's:/*$::' | sort -u | grep -v '^$')"
-  http_proxy="$(echo "$all_proxies" | tail -n1)"
-  if [[ -n "$(command -v jq)" && -e "${eus_dir}/db/db.json" ]]; then
-    if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
-      json_proxies="$(echo "$all_proxies" | jq -R -s 'split("\n") | map(select(length > 0))')"
-      jq --argjson proxies "$json_proxies" '.database."http-proxy" = $proxies' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
-    else
-      json_proxies="$(echo "$all_proxies" | awk 'NF' | awk '{ printf "%s\n", $0 }' | sed 's/^/"/;s/$/"/' | paste -sd, - | sed 's/^/[/;s/$/]/')"
-      jq '.database["http-proxy"] = '"$json_proxies"'' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+  if [[ -n "${env_proxies}" ]] || [[ -n "${profile_proxies}" ]] || [[ -n "${apt_proxies}" ]] || [[ -n "${wget_proxies}" ]]; then
+    mapfile -t all_proxies < <(printf "%s\n" "${env_proxies}" "${profile_proxies}" "${apt_proxies}" "${wget_proxies}" | sed 's:/*$::' | sort -u | grep -v '^$')
+    valid_proxies=()
+    for proxy in "${all_proxies[@]}"; do
+      if validate_http_proxy "${proxy}"; then
+        valid_proxies+=("${proxy}")
+      fi
+    done
+    http_proxy="${valid_proxies[-1]}"
+    if [[ -n "$(command -v jq)" && -e "${eus_dir}/db/db.json" ]]; then
+      if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
+        json_proxies="$(printf '%s\n' "${valid_proxies[@]}" | jq -R -s 'split("\n") | map(select(length > 0))')"
+        jq --argjson proxies "$json_proxies" '.database."http-proxy" = $proxies' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+      else
+        json_proxies="$(printf '%s\n' "${valid_proxies[@]}" | awk '{ printf "\"%s\",\n", $0 }' | sed '$s/,$//' | sed -e '1s/^/[/' -e '$s/$/]/')"
+        jq '.database["http-proxy"] = '"$json_proxies"'' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+      fi
+      eus_database_move
     fi
-    eus_database_move
+    if [[ -z "${env_proxies}" && -n "${http_proxy}" ]]; then curl_proxy_arg=('--proxy' "${http_proxy}"); fi
   fi
-  if [[ -z "${env_proxies}" && -n "${http_proxy}" ]]; then curl_proxy_arg=('--proxy' "${http_proxy}"); fi
 }
 
 set_curl_arguments() {
@@ -1308,7 +1352,7 @@ get_repo_url() {
   unset archived_repo
   if [[ "${os_codename}" != "${repo_codename}" ]]; then os_codename="${repo_codename}"; os_codename_changed="true"; fi
   if "$(which dpkg)" -l apt 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then apt_package_version="$(dpkg-query --showformat='${version}' --show apt 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)"; fi
-  if "$(which dpkg)" -l apt-transport-https 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui" || [[ "${apt_package_version::2}" -ge "15" ]]; then
+  if "$(which dpkg)" -l apt-transport-https 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui" && [[ "${force_http_repositories}" != 'true' ]] || [[ "${apt_package_version::2}" -ge "15" && "${force_http_repositories}" != 'true' ]]; then
     http_or_https="https"
     add_repositories_http_or_https="http[s]*"
     if [[ "${copied_source_files}" == 'true' ]]; then
@@ -1390,10 +1434,19 @@ unset_add_repositories_variables(){
   if [[ "${os_id}" == "raspbian" ]]; then get_distro; fi
 }
 
+unset_section_variables() {
+  unset section
+  unset section_types
+  unset section_components
+  unset section_suites
+  unset section_url
+  unset section_enabled
+}
+
 add_repositories() {
   # Check if repository is already added
   if grep -sq "^deb .*http\?s\?://$(echo "${repo_url}" | sed -e 's/https\:\/\///g' -e 's/http\:\/\///g')${repo_url_arguments}\?/\? ${repo_codename}${repo_codename_argument} ${repo_component}" /etc/apt/sources.list /etc/apt/sources.list.d/*; then
-    echo -e "$(date +%F-%R) | \"${repo_url}${repo_url_arguments} ${repo_codename}${repo_codename_argument} ${repo_component}\" was found, not adding to repository lists. $(grep -srIl "^deb .*http\?s\?://$(echo "${repo_url}" | sed -e 's/https\:\/\///g' -e 's/http\:\/\///g')${repo_url_arguments}\?/\? ${repo_codename}${repo_codename_argument} ${repo_component}" /etc/apt/sources.list /etc/apt/sources.list.d/*)..." &>> "${eus_dir}/logs/already-found-repository.log"
+    echo -e "$(date +%F-%T.%6N) | \"${repo_url}${repo_url_arguments} ${repo_codename}${repo_codename_argument} ${repo_component}\" was found, not adding to repository lists. $(grep -srIl "^deb .*http\?s\?://$(echo "${repo_url}" | sed -e 's/https\:\/\///g' -e 's/http\:\/\///g')${repo_url_arguments}\?/\? ${repo_codename}${repo_codename_argument} ${repo_component}" /etc/apt/sources.list /etc/apt/sources.list.d/*)..." &>> "${eus_dir}/logs/already-found-repository.log"
     unset_add_repositories_variables
     return  # Repository already added, exit function
   elif find /etc/apt/sources.list.d/ -name "*.sources" | grep -ioq /etc/apt; then
@@ -1410,22 +1463,12 @@ add_repositories() {
             section_enabled="$(grep -oPm1 'Enabled: \K.*' <<< "$section")"
             if [[ -z "${section_enabled}" ]]; then section_enabled="yes"; fi
             if [[ -n "${section_url}" && "${section_enabled}" == 'yes' && "${section_types}" == *"deb"* && "${section_suites}" == "${repo_codename}${repo_codename_argument}" && "${section_components}" == *"${repo_component_trimmed}"* ]]; then
-              echo -e "$(date +%F-%R) | URIs: $section_url Types: $section_types Suites: $section_suites Components: $section_components was found, not adding to repository lists..." &>> "${eus_dir}/logs/already-found-repository.log"
+              echo -e "$(date +%F-%T.%6N) | URIs: $section_url Types: $section_types Suites: $section_suites Components: $section_components was found, not adding to repository lists..." &>> "${eus_dir}/logs/already-found-repository.log"
               unset_add_repositories_variables
-              unset section
-              unset section_types
-              unset section_components
-              unset section_suites
-              unset section_url
-              unset section_enabled
+              unset_section_variables
               return
             fi
-            unset section
-            unset section_types
-            unset section_components
-            unset section_suites
-            unset section_url
-            unset section_enabled
+            unset_section_variables
           fi
         else
           section+="${line}"$'\n'
@@ -1503,7 +1546,7 @@ add_repositories() {
   fi
   # Add repository to sources list
   if echo -e "${repo_entry}" >> "${add_repositories_source_list}"; then
-    echo -e "$(date +%F-%R) | Successfully added \"${repo_entry}\" to ${add_repositories_source_list}!" &>> "${eus_dir}/logs/added-repository.log"
+    echo -e "$(date +%F-%T.%6N) | Successfully added \"${repo_entry}\" to ${add_repositories_source_list}!" &>> "${eus_dir}/logs/added-repository.log"
   else
     abort_reason="Failed to add repository."
     abort
@@ -1536,7 +1579,7 @@ check_and_add_to_path() {
   local directory="$1"
   if ! echo "${PATH}" | grep -qE "(^|:)$directory(:|$)"; then
     export PATH="$directory:$PATH"
-    echo "$(date +%F-%R) | Added $directory to PATH" &>> "${eus_dir}/logs/path.log"
+    echo "$(date +%F-%T.%6N) | Added $directory to PATH" &>> "${eus_dir}/logs/path.log"
   fi
 }
 check_and_add_to_path "/usr/local/sbin"
@@ -1589,7 +1632,7 @@ attempt_recover_broken_packages() {
   while IFS= read -r log_file; do
     while IFS= read -r broken_package; do
       broken_package="$(echo "${broken_package}" | xargs)"
-      echo -e "\\n------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/attempt-recover-broken-packages.log"
+      echo -e "\\n------- $(date +%F-%T.%6N) -------\\n" &>> "${eus_dir}/logs/attempt-recover-broken-packages.log"
       if ! dpkg -l | awk '{print $2}' | grep -iq "${broken_package}"; then echo -e "Failed to locate ${broken_package} in dpkg list..." &>> "${eus_dir}/logs/attempt-recover-broken-packages.log"; continue; fi
       echo -e "${GRAY_R}#${RESET} Attempting to recover broken packages..."
       check_dpkg_lock
@@ -1703,7 +1746,7 @@ check_unmet_dependencies() {
 
 check_dpkg_interrupted() {
   if [[ "${force_dpkg_configure}" == 'true' ]] || [[ -e "/var/lib/dpkg/info/*.status" ]] || tail -n5 "${eus_dir}/logs/"* | grep -iq "you must manually run 'sudo dpkg --configure -a' to correct the problem\\|you must manually run 'dpkg --configure -a' to correct the problem"; then
-    echo -e "\\n------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/dpkg-interrupted.log"
+    echo -e "\\n------- $(date +%F-%T.%6N) -------\\n" &>> "${eus_dir}/logs/dpkg-interrupted.log"
     echo -e "${GRAY_R}#${RESET} Looks like dpkg was interrupted... running \"dpkg --configure -a\"..." | tee -a "${eus_dir}/logs/dpkg-interrupted.log"
     if DEBIAN_FRONTEND=noninteractive "$(which dpkg)" --configure -a &>> "${eus_dir}/logs/dpkg-interrupted.log"; then
       echo -e "${GREEN}#${RESET} Successfully ran \"dpkg --configure -a\"! \\n"
@@ -1738,7 +1781,7 @@ check_dpkg_lock() {
         if [[ "${#lock_owner_array[@]}" -gt "1" ]]; then lock_owner_message+=" and ${lock_owner_array[-1]}"; fi
       fi
       echo -e "${GRAY_R}#${RESET} $(echo "${lock_file}" | cut -d'/' -f4) is currently locked by process ${lock_owner_message}... We'll give it 2 minutes to finish."
-      echo -e "$(date +%F-%R) | $(echo "${lock_file}" | cut -d'/' -f4) is currently locked by process ${lock_owner_message}... We'll give it 2 minutes to finish." &>> "${eus_dir}/logs/dpkg-lock.log"
+      echo -e "$(date +%F-%T.%6N) | $(echo "${lock_file}" | cut -d'/' -f4) is currently locked by process ${lock_owner_message}... We'll give it 2 minutes to finish." &>> "${eus_dir}/logs/dpkg-lock.log"
       local timeout="120"
       local start_time
       start_time="$(date +%s)"
@@ -1751,7 +1794,7 @@ check_dpkg_lock() {
           local elapsed_time="$((current_time - start_time))"
           if [[ "${elapsed_time}" -ge "${timeout}" ]]; then
             process_killed="true"
-            echo -e "$(date +%F-%R) | Timeout reached. Killing process ${lock_owner_message} forcefully." &>> "${eus_dir}/logs/dpkg-lock.log"
+            echo -e "$(date +%F-%T.%6N) | Timeout reached. Killing process ${lock_owner_message} forcefully." &>> "${eus_dir}/logs/dpkg-lock.log"
             echo -e "${YELLOW}#${RESET} Timeout reached. Killing process ${lock_owner_message} forcefully. \\n"
             kill -9 "${lock_owner_array[@]}" &>> "${eus_dir}/logs/dpkg-lock.log"
             rm -f "${lock_file}" &>> "${eus_dir}/logs/dpkg-lock.log"
@@ -1761,7 +1804,7 @@ check_dpkg_lock() {
           fi
         else
           echo -e "${GREEN}#${RESET} $(echo "${lock_file}" | cut -d'/' -f4) is no longer locked! \\n"
-          echo -e "$(date +%F-%R) | $(echo "${lock_file}" | cut -d'/' -f4) is no longer locked!" &>> "${eus_dir}/logs/dpkg-lock.log"
+          echo -e "$(date +%F-%T.%6N) | $(echo "${lock_file}" | cut -d'/' -f4) is no longer locked!" &>> "${eus_dir}/logs/dpkg-lock.log"
           break
         fi
       done
@@ -1858,26 +1901,26 @@ https_died_unexpectedly_check() {
   while IFS= read -r log_file; do
     if [[ -n "${GNUTLS_CPUID_OVERRIDE}" ]] && grep -sq "GNUTLS_CPUID_OVERRIDE=" "/etc/environment" &> /dev/null; then
       previous_value="$(grep "GNUTLS_CPUID_OVERRIDE=" "/etc/environment" | cut -d '=' -f2)"
-      if [[ "${https_died_unexpectedly_check_logged_1}" != 'true' ]] && [[ "${previous_value}" == "0x1" ]]; then echo -e "$(date +%F-%R) | Previous GNUTLS_CPUID_OVERRIDE value is: ${previous_value}" &>> "${eus_dir}/logs/https-died-unexpectedly.log"; https_died_unexpectedly_check_logged_1="true"; fi
+      if [[ "${https_died_unexpectedly_check_logged_1}" != 'true' ]] && [[ "${previous_value}" == "0x1" ]]; then echo -e "$(date +%F-%T.%6N) | Previous GNUTLS_CPUID_OVERRIDE value is: ${previous_value}" &>> "${eus_dir}/logs/https-died-unexpectedly.log"; https_died_unexpectedly_check_logged_1="true"; fi
       if [[ "${previous_value}" != "0x1" ]]; then
         if sed -i 's/^GNUTLS_CPUID_OVERRIDE=.*/GNUTLS_CPUID_OVERRIDE=0x1/' "/etc/environment" &>> "${eus_dir}/logs/https-died-unexpectedly.log"; then
-          echo -e "$(date +%F-%R) | Successfully updated GNUTLS_CPUID_OVERRIDE to 0x1!" &>> "${eus_dir}/logs/https-died-unexpectedly.log"
+          echo -e "$(date +%F-%T.%6N) | Successfully updated GNUTLS_CPUID_OVERRIDE to 0x1!" &>> "${eus_dir}/logs/https-died-unexpectedly.log"
           # shellcheck disable=SC1091
           source /etc/environment
           repository_changes_applied="true"
         else
-          echo -e "$(date +%F-%R) | Failed to update GNUTLS_CPUID_OVERRIDE to 0x1..." &>> "${eus_dir}/logs/https-died-unexpectedly.log"
+          echo -e "$(date +%F-%T.%6N) | Failed to update GNUTLS_CPUID_OVERRIDE to 0x1..." &>> "${eus_dir}/logs/https-died-unexpectedly.log"
         fi
       fi
     else
-      echo -e "$(date +%F-%R) | Adding \"export GNUTLS_CPUID_OVERRIDE=0x1\" to /etc/environment..." &>> "${eus_dir}/logs/https-died-unexpectedly.log"
+      echo -e "$(date +%F-%T.%6N) | Adding \"export GNUTLS_CPUID_OVERRIDE=0x1\" to /etc/environment..." &>> "${eus_dir}/logs/https-died-unexpectedly.log"
       if echo "export GNUTLS_CPUID_OVERRIDE=0x1" &>> /etc/environment; then
-        echo -e "$(date +%F-%R) | Successfully added \"export GNUTLS_CPUID_OVERRIDE=0x1\" to /etc/environment..." &>> "${eus_dir}/logs/https-died-unexpectedly.log"
+        echo -e "$(date +%F-%T.%6N) | Successfully added \"export GNUTLS_CPUID_OVERRIDE=0x1\" to /etc/environment..." &>> "${eus_dir}/logs/https-died-unexpectedly.log"
         # shellcheck disable=SC1091
         source /etc/environment
         repository_changes_applied="true"
       else
-        echo -e "$(date +%F-%R) | Failed to add \"export GNUTLS_CPUID_OVERRIDE=0x1\" to /etc/environment..." &>> "${eus_dir}/logs/https-died-unexpectedly.log"
+        echo -e "$(date +%F-%T.%6N) | Failed to add \"export GNUTLS_CPUID_OVERRIDE=0x1\" to /etc/environment..." &>> "${eus_dir}/logs/https-died-unexpectedly.log"
       fi
     fi
     sed -i "s/Method https has died unexpectedly\!/Method https has died unexpectedly (completed)\!/g" "${log_file}" 2>> "${eus_dir}/logs/https-died-unexpectedly.log"
@@ -1940,9 +1983,9 @@ cleanup_malformed_repositories() {
           mv "${cleanup_malformed_repositories_file_path}" "{eus_dir}/repository/$(basename "${cleanup_malformed_repositories_file_path}").corrupted" &>> "${eus_dir}/logs/cleanup-malformed-repository-lists.log"
         fi
         cleanup_malformed_repositories_changes_made="true"
-        echo -e "$(date +%F-%R) | Malformed repository commented out in '${cleanup_malformed_repositories_file_path}' at line $cleanup_malformed_repositories_line_number" &>> "${eus_dir}/logs/cleanup-malformed-repository-lists.log"
+        echo -e "$(date +%F-%T.%6N) | Malformed repository commented out in '${cleanup_malformed_repositories_file_path}' at line $cleanup_malformed_repositories_line_number" &>> "${eus_dir}/logs/cleanup-malformed-repository-lists.log"
       else
-        echo -e "$(date +%F-%R) | Warning: Invalid file path '${cleanup_malformed_repositories_file_path}'. Skipping." &>> "${eus_dir}/logs/cleanup-malformed-repository-lists.log"
+        echo -e "$(date +%F-%T.%6N) | Warning: Invalid file path '${cleanup_malformed_repositories_file_path}'. Skipping." &>> "${eus_dir}/logs/cleanup-malformed-repository-lists.log"
       fi
     done < <(grep -E '^E: Malformed entry |^E: Malformed line |^E: Malformed stanza |^E: Type .* is not known on line' /tmp/EUS/apt/*.log | awk -F': Malformed entry |: Malformed line |: Malformed stanza |: Type .*is not known on line ' '{print $2}' | sort -u 2>> /dev/null)
     if [[ "${cleanup_malformed_repositories_changes_made}" = 'true' ]]; then
@@ -1975,9 +2018,9 @@ cleanup_duplicated_repositories() {
           sed -i "${cleanup_duplicated_repositories_line_number}s/^/#/" "${cleanup_duplicated_repositories_file_path}" &>> "${eus_dir}/logs/cleanup-duplicate-repository-lists.log"
         fi
         cleanup_duplicated_repositories_changes_made="true"
-        echo -e "$(date +%F-%R) | Duplicates commented out in '${cleanup_duplicated_repositories_file_path}' at line $cleanup_duplicated_repositories_line_number" &>> "${eus_dir}/logs/cleanup-duplicate-repository-lists.log"
+        echo -e "$(date +%F-%T.%6N) | Duplicates commented out in '${cleanup_duplicated_repositories_file_path}' at line $cleanup_duplicated_repositories_line_number" &>> "${eus_dir}/logs/cleanup-duplicate-repository-lists.log"
       else
-        echo -e "$(date +%F-%R) | Warning: Invalid file path '${cleanup_duplicated_repositories_file_path}'. Skipping." &>> "${eus_dir}/logs/cleanup-duplicate-repository-lists.log"
+        echo -e "$(date +%F-%T.%6N) | Warning: Invalid file path '${cleanup_duplicated_repositories_file_path}'. Skipping." &>> "${eus_dir}/logs/cleanup-duplicate-repository-lists.log"
       fi
     done < <(grep -E '^W: Target .+ is configured multiple times in ' "/tmp/EUS/apt/"*.log | awk -F' is configured multiple times in ' '{print $2}' | sort -u 2>> /dev/null)
     if [[ "${cleanup_duplicated_repositories_changes_made}" = 'true' ]]; then
@@ -1993,6 +2036,7 @@ cleanup_unavailable_repositories() {
   if ls /tmp/EUS/apt/*.log 1> /dev/null 2>&1; then
     if ! [[ -e "${eus_dir}/logs/upgrade.log" ]]; then return; fi
     while read -r domain; do
+      if grep -isq "certificate verification" "/tmp/EUS/apt/"*.log && [[ "${force_http_repositories}" != 'true' ]]; then force_http_repositories="true"; fi
       if ! grep -sq "^#.*${domain}" /etc/apt/sources.list /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources 2> /dev/null; then
         if [[ "${cleanup_unavailable_repositories_found_message}" != 'true' ]]; then
           echo -e "${GRAY_R}#${RESET} There are repositories that are causing issues..."
@@ -2005,12 +2049,12 @@ cleanup_unavailable_repositories() {
             if [[ -z "${entry_block_end_line}" ]]; then entry_block_end_line="${entry_block_start_line}"; fi
             sed -i "${entry_block_start_line},${entry_block_end_line}s/^\([^#]\)/# \1/" "${file}" &>> "${eus_dir}/logs/cleanup-unavailable-repository-lists.log"
             cleanup_unavailable_repositories_changes_made="true"
-            echo -e "$(date +%F-%R) | Unavailable repository with domain ${domain} has been commented out in '${file}'" &>> "${eus_dir}/logs/cleanup-unavailable-repository-lists.log"
+            echo -e "$(date +%F-%T.%6N) | Unavailable repository with domain ${domain} has been commented out in '${file}'" &>> "${eus_dir}/logs/cleanup-unavailable-repository-lists.log"
           fi
         done
         if sed -i -e "/^[^#].*${domain}/ s|^deb|# deb|g" /etc/apt/sources.list /etc/apt/sources.list.d/*.list &>> "${eus_dir}/logs/cleanup-unavailable-repository-lists.log"; then
           cleanup_unavailable_repositories_changes_made="true"
-          echo -e "$(date +%F-%R) | Unavailable repository with domain ${domain} has been commented out" &>> "${eus_dir}/logs/cleanup-unavailable-repository-lists.log"
+          echo -e "$(date +%F-%T.%6N) | Unavailable repository with domain ${domain} has been commented out" &>> "${eus_dir}/logs/cleanup-unavailable-repository-lists.log"
         fi
       fi
     done < <(awk '/Unauthorized|Failed/ {for (i=1; i<=NF; i++) if ($i ~ /^https?:\/\/([^\/]+)/) {split($i, parts, "/"); print parts[3]}}' "/tmp/EUS/apt/"*.log | sort -u 2>> /dev/null)
@@ -2040,7 +2084,7 @@ cleanup_conflicting_repositories() {
           # Loop through each file and awk to comment out the conflicting source
           while read -r file_with_conflict; do
             if [[ "${cleanup_conflicting_repositories_message_1}" != 'true' ]]; then
-              echo -e "$(date +%F-%R) | Conflicting Trusted values for ${source_url}" &>> "${eus_dir}/logs/trusted-repository-conflict.log"
+              echo -e "$(date +%F-%T.%6N) | Conflicting Trusted values for ${source_url}" &>> "${eus_dir}/logs/trusted-repository-conflict.log"
               cleanup_conflicting_repositories_message_1="true"
             fi
             if [[ "${file_with_conflict}" == *".sources" ]]; then
@@ -2062,7 +2106,7 @@ cleanup_conflicting_repositories() {
                 } 
                 1' "${file_with_conflict}" &> tmpfile; then mv tmpfile "${file_with_conflict}" &> /dev/null; cleanup_conflicting_repositories_changes_made="true"; fi
             fi
-            echo -e "$(date +%F-%R) | awk command executed for ${file_with_conflict}" &>> "${eus_dir}/logs/trusted-repository-conflict.log"
+            echo -e "$(date +%F-%T.%6N) | awk command executed for ${file_with_conflict}" &>> "${eus_dir}/logs/trusted-repository-conflict.log"
           done < <(grep -sl "^deb.*${source_url}.*${package_name}.*${version}\\|^URIs: .*${source_url}" /etc/apt/sources.list /etc/apt/sources.list.d/* /etc/apt/sources.list.d/*.sources | awk '!NF || !seen[$0]++')
           break
         elif [[ ${line} == *"Conflicting values set for option Signed-By regarding source"* ]]; then
@@ -2077,8 +2121,8 @@ cleanup_conflicting_repositories() {
           # Loop through each file and awk to comment out the conflicting source
           while read -r file_with_conflict; do
             if [[ "${cleanup_conflicting_repositories_message_2}" != 'true' ]]; then
-              echo -e "$(date +%F-%R) | Conflicting Signed-By values for ${conflicting_source}" &>> "${eus_dir}/logs/signed-by-repository-conflict.log"
-              echo -e "$(date +%F-%R) | Conflicting keys: ${key1} != ${key2}" &>> "${eus_dir}/logs/signed-by-repository-conflict.log"
+              echo -e "$(date +%F-%T.%6N) | Conflicting Signed-By values for ${conflicting_source}" &>> "${eus_dir}/logs/signed-by-repository-conflict.log"
+              echo -e "$(date +%F-%T.%6N) | Conflicting keys: ${key1} != ${key2}" &>> "${eus_dir}/logs/signed-by-repository-conflict.log"
               cleanup_conflicting_repositories_message_2="true"
             fi
             if [[ "${file_with_conflict}" == *".sources" ]]; then
@@ -2096,7 +2140,7 @@ cleanup_conflicting_repositories() {
                 } 
                 1' "${file_with_conflict}" &> tmpfile; then mv tmpfile "${file_with_conflict}" &> /dev/null; cleanup_conflicting_repositories_changes_made="true"; fi
             fi
-            echo -e "$(date +%F-%R) | awk command executed for ${file_with_conflict}" &>> "${eus_dir}/logs/signed-by-repository-conflict.log"
+            echo -e "$(date +%F-%T.%6N) | awk command executed for ${file_with_conflict}" &>> "${eus_dir}/logs/signed-by-repository-conflict.log"
           done < <(grep -sl "^deb.*${conflicting_source}\\|^URIs: .*${conflicting_source}" /etc/apt/sources.list /etc/apt/sources.list.d/* /etc/apt/sources.list.d/*.sources | awk '!NF || !seen[$0]++')
           break
         fi
@@ -2117,7 +2161,7 @@ run_apt_get_update() {
   eus_create_directories "apt"
   if [[ "${run_with_apt_fix_missing}" == 'true' ]] || [[ -z "${afm_first_run}" ]]; then apt_fix_missing_option="--fix-missing"; afm_first_run="1"; unset run_with_apt_fix_missing; IFS=' ' read -r -a apt_fix_missing <<< "${apt_fix_missing_option}"; fi
   if [[ "${silent_run_apt_get_update}" != "true" ]]; then echo -e "${GRAY_R}#${RESET} Running apt-get update..."; fi
-  echo -e "\\n------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/apt-update.log"
+  echo -e "\\n------- $(date +%F-%T.%6N) -------\\n" &>> "${eus_dir}/logs/apt-update.log"
   if apt-get update "${apt_fix_missing[@]}" 2>&1 | tee -a "${eus_dir}/logs/apt-update.log" > /tmp/EUS/apt/apt-update.log; then
     if [[ "${PIPESTATUS[0]}" -eq "0" ]]; then
       if [[ "${silent_run_apt_get_update}" != "true" ]]; then echo -e "${GREEN}#${RESET} Successfully ran apt-get update! \\n"; fi
@@ -2337,7 +2381,7 @@ apt_get_install_package() {
   apt_get_install_package_variable="install"; apt_get_install_package_variable_2="installed"
   run_apt_get_update
   check_dpkg_lock
-  echo -e "\\n------- ${required_package} installation ------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/apt.log"
+  echo -e "\\n------- ${required_package} installation ------- $(date +%F-%T.%6N) -------\\n" &>> "${eus_dir}/logs/apt.log"
   echo -e "${GRAY_R}#${RESET} Trying to ${apt_get_install_package_variable} ${required_package%%:*}..."
   if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${required_package}" 2>&1 | tee -a "${eus_dir}/logs/apt.log" > /tmp/EUS/apt/apt.log; then
     if [[ "${PIPESTATUS[0]}" -eq "0" ]]; then
@@ -2381,11 +2425,11 @@ certbot_install_function() {
             apt_get_install_package
           fi
           check_snapd_running
-          echo -e "\\n------- update ------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/snapd.log"
+          echo -e "\\n------- update ------- $(date +%F-%T.%6N) -------\\n" &>> "${eus_dir}/logs/snapd.log"
           echo -e "${GRAY_R}#${RESET} Updating snapd..."
           if snap install core &>> "${eus_dir}/logs/snapd.log"; snap refresh core &>> "${eus_dir}/logs/snapd.log"; then
             echo -e "${GREEN}#${RESET} Successfully updated snapd! \\n" && sleep 2
-            echo -e "\\n------- certbot installation ------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/snapd.log"
+            echo -e "\\n------- certbot installation ------- $(date +%F-%T.%6N) -------\\n" &>> "${eus_dir}/logs/snapd.log"
             echo -e "${GRAY_R}#${RESET} Installing certbot via snapd..."
             if snap install --classic certbot &>> "${eus_dir}/logs/snapd.log"; then
               echo -e "${GREEN}#${RESET} Successfully installed certbot via snapd! \\n" && sleep 2
@@ -2396,7 +2440,7 @@ certbot_install_function() {
 	        else
               echo -e "${RED}#${RESET} Failed to install certbot via snapd... \\n"
               echo -e "${GRAY_R}#${RESET} Trying to remove cerbot snapd..."
-              echo -e "\\n------- certbot removal ------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/snapd.log"
+              echo -e "\\n------- certbot removal ------- $(date +%F-%T.%6N) -------\\n" &>> "${eus_dir}/logs/snapd.log"
               if snap remove certbot &>> "${eus_dir}/logs/snapd.log"; then
                 echo -e "${GREEN}#${RESET} Successfully removed certbot! \\n"
                 echo -e "${GRAY_R}#${RESET} Trying the classic way of using certbot..."
@@ -2410,7 +2454,7 @@ certbot_install_function() {
           fi
         else
           if [[ "${installing_required_package}" != 'yes' ]]; then install_required_packages; fi
-          echo -e "\\n------- certbot installation ------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/required.log"
+          echo -e "\\n------- certbot installation ------- $(date +%F-%T.%6N) -------\\n" &>> "${eus_dir}/logs/required.log"
           echo -e "${GRAY_R}#${RESET} Installing certbot..."
           if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install certbot &>> "${eus_dir}/logs/required.log"; then
             echo -e "${GREEN}#${RESET} Successfully installed certbot! \\n" && sleep 2
@@ -2514,7 +2558,7 @@ else
     gnupg_segfault_packages=("gnupg" "gnupg2" "libc6" "libreadline8" "libreadline-dev" "libslang2" "zlib1g" "libbz2-1.0" "libgcrypt20" "libsqlite3-0" "libassuan0" "libgpg-error0" "libm6" "libpthread-stubs0-dev" "libtinfo6")
     reinstall_gnupg_segfault_packages=()
     for gnupg_segfault_package in "${gnupg_segfault_packages[@]}"; do if "$(which dpkg)" -l "${gnupg_segfault_package}" &> /dev/null; then reinstall_gnupg_segfault_packages+=("${gnupg_segfault_package}"); fi; done
-    if [[ "${#reinstall_gnupg_segfault_packages[@]}" -gt '0' ]]; then echo -e "\\n------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/gnupg-segfault-reinstall.log"; DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install --reinstall "${reinstall_gnupg_segfault_packages[@]}" &>> "${eus_dir}/logs/gnupg-segfault-reinstall.log"; fi
+    if [[ "${#reinstall_gnupg_segfault_packages[@]}" -gt '0' ]]; then echo -e "\\n------- $(date +%F-%T.%6N) -------\\n" &>> "${eus_dir}/logs/gnupg-segfault-reinstall.log"; DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install --reinstall "${reinstall_gnupg_segfault_packages[@]}" &>> "${eus_dir}/logs/gnupg-segfault-reinstall.log"; fi
   fi
 fi
 if ! "$(which dpkg)" -l jq 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
@@ -2856,7 +2900,7 @@ fi
 
 fqdn_option() {
   header
-  echo -e "\\n------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/unattended.log"
+  echo -e "\\n------- $(date +%F-%T.%6N) -------\\n" &>> "${eus_dir}/logs/unattended.log"
   server_fqdn="$(head -n1 "${eus_dir}/fqdn_option_domains" | tr '[:upper:]' '[:lower:]')"
   if [[ "${server_ip}" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
     if ! [[ "$(echo "${server_ip}" | cut -d'.' -f1)" -le '255' && "$(echo "${server_ip}" | cut -d'.' -f2)" -le '255' && "$(echo "${server_ip}" | cut -d'.' -f3)" -le '255' && "$(echo "${server_ip}" | cut -d'.' -f4)" -le '255' ]]; then
@@ -3210,7 +3254,7 @@ rm --force "${eus_dir}/le_http_service" 2> /dev/null
 if [[ -d "${eus_dir}/logs" ]]; then mkdir -p "${eus_dir}/logs"; fi
 if [[ -d "${eus_dir}/checksum" ]]; then mkdir -p "${eus_dir}/checksum"; fi
 if [[ \${log_date} != 'true' ]]; then
-  echo -e "\\n------- \$(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/http_service.log"
+  echo -e "\\n------- \$(date +%F-%T.%6N) -------\\n" &>> "${eus_dir}/logs/http_service.log"
   log_date="true"
 fi
 netstat -tulpn | grep ":80 " | awk '{print \$7}' | sed 's/[0-9]*\///' | sed 's/://' &>> "${eus_dir}/le_http_service_temp"
@@ -3356,7 +3400,7 @@ if [[ -f "/etc/letsencrypt/live/${server_fqdn}\${le_var}/privkey.pem" && -f "/et
   current_sha256sum=\$(sha256sum "/etc/letsencrypt/live/${server_fqdn}\${le_var}/fullchain.pem" | awk '{print \$1}')
   current_md5sum=\$(md5sum "/etc/letsencrypt/live/${server_fqdn}\${le_var}/fullchain.pem" 2> /dev/null | awk '{print \$1}')
   if [[ "\${current_sha256sum}" != "\$(cat "${eus_dir}/checksum/fullchain.sha256sum")" && "\${current_md5sum}" != "\$(cat "${eus_dir}/checksum/fullchain.md5sum")" ]]; then
-    echo -e "\\n------- \$(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/lets_encrypt_import.log"
+    echo -e "\\n------- \$(date +%F-%T.%6N) -------\\n" &>> "${eus_dir}/logs/lets_encrypt_import.log"
     sha256sum "/etc/letsencrypt/live/${server_fqdn}\${le_var}/fullchain.pem" 2> /dev/null | awk '{print \$1}' &> "${eus_dir}/checksum/fullchain.sha256sum" && echo "Successfully updated sha256sum" &>> "${eus_dir}/logs/lets_encrypt_import.log"
     md5sum "/etc/letsencrypt/live/${server_fqdn}\${le_var}/fullchain.pem" 2> /dev/null | awk '{print \$1}' &> "${eus_dir}/checksum/fullchain.md5sum" && echo "Successfully updated md5sum" &>> "${eus_dir}/logs/lets_encrypt_import.log"
     if dpkg -l unifi-core 2> /dev/null | awk '{print \$1}' | grep -iq "^ii\\|^hi"; then
@@ -3561,7 +3605,7 @@ SSL
       systemctl start unifi-video
     fi
   else
-    echo -e "\\n------- \$(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/lets_encrypt_import.log"
+    echo -e "\\n------- \$(date +%F-%T.%6N) -------\\n" &>> "${eus_dir}/logs/lets_encrypt_import.log"
     echo -e "Checksums are the same.. certificate didn't renew." &>> "${eus_dir}/logs/lets_encrypt_import.log"
     if grep -A40 -i "\$(date '+%d %b %Y %H')" /var/log/letsencrypt/letsencrypt.log | grep -A6 '"error":' | grep -io "detail.*" | grep -iq "firewall"; then
       echo -e "Certificates didn't renew due to a firewall issue ( likely )..." &>> "${eus_dir}/logs/lets_encrypt_import.log"
@@ -3923,7 +3967,7 @@ unifi_network_application() {
     openjdk_native_installed="true"
   fi
   if [[ "${unifi_core_system}" == 'true' ]]; then echo -e "\\n${GRAY_R}#${RESET} Importing the SSL certificates into the UniFi Network Application running on your ${unifi_core_device}..."; else echo -e "\\n${GRAY_R}#${RESET} Importing the SSL certificates into the UniFi Network Application..."; fi
-  echo -e "\\n------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/lets_encrypt_import.log"
+  echo -e "\\n------- $(date +%F-%T.%6N) -------\\n" &>> "${eus_dir}/logs/lets_encrypt_import.log"
   if sha256sum "/etc/letsencrypt/live/${server_fqdn}${le_var}/fullchain.pem" 2> /dev/null | awk '{print $1}' &> "${eus_dir}/checksum/fullchain.sha256sum"; then echo "Successfully updated sha256sum" &>> "${eus_dir}/logs/lets_encrypt_import.log"; fi
   if md5sum "/etc/letsencrypt/live/${server_fqdn}${le_var}/fullchain.pem" 2> /dev/null | awk '{print $1}' &> "${eus_dir}/checksum/fullchain.md5sum"; then echo "Successfully updated md5sum" &>> "${eus_dir}/logs/lets_encrypt_import.log"; fi
   # shellcheck disable=SC2012
@@ -5281,7 +5325,7 @@ while [ -n "\$1" ]; do
   esac
   shift
 done
-echo -e "\\n------- \$(date +%F-%R) -------\\n" &>>${eus_dir}/logs/cronjob_install.log
+echo -e "\\n------- \$(date +%F-%T.%6N) -------\\n" &>>${eus_dir}/logs/cronjob_install.log
 mkdir -p ${eus_dir}/tmp/
 while fuser /var/lib/dpkg/lock /var/lib/apt/lists/lock /var/cache/apt/archives/lock >/dev/null 2>&1; do
   unset dpkg_locked
@@ -5428,7 +5472,7 @@ if [[ -f ${eus_dir}/cloudkey/version ]]; then
   old_version=\$(cat ${eus_dir}/cloudkey/version)
   if [[ \${old_version} != \${current_version} ]] || ! [[ -f /usr/lib/eus ]]; then
     touch /usr/lib/eus
-    echo "\$(date +%F-%R) | Cloudkey firmware version changed from \${old_version} to \${current_version}" &>> ${eus_dir}/logs/uc-ck_firmware_versions.log
+    echo "\$(date +%F-%T.%6N) | Cloudkey firmware version changed from \${old_version} to \${current_version}" &>> ${eus_dir}/logs/uc-ck_firmware_versions.log
   fi
   server_fqdn="${server_fqdn}"
   if ls ${eus_dir}/logs/lets_encrypt_[0-9]*.log &>/dev/null && [[ -d "/etc/letsencrypt/live/${server_fqdn}" ]]; then
@@ -5447,7 +5491,7 @@ if [[ -f ${eus_dir}/cloudkey/version ]]; then
     uc_ck_key=\$(cat /etc/ssl/private/cloudkey.key)
     priv_key=\$(cat /etc/letsencrypt/live/${server_fqdn}\${le_var}/privkey.pem)
     if [[ \${uc_ck_key} != \${priv_key} ]]; then
-      echo "\$(date +%F-%R) | Certificates were different.. applying the Let's Encrypt ones." &>> ${eus_dir}/logs/uc_ck_certificates.log
+      echo "\$(date +%F-%T.%6N) | Certificates were different.. applying the Let's Encrypt ones." &>> ${eus_dir}/logs/uc_ck_certificates.log
       cp /etc/ssl/private/cloudkey.crt ${eus_dir}/cloudkey/certs_backups/cloudkey.crt_\$(date +%Y%m%d_%H%M)
       cp /etc/ssl/private/cloudkey.key ${eus_dir}/cloudkey/certs_backups/cloudkey.key_\$(date +%Y%m%d_%H%M)
       if [[ -f /etc/letsencrypt/live/${server_fqdn}\${le_var}/fullchain.pem ]]; then
@@ -5458,7 +5502,7 @@ if [[ -f ${eus_dir}/cloudkey/version ]]; then
       fi
       systemctl restart nginx
       if [[ \$(dpkg-query -W -f='\${Status}' unifi 2>/dev/null | grep -c "ok installed") -eq 1 ]]; then
-        echo -e "\\n------- \$(date +%F-%R) -------\\n" &>> ${eus_dir}/logs/uc_ck_unifi_import.log
+        echo -e "\\n------- \$(date +%F-%T.%6N) -------\\n" &>> ${eus_dir}/logs/uc_ck_unifi_import.log
         if [[ \${old_certificates} == 'last_three' ]]; then ls -t ${eus_dir}/cloudkey/certs_backups/cloudkey.crt_* 2> /dev/null | awk 'NR>3' | xargs rm -f 2> /dev/null; fi
         mkdir -p ${eus_dir}/network/keystore_backups && cp /usr/lib/unifi/data/keystore ${eus_dir}/network/keystore_backups/keystore_\$(date +%Y%m%d_%H%M)
         # shellcheck disable=SC2086
@@ -5548,13 +5592,13 @@ if [[ -f ${eus_dir}/cloudkey/version ]]; then
   old_version=\$(cat ${eus_dir}/cloudkey/version)
   if [[ "\${old_version}" != "\${current_version}" ]] || ! [[ -f /usr/lib/eus ]]; then
     touch /usr/lib/eus
-    echo "\$(date +%F-%R) | Cloudkey firmware version changed from \${old_version} to \${current_version}" &>> ${eus_dir}/logs/uc-ck_firmware_versions.log
+    echo "\$(date +%F-%T.%6N) | Cloudkey firmware version changed from \${old_version} to \${current_version}" &>> ${eus_dir}/logs/uc-ck_firmware_versions.log
   fi
   if [[ -f "${eus_dir}/paid-certificates/eus_crt_file.crt" && -f "${eus_dir}/paid-certificates/eus_key_file.key" ]]; then
     uc_ck_key=\$(md5sum /etc/ssl/private/cloudkey.key | awk '{print $1}')
     priv_key=\$(md5sum "${eus_dir}/paid-certificates/eus_key_file.key" | awk '{print $1}')
     if [[ "\${uc_ck_key}" != "\${priv_key}" ]]; then
-      echo "\$(date +%F-%R) | Certificates were different.. applying the paid ones." &>> ${eus_dir}/logs/uc_ck_certificates.log
+      echo "\$(date +%F-%T.%6N) | Certificates were different.. applying the paid ones." &>> ${eus_dir}/logs/uc_ck_certificates.log
       cp "/etc/ssl/private/cloudkey.crt" "${eus_dir}/cloudkey/certs_backups/cloudkey.crt_\$(date +%Y%m%d_%H%M)"
       cp "/etc/ssl/private/cloudkey.key" "${eus_dir}/cloudkey/certs_backups/cloudkey.key_\$(date +%Y%m%d_%H%M)"
       if [[ -f "${eus_dir}/paid-certificates/eus_crt_file.crt" ]]; then
@@ -5565,7 +5609,7 @@ if [[ -f ${eus_dir}/cloudkey/version ]]; then
       fi
       systemctl restart nginx
       if [[ \$(dpkg-query -W -f='\${Status}' unifi 2>/dev/null | grep -c "ok installed") -eq 1 ]]; then
-        echo -e "\\n------- \$(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/uc_ck_unifi_import.log"
+        echo -e "\\n------- \$(date +%F-%T.%6N) -------\\n" &>> "${eus_dir}/logs/uc_ck_unifi_import.log"
         if [[ "\${old_certificates}" == 'last_three' ]]; then ls -t "${eus_dir}/cloudkey/certs_backups/cloudkey.crt_*" 2> /dev/null | awk 'NR>3' | xargs rm -f 2> /dev/null; fi
         mkdir -p "${eus_dir}/network/keystore_backups" && cp /usr/lib/unifi/data/keystore "${eus_dir}/network/keystore_backups/keystore_\$(date +%Y%m%d_%H%M)"
         keytool -delete -alias unifi -keystore /usr/lib/unifi/data/keystore -deststorepass aircontrolenterprise &>> "${eus_dir}/logs/uc_ck_unifi_import.log"
@@ -5651,55 +5695,55 @@ paid_certificate() {
   header
   paid_cert="true"
   if [[ -f "${chain_crt}" ]]; then
-    echo -e "\\n------- Creating \"${eus_dir}/paid-certificates/eus_unifi.p12\" ------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/paid_certificate.log"
+    echo -e "\\n------- Creating \"${eus_dir}/paid-certificates/eus_unifi.p12\" ------- $(date +%F-%T.%6N) -------\\n" &>> "${eus_dir}/logs/paid_certificate.log"
     echo -e "${GRAY_R}#${RESET} Creating \"${eus_dir}/paid-certificates/eus_unifi.p12\"..."
     # shellcheck disable=SC2086
     if openssl pkcs12 -export -inkey "${priv_key}" -in "${signed_crt}" -in "${chain_crt}" -out "${eus_dir}/paid-certificates/eus_unifi.p12" -name unifi -password pass:aircontrolenterprise ${openssl_legacy_flag} &>> "${eus_dir}/logs/paid_certificate.log"; then echo -e "${GREEN}#${RESET} Successfully created \"${eus_dir}/paid-certificates/eus_unifi.p12\"! \\n"; else abort_reason="Failed to create ${eus_dir}/paid-certificates/eus_unifi.p12."; abort; fi
     if [[ "${create_ufv_crts}" == 'true' ]]; then
-      echo -e "\\n------- Creating \"${eus_dir}/paid-certificates/ufv-server.cert.der\" ------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/paid_certificate.log"
+      echo -e "\\n------- Creating \"${eus_dir}/paid-certificates/ufv-server.cert.der\" ------- $(date +%F-%T.%6N) -------\\n" &>> "${eus_dir}/logs/paid_certificate.log"
       echo -e "${GRAY_R}#${RESET} Creating \"${eus_dir}/paid-certificates/ufv-server.cert.der\"..."
       if openssl x509 -outform der -in "${signed_crt}" -in "${chain_crt}" -out "${eus_dir}/paid-certificates/ufv-server.cert.der" &>> "${eus_dir}/logs/paid_certificate.log"; then echo -e "${GREEN}#${RESET} Successfully created \"${eus_dir}/paid-certificates/ufv-server.cert.der\"!"; else abort_reason="Failed to create ${eus_dir}/paid-certificates/ufv-server.cert.der."; abort; fi
     fi
   elif [[ -f "${intermediate_crt}" ]]; then
-    echo -e "\\n------- Creating \"${eus_dir}/paid-certificates/eus_unifi.p12\" ------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/paid_certificate.log"
+    echo -e "\\n------- Creating \"${eus_dir}/paid-certificates/eus_unifi.p12\" ------- $(date +%F-%T.%6N) -------\\n" &>> "${eus_dir}/logs/paid_certificate.log"
     echo -e "${GRAY_R}#${RESET} Creating \"${eus_dir}/paid-certificates/eus_unifi.p12\"..."
     # shellcheck disable=SC2086
     if openssl pkcs12 -export -inkey "${priv_key}" -in "${signed_crt}" -certfile "${intermediate_crt}" -out "${eus_dir}/paid-certificates/eus_unifi.p12" -name unifi -password pass:aircontrolenterprise ${openssl_legacy_flag} &>> "${eus_dir}/logs/paid_certificate.log"; then echo -e "${GREEN}#${RESET} Successfully created \"${eus_dir}/paid-certificates/eus_unifi.p12\"!"; else abort_reason="Failed to create ${eus_dir}/paid-certificates/eus_unifi.p12."; abort; fi
     if [[ "${create_ufv_crts}" == 'true' ]]; then
-      echo -e "\\n------- Creating \"${eus_dir}/paid-certificates/ufv-server.cert.der\" ------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/paid_certificate.log"
+      echo -e "\\n------- Creating \"${eus_dir}/paid-certificates/ufv-server.cert.der\" ------- $(date +%F-%T.%6N) -------\\n" &>> "${eus_dir}/logs/paid_certificate.log"
       echo -e "${GRAY_R}#${RESET} Creating \"${eus_dir}/paid-certificates/ufv-server.cert.der\"..."
       if openssl x509 -outform der -in "${signed_crt}" -out "${eus_dir}/paid-certificates/ufv-server.cert.der" &>> "${eus_dir}/logs/paid_certificate.log"; then echo -e "${GREEN}#${RESET} Successfully created \"${eus_dir}/paid-certificates/ufv-server.cert.der\"!"; else abort_reason="Failed to create ${eus_dir}/paid-certificates/ufv-server.cert.der."; abort; fi
     fi
   else
-    echo -e "\\n------- Creating \"${eus_dir}/paid-certificates/eus_unifi.p12\" ------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/paid_certificate.log"
+    echo -e "\\n------- Creating \"${eus_dir}/paid-certificates/eus_unifi.p12\" ------- $(date +%F-%T.%6N) -------\\n" &>> "${eus_dir}/logs/paid_certificate.log"
     echo -e "${GRAY_R}#${RESET} Creating \"${eus_dir}/paid-certificates/eus_unifi.p12\"..."
     # shellcheck disable=SC2086
     if openssl pkcs12 -export -inkey "${priv_key}" -in "${signed_crt}" -out "${eus_dir}/paid-certificates/eus_unifi.p12" -name unifi -password pass:aircontrolenterprise ${openssl_legacy_flag} &>> "${eus_dir}/logs/paid_certificate.log"; then echo -e "${GREEN}#${RESET} Successfully created \"${eus_dir}/paid-certificates/eus_unifi.p12\"!"; else abort_reason="Failed to create ${eus_dir}/paid-certificates/eus_unifi.p12."; abort; fi
     if [[ "${create_ufv_crts}" == 'true' ]]; then
-      echo -e "\\n------- Creating \"${eus_dir}/paid-certificates/ufv-server.cert.der\" ------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/paid_certificate.log"
+      echo -e "\\n------- Creating \"${eus_dir}/paid-certificates/ufv-server.cert.der\" ------- $(date +%F-%T.%6N) -------\\n" &>> "${eus_dir}/logs/paid_certificate.log"
       echo -e "${GRAY_R}#${RESET} Creating \"${eus_dir}/paid-certificates/ufv-server.cert.der\"..."
       if openssl x509 -outform der -in "${signed_crt}" -out "${eus_dir}/paid-certificates/ufv-server.cert.der" &>> "${eus_dir}/logs/paid_certificate.log"; then echo -e "${GREEN}#${RESET} Successfully created \"${eus_dir}/paid-certificates/ufv-server.cert.der\"!"; else abort_reason="Failed to create ${eus_dir}/paid-certificates/ufv-server.cert.der."; abort; fi
     fi
   fi
   if [[ "${create_ufv_crts}" == 'true' ]]; then
-    echo -e "\\n------- Creating \"${eus_dir}/paid-certificates/ufv-server.key.der\" ------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/paid_certificate.log"
+    echo -e "\\n------- Creating \"${eus_dir}/paid-certificates/ufv-server.key.der\" ------- $(date +%F-%T.%6N) -------\\n" &>> "${eus_dir}/logs/paid_certificate.log"
     echo -e "${GRAY_R}#${RESET} Creating \"${eus_dir}/paid-certificates/ufv-server.key.der\"..."
     if openssl pkcs8 -topk8 -nocrypt -in "${priv_key}" -outform DER -out "${eus_dir}/paid-certificates/ufv-server.key.der" &>> "${eus_dir}/logs/paid_certificate.log"; then echo -e "${GREEN}#${RESET} Successfully created \"${eus_dir}/paid-certificates/ufv-server.key.der\"!"; else abort_reason="Failed to create ${eus_dir}/paid-certificates/ufv-server.key.der."; abort; fi
   fi
   if [[ "${create_eus_key_file}" == 'true' ]]; then
-    echo -e "\\n------- Creating \"${eus_dir}/paid-certificates/eus_key_file.key\" from \"${eus_dir}/paid-certificates/eus_unifi.p12\" ------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/paid_certificate.log"
+    echo -e "\\n------- Creating \"${eus_dir}/paid-certificates/eus_key_file.key\" from \"${eus_dir}/paid-certificates/eus_unifi.p12\" ------- $(date +%F-%T.%6N) -------\\n" &>> "${eus_dir}/logs/paid_certificate.log"
     echo -e "${GRAY_R}#${RESET} Creating \"${eus_dir}/paid-certificates/eus_key_file.key\" from \"${eus_dir}/paid-certificates/eus_unifi.p12\"..."
     # shellcheck disable=SC2086
     if openssl pkcs12 -in "${eus_dir}/paid-certificates/eus_unifi.p12" -nodes -nocerts -out "${eus_dir}/paid-certificates/eus_key_file.key" -password pass:aircontrolenterprise ${openssl_legacy_flag} &>> "${eus_dir}/logs/paid_certificate.log"; then echo -e "${GREEN}#${RESET} Successfully created \"${eus_dir}/paid-certificates/eus_key_file.key\" from \"${eus_dir}/paid-certificates/eus_unifi.p12\"!"; else abort_reason="Failed to create ${eus_dir}/paid-certificates/eus_key_file.key from ${eus_dir}/paid-certificates/eus_unifi.p12."; abort; fi
   fi
   if [[ "${create_eus_crt_file}" == 'true' ]]; then
-    echo -e "\\n------- Creating \"${eus_dir}/paid-certificates/eus_crt_file.crt\" from \"${eus_dir}/paid-certificates/eus_unifi.p12\" ------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/paid_certificate.log"
+    echo -e "\\n------- Creating \"${eus_dir}/paid-certificates/eus_crt_file.crt\" from \"${eus_dir}/paid-certificates/eus_unifi.p12\" ------- $(date +%F-%T.%6N) -------\\n" &>> "${eus_dir}/logs/paid_certificate.log"
     echo -e "${GRAY_R}#${RESET} Creating \"${eus_dir}/paid-certificates/eus_crt_file.crt\" from \"${eus_dir}/paid-certificates/eus_unifi.p12\"..."
     # shellcheck disable=SC2086
     if openssl pkcs12 -in "${eus_dir}/paid-certificates/eus_unifi.p12" -clcerts -nokeys -out "${eus_dir}/paid-certificates/eus_crt_file.crt" -password pass:aircontrolenterprise ${openssl_legacy_flag} &>> "${eus_dir}/logs/paid_certificate.log"; then echo -e "${GREEN}#${RESET} Successfully created \"${eus_dir}/paid-certificates/eus_crt_file.crt\" from \"${eus_dir}/paid-certificates/eus_unifi.p12\"!"; else abort_reason="Failed to create ${eus_dir}/paid-certificates/eus_crt_file.crt from ${eus_dir}/paid-certificates/eus_unifi.p12."; abort; fi
   fi
   if [[ "${create_eus_certificates_file}" == 'true' ]]; then
-    echo -e "\\n------- Creating \"${eus_dir}/paid-certificates/eus_certificates_file.pem\" from \"${eus_dir}/paid-certificates/eus_unifi.p12\" ------- $(date +%F-%R) -------\\n" &>> "${eus_dir}/logs/paid_certificate.log"
+    echo -e "\\n------- Creating \"${eus_dir}/paid-certificates/eus_certificates_file.pem\" from \"${eus_dir}/paid-certificates/eus_unifi.p12\" ------- $(date +%F-%T.%6N) -------\\n" &>> "${eus_dir}/logs/paid_certificate.log"
     echo -e "${GRAY_R}#${RESET} Creating \"${eus_dir}/paid-certificates/eus_certificates_file.pem\" from \"${eus_dir}/paid-certificates/eus_unifi.p12\"..."
     # shellcheck disable=SC2086
     if openssl pkcs12 -in "${eus_dir}/paid-certificates/eus_unifi.p12" -nodes -out "${eus_dir}/paid-certificates/eus_certificates_file.pem" -password pass:aircontrolenterprise ${openssl_legacy_flag} &>> "${eus_dir}/logs/paid_certificate.log"; then echo -e "${GREEN}#${RESET} Successfully created \"${eus_dir}/paid-certificates/eus_certificates_file.pem\" from \"${eus_dir}/paid-certificates/eus_unifi.p12\"!"; else abort_reason="Failed to create ${eus_dir}/paid-certificates/eus_certificates_file.pem from ${eus_dir}/paid-certificates/eus_unifi.p12."; abort; fi

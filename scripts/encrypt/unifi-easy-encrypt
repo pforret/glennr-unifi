@@ -11,6 +11,19 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Encrypt Script  |  Version 3.5.5
+  
+ - Fixed proxy errors when running the script when the system doesn't have any proxies configured.
+ 
+ ####
+
+ |  UniFi Easy Encrypt Script  |  Version 3.5.4
+  
+ - Added HTTP proxy validation.
+ - Improved adding repositories.
+ 
+ ####
+
  |  UniFi Easy Encrypt Script  |  Version 3.5.3
   
  - Improved applying certificates on UniFi OS 4.0 and newer.
