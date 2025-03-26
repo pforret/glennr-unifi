@@ -2,7 +2,7 @@
 
 # UniFi Easy Encrypt script.
 # Script   | UniFi Network Easy Encrypt Script
-# Version  | 3.5.5
+# Version  | 3.5.6
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -68,8 +68,8 @@ if [[ "$(ps -p 1 -o comm=)" != 'systemd' ]]; then
   sleep 10
 fi
 
-if ! grep -siq "udm" /usr/lib/version &> /dev/null; then
-  if ! env | grep "LC_ALL\\|LANG" | grep -iq "en_US\\|C.UTF-8\\|en_GB.UTF-8"; then
+if ! "$(which dpkg)" -l unifi-core 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+  if ! env | grep "LC_ALL\\|LANG" | grep -iq "en_US\\|C.UTF-8\\|en_GB.UTF-8" || locale 2> /dev/null | grep -iq "Cannot set" 2> /dev/null; then
     header
     echo -e "${GRAY_R}#${RESET} Your language is not set to English ( en_US ), the script will temporarily set the language to English."
     echo -e "${GRAY_R}#${RESET} Information: This is done to prevent issues in the script.."
@@ -79,8 +79,8 @@ if ! grep -siq "udm" /usr/lib/version &> /dev/null; then
       sed -i '/^#.*en_US.UTF-8 UTF-8/ s/^#.*\(en_US.UTF-8 UTF-8\)/\1/' /etc/locale.gen 2> /dev/null
       if ! grep -q '^en_US.UTF-8 UTF-8' /etc/locale.gen; then echo 'en_US.UTF-8 UTF-8' &>> /etc/locale.gen; fi
     fi
-    if ! locale -a 2> /dev/null | grep -iq "C.UTF-8\\|en_US.UTF-8"; then locale-gen en_US.UTF-8 &> /dev/null; fi
-    if locale -a 2> /dev/null | grep -iq "^C.UTF-8$"; then eus_lts="C.UTF-8"; elif locale -a 2> /dev/null | grep -iq "^en_US.UTF-8$"; then eus_lts="en_US.UTF-8"; else  eus_lts="en_US.UTF-8"; fi
+    if ! locale -a 2> /dev/null | grep -iq "en_US.UTF-8"; then locale-gen en_US.UTF-8 &> /dev/null; fi
+    if locale -a 2> /dev/null | grep -iq "^C.UTF-8$"; then eus_lts="C.UTF-8"; elif locale -a 2> /dev/null | grep -iq "^en_US.UTF-8$"; then eus_lts="en_US.UTF-8"; else eus_lts="en_US.UTF-8"; fi
     export LANG="${eus_lts}" &> /dev/null
     export LC_ALL=C &> /dev/null
     set_lc_all="true"
@@ -277,8 +277,18 @@ support_file() {
     echo -e "-----( lscpu )----- \n"; lscpu 2> /dev/null
     echo -e "-----( /proc/cpuinfo )----- \n"; cat /proc/cpuinfo 2> /dev/null
   } >> "/tmp/EUS/support/cpu-details.log"
-  dmesg &> "/tmp/EUS/support/dmesg-results"
-  locale &> "/tmp/EUS/support/locale-results"
+  dmesg &> "/tmp/EUS/support/dmesg.log"
+  {
+    echo -e "-----( locale )----- \n"; locale 2> /dev/null
+    echo -e "-----( locale --all-locales )----- \n"; locale --all-locales 2> /dev/null
+    echo -e "-----( cat /etc/default/locale )----- \n"; cat /etc/default/locale 2> /dev/null
+    echo -e "-----( cat /etc/locale.gen )----- \n"; cat /etc/locale.gen 2> /dev/null
+    echo -e "-----( cat /etc/locale.alias )----- \n"; cat /etc/locale.alias 2> /dev/null
+  } >> "/tmp/EUS/support/locale-results.log"
+  {
+    echo -e "-----( env )----- \n"; env 2> /dev/null
+    echo -e "-----( cat /etc/environment )----- \n"; cat /etc/environment 2> /dev/null
+  } >> "/tmp/EUS/support/environment-results.log"
   {
     echo -e "-----( --get-selections )----- \n"; update-alternatives --get-selections 2> /dev/null
     echo -e "-----( --display java )----- \n"; update-alternatives --display java 2> /dev/null
@@ -1326,11 +1336,11 @@ get_distro() {
     elif [[ "${os_codename}" =~ ^(oracular)$ ]]; then repo_codename="oracular"; os_codename="oracular"; os_id="ubuntu"
     elif [[ "${os_codename}" =~ ^(plucky)$ ]]; then repo_codename="plucky"; os_codename="plucky"; os_id="ubuntu"
     elif [[ "${os_codename}" =~ ^(jessie|betsy)$ ]]; then repo_codename="jessie"; os_codename="jessie"; os_id="debian"
-    elif [[ "${os_codename}" =~ ^(stretch|continuum|helium|cindy)$ ]]; then repo_codename="stretch"; os_codename="stretch"; os_id="debian"
-    elif [[ "${os_codename}" =~ ^(buster|debbie|parrot|engywuck-backports|engywuck|deepin|lithium|beowulf)$ ]]; then repo_codename="buster"; os_codename="buster"; os_id="debian"
-    elif [[ "${os_codename}" =~ ^(bullseye|kali-rolling|elsie|ara|beryllium|chimaera)$ ]]; then repo_codename="bullseye"; os_codename="bullseye"; os_id="debian"
+    elif [[ "${os_codename}" =~ ^(stretch|continuum|helium|cindy|tyche)$ ]]; then repo_codename="stretch"; os_codename="stretch"; os_id="debian"
+    elif [[ "${os_codename}" =~ ^(buster|debbie|parrot|engywuck-backports|engywuck|deepin|lithium|beowulf|po-tolo|nibiru)$ ]]; then repo_codename="buster"; os_codename="buster"; os_id="debian"
+    elif [[ "${os_codename}" =~ ^(bullseye|kali-rolling|elsie|ara|beryllium|chimaera|orion-belt)$ ]]; then repo_codename="bullseye"; os_codename="bullseye"; os_id="debian"
     elif [[ "${os_codename}" =~ ^(bookworm|lory|faye|boron|beige|preslee|daedalus)$ ]]; then repo_codename="bookworm"; os_codename="bookworm"; os_id="debian"
-    elif [[ "${os_codename}" =~ ^(trixie|excalibur)$ ]]; then repo_codename="trixie"; os_codename="trixie"; os_id="debian"
+    elif [[ "${os_codename}" =~ ^(trixie|excalibur|the-seven-sisters)$ ]]; then repo_codename="trixie"; os_codename="trixie"; os_id="debian"
     elif [[ "${os_codename}" =~ ^(forky|freia)$ ]]; then repo_codename="forky"; os_codename="forky"; os_id="debian"
     elif [[ "${os_codename}" =~ ^(unstable|rolling|nest)$ ]]; then repo_codename="unstable"; os_codename="unstable"; os_id="debian"
     else
@@ -1745,7 +1755,7 @@ check_unmet_dependencies() {
 }
 
 check_dpkg_interrupted() {
-  if [[ "${force_dpkg_configure}" == 'true' ]] || [[ -e "/var/lib/dpkg/info/*.status" ]] || tail -n5 "${eus_dir}/logs/"* | grep -iq "you must manually run 'sudo dpkg --configure -a' to correct the problem\\|you must manually run 'dpkg --configure -a' to correct the problem"; then
+  if "$(which dpkg)" --audit 2> /dev/null | grep -iq "The following packages" 2> /dev/null || [[ "${force_dpkg_configure}" == 'true' ]] || [[ -e "/var/lib/dpkg/info/*.status" ]] || tail -n5 "${eus_dir}/logs/"* | grep -iq "you must manually run 'sudo dpkg --configure -a' to correct the problem\\|you must manually run 'dpkg --configure -a' to correct the problem"; then
     echo -e "\\n------- $(date +%F-%T.%6N) -------\\n" &>> "${eus_dir}/logs/dpkg-interrupted.log"
     echo -e "${GRAY_R}#${RESET} Looks like dpkg was interrupted... running \"dpkg --configure -a\"..." | tee -a "${eus_dir}/logs/dpkg-interrupted.log"
     if DEBIAN_FRONTEND=noninteractive "$(which dpkg)" --configure -a &>> "${eus_dir}/logs/dpkg-interrupted.log"; then
@@ -5228,10 +5238,11 @@ get_distro() {
   elif [[ "\${os_codename}" =~ ^(oracular)$ ]]; then repo_codename="oracular"; os_codename="oracular"; os_id="ubuntu"
   elif [[ "\${os_codename}" =~ ^(plucky)$ ]]; then repo_codename="plucky"; os_codename="plucky"; os_id="ubuntu"
   elif [[ "\${os_codename}" =~ ^(jessie|betsy)$ ]]; then repo_codename="jessie"; os_codename="jessie"; os_id="debian"
-  elif [[ "\${os_codename}" =~ ^(stretch|continuum|helium|cindy)$ ]]; then repo_codename="stretch"; os_codename="stretch"; os_id="debian"
-  elif [[ "\${os_codename}" =~ ^(buster|debbie|parrot|engywuck-backports|engywuck|deepin|lithium)$ ]]; then repo_codename="buster"; os_codename="buster"; os_id="debian"
-  elif [[ "\${os_codename}" =~ ^(bullseye|kali-rolling|elsie|ara|beryllium)$ ]]; then repo_codename="bullseye"; os_codename="bullseye"; os_id="debian"
-  elif [[ "\${os_codename}" =~ ^(bookworm|lory|faye|boron|beige)$ ]]; then repo_codename="bookworm"; os_codename="bookworm"; os_id="debian"
+  elif [[ "\${os_codename}" =~ ^(stretch|continuum|helium|cindy|tyche)$ ]]; then repo_codename="stretch"; os_codename="stretch"; os_id="debian"
+  elif [[ "\${os_codename}" =~ ^(buster|debbie|parrot|engywuck-backports|engywuck|deepin|lithium|beowulf|po-tolo|nibiru)$ ]]; then repo_codename="buster"; os_codename="buster"; os_id="debian"
+  elif [[ "\${os_codename}" =~ ^(bullseye|kali-rolling|elsie|ara|beryllium|chimaera|orion-belt)$ ]]; then repo_codename="bullseye"; os_codename="bullseye"; os_id="debian"
+  elif [[ "\${os_codename}" =~ ^(bookworm|lory|faye|boron|beige|preslee|daedalus)$ ]]; then repo_codename="bookworm"; os_codename="bookworm"; os_id="debian"
+  elif [[ "\${os_codename}" =~ ^(trixie|excalibur|the-seven-sisters)$ ]]; then repo_codename="trixie"; os_codename="trixie"; os_id="debian"
   elif [[ "\${os_codename}" =~ ^(unstable|rolling)$ ]]; then repo_codename="unstable"; os_codename="unstable"; os_id="debian"
   else
     repo_codename="\${os_codename}"

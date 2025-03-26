@@ -11,6 +11,15 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 8.7.3
+  
+ - Added support for Sparky Linux.
+ - Improved the unsupported MongoDB upgrade recovery process.
+ - Improved setting locale.
+ - Improved the dpkg interrupted check.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 8.7.2
   
  - Fixed proxy errors when running the script when the system doesn't have any proxies configured.

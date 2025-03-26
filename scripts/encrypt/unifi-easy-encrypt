@@ -11,6 +11,14 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Encrypt Script  |  Version 3.5.6
+  
+ - Added support for Sparky Linux.
+ - Improved setting locale.
+ - Improved the dpkg interrupted check.
+ 
+ ####
+
  |  UniFi Easy Encrypt Script  |  Version 3.5.5
   
  - Fixed proxy errors when running the script when the system doesn't have any proxies configured.
