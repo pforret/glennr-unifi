@@ -11,6 +11,12 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 10.1.2
+  
+ - Added support for PureOS Crimson, Byzantium, and Amber.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 10.1.1
   
  - Added support for Sparky Linux.

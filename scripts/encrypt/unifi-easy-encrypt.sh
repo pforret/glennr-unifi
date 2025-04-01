@@ -2,7 +2,7 @@
 
 # UniFi Easy Encrypt script.
 # Script   | UniFi Network Easy Encrypt Script
-# Version  | 3.5.7
+# Version  | 3.5.9
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -1337,9 +1337,9 @@ get_distro() {
     elif [[ "${os_codename}" =~ ^(plucky)$ ]]; then repo_codename="plucky"; os_codename="plucky"; os_id="ubuntu"
     elif [[ "${os_codename}" =~ ^(jessie|betsy)$ ]]; then repo_codename="jessie"; os_codename="jessie"; os_id="debian"
     elif [[ "${os_codename}" =~ ^(stretch|continuum|helium|cindy|tyche)$ ]]; then repo_codename="stretch"; os_codename="stretch"; os_id="debian"
-    elif [[ "${os_codename}" =~ ^(buster|debbie|parrot|engywuck-backports|engywuck|deepin|lithium|beowulf|po-tolo|nibiru)$ ]]; then repo_codename="buster"; os_codename="buster"; os_id="debian"
-    elif [[ "${os_codename}" =~ ^(bullseye|kali-rolling|elsie|ara|beryllium|chimaera|orion-belt)$ ]]; then repo_codename="bullseye"; os_codename="bullseye"; os_id="debian"
-    elif [[ "${os_codename}" =~ ^(bookworm|lory|faye|boron|beige|preslee|daedalus)$ ]]; then repo_codename="bookworm"; os_codename="bookworm"; os_id="debian"
+    elif [[ "${os_codename}" =~ ^(buster|debbie|parrot|engywuck-backports|engywuck|deepin|lithium|beowulf|po-tolo|nibiru|amber)$ ]]; then repo_codename="buster"; os_codename="buster"; os_id="debian"
+    elif [[ "${os_codename}" =~ ^(bullseye|kali-rolling|elsie|ara|beryllium|chimaera|orion-belt|byzantium)$ ]]; then repo_codename="bullseye"; os_codename="bullseye"; os_id="debian"
+    elif [[ "${os_codename}" =~ ^(bookworm|lory|faye|boron|beige|preslee|daedalus|crimson)$ ]]; then repo_codename="bookworm"; os_codename="bookworm"; os_id="debian"
     elif [[ "${os_codename}" =~ ^(trixie|excalibur|the-seven-sisters)$ ]]; then repo_codename="trixie"; os_codename="trixie"; os_id="debian"
     elif [[ "${os_codename}" =~ ^(forky|freia)$ ]]; then repo_codename="forky"; os_codename="forky"; os_id="debian"
     elif [[ "${os_codename}" =~ ^(unstable|rolling|nest)$ ]]; then repo_codename="unstable"; os_codename="unstable"; os_id="debian"
@@ -5201,6 +5201,25 @@ EOF
     tee "${eus_dir}/cronjob/install_certbot.sh" &>/dev/null << EOF
 #!/bin/bash
 
+architecture=\$(dpkg --print-architecture)
+if [[ "\${architecture}" == 'i686' ]]; then architecture="i386"; fi
+if [[ -n "\$(find /etc/apt/sources.list.d/ -name "*.sources" -print -quit 2>/dev/null)" ]]; then use_deb822_format="true"; fi
+if [[ "\${use_deb822_format}" == 'true' ]]; then source_file_format="sources"; else source_file_format="list"; fi
+if [[ "\$("\$(which dpkg)" -l apt | grep ^"ii" | awk '{print \$2,\$3}' | awk '{print \$2}' | cut -d'.' -f1)" -gt "2" ]] || [[ "\$("\$(which dpkg)" -l apt | grep ^"ii" | awk '{print \$2,\$3}' | awk '{print \$2}' | cut -d'.' -f1)" == "2" && "\$("\$(which dpkg)" -l apt | grep ^"ii" | awk '{print \$2,\$3}' | awk '{print \$2}' | cut -d'.' -f2)" -ge "2" ]]; then apt_key_deprecated="true"; fi
+
+eus_create_directories() {
+  for dir_name in "\$@"; do
+    if ! [[ -d "\${eus_directory_location}/\${dir_name}" ]]; then 
+      if ! [[ -d "${eus_dir}/logs" ]]; then 
+        mkdir -p "\${eus_directory_location}/\${dir_name}"
+      else 
+        mkdir -p "\${eus_directory_location}/\${dir_name}" &>> "${eus_dir}/logs/create-directories.log"
+      fi 
+    fi
+  done
+  eus_directory_location="${eus_dir}"
+}
+
 # Functions
 get_distro() {
   if [[ -z "\$(command -v lsb_release)" ]] || [[ "\${skip_use_lsb_release}" == 'true' ]]; then
@@ -5209,77 +5228,102 @@ get_distro() {
         os_codename="\$(grep VERSION_CODENAME /etc/os-release | sed 's/VERSION_CODENAME//g' | tr -d '="' | tr '[:upper:]' '[:lower:]')"
         os_id="\$(grep ^"ID=" /etc/os-release | sed 's/ID//g' | tr -d '="' | tr '[:upper:]' '[:lower:]')"
       elif ! grep -iq VERSION_CODENAME /etc/os-release; then
-        os_codename="\$(grep PRETTY_NAME /etc/os-release | sed 's/PRETTY_NAME=//g' | tr -d '="' | awk '{print \$4}' | sed 's/\((\|)\)//g' | sed 's/\/sid//g' | tr '[:upper:]' '[:lower:]')"
+        os_codename="\$(grep PRETTY_NAME /etc/os-release | sed 's/PRETTY_NAME=//g' | tr -d '="' | awk '{print $4}' | sed 's/\((\|)\)//g' | sed 's/\/sid//g' | tr '[:upper:]' '[:lower:]')"
         os_id="\$(grep -io "debian\\|ubuntu" /etc/os-release | tr '[:upper:]' '[:lower:]' | head -n1)"
         if [[ -z "\${os_codename}" ]]; then
-          os_codename="\$(grep PRETTY_NAME /etc/os-release | sed 's/PRETTY_NAME=//g' | tr -d '="' | awk '{print \$3}' | sed 's/\((\|)\)//g' | sed 's/\/sid//g' | tr '[:upper:]' '[:lower:]')"
+          os_codename="\$(grep PRETTY_NAME /etc/os-release | sed 's/PRETTY_NAME=//g' | tr -d '="' | awk '{print $3}' | sed 's/\((\|)\)//g' | sed 's/\/sid//g' | tr '[:upper:]' '[:lower:]')"
         fi
       fi
     fi
   else
     os_codename="\$(lsb_release --codename --short | tr '[:upper:]' '[:lower:]')"
     os_id="\$(lsb_release --id --short | tr '[:upper:]' '[:lower:]')"
-    if [[ "\${os_codename}" == 'n/a' ]]; then
+    if [[ "\${os_codename}" == 'n/a' ]] || [[ -z "\${os_codename}" ]]; then
       skip_use_lsb_release="true"
       get_distro
       return
     elif [[ "\${os_codename}" == 'lts' ]]; then
-      os_codename="$(grep -io "wheezy\\|jessie\\|stretch\\|buster\\|bullseye\\|bookworm\\|trixie\\|forky\\|precise\\|trusty\\|xenial\\|bionic\\|cosmic\\|disco\\|eoan\\|focal\\|groovy\\|hirsute\\|impish\\|jammy\\|kinetic\\|lunar\\|mantic\\|noble\\|oracular\\|plucky" /etc/os-release | tr '[:upper:]' '[:lower:]' | awk '!NF || !seen[\$0]++' | head -n1)"
+      os_codename="\$(grep -io "wheezy\\|jessie\\|stretch\\|buster\\|bullseye\\|bookworm\\|trixie\\|forky\\|precise\\|trusty\\|xenial\\|bionic\\|cosmic\\|disco\\|eoan\\|focal\\|groovy\\|hirsute\\|impish\\|jammy\\|kinetic\\|lunar\\|mantic\\|noble\\|oracular\\|plucky" /etc/os-release | tr '[:upper:]' '[:lower:]' | awk '!NF || !seen[$0]++' | head -n1)"
     fi
   fi
-  if [[ ! "${os_id}" =~ (ubuntu|debian) ]] && [[ -e "/etc/os-release" ]]; then os_id="\$(grep -io "debian\\|ubuntu" /etc/os-release | tr '[:upper:]' '[:lower:]' | head -n1)"; fi
+  if [[ ! "\${os_id}" =~ (ubuntu|debian) ]] && [[ -e "/etc/os-release" ]]; then os_id="\$(grep -io "debian\\|ubuntu" /etc/os-release | tr '[:upper:]' '[:lower:]' | head -n1)"; fi
   if [[ "\${os_codename}" =~ ^(precise|maya|luna)$ ]]; then repo_codename="precise"; os_codename="precise"; os_id="ubuntu"
   elif [[ "\${os_codename}" =~ ^(trusty|qiana|rebecca|rafaela|rosa|freya)$ ]]; then repo_codename="trusty"; os_codename="trusty"; os_id="ubuntu"
   elif [[ "\${os_codename}" =~ ^(xenial|sarah|serena|sonya|sylvia|loki)$ ]]; then repo_codename="xenial"; os_codename="xenial"; os_id="ubuntu"
   elif [[ "\${os_codename}" =~ ^(bionic|tara|tessa|tina|tricia|hera|juno)$ ]]; then repo_codename="bionic"; os_codename="bionic"; os_id="ubuntu"
   elif [[ "\${os_codename}" =~ ^(focal|ulyana|ulyssa|uma|una|odin|jolnir)$ ]]; then repo_codename="focal"; os_codename="focal"; os_id="ubuntu"
-  elif [[ "\${os_codename}" =~ ^(jammy|vanessa|vera|victoria|virginia|horus)$ ]]; then repo_codename="jammy"; os_codename="jammy"; os_id="ubuntu"
+  elif [[ "\${os_codename}" =~ ^(jammy|vanessa|vera|victoria|virginia|horus|cade)$ ]]; then repo_codename="jammy"; os_codename="jammy"; os_id="ubuntu"
   elif [[ "\${os_codename}" =~ ^(noble|wilma|xia|scootski|circe)$ ]]; then repo_codename="noble"; os_codename="noble"; os_id="ubuntu"
   elif [[ "\${os_codename}" =~ ^(oracular)$ ]]; then repo_codename="oracular"; os_codename="oracular"; os_id="ubuntu"
   elif [[ "\${os_codename}" =~ ^(plucky)$ ]]; then repo_codename="plucky"; os_codename="plucky"; os_id="ubuntu"
   elif [[ "\${os_codename}" =~ ^(jessie|betsy)$ ]]; then repo_codename="jessie"; os_codename="jessie"; os_id="debian"
   elif [[ "\${os_codename}" =~ ^(stretch|continuum|helium|cindy|tyche)$ ]]; then repo_codename="stretch"; os_codename="stretch"; os_id="debian"
-  elif [[ "\${os_codename}" =~ ^(buster|debbie|parrot|engywuck-backports|engywuck|deepin|lithium|beowulf|po-tolo|nibiru)$ ]]; then repo_codename="buster"; os_codename="buster"; os_id="debian"
-  elif [[ "\${os_codename}" =~ ^(bullseye|kali-rolling|elsie|ara|beryllium|chimaera|orion-belt)$ ]]; then repo_codename="bullseye"; os_codename="bullseye"; os_id="debian"
-  elif [[ "\${os_codename}" =~ ^(bookworm|lory|faye|boron|beige|preslee|daedalus)$ ]]; then repo_codename="bookworm"; os_codename="bookworm"; os_id="debian"
+  elif [[ "\${os_codename}" =~ ^(buster|debbie|parrot|engywuck-backports|engywuck|deepin|lithium|beowulf|po-tolo|nibiru|amber)$ ]]; then repo_codename="buster"; os_codename="buster"; os_id="debian"
+  elif [[ "\${os_codename}" =~ ^(bullseye|kali-rolling|elsie|ara|beryllium|chimaera|orion-belt|byzantium)$ ]]; then repo_codename="bullseye"; os_codename="bullseye"; os_id="debian"
+  elif [[ "\${os_codename}" =~ ^(bookworm|lory|faye|boron|beige|preslee|daedalus|crimson)$ ]]; then repo_codename="bookworm"; os_codename="bookworm"; os_id="debian"
   elif [[ "\${os_codename}" =~ ^(trixie|excalibur|the-seven-sisters)$ ]]; then repo_codename="trixie"; os_codename="trixie"; os_id="debian"
-  elif [[ "\${os_codename}" =~ ^(unstable|rolling)$ ]]; then repo_codename="unstable"; os_codename="unstable"; os_id="debian"
+  elif [[ "\${os_codename}" =~ ^(forky|freia)$ ]]; then repo_codename="forky"; os_codename="forky"; os_id="debian"
+  elif [[ "\${os_codename}" =~ ^(unstable|rolling|nest)$ ]]; then repo_codename="unstable"; os_codename="unstable"; os_id="debian"
   else
     repo_codename="\${os_codename}"
+  fi
+  if [[ -n "\$(command -v jq)" && "\$(jq -r '.database.distribution' "${eus_dir}/db/db.json")" != "\${os_codename}" ]]; then
+    if [[ "\$(dpkg-query --showformat='\${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
+      jq '."database" += {"distribution": "'"\${os_codename}"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+    else
+      jq --arg os_codename "$os_codename" '.database.distribution = $os_codename' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+    fi
+    eus_database_move
   fi
 }
 get_distro
 
 get_repo_url() {
   unset archived_repo
-  if "\$(which dpkg)" -l apt 2> /dev/null | awk '{print \$1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then apt_package_version="\$(dpkg-query --showformat='\${Version}' --show apt | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)"; fi
-  if "\$(which dpkg)" -l apt-transport-https 2> /dev/null | awk '{print \$1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui" || [[ "\${apt_package_version::2}" -ge "15" ]]; then
+  if [[ "\${os_codename}" != "\${repo_codename}" ]]; then os_codename="\${repo_codename}"; os_codename_changed="true"; fi
+  if "\$(which dpkg)" -l apt 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then apt_package_version="\$(dpkg-query --showformat='\${version}' --show apt 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)"; fi
+  if "\$(which dpkg)" -l apt-transport-https 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui" || [[ "\${apt_package_version::2}" -ge "15" ]]; then
     http_or_https="https"
     add_repositories_http_or_https="http[s]*"
     if [[ "\${copied_source_files}" == 'true' ]]; then
       while read -r revert_https_repo_needs_http_file; do
         if [[ "\${revert_https_repo_needs_http_file}" == 'source.list' ]]; then
-          mv "\${revert_https_repo_needs_http_file}" "/etc/apt/source.list" &>> "\${eus_dir}/logs/revert-https-repo-needs-http.log"
+          mv "\${revert_https_repo_needs_http_file}" "/etc/apt/source.list" &>> "${eus_dir}/logs/revert-https-repo-needs-http.log"
         else
-          mv "\${revert_https_repo_needs_http_file}" "/etc/apt/source.list.d/\$(basename "\${revert_https_repo_needs_http_file}")" &>> "\${eus_dir}/logs/revert-https-repo-needs-http.log"
+          mv "\${revert_https_repo_needs_http_file}" "/etc/apt/source.list.d/\$(basename "\${revert_https_repo_needs_http_file}")" &>> "${eus_dir}/logs/revert-https-repo-needs-http.log"
         fi
-      done < <(find "\${eus_dir}/repositories" -type f -name "*.list")
+      done < <(find "${eus_dir}/repositories" -type f -name "*.list")
     fi
   else
     http_or_https="http"
     add_repositories_http_or_https="http"
   fi
-  if dpkg -l curl 2> /dev/null | awk '{print \$1}' | grep -iq "^ii\\|^hi"; then
-    if [[ "\${os_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic) ]]; then
-      if curl -s ${http_or_https}://old-releases.ubuntu.com/ubuntu/dists/ | grep -iq "\${os_codename}" 2> /dev/null; then archived_repo="true"; fi
-      if [[ "\${archived_repo}" == "true" ]]; then repo_url="${http_or_https}://old-releases.ubuntu.com/ubuntu"; else repo_url="${http_or_https}://archive.ubuntu.com/ubuntu"; fi
-    elif [[ "\${os_codename}" =~ (wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky|unstable) ]]; then
-      if curl -s ${http_or_https}://archive.debian.org/debian/dists/ | grep -iq "\${os_codename}" 2> /dev/null; then archived_repo="true"; fi
-      if [[ "\${archived_repo}" == "true" ]]; then repo_url="\${http_or_https}://archive.debian.org/debian"; else repo_url="\${http_or_https}://ftp.debian.org/debian"; fi
+  if "\$(which dpkg)" -l curl 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+    if [[ "\$(command -v jq)" ]]; then distro_api_status="\$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/distro?status" 2> /dev/null | jq -r '.availability' 2> /dev/null)"; else distro_api_status="\$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/distro?status" 2> /dev/null | grep -oP '(?<="availability":")[^"]+')"; fi
+    if [[ "\${distro_api_status}" == "OK" ]]; then
+      if [[ "\${http_or_https}" == "http" ]]; then api_repo_url_procotol="&protocol=insecure"; fi
+      #if [[ "\${use_raspberrypi_repo}" == 'true' ]]; then os_id="raspbian"; if [[ "\${architecture}" == 'arm64' ]]; then repo_arch_value="arch=arm64"; fi; unset use_raspberrypi_repo; fi
+      distro_api_output="\$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/distro?distribution=\${os_id}&version=\${os_codename}&architecture=\${architecture}\${api_repo_url_procotol}" 2> /dev/null)"
+      if [[ "\$(command -v jq)" ]]; then archived_repo="\$(echo "\${distro_api_output}" | jq -r '.codename_eol')"; else archived_repo="\$(echo "\${distro_api_output}" | grep -oP '"codename_eol":\s*\K[^,}]+')"; fi
+      if [[ "\${get_repo_url_security_url}" == "true" ]]; then get_repo_url_url_argument="security_repository"; unset get_repo_url_security_url; else get_repo_url_url_argument="repository"; fi
+      if [[ "\$(command -v jq)" ]]; then repo_url="\$(echo "\${distro_api_output}" | jq -r ".\${get_repo_url_url_argument}")"; else repo_url="\$(echo "\${distro_api_output}" | grep -oP "\"\${get_repo_url_url_argument}\":\s*\"\K[^\"]+")"; fi
+      distro_api="true"
+    else
+      if [[ "\${os_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky) ]]; then
+        if curl "${curl_argument[@]}" "\${http_or_https}://old-releases.ubuntu.com/ubuntu/dists/" 2> /dev/null | grep -iq "\${os_codename}" 2> /dev/null; then archived_repo="true"; fi
+        if [[ "\${architecture}" =~ (amd64|i386) ]]; then
+          if [[ "\${archived_repo}" == "true" ]]; then repo_url="\${http_or_https}://old-releases.ubuntu.com/ubuntu"; else repo_url="\${http_or_https}://archive.ubuntu.com/ubuntu"; fi
+        else
+          if [[ "\${archived_repo}" == "true" ]]; then repo_url="\${http_or_https}://old-releases.ubuntu.com/ubuntu"; else repo_url="\${http_or_https}://ports.ubuntu.com"; fi
+        fi
+      elif [[ "\${os_codename}" =~ (wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky|unstable) ]]; then
+        if curl "${curl_argument[@]}" "\${http_or_https}://archive.debian.org/debian/dists/" 2> /dev/null | grep -iq "\${os_codename}" 2> /dev/null; then archived_repo="true"; fi
+        if [[ "\${archived_repo}" == "true" ]]; then repo_url="\${http_or_https}://archive.debian.org/debian"; else repo_url="\${http_or_https}://deb.debian.org/debian"; fi
+      fi
     fi
   else
-    if [[ "\${os_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic) ]]; then
-      repo_url="${http_or_https}://archive.ubuntu.com/ubuntu"
+    if [[ "\${os_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky) ]]; then
+      repo_url="\${http_or_https}://archive.ubuntu.com/ubuntu"
     elif [[ "\${os_codename}" =~ (wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky|unstable) ]]; then
       repo_url="\${http_or_https}://deb.debian.org/debian"
     fi
@@ -5288,36 +5332,110 @@ get_repo_url() {
 get_repo_url
 
 add_repositories() {
-  # shellcheck disable=SC2154
-  if [[ \$(find /etc/apt/ -name "*.list" -type f -print0 | xargs -0 cat | grep -c "^deb \${add_repositories_http_or_https}://\$(echo "\${repo_url}" | sed -e 's/https\:\/\///g' -e 's/http\:\/\///g')\${repo_url_arguments} \${repo_codename}\${repo_codename_argument} \${repo_component}") -eq 0 ]]; then
-    if [[ "\${apt_key_deprecated}" == 'true' ]]; then
-      if [[ -n "\${repo_key}" && -n "\${repo_key_name}" ]]; then
-        if gpg --no-default-keyring --keyring "/etc/apt/keyrings/\${repo_key_name}.gpg" --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys "\${repo_key}" &> /dev/null; then
-          signed_by_value_repo_key="[ /etc/apt/keyrings/\${repo_key_name}.gpg ] "
+  # Check if repository is already added
+  if grep -sq "^deb .*http\?s\?://\$(echo "\${repo_url}" | sed -e 's/https\:\/\///g' -e 's/http\:\/\///g')\${repo_url_arguments}\?/\? \${repo_codename}\${repo_codename_argument} \${repo_component}" /etc/apt/sources.list /etc/apt/sources.list.d/*; then
+    echo -e "\$(date +%F-%T.%6N) | \"\${repo_url}\${repo_url_arguments} \${repo_codename}\${repo_codename_argument} \${repo_component}\" was found, not adding to repository lists. \$(grep -srIl "^deb .*http\?s\?://\$(echo "\${repo_url}" | sed -e 's/https\:\/\///g' -e 's/http\:\/\///g')\${repo_url_arguments}\?/\? \${repo_codename}\${repo_codename_argument} \${repo_component}" /etc/apt/sources.list /etc/apt/sources.list.d/*)..." &>> "${eus_dir}/logs/already-found-repository.log"
+    unset_add_repositories_variables
+    return  # Repository already added, exit function
+  elif find /etc/apt/sources.list.d/ -name "*.sources" | grep -ioq /etc/apt; then
+    repo_component_trimmed="\${repo_component#"\${repo_component%%[![:space:]]*}"}" # remove leading space
+    while IFS= read -r repository_file; do
+      last_line_repository_file="\$(tail -n1 "\${repository_file}")"
+      while IFS= read -r line || [[ -n "\${line}" ]]; do
+        if [[ -z "\${line}" || "\${last_line_repository_file}" == "\${line}" ]]; then
+          if [[ -n "$section" ]]; then
+            section_types="\$(grep -oPm1 'Types: \K.*' <<< "$section")"
+            section_url="\$(grep -oPm1 'URIs: \K.*' <<< "$section" | grep -i "http\?s\?://\$(echo "\${repo_url}" | sed -e 's/https\:\/\///g' -e 's/http\:\/\///g')\${repo_url_arguments}\?/\?")"
+            section_suites="\$(grep -oPm1 'Suites: \K.*' <<< "$section")"
+            section_components="\$(grep -oPm1 'Components: \K.*' <<< "$section")"
+            section_enabled="\$(grep -oPm1 'Enabled: \K.*' <<< "$section")"
+            if [[ -z "\${section_enabled}" ]]; then section_enabled="yes"; fi
+            if [[ -n "\${section_url}" && "\${section_enabled}" == 'yes' && "\${section_types}" == *"deb"* && "\${section_suites}" == "\${repo_codename}\${repo_codename_argument}" && "\${section_components}" == *"\${repo_component_trimmed}"* ]]; then
+              echo -e "\$(date +%F-%T.%6N) | URIs: $section_url Types: $section_types Suites: $section_suites Components: $section_components was found, not adding to repository lists..." &>> "${eus_dir}/logs/already-found-repository.log"
+              unset_add_repositories_variables
+              unset_section_variables
+              return
+            fi
+            unset_section_variables
+          fi
+        else
+          section+="\${line}"$'\n'
         fi
-      fi
-    else
-      missing_key="\${repo_key}"
-      if [[ -n "\${missing_key}" ]]; then
-        echo -e "\${missing_key}" &>> /tmp/EUS/keys/missing_keys
-      fi
-    fi
-    if [[ "\${os_codename}" =~ (wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky|unstable) ]]; then
-      os_version_number="\$(lsb_release -rs | tr '[:upper:]' '[:lower:]' | cut -d'.' -f1)"
-      check_debian_version="\${os_version_number}"
-      if echo "\${repo_url}" | grep -ioq "archive"; then check_debian_version="\${os_version_number}-archive"; fi
-      if echo "\${repo_url_arguments}" | grep -ioq "security"; then check_debian_version="\${os_version_number}-security"; fi
-      if [[ "\$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/debian-release?version=\${check_debian_version}" 2> /dev/null | jq -r '.expired' 2> /dev/null)" == 'true' ]]; then if [[ -n "\${signed_by_value_repo_key}" ]]; then signed_by_value_repo_key="[ /etc/apt/keyrings/\${repo_key_name}.gpg trusted=yes ] "; else signed_by_value_repo_key="[ trusted=yes ] "; fi; fi
-    fi
-    echo -e "deb \${signed_by_value_repo_key}\${repo_url}\${repo_url_arguments} \${repo_codename}\${repo_component}" &>> /etc/apt/sources.list.d/glennr-install-script.list
-    unset missing_key
-    unset repo_key
-    unset repo_key_name
-    unset repo_url_arguments
-    unset signed_by_value_repo_key
+      done < "\${repository_file}"
+    done < <(find /etc/apt/sources.list.d/ -name "*.sources" | grep -i /etc/apt)
   fi
+  # Override the source list
+  if [[ -n "\${add_repositories_source_list_override}" ]]; then
+    add_repositories_source_list="/etc/apt/sources.list.d/\${add_repositories_source_list_override}.\${source_file_format}"
+  else
+    add_repositories_source_list="/etc/apt/sources.list.d/glennr-install-script.\${source_file_format}"
+  fi
+  # Add repository key if required
+  if [[ "\${apt_key_deprecated}" == 'true' && -n "\${repo_key}" && -n "\${repo_key_name}" ]]; then
+    eus_directory_location="/tmp/EUS"
+    eus_create_directories "apt"
+    if gpg --no-default-keyring --keyring "/etc/apt/keyrings/\${repo_key_name}.gpg" --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys "\${repo_key}" &> /tmp/EUS/apt/repository-key.log; then
+      signed_by_value_repo_key="signed-by=/etc/apt/keyrings/\${repo_key_name}.gpg"
+      repository_key_location="/etc/apt/keyrings/\${repo_key_name}.gpg"; check_repository_key_permissions
+    fi
+  fi
+  # Handle Debian versions
+  if [[ "\${os_codename}" =~ (wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky|unstable) && "\$(command -v jq)" ]]; then
+    os_version_number="\$(lsb_release -rs | tr '[:upper:]' '[:lower:]' | cut -d'.' -f1)"
+    check_debian_version="\${os_version_number}"
+    if echo "\${repo_url}" | grep -ioq "archive.debian"; then 
+      check_debian_version="\${os_version_number}-archive"
+    elif echo "\${repo_url_arguments}" | grep -ioq "security.debian"; then 
+      check_debian_version="\${os_version_number}-security"
+    fi
+    if [[ "\$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/debian-release?version=\${check_debian_version}" 2> /dev/null | jq -r '.expired' 2> /dev/null)" == 'true' ]]; then 
+      if [[ "\${use_deb822_format}" == 'true' ]]; then
+        deb822_trusted="\nTrusted: yes"
+      else
+        signed_by_value_repo_key+=" trusted=yes"
+      fi
+    fi
+  fi
+  # Prepare repository entry
+  if [[ -n "\${signed_by_value_repo_key}" && -n "\${repo_arch_value}" ]]; then
+    local brackets="[\${signed_by_value_repo_key}\${repo_arch_value}] "
+  else
+    local brackets=""
+  fi
+  # Attempt to find the repository signing key for Debian/Ubuntu.
+  if [[ -z "\${signed_by_value_repo_key}" && "\${use_deb822_format}" == 'true' ]] && echo "\${repo_url}" | grep -ioq "ports.ubuntu\\|archive.ubuntu\\|security.ubuntu\\|deb.debian"; then
+    signed_by_value_repo_key_find="\$(echo "\${repo_url}" | sed -e 's/https\:\/\///g' -e 's/http\:\/\///g' -e 's/\/.*//g' -e 's/\.com//g' -e 's/\./-/g' -e 's/\./-/g' -e 's/deb-debian/archive-debian/g' -e 's/security-ubuntu/archive-ubuntu/g' -e 's/ports-ubuntu/archive-ubuntu/g' -e 's/old-releases/archive-ubuntu/g' | awk -F'-' '{print $2 "-" $1}')"
+    if [[ -n "\${signed_by_value_repo_key_find}" ]]; then
+      if [[ "\${repo_codename_argument//-/}" == "security" ]]; then signed_by_value_repo_security="\${repo_codename_argument}"; else unset signed_by_value_repo_security; fi
+      if [[ "\${os_id}" == "debian" ]]; then
+        if [[ "\${signed_by_value_repo_security//-/}" == "security" ]]; then
+          signed_by_value_repo_key="signed-by=\$(find /usr/share/keyrings/ /etc/apt/keyrings/ -name "\${signed_by_value_repo_key_find}-\${repo_codename}\${signed_by_value_repo_security}*" | sed '/removed/d' | head -n1)"
+        else
+          signed_by_value_repo_key="signed-by=\$(find /usr/share/keyrings/ /etc/apt/keyrings/ -name "\${signed_by_value_repo_key_find}-\${repo_codename}*" ! -name "*security*" | sed '/removed/d' | head -n1)"
+        fi
+      else
+        signed_by_value_repo_key="signed-by=\$(find /usr/share/keyrings/ /etc/apt/keyrings/ -name "\${signed_by_value_repo_key_find}*" | sed '/removed/d' | head -n1)"
+      fi
+    fi
+  fi
+  # Determine format
+  if [[ "\${use_deb822_format}" == 'true' ]]; then
+    repo_component_trimmed="\${repo_component#"\${repo_component%%[![:space:]]*}"}" # remove leading space
+    repo_entry="Types: deb\nURIs: \${repo_url}\${repo_url_arguments}\nSuites: \${repo_codename}\${repo_codename_argument}\nComponents: \${repo_component_trimmed}"
+    if [[ -n "\${signed_by_value_repo_key}" ]]; then repo_entry+="\nSigned-By: \${signed_by_value_repo_key/signed-by=/}"; fi
+    if [[ -n "\${repo_arch_value}" ]]; then repo_entry+="\nArchitectures: \${repo_arch_value//arch=/}"; fi
+    if [[ -n "\${deb822_trusted}" ]]; then repo_entry+="\${deb822_trusted}"; fi
+    repo_entry+="\n"
+  else
+    repo_entry="deb \${brackets}\${repo_url}\${repo_url_arguments} \${repo_codename}\${repo_codename_argument} \${repo_component}"
+  fi
+  # Add repository to sources list
+  if echo -e "\${repo_entry}" >> "\${add_repositories_source_list}"; then
+    echo -e "\$(date +%F-%T.%6N) | Successfully added \"\${repo_entry}\" to \${add_repositories_source_list}!" &>> "${eus_dir}/logs/added-repository.log"
+  fi
+  # Handle HTTP repositories
   if [[ "\${add_repositories_http_or_https}" == 'http' ]]; then
-    if ! [[ -d "${eus_dir}/repositories" ]]; then mkdir -p "${eus_dir}/repositories"; fi
+    eus_create_directories "repositories"
     while read -r https_repo_needs_http_file; do
       if [[ -d "${eus_dir}/repositories" ]]; then 
         cp "\${https_repo_needs_http_file}" "${eus_dir}/repositories/\$(basename "\${https_repo_needs_http_file}")" &>> "${eus_dir}/logs/https-repo-needs-http.log"
@@ -5325,9 +5443,18 @@ add_repositories() {
       fi
       sed -i '/https/{s/^/#/}' "\${https_repo_needs_http_file}" &>> "${eus_dir}/logs/https-repo-needs-http.log"
       sed -i 's/##/#/g' "\${https_repo_needs_http_file}" &>> "${eus_dir}/logs/https-repo-needs-http.log"
-    done < <(grep -sril "^deb https*://\$(echo "\${repo_url}" | sed -e 's/https\:\/\///g' -e 's/http\:\/\///g') \${repo_codename}\${repo_component}" /etc/apt/sources.list /etc/apt/sources.list.d/*)
+    done < <(grep -sril "^deb https*://\$(echo "\${repo_url}" | sed -e 's/https\:\/\///g' -e 's/http\:\/\///g') \${repo_codename}\${repo_codename_argument} \${repo_component}" /etc/apt/sources.list /etc/apt/sources.list.d/*)
+  fi 
+  # Clean up unset variables
+  unset_add_repositories_variables
+  # Check if OS codename changed and reset variables
+  if [[ "\${os_codename_changed}" == 'true' ]]; then 
+    unset os_codename_changed
+    get_distro
+    get_repo_url
+  else
+    if [[ "\${os_id}" == "raspbian" ]]; then get_distro; fi
   fi
-  if [[ "\${os_codename_changed}" == 'true' ]]; then unset os_codename_changed; get_distro; get_repo_url; fi
 }
 
 while [ -n "\$1" ]; do
@@ -5791,7 +5918,9 @@ if [[ "${script_option_skip}" != 'true' ]]; then
   echo -e " [   ${GRAY_R}5${RESET}   ]  |  Cancel\\n\\n"
   read -rp $'Your choice | \033[39m' unifi_easy_encrypt
   case "$unifi_easy_encrypt" in
-      1) certbot_install_function; lets_encrypt;;
+      1)
+        certbot_install_function
+        lets_encrypt "$@";;
       2)
         if [[ ! -f "${priv_key}" ]] || [[ ! -f "${signed_crt}" ]]; then cert_missing="true"; fi
         if [[ ! -f "${chain_crt}" ]] && [[ -f "${intermediate_crt}" ]]; then cert_missing="false"; fi
@@ -5839,6 +5968,7 @@ else
       paid_certificate
     fi
   else
-    certbot_install_function; lets_encrypt
+    certbot_install_function
+    lets_encrypt "$@"
   fi
 fi

@@ -11,6 +11,12 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 8.7.4
+  
+ - Added support for PureOS Crimson, Byzantium, and Amber.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 8.7.3
   
  - Added support for Sparky Linux.

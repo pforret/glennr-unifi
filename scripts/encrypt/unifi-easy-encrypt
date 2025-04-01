@@ -11,6 +11,18 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Encrypt Script  |  Version 3.5.9
+  
+ - Added support for PureOS Crimson, Byzantium, and Amber.
+ 
+ ####
+
+ |  UniFi Easy Encrypt Script  |  Version 3.5.8
+  
+ - Improved the certbot installation process.
+ 
+ ####
+
  |  UniFi Easy Encrypt Script  |  Version 3.5.7
   
  - Improved support files.
