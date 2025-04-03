@@ -2,7 +2,7 @@
 
 # UniFi Network Application Easy Update Script.
 # Script   | UniFi Network Easy Update Script
-# Version  | 10.1.2
+# Version  | 10.1.3
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -9013,7 +9013,25 @@ mongodb_upgrade() {
           sleep 3
           cancel_script;;
        [Yy]*)
-          echo -e "${GREEN}#${RESET} Alrighty... continuing the MongoDB Upgrade...\\n";;
+          echo -e "${GREEN}#${RESET} Alrighty... continuing the MongoDB Upgrade...\\n"
+          sleep 3
+          while read -r reverse_depends_package; do
+            check_dpkg_lock
+            echo -e "${GRAY_R}#${RESET} Removing package ${reverse_depends_package}..."
+            if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' remove "${reverse_depends_package}" &>> "${eus_dir}/logs/mongodb_upgrade_${mongodb_upgrade_from_version::2}_to_${mongo_version_max}.log"; then
+              echo -e "${GREEN}#${RESET} Successfully removed ${reverse_depends_package}! \\n"
+            else
+              echo -e "${RED}#${RESET} Failed to remove ${reverse_depends_package}...\\n"
+              check_dpkg_lock
+              echo -e "${GRAY_R}#${RESET} Trying another method to get rid of ${reverse_depends_package}..."
+              if DEBIAN_FRONTEND='noninteractive' "$(which dpkg)" --remove --force-remove-reinstreq "${reverse_depends_package}" &>> "${eus_dir}/logs/mongodb_upgrade_${mongodb_upgrade_from_version::2}_to_${mongo_version_max}.log"; then
+                echo -e "${GREEN}#${RESET} Successfully removed ${reverse_depends_package}! \\n"
+              else
+                echo -e "${RED}#${RESET} Failed to force remove ${reverse_depends_package}...\\n"
+                abort_function_skip_reason="true"; abort_reason="Failed to remove ${reverse_depends_package}."; abort
+              fi
+            fi
+          done < /tmp/EUS/mongodb/reverse_depends;;
     esac
   else
     echo -e "${GREEN}#${RESET} Only UniFi Depends on MongoDB, we are good to go! \\n"
