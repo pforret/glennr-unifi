@@ -11,6 +11,13 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 10.1.4
+  
+ - Added support for upgrading to 9.1.118 RC.
+ - Fixed an issue where unexpected answers to questions weren't treated properly.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 10.1.3
   
  - Fixed an issue where MongoDB upgrade could fail because packages that were mentioned for removal weren't removed during the dependency check.

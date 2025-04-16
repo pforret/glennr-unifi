@@ -2,7 +2,7 @@
 
 # UniFi Network Application Easy Update Script.
 # Script   | UniFi Network Easy Update Script
-# Version  | 10.1.3
+# Version  | 10.1.4
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -648,9 +648,6 @@ support_file() {
         }' &> "/tmp/EUS/support/sysstat.json"
     fi
   fi
-  # shellcheck disable=SC2129
-  sed -n '3p' "${script_location}" &>> "/tmp/EUS/support/script"
-  grep "# Version" "${script_location}" | head -n1 &>> "/tmp/EUS/support/script"
   find "${eus_dir}" "${unifi_db_eus_dir}" -type d -print -o -type f -print &> "/tmp/EUS/support/dirs_and_files"
   # Create a copy of the system.properties file and remove any mongodb PII
   while read -r system_properties_files; do
@@ -714,8 +711,8 @@ support_file() {
       if [[ "$(jq -r '.database["support-file-upload"]' "${eus_dir}/db/db.json")" != 'true' ]]; then
         read -rp $'\033[39m#\033[0m Do you want to upload the support file so that Glenn R. can review it and improve the script? (Y/n) ' yes_no
         case "$yes_no" in
-             [Yy]*|"") eus_support_one_time_upload="true";;
              [Nn]*) ;;
+             *) eus_support_one_time_upload="true";;
         esac
       fi
       if [[ "$(jq -r '.database["support-file-upload"]' "${eus_dir}/db/db.json")" == 'true' ]] || [[ "${eus_support_one_time_upload}" == 'true' ]]; then
@@ -1723,20 +1720,28 @@ if [[ "${unifi_native_system}" != 'true' ]] && "$(which dpkg)" -l unifi-native 2
 fi
 
 if ! grep -iq '^127.0.0.1.*localhost' /etc/hosts; then
+  if [[ "${script_option_debug}" != 'true' ]]; then clear; fi
   header_red
   echo -e "${GRAY_R}#${RESET} '127.0.0.1   localhost' does not exist in your /etc/hosts file."
-  echo -e "${GRAY_R}#${RESET} You will most likely see UniFi Network startup issues if it doesn't exist..\\n\\n"
-  if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Do you want to add "127.0.0.1   localhost" to your /etc/hosts file? (Y/n) ' yes_no; fi
-  case "$yes_no" in
-      [Yy]*|"")
-          echo -e "${GRAY_R}----${RESET}\\n"
-          echo -e "${GRAY_R}#${RESET} Adding '127.0.0.1       localhost' to /etc/hosts"
-          sed  -i '1i # ------------------------------' /etc/hosts
-          sed  -i '1i 127.0.0.1       localhost' /etc/hosts
-          sed  -i '1i # Added by GlennR ( EUS/EIS ) script' /etc/hosts && echo -e "${GRAY_R}#${RESET} Done..\\n\\n"
-          sleep 3;;
-      [Nn]*) ;;
-  esac
+  echo -e "${GRAY_R}#${RESET} You will most likely see application startup issues if it doesn't exist..\\n\\n"
+  while true; do
+    read -rp $'\033[39m#\033[0m Do you want to add "127.0.0.1   localhost" to your /etc/hosts file? (Y/n) ' yes_no
+    case "$yes_no" in
+        [Yy]*|"")
+            echo -e "${GRAY_R}----${RESET}\\n"
+            echo -e "${GRAY_R}#${RESET} Adding '127.0.0.1       localhost' to /etc/hosts"
+            sed  -i '1i # ------------------------------' /etc/hosts
+            sed  -i '1i 127.0.0.1       localhost' /etc/hosts
+            sed  -i '1i # Added by GlennR EUS script' /etc/hosts && echo -e "${GRAY_R}#${RESET} Done..\\n\\n"
+            sleep 3
+            break;;
+        [Nn]*)
+            break;;
+        *)
+            echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"
+            sleep 3;;
+    esac
+  done
 fi
 
 check_and_add_to_path() {
@@ -1796,13 +1801,13 @@ if ! "$(which dpkg)" -l unifi 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|
   echo -e "${GRAY_R}#${RESET} UniFi is not installed on your system or is in a broken state!"
   if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Do you want to run the Easy Installation Script? (Y/n) ' yes_no; fi
   case "$yes_no" in
-      [Yy]*|"") check_apt_listbugs; curl "${curl_argument[@]}" --remote-name https://get.glennr.nl/unifi/install/install_latest/unifi-latest.sh && bash unifi-latest.sh --skip; exit 0;;
       [Nn]*) check_apt_listbugs; exit 0;;
+      *) check_apt_listbugs; curl "${curl_argument[@]}" --remote-name https://get.glennr.nl/unifi/install/install_latest/unifi-latest.sh && bash unifi-latest.sh --skip; exit 0;;
   esac
 fi
 
 # If there a RC?
-is_there_a_release_candidate='no'
+is_there_a_release_candidate='yes'
 
 # UniFi Core Setups if no RC channel is available
 if [[ "${unifi_core_system}" == 'true' && "${is_there_a_release_candidate}" == 'yes' ]]; then
@@ -1836,23 +1841,27 @@ release_wanted () {
     echo -e "${GRAY_R}#${RESET} What release stage do you want to upgrade to?\\n"
     echo -e " [   ${WHITE_R}1${RESET}   ]  |  Stable ( default )"
     echo -e " [   ${WHITE_R}2${RESET}   ]  |  Release Candidate\\n\\n"
-    read -rp $'Your choice | \033[39m' release_stage
-    case "$release_stage" in
-        1*|"")
-          release_stage="S"
-          release_stage_friendly="Stable"
-          if [[ "${unifi}" == "${latest_release}" ]]; then
-            header_red
-            echo -e "${GRAY_R}#${RESET} There are currently no newer Stable Releases."
-            echo -e "${GRAY_R}#${RESET} Release Stage set to | Release Candidate.\\n\\n"
-            release_stage="RC"
-            release_stage_friendly="Release Candidate"
-            sleep 4
-          fi;;
-        2*) release_stage="RC"; release_stage_friendly="Release Candidate";;
-    esac
+    while true; do
+      read -rp $'Your choice | \033[39m' release_stage
+      case "$release_stage" in
+          1*|"")
+            release_stage="S"
+            release_stage_friendly="Stable"
+            if [[ "${unifi}" == "${latest_release}" ]]; then
+              header_red
+              echo -e "${GRAY_R}#${RESET} There are currently no newer Stable Releases."
+              echo -e "${GRAY_R}#${RESET} Release Stage set to | Release Candidate.\\n\\n"
+              release_stage="RC"
+              release_stage_friendly="Release Candidate"
+              sleep 4
+            fi
+            break;;
+          2*) release_stage="RC"; release_stage_friendly="Release Candidate"; break;;
+          *) echo -e "\\n${RED}#${RESET} Invalid input, please answer with a number...\\n"; sleep 3;;
+      esac
+    done
   fi
-  if [[ "${release_stage}" == 'RC' ]]; then rc_version_available="9.0.114"; rc_version_available_secret="9.0.114-k5dy363g65"; fi
+  if [[ "${release_stage}" == 'RC' ]]; then rc_version_available="9.1.118"; rc_version_available_secret="9.1.118-99i3gv2dd8"; fi
 }
 
 if [[ "$(command -v jq)" ]]; then latest_release_api_status="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?status" 2> /dev/null | jq -r '.availability' 2> /dev/null)"; else latest_release_api_status="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?status" 2> /dev/null | grep -oP '(?<="availability":")[^"]+')"; fi
@@ -2304,11 +2313,14 @@ check_default_repositories() {
 }
 
 attempt_recover_broken_packages_removal_question() {
-  if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Do you allow the script to remove the broken packages? (Y/n) ' yes_no; fi
-  case "$yes_no" in
-       [Yy]*|"") attempt_recover_broken_packages_remove="true";;
-       [Nn]*) attempt_recover_broken_packages_remove="false";;
-  esac
+  while true; do
+    if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Do you allow the script to remove the broken packages? (Y/n) ' yes_no; fi
+    case "$yes_no" in
+         [Yy]*|"") attempt_recover_broken_packages_remove="true"; break;;
+         [Nn]*) attempt_recover_broken_packages_remove="false"; break;;
+         *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
+    esac
+  done
 }
 
 attempt_recover_broken_packages() {
@@ -4814,7 +4826,7 @@ java_cleanup_not_required_versions() {
               fi
             done < <("$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep -i "openjdk-.*-\\|oracle-java.*\\|temurin-.*-" | grep -v "openjdk-${required_java_version_short}\\|oracle-java${required_java_version_short}\\|openjdk-${required_java_version_short}\\|temurin-${required_java_version_short}" | awk '{print $2}' | sed 's/:.*//')
             sleep 3;;
-         [Nn]*|"") ;;
+         *) ;;
     esac
   fi
 }
@@ -5136,11 +5148,14 @@ libssl_installation_check() {
 required_mongo_packages_missing() {
   echo -e "\\n${RED}----${RESET}\\n"
   echo -e "${GRAY_R}#${RESET} Required MongoDB packages failed to install... multiple script options will fail to run..."
-  if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Do you want to continue the script? (y/N) ' yes_no; fi
-  case "$yes_no" in
-      [Yy]*) ;;
-      [Nn]*|"") abort_reason="Required MongoDB Packages failed to install, does not want to continue with script."; abort_function_skip_reason="true"; abort;;
-  esac
+  while true; do
+    if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Do you want to continue the script? (y/N) ' yes_no; fi
+    case "$yes_no" in
+        [Yy]*) break;;
+        [Nn]*|"") abort_reason="Required MongoDB Packages failed to install, does not want to continue with script."; abort_function_skip_reason="true"; abort; break;;
+        *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
+    esac
+  done
 }
 
 mongo_last_attempt() {
@@ -5824,39 +5839,47 @@ mongodb_avx_support_check() {
       cpu_model_regex="^(cortex-a55|cortex-a65|cortex-a65ae|cortex-a75|cortex-a76|cortex-a77|cortex-a78|cortex-x1|cortex-x2|cortex-x3|cortex-x4|neoverse-n1|neoverse-n2|neoverse-n3|neoverse-e1|neoverse-e2|neoverse-v1|neoverse-v2|neoverse-v3|cortex-a510|cortex-a520|cortex-a715|cortex-a720)$"
       if ! [[ "${cpu_model_name}" =~ ${cpu_model_regex} ]] || [[ "${memory_allocation_modifications}" == 'true' ]]; then
         if [[ "${mongo_version_max}" =~ (50|60|70|80) ]]; then
-          if "$(which dpkg)" -l | grep "^ii\\|^hi" | grep -iq "mongod-armv8" || [[ "${script_option_skip}" == 'true' ]] || [[ "${glennr_compiled_mongod}" == 'true' ]]; then
-            echo -e "$(date +%F-%T.%6N) | Automatically answered \"YES\" to the Glenn R. MongoDB Compiled question." &>> "${eus_dir}/logs/avx-questionnaire.log"
-            mongod_armv8_installed="true"
-            yes_no="y"
-          else
-            echo -e "${GRAY_R}----${RESET}\\n"
-            if [[ "${memory_allocation_modifications}" == 'true' ]]; then
-              echo -e "${YELLOW}#${RESET} The script detected system modifications that might affect memory allocation, which\\n${YELLOW}#${RESET} could result in issues with the official MongoDB package..."
+          while true; do
+            if "$(which dpkg)" -l | grep "^ii\\|^hi" | grep -iq "mongod-armv8" || [[ "${script_option_skip}" == 'true' ]] || [[ "${glennr_compiled_mongod}" == 'true' ]]; then
+              echo -e "$(date +%F-%T.%6N) | Automatically answered \"YES\" to the Glenn R. MongoDB Compiled question." &>> "${eus_dir}/logs/avx-questionnaire.log"
+              mongod_armv8_installed="true"
+              yes_no="y"
             else
-              echo -e "${YELLOW}#${RESET} Your CPU is no longer officially supported by MongoDB themselves..."
+              echo -e "${GRAY_R}----${RESET}\\n"
+              if [[ "${memory_allocation_modifications}" == 'true' ]]; then
+                echo -e "${YELLOW}#${RESET} The script detected system modifications that might affect memory allocation, which\\n${YELLOW}#${RESET} could result in issues with the official MongoDB package..."
+              else
+                echo -e "${YELLOW}#${RESET} Your CPU is no longer officially supported by MongoDB themselves..."
+              fi
+              read -rp $'\033[39m#\033[0m Would you like to use mongod compiled from MongoDB source code specifically for your CPU by Glenn R.? (Y/n) ' yes_no
             fi
-            read -rp $'\033[39m#\033[0m Would you like to use mongod compiled from MongoDB source code specifically for your CPU by Glenn R.? (Y/n) ' yes_no
-          fi
-          case "$yes_no" in
-              [Yy]*|"")
-                 echo -e "$(date +%F-%T.%6N) | Answered \"YES\" to the Glenn R. MongoDB Compiled question." &>> "${eus_dir}/logs/avx-questionnaire.log"
-                 if [[ "${mongo_version_max}" == "80" ]]; then add_mongod_80_repo="true"; elif [[ "${mongo_version_max}" == "70" ]]; then add_mongod_70_repo="true"; elif [[ "${mongo_version_max}" == "60" ]]; then add_mongod_60_repo="true"; elif [[ "${mongo_version_max}" == "50" ]]; then add_mongod_50_repo="true"; fi
-                 glennr_compiled_mongod="true"
-                 cleanup_unifi_repos
-                 if [[ "${mongod_armv8_installed}" != 'true' ]]; then echo ""; fi;;
-              [Nn]*)
-                 echo -e "$(date +%F-%T.%6N) | Answered \"NO\" to the Glenn R. MongoDB Compiled question." &>> "${eus_dir}/logs/avx-questionnaire.log"
-                 unset add_mongodb_50_repo
-                 unset add_mongodb_60_repo
-                 unset add_mongodb_70_repo
-                 unset add_mongodb_80_repo
-                 add_mongodb_44_repo="true"
-                 mongo_version_max="44"
-                 mongo_version_max_with_dot="4.4"
-                 mongo_version_locked="4.4.18"
-                 echo "";;
-          esac
-          unset yes_no
+            case "$yes_no" in
+                [Yy]*|"")
+                   echo -e "$(date +%F-%T.%6N) | Answered \"${yes_no}\" to the Glenn R. MongoDB Compiled question." &>> "${eus_dir}/logs/avx-questionnaire.log"
+                   if [[ "${mongo_version_max}" == "80" ]]; then add_mongod_80_repo="true"; elif [[ "${mongo_version_max}" == "70" ]]; then add_mongod_70_repo="true"; elif [[ "${mongo_version_max}" == "60" ]]; then add_mongod_60_repo="true"; elif [[ "${mongo_version_max}" == "50" ]]; then add_mongod_50_repo="true"; fi
+                   glennr_compiled_mongod="true"
+                   cleanup_unifi_repos
+                   if [[ "${mongod_armv8_installed}" != 'true' ]]; then echo ""; fi
+                   break;;
+                [Nn]*)
+                   echo -e "$(date +%F-%T.%6N) | Answered \"${yes_no}\" to the Glenn R. MongoDB Compiled question." &>> "${eus_dir}/logs/avx-questionnaire.log"
+                   unset add_mongodb_50_repo
+                   unset add_mongodb_60_repo
+                   unset add_mongodb_70_repo
+                   unset add_mongodb_80_repo
+                   add_mongodb_44_repo="true"
+                   mongo_version_max="44"
+                   mongo_version_max_with_dot="4.4"
+                   mongo_version_locked="4.4.18"
+                   echo ""
+                   break;;
+                *)
+                   echo -e "$(date +%F-%T.%6N) | Invalid input \"${yes_no}\", repeating the question..." &>> "${eus_dir}/logs/avx-questionnaire.log"
+                   echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"
+                   sleep 3;;
+            esac
+            unset yes_no
+          done
         else
           echo -e "$(date +%F-%T.%6N) | Did not ask the Glenn R. MongoDB Compiled question." &>> "${eus_dir}/logs/avx-questionnaire.log"
           unset add_mongodb_50_repo
@@ -5871,35 +5894,43 @@ mongodb_avx_support_check() {
       fi
     else
       if [[ "${mongo_version_max}" =~ (50|60|70|80) && "${glennr_mongod_compatible}" == "true" && "${official_mongodb_compatible}" != 'true' ]]; then
-        if "$(which dpkg)" -l | grep "^ii\\|^hi" | grep -iq "mongod-amd64" || [[ "${script_option_skip}" == 'true' ]] || [[ "${glennr_compiled_mongod}" == 'true' ]]; then
-          echo -e "$(date +%F-%T.%6N) | Automatically answered \"YES\" to the Glenn R. MongoDB Compiled question." &>> "${eus_dir}/logs/avx-questionnaire.log"
-          mongod_amd64_installed="true"
-          yes_no="y"
-        else
-          echo -e "${GRAY_R}----${RESET}\\n"
-          echo -e "${YELLOW}#${RESET} Your CPU is no longer officially supported by MongoDB themselves..."
-          read -rp $'\033[39m#\033[0m Would you like to use mongod compiled from MongoDB source code specifically for your CPU by Glenn R.? (Y/n) ' yes_no
-        fi
-        case "$yes_no" in
-            [Yy]*|"")
-               echo -e "$(date +%F-%T.%6N) | Answered \"YES\" to the Glenn R. MongoDB Compiled question." &>> "${eus_dir}/logs/avx-questionnaire.log"
-               if [[ "${mongo_version_max}" == "80" ]]; then add_mongod_80_repo="true"; elif [[ "${mongo_version_max}" == "70" ]]; then add_mongod_70_repo="true"; elif [[ "${mongo_version_max}" == "60" ]]; then add_mongod_60_repo="true"; elif [[ "${mongo_version_max}" == "50" ]]; then add_mongod_50_repo="true"; fi
-               glennr_compiled_mongod="true"
-               cleanup_unifi_repos
-               if [[ "${mongod_amd64_installed}" != 'true' ]]; then echo ""; fi;;
-            [Nn]*)
-               echo -e "$(date +%F-%T.%6N) | Answered \"NO\" to the Glenn R. MongoDB Compiled question." &>> "${eus_dir}/logs/avx-questionnaire.log"
-               unset add_mongodb_50_repo
-               unset add_mongodb_60_repo
-               unset add_mongodb_70_repo
-               unset add_mongodb_80_repo
-               add_mongodb_44_repo="true"
-               mongo_version_max="44"
-               mongo_version_max_with_dot="4.4"
-               mongo_version_locked="4.4.18"
-               echo "";;
-        esac
-        unset yes_no
+        while true; do
+          if "$(which dpkg)" -l | grep "^ii\\|^hi" | grep -iq "mongod-amd64" || [[ "${script_option_skip}" == 'true' ]] || [[ "${glennr_compiled_mongod}" == 'true' ]]; then
+            echo -e "$(date +%F-%T.%6N) | Automatically answered \"YES\" to the Glenn R. MongoDB Compiled question." &>> "${eus_dir}/logs/avx-questionnaire.log"
+            mongod_amd64_installed="true"
+            yes_no="y"
+          else
+            echo -e "${GRAY_R}----${RESET}\\n"
+            echo -e "${YELLOW}#${RESET} Your CPU is no longer officially supported by MongoDB themselves..."
+            read -rp $'\033[39m#\033[0m Would you like to use mongod compiled from MongoDB source code specifically for your CPU by Glenn R.? (Y/n) ' yes_no
+          fi
+          case "$yes_no" in
+              [Yy]*|"")
+                 echo -e "$(date +%F-%T.%6N) | Answered \"${yes_no}\" to the Glenn R. MongoDB Compiled question." &>> "${eus_dir}/logs/avx-questionnaire.log"
+                 if [[ "${mongo_version_max}" == "80" ]]; then add_mongod_80_repo="true"; elif [[ "${mongo_version_max}" == "70" ]]; then add_mongod_70_repo="true"; elif [[ "${mongo_version_max}" == "60" ]]; then add_mongod_60_repo="true"; elif [[ "${mongo_version_max}" == "50" ]]; then add_mongod_50_repo="true"; fi
+                 glennr_compiled_mongod="true"
+                 cleanup_unifi_repos
+                 if [[ "${mongod_amd64_installed}" != 'true' ]]; then echo ""; fi
+                 break;;
+              [Nn]*)
+                 echo -e "$(date +%F-%T.%6N) | Answered \"${yes_no}\" to the Glenn R. MongoDB Compiled question." &>> "${eus_dir}/logs/avx-questionnaire.log"
+                 unset add_mongodb_50_repo
+                 unset add_mongodb_60_repo
+                 unset add_mongodb_70_repo
+                 unset add_mongodb_80_repo
+                 add_mongodb_44_repo="true"
+                 mongo_version_max="44"
+                 mongo_version_max_with_dot="4.4"
+                 mongo_version_locked="4.4.18"
+                 echo ""
+                 break;;
+              *)
+                 echo -e "$(date +%F-%T.%6N) | Invalid input \"${yes_no}\", repeating the question..." &>> "${eus_dir}/logs/avx-questionnaire.log"
+                 echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"
+                 sleep 3;;
+          esac
+          unset yes_no
+        done
       else
         echo -e "$(date +%F-%T.%6N) | Did not ask the Glenn R. MongoDB Compiled question." &>> "${eus_dir}/logs/avx-questionnaire.log"
         if [[ "${avx_compatible}" != 'true' ]]; then
@@ -5916,9 +5947,9 @@ mongodb_avx_support_check() {
       fi
     fi
     if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
-      jq '.scripts["'"$script_name"'"].tasks += {"mongodb-avx-check ('"$(date +%s)"')": [.scripts["'"$script_name"'"].tasks["mongodb-avx-check ('"$(date +%s)"')"][0] + {"CPU":"'"${cpu_model_name}"'","add_mongodb_44_repo":"'"${add_mongodb_44_repo}"'","mongo_version_max":"'"${mongo_version_max}"'","mongo_version_max_with_dot":"'"${mongo_version_max_with_dot}"'","mongo_version_locked":"'"${mongo_version_locked}"'","Official MongoDB Compatible":"'"${official_mongodb_compatible}"'","Glenn R. MongoDB":"'"${glennr_compiled_mongod}"'","Glenn R. MongoDB Compatible":"'"${glennr_mongod_compatible}"'"}]}' "${eus_dir}/db/db.json" > "/tmp/EUS/db-avx-debug.json"
+      jq '.scripts["'"$script_name"'"].tasks += {"mongodb-avx-check ('"$(date +%s)"')": [.scripts["'"$script_name"'"].tasks["mongodb-avx-check ('"$(date +%s)"')"][0] + {"architecture":"'"${architecture}"'","CPU":"'"${cpu_model_name}"'","add_mongodb_44_repo":"'"${add_mongodb_44_repo}"'","mongo_version_max":"'"${mongo_version_max}"'","mongo_version_max_with_dot":"'"${mongo_version_max_with_dot}"'","mongo_version_locked":"'"${mongo_version_locked}"'","Official MongoDB Compatible":"'"${official_mongodb_compatible}"'","Glenn R. MongoDB":"'"${glennr_compiled_mongod}"'","Glenn R. MongoDB Compatible":"'"${glennr_mongod_compatible}"'","Memory Allocation Modifications":"'"${memory_allocation_modifications}"'"}]}' "${eus_dir}/db/db.json" > "/tmp/EUS/db-avx-debug.json"
     else
-      jq --arg script_name "$script_name" --arg date_key "$(date +%s)" --arg cpu_model_name "${cpu_model_name}" --arg add_mongodb_44_repo "$add_mongodb_44_repo" --arg mongo_version_max "$mongo_version_max" --arg mongo_version_max_with_dot "$mongo_version_max_with_dot" --arg mongo_version_locked "$mongo_version_locked" --arg official_mongodb_compatible "$official_mongodb_compatible" --arg glennr_compiled_mongod "$glennr_compiled_mongod" --arg glennr_mongod_compatible "$glennr_mongod_compatible" '.scripts[$script_name].tasks = (.scripts[$script_name].tasks + {("mongodb-avx-check (" + $date_key + ")"): ((.scripts[$script_name].tasks["mongodb-avx-check (" + $date_key + ")"] // []) + [{"CPU": $cpu_model_name, "add_mongodb_44_repo": $add_mongodb_44_repo, "mongo_version_max": $mongo_version_max, "mongo_version_max_with_dot": $mongo_version_max_with_dot, "mongo_version_locked": $mongo_version_locked, "Official MongoDB Compatible": $official_mongodb_compatible, "Glenn R. MongoDB": $glennr_compiled_mongod, "Glenn R. MongoDB Compatible": $glennr_mongod_compatible}] )})' "${eus_dir}/db/db.json" > "/tmp/EUS/db-avx-debug.json"
+      jq --arg script_name "$script_name" --arg date_key "$(date +%s)" --arg cpu_model_name "${cpu_model_name}" --arg architecture "${architecture}" --arg add_mongodb_44_repo "$add_mongodb_44_repo" --arg mongo_version_max "$mongo_version_max" --arg mongo_version_max_with_dot "$mongo_version_max_with_dot" --arg mongo_version_locked "$mongo_version_locked" --arg official_mongodb_compatible "$official_mongodb_compatible" --arg glennr_compiled_mongod "$glennr_compiled_mongod" --arg glennr_mongod_compatible "$glennr_mongod_compatible" --arg memory_allocation_modifications "${memory_allocation_modifications}" '.scripts[$script_name].tasks = (.scripts[$script_name].tasks + {("mongodb-avx-check (" + $date_key + ")"): ((.scripts[$script_name].tasks["mongodb-avx-check (" + $date_key + ")"] // []) + [{"architecture": $architecture, "CPU": $cpu_model_name, "add_mongodb_44_repo": $add_mongodb_44_repo, "mongo_version_max": $mongo_version_max, "mongo_version_max_with_dot": $mongo_version_max_with_dot, "mongo_version_locked": $mongo_version_locked, "Official MongoDB Compatible": $official_mongodb_compatible, "Glenn R. MongoDB": $glennr_compiled_mongod, "Glenn R. MongoDB Compatible": $glennr_mongod_compatible}, "Memory Allocation Modifications": $memory_allocation_modifications}] )})' "${eus_dir}/db/db.json" > "/tmp/EUS/db-avx-debug.json"
     fi
   fi
 }
@@ -6119,8 +6150,8 @@ override_inform_host() {
     echo -e "\\n${RED}#${RESET} You can this turn this on right now, or continue without turning it on.\\n\\n"
     read -rp $'\033[39m#\033[0m Can we continue with the device upgrade? (Y/n) ' yes_no
     case "$yes_no" in
-        [Yy]*|"") ;;
         [Nn]*) cancel_script;;
+        *) ;;
     esac
   else
     echo -e "${GREEN}#${RESET} Hostname/IP is enabled!" && sleep 2
@@ -6146,15 +6177,20 @@ mail_server_recommendation() {
     net_check_remote_access
     if [[ "${net_remote_access_status}" == 'true' ]]; then
       echo -e "${YELLOW}#${RESET} You do not have an Email Server configurated for your Network Application..."
-      read -rp $'\033[39m#\033[0m Would you like to enable UI Cloud Email for email notifications? (Y/n) ' yes_no
-      case "$yes_no" in
-          [Yy]*|"")
-            net_enable_cloud_mail;;
-          [Nn]*)
-            echo -e "${YELLOW}#${RESET} Alright... not touching your Email Server Configuration... Please configure one yourself... \\n"
-            echo -e "${YELLOW}#${RESET} UniFi Network Application Settings"
-            echo -e "${YELLOW}#${RESET} Settings > System > Advanced > Email Services \\n";;
-      esac
+      while true; do
+        read -rp $'\033[39m#\033[0m Would you like to enable UI Cloud Email for email notifications? (Y/n) ' yes_no
+        case "$yes_no" in
+            [Yy]*|"")
+              net_enable_cloud_mail
+              break;;
+            [Nn]*)
+              echo -e "${YELLOW}#${RESET} Alright... not touching your Email Server Configuration... Please configure one yourself... \\n"
+              echo -e "${YELLOW}#${RESET} UniFi Network Application Settings"
+              echo -e "${YELLOW}#${RESET} Settings > System > Advanced > Email Services \\n"
+              break;;
+            *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
+        esac
+      done
     else
       echo -e "${YELLOW}#${RESET} You do not have an Email Server configurated... this is recommended! \\n"
       echo -e "${YELLOW}#${RESET} UniFi Network Application Settings"
@@ -6492,22 +6528,27 @@ cleanup_backup_files() {
     if [[ "${unifi_script_backup_amount_oldest_files}" -gt '1' ]]; then unifi_script_backup_text_1="s"; unifi_script_backup_text_2="these"; else unifi_script_backup_text_2="this"; fi
     if [[ "${cleanup_backup_files_during_mongodb_upgrade}" != 'true' ]]; then header; else echo ""; fi
     echo -e "${GRAY_R}#${RESET} The script has detected ${unifi_script_backup_amount_oldest_files} old backup file${unifi_script_backup_text_1}, erasing ${unifi_script_backup_text_2} older backup${unifi_script_backup_text_1} will free up $(echo "${unifi_script_backup_free_up}" | awk '{ split( "B KB MB GB TB PB EB ZB YB" , v ); s=1; while( $1>1024 && s<9 ){ $1/=1024; s++ } printf "%.1f %s", $1, v[s] }') on your disk."
-    read -rp $'\033[39m#\033[0m The script will keep the latest 5 backup files, do you want to free up the disk space? (y/N) ' yes_no
-    case "$yes_no" in
-        [Yy]*)
-          if [[ "${cleanup_backup_files_during_mongodb_upgrade}" != 'true' ]]; then header; else echo ""; fi
-          echo -e "${GRAY_R}#${RESET} Erasing ${unifi_script_backup_amount_oldest_files} backup file${unifi_script_backup_text_1}..."
-          if find "${cleanup_backup_files_dir}" -type f -name "*.unf" -exec stat -c '%X %n' {} \; | sort -nr | awk 'NR>5 {print $2}' | xargs rm --force; then
-            echo -e "${GREEN}#${RESET} Successfully deleted the old backup file${unifi_script_backup_text_1}! \\n"
-          else
-            echo -e "${RED}#${RESET} Failed to delete the old backup file${unifi_script_backup_text_1}... \\n"
-          fi
-          sleep 2
-          if [[ "${cleanup_backup_files_during_mongodb_upgrade}" == 'true' ]]; then cleanup_backup_files_during_mongodb_upgrade_complete="true"; fi;;
-        [Nn]*|"")
-          echo -e "\\n${GRAY_R}#${RESET} Alright! the script will keep the backups on your system! \\n\\n"
-          sleep 2;;
-    esac
+    while true; do
+      read -rp $'\033[39m#\033[0m The script will keep the latest 5 backup files, do you want to free up the disk space? (y/N) ' yes_no
+      case "$yes_no" in
+          [Yy]*)
+            if [[ "${cleanup_backup_files_during_mongodb_upgrade}" != 'true' ]]; then header; else echo ""; fi
+            echo -e "${GRAY_R}#${RESET} Erasing ${unifi_script_backup_amount_oldest_files} backup file${unifi_script_backup_text_1}..."
+            if find "${cleanup_backup_files_dir}" -type f -name "*.unf" -exec stat -c '%X %n' {} \; | sort -nr | awk 'NR>5 {print $2}' | xargs rm --force; then
+              echo -e "${GREEN}#${RESET} Successfully deleted the old backup file${unifi_script_backup_text_1}! \\n"
+            else
+              echo -e "${RED}#${RESET} Failed to delete the old backup file${unifi_script_backup_text_1}... \\n"
+            fi
+            sleep 2
+            if [[ "${cleanup_backup_files_during_mongodb_upgrade}" == 'true' ]]; then cleanup_backup_files_during_mongodb_upgrade_complete="true"; fi
+            break;;
+          [Nn]*|"")
+            echo -e "\\n${GRAY_R}#${RESET} Alright! the script will keep the backups on your system! \\n\\n"
+            sleep 2
+            break;;
+          *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
+      esac
+    done
   fi
 }
 
@@ -6680,16 +6721,20 @@ super_user_check() {
       header_red
       echo -e "${GRAY_R}#${RESET} The user is an Administrator and Read Only user!"
       echo -e "${GRAY_R}#${RESET} Please remove the read only permission or login with administrator account! \\n\\n"
-      read -rp $'\033[39m#\033[0m Would you like to try another account? (Y/n) ' yes_no
-      case "$yes_no" in
-          [Yy]*|"")
-            unifi_login_cleanup
-            login_cleanup
-            unifi_logout
-            unifi_credentials
-            unifi_login;;
-          [Nn]*) unifi_backup_cancel="true";;
-      esac
+      while true; do
+        read -rp $'\033[39m#\033[0m Would you like to try another account? (Y/n) ' yes_no
+        case "$yes_no" in
+            [Yy]*|"")
+              unifi_login_cleanup
+              login_cleanup
+              unifi_logout
+              unifi_credentials
+              unifi_login
+              break;;
+            [Nn]*) unifi_backup_cancel="true"; break;;
+            *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
+        esac
+      done
     fi
   else
     net_super_site_id="$("${mongocommand}" --quiet --port 27117 ace --eval "${mongoprefix}db.getCollection('site').find({key:'super'})${mongosuffix}" | sed 's/\(ObjectId(\|)\|NumberLong(\)//g' | jq -r '.[]._id[]')"
@@ -6704,16 +6749,20 @@ super_user_check() {
       header_red
       echo -e "${GRAY_R}#${RESET} Account/User ${GRAY_R}${username}${RESET} is not a Super Administrator.."
       echo -e "${GRAY_R}#${RESET} Please use the Super Administrator credentials! \\n\\n"
-      read -rp $'\033[39m#\033[0m Would you like to try another account? (Y/n) ' yes_no
-      case "$yes_no" in
-          [Yy]*|"")
-            unifi_login_cleanup
-            login_cleanup
-            unifi_logout
-            unifi_credentials
-            unifi_login;;
-          [Nn]*) unifi_backup_cancel="true";;
-      esac
+      while true; do
+        read -rp $'\033[39m#\033[0m Would you like to try another account? (Y/n) ' yes_no
+        case "$yes_no" in
+            [Yy]*|"")
+              unifi_login_cleanup
+              login_cleanup
+              unifi_logout
+              unifi_credentials
+              unifi_login
+              break;;
+            [Nn]*) unifi_backup_cancel="true"; break;;
+            *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
+        esac
+      done
     fi
   fi
 }
@@ -6728,17 +6777,22 @@ unifi_login_check() {
   if [[ ( -z "${net_admin}" && "${unifi_core_system}" != 'true' ) ]]; then
     header_red
     echo -e "${GRAY_R}#${RESET} Account/User ${GRAY_R}${username}${RESET} does not exist in the database\\n\\n"
-    read -rp $'\033[39m#\033[0m Would you like to try another account? (Y/n) ' yes_no
-    case "$yes_no" in
-        [Yy]*|"")
-          unifi_login_cleanup
-          login_cleanup
-          unifi_credentials
-          unifi_login;;
-        [Nn]*) 
-          unifi_backup_cancel="true"
-          unifi_login_cleanup;;
-    esac
+    while true; do
+      read -rp $'\033[39m#\033[0m Would you like to try another account? (Y/n) ' yes_no
+      case "$yes_no" in
+          [Yy]*|"")
+            unifi_login_cleanup
+            login_cleanup
+            unifi_credentials
+            unifi_login
+            break;;
+          [Nn]*) 
+            unifi_backup_cancel="true"
+            unifi_login_cleanup
+            break;;
+          *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
+      esac
+    done
   elif grep -iq "Ubic2faToken.*Required\\|2fa.*required" /tmp/EUS/application/login; then
     unifi_login_cleanup
     header
@@ -6757,29 +6811,39 @@ unifi_login_check() {
     unifi_login_cleanup
     header_red
     echo -e "${GRAY_R}#${RESET} Invalid username or password..."
-    read -rp $'\033[39m#\033[0m Would you like to try again? (Y/n) ' yes_no
-    case "$yes_no" in
-        [Yy]*|"")
-          unifi_login_cleanup
-          unifi_credentials
-          unifi_login;;
-        [Nn]*)
-          unifi_backup_cancel="true"
-          unifi_login_cleanup;;
-    esac
+    while true; do
+      read -rp $'\033[39m#\033[0m Would you like to try again? (Y/n) ' yes_no
+      case "$yes_no" in
+          [Yy]*|"")
+            unifi_login_cleanup
+            unifi_credentials
+            unifi_login
+            break;;
+          [Nn]*)
+            unifi_backup_cancel="true"
+            unifi_login_cleanup
+            break;;
+          *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
+      esac
+    done
   elif grep -iq "error\\|Invalid.*username.*password" /tmp/EUS/application/login; then
     header_red
     echo -e "${GRAY_R}#${RESET} ${unifi_os_or_network} credentials are incorrect, login failed.."
-    read -rp $'\033[39m#\033[0m Would you like to try again? (Y/n) ' yes_no
-    case "$yes_no" in
-        [Yy]*|"")
-          unifi_login_cleanup
-          unifi_credentials
-          unifi_login;;
-        [Nn]*)
-          unifi_backup_cancel="true"
-          unifi_login_cleanup;;
-    esac
+    while true; do
+      read -rp $'\033[39m#\033[0m Would you like to try again? (Y/n) ' yes_no
+      case "$yes_no" in
+          [Yy]*|"")
+            unifi_login_cleanup
+            unifi_credentials
+            unifi_login
+            break;;
+          [Nn]*)
+            unifi_backup_cancel="true"
+            unifi_login_cleanup
+            break;;
+          *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
+      esac
+    done
   elif grep -iq "ok\\|id" /tmp/EUS/application/login; then
     application_login="success"
     unifi_login_cleanup
@@ -7035,22 +7099,26 @@ unifi_cache_download() {
 firmware_cache_question() {
   header
   echo -e "${GRAY_R}#${RESET} I highly recommand caching the firmware on the UniFi Network Application prior to the device upgrades."
-  read -rp $'\033[39m#\033[0m Can we proceed with the firmware download/caching? (Y/n) ' yes_no
-  case "$yes_no" in
-      [Yy]*|"")
-         unifi_cache_models
-         unifi_firmware_check
-         firmware_cache_directory=$(df -k /usr/lib/unifi/data/ | awk '{print $4}' | tail -n1)
-         if [[ "${firmware_cache_directory}" -ge '1000000' ]]; then
-           unifi_cache_download
-           firmware_cached="yes"
-         else
-           header_red
-           echo -e "${RED}#${RESET} There is not enough disk space to download the firmware..\\n\\n"
-           sleep 3
-         fi;;
-      [Nn]*) unifi_firmware_check;;
-  esac
+  while true; do
+    read -rp $'\033[39m#\033[0m Can we proceed with the firmware download/caching? (Y/n) ' yes_no
+    case "$yes_no" in
+        [Yy]*|"")
+           unifi_cache_models
+           unifi_firmware_check
+           firmware_cache_directory=$(df -k /usr/lib/unifi/data/ | awk '{print $4}' | tail -n1)
+           if [[ "${firmware_cache_directory}" -ge '1000000' ]]; then
+             unifi_cache_download
+             firmware_cached="yes"
+           else
+             header_red
+             echo -e "${RED}#${RESET} There is not enough disk space to download the firmware..\\n\\n"
+             sleep 3
+           fi
+           break;;
+        [Nn]*) unifi_firmware_check; break;;
+        *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
+    esac
+  done
 }
 
 firmware_cache_remove_question() {
@@ -7065,39 +7133,44 @@ firmware_cache_remove_question() {
       echo -e " [   ${WHITE_R}2${RESET}   ]  |  Remove the cached firmware.\\n\\n"
       read -rp $'Your choice | \033[39m' firmware_choice
       case "$firmware_choice" in
-          1|"") ;;
+          1) ;;
           2) unifi_cache_remove;;
+          *) ;;
       esac
     elif [[ "${uap_upgrade_schedule_done}" == 'yes' || "${usw_upgrade_schedule_done}" == 'yes' || "${ugw_upgrade_schedule_done}" == 'yes' ]]; then
       if [[ "${two_factor}" != 'enabled' ]]; then
         echo -e "${GRAY_R}#${RESET} Information: Your UniFi Network Application login credentials will be used/copied to that script."
-        read -rp $'\033[39m#\033[0m Do you want to schedule a script to remove the cached firmware after the device upgrade schedule (24 hours/1 day later)? (Y/n) ' yes_no
-        case "${yes_no}" in
-            [Yy]*|"")
-               cron_day="$(date -d "+1 day" +"%a" | tr '[:upper:]' '[:lower:]')"
-               mkdir -p /root/EUS/
-               if [[ -f /root/EUS/remove_firmware_cache.sh && -s /root/EUS/remove_firmware_cache.sh ]] && [[ -f /etc/cron.d/eus_firmware_removal_script && -s /etc/cron.d/eus_firmware_removal_script ]]; then
-                 header
-                 scheduled_time_hour=$(grep /root/EUS/remove_firmware_cache.sh /etc/cron.d/eus_firmware_removal_script | awk '{print $2}')
-                 scheduled_day=$(grep /root/EUS/remove_firmware_cache.sh /etc/cron.d/eus_firmware_removal_script | awk '{print $5}')
-                 if [[ "${scheduled_time_hour}" =~ (^0$|^1$|^2$|^3$|^4$|^5$|^6$|^7$|^8$|^9$) ]]; then scheduled_time_hour="0${scheduled_time_hour}"; fi
-                 echo -e "${GRAY_R}#${RESET} The script already seems to be scheduled for: '${scheduled_day} ${scheduled_time_hour}:00'.."
-                 sleep 6
-               else
-                 if curl "${curl_argument[@]}" --output "/root/EUS/remove_firmware_cache.sh" 'https://get.glennr.nl/unifi/extra/remove_firmware_cache.sh'; then
-                   sed -i "s/change_username/${username}/g" /root/EUS/remove_firmware_cache.sh
-                   sed -i "s/change_password/${password}/g" /root/EUS/remove_firmware_cache.sh
-                   chmod +x /root/EUS/remove_firmware_cache.sh
-                   sed -i 's/\r//' /root/EUS/remove_firmware_cache.sh
-                   tee /etc/cron.d/eus_firmware_removal_script &>/dev/null << EOF
+        while true; do
+          read -rp $'\033[39m#\033[0m Do you want to schedule a script to remove the cached firmware after the device upgrade schedule (24 hours/1 day later)? (Y/n) ' yes_no
+          case "${yes_no}" in
+              [Yy]*|"")
+                 cron_day="$(date -d "+1 day" +"%a" | tr '[:upper:]' '[:lower:]')"
+                 mkdir -p /root/EUS/
+                 if [[ -f /root/EUS/remove_firmware_cache.sh && -s /root/EUS/remove_firmware_cache.sh ]] && [[ -f /etc/cron.d/eus_firmware_removal_script && -s /etc/cron.d/eus_firmware_removal_script ]]; then
+                   header
+                   scheduled_time_hour=$(grep /root/EUS/remove_firmware_cache.sh /etc/cron.d/eus_firmware_removal_script | awk '{print $2}')
+                   scheduled_day=$(grep /root/EUS/remove_firmware_cache.sh /etc/cron.d/eus_firmware_removal_script | awk '{print $5}')
+                   if [[ "${scheduled_time_hour}" =~ (^0$|^1$|^2$|^3$|^4$|^5$|^6$|^7$|^8$|^9$) ]]; then scheduled_time_hour="0${scheduled_time_hour}"; fi
+                   echo -e "${GRAY_R}#${RESET} The script already seems to be scheduled for: '${scheduled_day} ${scheduled_time_hour}:00'.."
+                   sleep 6
+                 else
+                   if curl "${curl_argument[@]}" --output "/root/EUS/remove_firmware_cache.sh" 'https://get.glennr.nl/unifi/extra/remove_firmware_cache.sh'; then
+                     sed -i "s/change_username/${username}/g" /root/EUS/remove_firmware_cache.sh
+                     sed -i "s/change_password/${password}/g" /root/EUS/remove_firmware_cache.sh
+                     chmod +x /root/EUS/remove_firmware_cache.sh
+                     sed -i 's/\r//' /root/EUS/remove_firmware_cache.sh
+                     tee /etc/cron.d/eus_firmware_removal_script &>/dev/null << EOF
 SHELL=/bin/sh
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 ${cron_expr} * * ${cron_day} root /bin/bash /root/EUS/remove_firmware_cache.sh
 EOF
+                   fi
                  fi
-               fi;;
-            [Nn]*|*) ;;
-        esac
+                 break;;
+              [Nn]*) break;;
+              *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
+          esac
+        done
       fi
     else
       echo -e "${GRAY_R}#${RESET} Devices are currently using the cached firmware to upgrade... we have a few options."
@@ -7156,6 +7229,7 @@ EOF
             3)
               sleep 600
               unifi_cache_remove;;
+            *) ;;
         esac
       else
         case "$firmware_choice" in
@@ -7163,6 +7237,7 @@ EOF
             2)
               sleep 600
               unifi_cache_remove;;
+            *) ;;
         esac
       fi
     fi
@@ -7849,15 +7924,20 @@ unifi_backup_check() {
   else
     header_red
     echo -e "${RED}#${RESET} UniFi Network Application backup seems to have failed.."
-    read -rp $'\033[39m#\033[0m Do you want to try to perform another backup? (Y/n) ' yes_no
-    case "${yes_no}" in
-       [Yy]*|"")
-          unifi_backup
-          unifi_backup_check;;
-       [Nn]*|*)
-          header
-          echo -e "${GRAY_R}#${RESET} Skipping the UniFi Network Application backup.." && sleep 3;;
-    esac
+    while true; do
+      read -rp $'\033[39m#\033[0m Do you want to try to perform another backup? (Y/n) ' yes_no
+      case "${yes_no}" in
+         [Yy]*|"")
+            unifi_backup
+            unifi_backup_check
+            break;;
+         [Nn]*)
+            header
+            echo -e "${GRAY_R}#${RESET} Skipping the UniFi Network Application backup.."; sleep 3
+            break;;
+         *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
+      esac
+    done
   fi
 }
 
@@ -7967,30 +8047,38 @@ unifi_firmware_requirement() {
     executed_unifi_credentials="true"
     header
     echo -e "${GRAY_R}#${RESET} Your devices need a firmware upgrade in order to continue to manage them."
-    read -rp $'\033[39m#\033[0m Do you want to use the script to upgrade all your devices? (Y/n) ' yes_no
-    case "$yes_no" in
-        [Yy]*|"")
-           unifi_credentials
-           unifi_login;;
-        [Nn]*)
-           echo -e "\\n${RED}---${RESET}\\n"
-           echo -e "${GRAY_R}#${RESET} Taking the risk of not upgrading your devices..."
-           run_unifi_firmware_check="no";;
-    esac
+    while true; do
+      read -rp $'\033[39m#\033[0m Do you want to use the script to upgrade all your devices? (Y/n) ' yes_no
+      case "$yes_no" in
+          [Yy]*|"")
+             unifi_credentials
+             unifi_login
+             break;;
+          [Nn]*)
+             echo -e "\\n${RED}---${RESET}\\n"
+             echo -e "${GRAY_R}#${RESET} Taking the risk of not upgrading your devices..."
+             run_unifi_firmware_check="no"
+             break;;
+          *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
+      esac
+    done
   fi
   if [[ "${required_upgrade}" == 'true' && "${run_unifi_firmware_check}" != 'no' ]]; then
-    header
-    echo -e "${GRAY_R}#${RESET} Your devices need to be updated in order to work with the newer UniFi Network Application releease..."
-    echo -e "${GRAY_R}#${RESET} What would you like to do? \\n"
-    echo -e " [   ${WHITE_R}1${RESET}   ]  |  Update all devices via the script ( default )"
-    echo -e " [   ${WHITE_R}2${RESET}   ]  |  Don't upgrade the devices"
-    echo -e " [   ${WHITE_R}3${RESET}   ]  |  cancel\\n\\n\\n"
-    read -rp $'Your choice | \033[39m' required_upgrade_question
-    case "$required_upgrade_question" in
-        1*|"") run_unifi_devices_upgrade;;
-        2*) ;;
-        3*) cancel_script;;
-    esac
+    while true; do
+      header
+      echo -e "${GRAY_R}#${RESET} Your devices need to be updated in order to work with the newer UniFi Network Application releease..."
+      echo -e "${GRAY_R}#${RESET} What would you like to do? \\n"
+      echo -e " [   ${WHITE_R}1${RESET}   ]  |  Update all devices via the script ( default )"
+      echo -e " [   ${WHITE_R}2${RESET}   ]  |  Don't upgrade the devices"
+      echo -e " [   ${WHITE_R}3${RESET}   ]  |  cancel\\n\\n\\n"
+      read -rp $'Your choice | \033[39m' required_upgrade_question
+      case "$required_upgrade_question" in
+          1*|"") run_unifi_devices_upgrade; break;;
+          2*) break;;
+          3*) cancel_script; break;;
+          *) echo -e "\\n${RED}#${RESET} Invalid input, please answer with 1, 2 or 3...\\n"; sleep 3;;
+      esac
+    done
   fi
 }
 
@@ -8021,24 +8109,29 @@ usg_unsupported_notice() {
     done
     echo -e "\\n${GRAY_R}#${RESET} Please note that the UniFi Security Gateways are no longer officially supported. If you proceed with the"
     echo -e "${GRAY_R}#${RESET} upgrade, you'll no longer be able to make any further configuration changes involving these gateways. \\n"
-    read -rp $'\033[39m#\033[0m Do you want to proceed with the upgrade and lose configuration control for these devices? (y/N) ' yes_no
-    case "$yes_no" in
-        [Yy]*)
-           if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
-             jq '.scripts."'"${script_name}"'" |= . + {"tasks": (.tasks + {"usg-unsupported-notice ('"$(date +%Y%m%d_%H%M_%s)"')":[{"user-warned":"true"}]})}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
-           else
-             jq '.scripts["'"${script_name}"'"] |= (.tasks += {"usg-unsupported-notice ('"$(date +%Y%m%d_%H%M_%s)"')": [{"user-warned":"true"}]})' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
-           fi
-           eus_database_move;;
-        [Nn]*|"")
-           if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
-             jq '.scripts."'"${script_name}"'" |= . + {"tasks": (.tasks + {"usg-unsupported-notice ('"$(date +%Y%m%d_%H%M_%s)"')":[{"user-cancelled":"true"}]})}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
-           else
-             jq '.scripts["'"${script_name}"'"] |= (.tasks += {"usg-unsupported-notice ('"$(date +%Y%m%d_%H%M_%s)"')": [{"user-cancelled":"true"}]})' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
-           fi
-           eus_database_move
-           cancel_script;;
-    esac
+    while true; do
+      read -rp $'\033[39m#\033[0m Do you want to proceed with the upgrade and lose configuration control for these devices? (y/N) ' yes_no
+      case "$yes_no" in
+          [Yy]*)
+             if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
+               jq '.scripts."'"${script_name}"'" |= . + {"tasks": (.tasks + {"usg-unsupported-notice ('"$(date +%Y%m%d_%H%M_%s)"')":[{"user-warned":"true"}]})}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+             else
+               jq '.scripts["'"${script_name}"'"] |= (.tasks += {"usg-unsupported-notice ('"$(date +%Y%m%d_%H%M_%s)"')": [{"user-warned":"true"}]})' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+             fi
+             eus_database_move
+             break;;
+          [Nn]*|"")
+             if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
+               jq '.scripts."'"${script_name}"'" |= . + {"tasks": (.tasks + {"usg-unsupported-notice ('"$(date +%Y%m%d_%H%M_%s)"')":[{"user-cancelled":"true"}]})}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+             else
+               jq '.scripts["'"${script_name}"'"] |= (.tasks += {"usg-unsupported-notice ('"$(date +%Y%m%d_%H%M_%s)"')": [{"user-cancelled":"true"}]})' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+             fi
+             eus_database_move
+             cancel_script
+             break;;
+          *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
+      esac
+    done
   else
     echo -e "${GREEN}#${RESET} Your setup doesn't appear to have any USG models, we're good! \\n"; sleep 3
   fi
@@ -8187,7 +8280,7 @@ are_you_sure() {
      [Yy]*) are_you_sure_proceed="yes";;
 	 *)
        header_red
-       echo -e "${GRAY_R}#${RESET} '${yes_no}' is not a valid option, please answer with yes ( y ) or no ( n )" && sleep 3
+       echo -e "${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n" && sleep 3
        are_you_sure;;
   esac
   if [[ "${are_you_sure_proceed}" == 'no' ]]; then
@@ -8422,11 +8515,14 @@ mongodb_upgrade_custom_unifi_download_url_check() {
       else
         echo -e "${RED}#${RESET} You did not provide the correct UniFi Network Application for your system... \\n"
       fi
-      read -rp $'\033[39m#\033[0m Would you like to provide another download link? (Y/n) ' yes_no
-      case "$yes_no" in
-          [Yy]*|"") echo ""; unset unifi_os_package; custom_url_question;;
-          [Nn]*) ;;
-      esac
+      while true; do
+        read -rp $'\033[39m#\033[0m Would you like to provide another download link? (Y/n) ' yes_no
+        case "$yes_no" in
+            [Yy]*|"") unset unifi_os_package; custom_url_question; break;;
+            [Nn]*) break;;
+            *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
+        esac
+      done
     fi
   fi
 }
@@ -8509,16 +8605,21 @@ custom_url_upgrade_check() {
             echo -e "${GRAY_R}#${RESET} UniFi Network Application ${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi} requires MongoDB ${minimum_required_mongodb_version_dot} or newer."
             echo -e "${GRAY_R}#${RESET} The latest version that you can run with MongoDB version $("$(which dpkg)" -l | grep -E "(mongodb-server|mongodb-org-server|mongod-armv8|mongod-amd64)[[:space:]]" | awk '{print $3}' | sed -e 's/.*://' -e 's/-.*//' -e 's/+.*//') is $(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?version=${unifi_latest_supported_version_number}" 2> /dev/null | jq -r '.latest_version' 2> /dev/null) and older.. \\n\\n"
             if [[ "${mongodb_org_v::2}" =~ (24|26|30|32|34) && "${mongo_version_max}" == "36" && "${mongodb_upgrade_supported}" == 'true' ]] || [[ "${mongodb_org_v::2}" =~ (24|26|30|32|34|36|40|42) && "${mongo_version_max}" == "44" && "${mongodb_upgrade_supported}" == 'true' ]]; then
-              read -rp $'\033[39m#\033[0m Would you like to run the option to upgrade to MongoDB '"${mongo_version_max_with_dot}"'? (Y/n) ' yes_no
-              case "$yes_no" in
-                   [Yy]*|"")
-                      unifi_update_mongodb_upgrade_process="true"
-                      echo -e "${GRAY_R}#${RESET} OK... Starting the MongoDB Upgrade process..."
-                      sleep 5
-                      mongodb_upgrade;;
-                   [Nn]*)
-                      echo -e "${YELLOW}#${RESET} OK... Please re-execute the script when you feel ready!";;
-              esac
+              while true; do
+                read -rp $'\033[39m#\033[0m Would you like to run the option to upgrade to MongoDB '"${mongo_version_max_with_dot}"'? (Y/n) ' yes_no
+                case "$yes_no" in
+                     [Yy]*|"")
+                        unifi_update_mongodb_upgrade_process="true"
+                        echo -e "${GRAY_R}#${RESET} OK... Starting the MongoDB Upgrade process..."
+                        sleep 5
+                        mongodb_upgrade
+                        break;;
+                     [Nn]*)
+                        echo -e "${YELLOW}#${RESET} OK... Please re-execute the script when you feel ready!"
+                        break;;
+                     *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
+                esac
+              done
             else
               echo -e "${GRAY_R}#${RESET} The script will first update the UniFi Network Application to version $(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?version=${unifi_latest_supported_version_number}" 2> /dev/null | jq -r '.latest_version' 2> /dev/null) before updating to version ${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi}... \\n"
 	          sleep 5
@@ -8554,11 +8655,14 @@ custom_url_upgrade_check() {
     else
       echo -e "\\n${GRAY_R}----${RESET}\\n"
       echo -e "${GRAY_R}#${RESET} You're about to upgrade your UniFi Network Application from \"${current_application_version}\" to \"${custom_application_version}\"."
-      read -rp $'\033[39m#\033[0m Did you confirm that this upgrade is supported? (y/N) ' yes_no
-      case "$yes_no" in
-          [Yy]*) custom_url_install;;
-          [Nn]*|"") echo -e "${GRAY_R}#${RESET} Canceling the script.."; cancel_script;;
-      esac
+      while true; do
+        read -rp $'\033[39m#\033[0m Did you confirm that this upgrade is supported? (y/N) ' yes_no
+        case "$yes_no" in
+            [Yy]*) custom_url_install; break;;
+            [Nn]*|"") echo -e "${GRAY_R}#${RESET} Canceling the script.."; cancel_script; break;;
+            *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
+        esac
+      done
     fi
   elif [[ "${application_upgrade}" == 'match' ]]; then
     header
@@ -8624,11 +8728,14 @@ custom_url_download_check() {
       else
         echo -e "${GRAY_R}#${RESET} You did not provide the correct UniFi Network Application for your system..."
       fi
-      read -rp $'\033[39m#\033[0m Do you want to provide the script with anothe URL? (Y/n) ' yes_no
-      case "$yes_no" in
-          [Yy]*|"") custom_url_question;;
-          [Nn]*) ;;
-      esac
+      while true; do
+        read -rp $'\033[39m#\033[0m Do you want to provide the script with anothe URL? (Y/n) ' yes_no
+        case "$yes_no" in
+            [Yy]*|"") custom_url_question; break;;
+            [Nn]*) break;;
+            *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
+        esac
+      done
     fi
   fi
 }
@@ -8780,33 +8887,43 @@ mongodb_upgrade() {
   echo -e "${GRAY_R}#${RESET} Checking if you already created a UniFi Network Application backup..."
   if [[ "${glennr_unifi_backup}" != 'success' ]]; then
     echo -e "${YELLOW}#${RESET} You didn't take a backup using the UniFi Easy Update Script..."
-    read -rp $'\033[39m#\033[0m Do you want to take a UniFi Network Application backup using the script? (Y/n) ' yes_no
-    case "$yes_no" in
-       [Yy]*|"")
-          header
-          echo -e "${GRAY_R}#${RESET} Starting the UniFi Network Application backup.\\n\\n"
-          unifi_credentials
-          unifi_login
-          if [[ "${unifi_backup_cancel}" != 'true' ]]; then
-            debug_check
-            unifi_list_sites
-            unifi_backup
-            unifi_backup_check
-          fi
-          unifi_logout
-          login_cleanup;;
-       [Nn]*)
-          read -rp $'\033[39m#\033[0m Did you take a UniFi Network Application backup outside of the script? (y/N) ' yes_no
-          case "$yes_no" in
-             [Yy]*)
-                header
-                echo -e "${GREEN}#${RESET} Alright, then we're good to go! \\n";;
-             [Nn]*|"")
-                header_red
-                echo -e "${RED}#${RESET} Please take a backup of your UniFi Network Application and then run the script again. \\n"
-                exit 1;;
-          esac;;
-    esac
+    while true; do
+      read -rp $'\033[39m#\033[0m Do you want to take a UniFi Network Application backup using the script? (Y/n) ' yes_no
+      case "$yes_no" in
+         [Yy]*|"")
+            header
+            echo -e "${GRAY_R}#${RESET} Starting the UniFi Network Application backup.\\n\\n"
+            unifi_credentials
+            unifi_login
+            if [[ "${unifi_backup_cancel}" != 'true' ]]; then
+              debug_check
+              unifi_list_sites
+              unifi_backup
+              unifi_backup_check
+            fi
+            unifi_logout
+            login_cleanup
+            break;;
+         [Nn]*)
+            while true; do
+              read -rp $'\033[39m#\033[0m Did you take a UniFi Network Application backup outside of the script? (y/N) ' yes_no
+              case "$yes_no" in
+                 [Yy]*)
+                    header
+                    echo -e "${GREEN}#${RESET} Alright, then we're good to go! \\n"
+                    break;;
+                 [Nn]*|"")
+                    header_red
+                    echo -e "${RED}#${RESET} Please take a backup of your UniFi Network Application and then run the script again. \\n"
+                    exit 1
+                    break;;
+                 *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
+              esac
+            done
+            break;;
+         *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
+      esac
+    done
   else
     echo -e "${GREEN}#${RESET} You've already created a backup using the script! \\n"
   fi
@@ -9006,33 +9123,38 @@ mongodb_upgrade() {
     echo -e "${RED}#${RESET} The following services depend on MongoDB...\\n"
     while read -r service; do echo -e "${RED}-${RESET} ${service}"; done < /tmp/EUS/mongodb/reverse_depends
     echo -e "\\n${GRAY_R}#${RESET} NOTE: The packages/services listed above will also be removed if you proceed..."
-    read -rp $'\033[39m#\033[0m Would you like to continue with the MongoDB upgrade? (y/N) ' yes_no
-    case "$yes_no" in
-       [Nn]*|"")
-          echo -e "${YELLOW}#${RESET} Alrighty... cancelling the MongoDB Upgrade...\\n"
-          sleep 3
-          cancel_script;;
-       [Yy]*)
-          echo -e "${GREEN}#${RESET} Alrighty... continuing the MongoDB Upgrade...\\n"
-          sleep 3
-          while read -r reverse_depends_package; do
-            check_dpkg_lock
-            echo -e "${GRAY_R}#${RESET} Removing package ${reverse_depends_package}..."
-            if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' remove "${reverse_depends_package}" &>> "${eus_dir}/logs/mongodb_upgrade_${mongodb_upgrade_from_version::2}_to_${mongo_version_max}.log"; then
-              echo -e "${GREEN}#${RESET} Successfully removed ${reverse_depends_package}! \\n"
-            else
-              echo -e "${RED}#${RESET} Failed to remove ${reverse_depends_package}...\\n"
+    while true; do
+      read -rp $'\033[39m#\033[0m Would you like to continue with the MongoDB upgrade? (y/N) ' yes_no
+      case "$yes_no" in
+         [Nn]*|"")
+            echo -e "${YELLOW}#${RESET} Alrighty... cancelling the MongoDB Upgrade...\\n"
+            sleep 3
+            cancel_script
+            break;;
+         [Yy]*)
+            echo -e "${GREEN}#${RESET} Alrighty... continuing the MongoDB Upgrade...\\n"
+            sleep 3
+            while read -r reverse_depends_package; do
               check_dpkg_lock
-              echo -e "${GRAY_R}#${RESET} Trying another method to get rid of ${reverse_depends_package}..."
-              if DEBIAN_FRONTEND='noninteractive' "$(which dpkg)" --remove --force-remove-reinstreq "${reverse_depends_package}" &>> "${eus_dir}/logs/mongodb_upgrade_${mongodb_upgrade_from_version::2}_to_${mongo_version_max}.log"; then
+              echo -e "${GRAY_R}#${RESET} Removing package ${reverse_depends_package}..."
+              if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' remove "${reverse_depends_package}" &>> "${eus_dir}/logs/mongodb_upgrade_${mongodb_upgrade_from_version::2}_to_${mongo_version_max}.log"; then
                 echo -e "${GREEN}#${RESET} Successfully removed ${reverse_depends_package}! \\n"
               else
-                echo -e "${RED}#${RESET} Failed to force remove ${reverse_depends_package}...\\n"
-                abort_function_skip_reason="true"; abort_reason="Failed to remove ${reverse_depends_package}."; abort
+                echo -e "${RED}#${RESET} Failed to remove ${reverse_depends_package}...\\n"
+                check_dpkg_lock
+                echo -e "${GRAY_R}#${RESET} Trying another method to get rid of ${reverse_depends_package}..."
+                if DEBIAN_FRONTEND='noninteractive' "$(which dpkg)" --remove --force-remove-reinstreq "${reverse_depends_package}" &>> "${eus_dir}/logs/mongodb_upgrade_${mongodb_upgrade_from_version::2}_to_${mongo_version_max}.log"; then
+                  echo -e "${GREEN}#${RESET} Successfully removed ${reverse_depends_package}! \\n"
+                else
+                  echo -e "${RED}#${RESET} Failed to force remove ${reverse_depends_package}...\\n"
+                  abort_function_skip_reason="true"; abort_reason="Failed to remove ${reverse_depends_package}."; abort
+                fi
               fi
-            fi
-          done < /tmp/EUS/mongodb/reverse_depends;;
-    esac
+            done < /tmp/EUS/mongodb/reverse_depends
+            break;;
+         *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
+      esac
+    done
   else
     echo -e "${GREEN}#${RESET} Only UniFi Depends on MongoDB, we are good to go! \\n"
   fi
@@ -9140,16 +9262,21 @@ mongodb_upgrade() {
         if [[ "${dump_attempts}" -ge '1' && "${repair_unifi_database_attempted}" != 'true' ]]; then repair_unifi_database; repair_unifi_database_attempted='true'; fi
         if [[ "${dump_attempts}" -ge '2' && "${migrate_unifi_database_without_stats_attempted}" != 'true' ]]; then
           migrate_unifi_database_without_stats_attempted='true'
-          read -rp $'\033[39m#\033[0m Do you want to attempt to upgrade with only your Network Application Settings (all statistics data will be removed)? (y/N) ' yes_no
-          case "$yes_no" in
-             [Nn]*|"")
-                echo -e "${YELLOW}#${RESET} Alrighty... Proceeding with the regular attempt...\\n"
-                sleep 2;;
-             [Yy]*)
-                echo -e "${YELLOW}#${RESET} Cool, attempting the migration without your Network Application statistics...\\n"
-                migrate_unifi_database_without_stats="true"
-                migrate_unifi_database_without_stats_message_1=", without statistics";;
-          esac
+          while true; do
+            read -rp $'\033[39m#\033[0m Do you want to attempt to upgrade with only your Network Application Settings (all statistics data will be removed)? (y/N) ' yes_no
+            case "$yes_no" in
+               [Nn]*|"")
+                  echo -e "${YELLOW}#${RESET} Alrighty... Proceeding with the regular attempt...\\n"
+                  sleep 2
+                  break;;
+               [Yy]*)
+                  echo -e "${YELLOW}#${RESET} Cool, attempting the migration without your Network Application statistics...\\n"
+                  migrate_unifi_database_without_stats="true"
+                  migrate_unifi_database_without_stats_message_1=", without statistics"
+                  break;;
+               *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
+            esac
+          done
         fi
         echo -e "${GRAY_R}#${RESET} Trying to export the UniFi Network Application database to \"${unifi_db_eus_dir}/unifi_db/unifi-database-${mongodb_upgrade_date}\" for the ${attempt_message} time..."
         echo -e "\\n------- Dumping MongoDB in the ${mongodb_upgrade_from_version_with_dots} to ${mongo_version_max_with_dot} Upgrade Process (${short_attempt_message} run${migrate_unifi_database_without_stats_message_1}) ------- $(date +%F-%T.%6N) -------\\n" &>> "${eus_dir}/logs/unifi-database-dump.log"
@@ -9260,14 +9387,19 @@ mongodb_upgrade() {
     if [[ -z "${unifi_deb_dl}" ]]; then
       unifi_deb_dl_failed="true"
       echo -e "${RED}#${RESET} Failed to locate a download URL for UniFi Network Application version ${first_digit_current_unifi}.${second_digit_current_unifi}.${third_digit_current_unifi}... \\n"
-      read -rp $'\033[39m#\033[0m Would you like to provide a link to download UniFi Network Application version '"${first_digit_current_unifi}"'.'"${second_digit_current_unifi}"'.'"${third_digit_current_unifi}"'? (Y/n) ' yes_no
-      case "$yes_no" in
-         [Nn]*)
-            abort_reason="Failed to locate a download URL for UniFi Network Application version ${first_digit_current_unifi}.${second_digit_current_unifi}.${third_digit_current_unifi}."; abort_function_skip_reason="true"; abort;;
-         [Yy]*|"")
-            custom_url_question
-            if [[ -n "${unifi_deb_dl}" ]]; then echo -e "${GREEN}#${RESET} Awesome! We can download UniFi Network Application version ${first_digit_current_unifi}.${second_digit_current_unifi}.${third_digit_current_unifi} from the URL you specified! \\n"; fi;;
-      esac
+      while true; do
+        read -rp $'\033[39m#\033[0m Would you like to provide a link to download UniFi Network Application version '"${first_digit_current_unifi}"'.'"${second_digit_current_unifi}"'.'"${third_digit_current_unifi}"'? (Y/n) ' yes_no
+        case "$yes_no" in
+           [Nn]*)
+              abort_reason="Failed to locate a download URL for UniFi Network Application version ${first_digit_current_unifi}.${second_digit_current_unifi}.${third_digit_current_unifi}."; abort_function_skip_reason="true"; abort
+              break;;
+           [Yy]*|"")
+              custom_url_question
+              if [[ -n "${unifi_deb_dl}" ]]; then echo -e "${GREEN}#${RESET} Awesome! We can download UniFi Network Application version ${first_digit_current_unifi}.${second_digit_current_unifi}.${third_digit_current_unifi} from the URL you specified! \\n"; fi
+              break;;
+           *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
+        esac
+      done
     else
       echo -e "${GREEN}#${RESET} Successfully located a download URL for UniFi Network Application version ${first_digit_current_unifi}.${second_digit_current_unifi}.${third_digit_current_unifi}! \\n"
     fi
@@ -9769,22 +9901,32 @@ mongodb_upgrade() {
     header
     echo -e "${GRAY_R}#${RESET} The script created a few files during the database migration, this consumes $(du -sch "${unifi_db_eus_dir}/unifi_db/" 2> /dev/null | grep total$ | awk '{print $1}') on your system..."
     echo -e "${YELLOW}#${RESET} Please note: If you proceed, then there is no going back!... \\n\\n"
-    read -rp $'\033[39m#\033[0m Would you like to delete the files created during the database migration? (y/N) ' yes_no
-    case "$yes_no" in
-       [Nn]*|"")
-          echo -e "\\n${GREEN}#${RESET} Alrighty, will keep the files on your system!"
-          sleep 3;;
-       [Yy]*)
-          read -rp $'\033[39m#\033[0m Are you able to log into the UniFi Network Application? (y/N) ' yes_no
-          case "$yes_no" in
-             [Yy]*)
-                echo -e "\\n${GRAY_R}#${RESET} Alrighty, cleaning up the files for you..."
-                if rm -r "${unifi_db_eus_dir}/unifi_db/" &>> "${eus_dir}/logs/unifi_database_migration_cleanup.log"; then echo -e "${GREEN}#${RESET} Successfully removed the old UniFi Network Application database files!\\n"; else echo -e "${RED}#${RESET} Failed to remove the old UniFi Network Application database files..."; fi;;
-             [Nn]*|"")
-                echo -e "${YELLOW}#${RESET} Keeping the files.. since you mentioned that you cannot log in into the UniFi Network Application... \\n\\n";;
-          esac
-		  sleep 3;;
-    esac
+    while true; do
+      read -rp $'\033[39m#\033[0m Would you like to delete the files created during the database migration? (y/N) ' yes_no
+      case "$yes_no" in
+         [Nn]*|"")
+            echo -e "\\n${GREEN}#${RESET} Alrighty, will keep the files on your system!"
+            sleep 3
+		    break;;
+         [Yy]*)
+            while true; do
+              read -rp $'\033[39m#\033[0m Are you able to log into the UniFi Network Application? (y/N) ' yes_no
+              case "$yes_no" in
+                 [Yy]*)
+                    echo -e "\\n${GRAY_R}#${RESET} Alrighty, cleaning up the files for you..."
+                    if rm -r "${unifi_db_eus_dir}/unifi_db/" &>> "${eus_dir}/logs/unifi_database_migration_cleanup.log"; then echo -e "${GREEN}#${RESET} Successfully removed the old UniFi Network Application database files!\\n"; else echo -e "${RED}#${RESET} Failed to remove the old UniFi Network Application database files..."; fi
+                    break;;
+                 [Nn]*|"")
+                    echo -e "${YELLOW}#${RESET} Keeping the files.. since you mentioned that you cannot log in into the UniFi Network Application... \\n\\n"
+                    break;;
+                 *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
+              esac
+            done
+		    sleep 3
+		    break;;
+         *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
+      esac
+    done
   fi
   mv "${unifi_logs_location}/eus-run-mongod-import.log" "${eus_dir}/logs/eus-run-mongod-import.log" &> /dev/null
   mv "${unifi_logs_location}/eus-run-mongod-export.log" "${eus_dir}/logs/eus-run-mongod-export.log" &> /dev/null
@@ -9898,8 +10040,8 @@ support_file_upload_opt_in() {
     fi
     if [[ "${script_option_skip}" != 'true' ]]; then echo -e "${GRAY_R}#${RESET} The script generates support files when failures are detected, these can help Glenn R. to"; echo -e "${GRAY_R}#${RESET} improve the script quality for the Community and resolve your issues in future versions of the script.\\n"; read -rp $'\033[39m#\033[0m Do you want to automatically upload the support files? (Y/n) ' yes_no; fi
     case "$yes_no" in
-        [Yy]*|"") upload_support_files="true";;
         [Nn]*) upload_support_files="false";;
+        *) upload_support_files="true";;
     esac
     if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
       jq '."database" += {"support-file-upload": "'"${upload_support_files}"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
@@ -9920,8 +10062,8 @@ script_removal() {
   fi
   if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Do you want to keep the script on your system after completion? (Y/n) ' yes_no; fi
   case "$yes_no" in
-      [Yy]*|"") echo "";;
       [Nn]*) delete_script="true";;
+      *) ;;
   esac
 }
 script_removal
@@ -9930,18 +10072,23 @@ free_space_check() {
   if [[ "$(df -B1 / | awk 'NR==2{print $4}')" -le '5368709120' ]]; then
     header_red
     echo -e "${YELLOW}#${RESET} You only have $(df -B1 / | awk 'NR==2{print $4}' | awk '{ split( "B KB MB GB TB PB EB ZB YB" , v ); s=1; while( $1>1024 && s<9 ){ $1/=1024; s++ } printf "%.1f %s", $1, v[s] }') of disk space available on \"/\"... \\n"
-    read -rp $'\033[39m#\033[0m Do you want to proceed with running the script? (y/N) ' yes_no
-    case "$yes_no" in
-       [Nn]*|"")
-          free_space_check_response="Cancel script"
-          free_space_check_date="$(date +%s)"
-          echo -e "${YELLOW}#${RESET} OK... Please free up disk space before running the script again..."
-          cancel_script;;
-       [Yy]*)
-          free_space_check_response="Proceed at own risk"
-          free_space_check_date="$(date +%s)"
-          echo -e "${YELLOW}#${RESET} OK... Proceeding with the script.. please note that failures may occur due to not enough disk space... \\n"; sleep 10;;
-    esac
+    while true; do
+      read -rp $'\033[39m#\033[0m Do you want to proceed with running the script? (y/N) ' yes_no
+      case "$yes_no" in
+         [Nn]*|"")
+            free_space_check_response="Cancel script"
+            free_space_check_date="$(date +%s)"
+            echo -e "${YELLOW}#${RESET} OK... Please free up disk space before running the script again..."
+            cancel_script
+            break;;
+         [Yy]*)
+            free_space_check_response="Proceed at own risk"
+            free_space_check_date="$(date +%s)"
+            echo -e "${YELLOW}#${RESET} OK... Proceeding with the script.. please note that failures may occur due to not enough disk space... \\n"; sleep 10
+            break;;
+         *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
+      esac
+    done
     if [[ -n "$(command -v jq)" ]]; then
       if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" && -e "${eus_dir}/db/db.json" ]]; then
         jq '.scripts."'"${script_name}"'" += {"warnings": {"low-free-disk-space": {"response": "'"${free_space_check_response}"'", "detected-date": "'"${free_space_check_date}"'"}}}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
@@ -9963,18 +10110,23 @@ free_boot_space_check() {
       if [[ "${free_boot_space}" -le '53687091' ]]; then
         header_red
         echo -e "${GRAY_R}#${RESET} You only have $(df -B1 /boot | awk 'NR==2{print $4}' | awk '{ split( "B KB MB GB TB PB EB ZB YB" , v ); s=1; while( $1>1024 && s<9 ){ $1/=1024; s++ } printf "%.1f %s", $1, v[s] }') of disk space available on \"/boot\".. Please expand or clean up old kernel images!"
-        read -rp $'\033[39m#\033[0m Do you want to proceed with running the script? (y/N) ' yes_no
-        case "$yes_no" in
-           [Nn]*|"")
-              free_boot_space_check_response="Cancel script"
-              free_boot_space_check_date="$(date +%s)"
-              echo -e "${YELLOW}#${RESET} OK... Please free up disk space before running the script again..."
-              cancel_script;;
-           [Yy]*)
-              free_boot_space_check_response="Proceed at own risk"
-              free_boot_space_check_date="$(date +%s)"
-              echo -e "${YELLOW}#${RESET} OK... Proceeding with the script.. please note that failures may occur due to not enough disk space... \\n"; sleep 10; skip_linux_images_recovery="true";;
-        esac
+        while true; do
+          read -rp $'\033[39m#\033[0m Do you want to proceed with running the script? (y/N) ' yes_no
+          case "$yes_no" in
+             [Nn]*|"")
+                free_boot_space_check_response="Cancel script"
+                free_boot_space_check_date="$(date +%s)"
+                echo -e "${YELLOW}#${RESET} OK... Please free up disk space before running the script again..."
+                cancel_script
+                break;;
+             [Yy]*)
+                free_boot_space_check_response="Proceed at own risk"
+                free_boot_space_check_date="$(date +%s)"
+                echo -e "${YELLOW}#${RESET} OK... Proceeding with the script.. please note that failures may occur due to not enough disk space... \\n"; sleep 10; skip_linux_images_recovery="true"
+                break;;
+             *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
+          esac
+        done
         if [[ -n "$(command -v jq)" ]]; then
           if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" && -e "${eus_dir}/db/db.json" ]]; then
             jq '.scripts."'"${script_name}"'" += {"warnings": {"low-free-boot-partition-space": {"response": "'"${free_boot_space_check_response}"'", "detected-date": "'"${free_boot_space_check_date}"'"}}}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
@@ -10038,11 +10190,14 @@ free_var_log_space_check
 
 not_running_proceed() {
   echo -e "${RED}#${RESET} The UniFi Network Application is still not running.. you may experience login issues..."
-  read -rp $'\033[39m#\033[0m Do you want to proceed anyway? (Y/n) ' yes_no
-  case "$yes_no" in
-      [Yy]*|"") ;;
-      [Nn]*) cancel_script;;
-  esac
+  while true; do
+    read -rp $'\033[39m#\033[0m Do you want to proceed anyway? (Y/n) ' yes_no
+    case "$yes_no" in
+        [Yy]*|"") break;;
+        [Nn]*) cancel_script; break;;
+        *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
+    esac
+  done
 }
 
 not_running_dir_check() {
@@ -10189,59 +10344,50 @@ daemon_reexec
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
-header
-if [[ "${script_option_skip}" == 'true' && "${script_option_unifi_version}" == 'true' ]]; then
-  non_interactive_application_upgrade="true"
-else
-  echo -e "  What would you like to perform?\\n\\n"
-  if [[ "${unifi_core_system}" == 'true' ]]; then
-    echo -e " [   ${WHITE_R}1${RESET}   ]  |  Update the UniFi Network Application"
-    echo -e " [   ${WHITE_R}2${RESET}   ]  |  Update UniFi Devices"
-    echo -e " [   ${WHITE_R}3${RESET}   ]  |  Update the UniFi Network Application and UniFi Devices"
-    echo -e " [   ${WHITE_R}4${RESET}   ]  |  Archive/Delete UniFi Network Application events, alarms and alerts"
-    echo -e " [   ${WHITE_R}5${RESET}   ]  |  Get UniFi Network Application Statistics"
-    echo -e " [   ${WHITE_R}6${RESET}   ]  |  Cancel Script\\n\\n"
+script_option_run_question() {
+  header
+  if [[ "${script_option_skip}" == 'true' && "${script_option_unifi_version}" == 'true' ]]; then
+    non_interactive_application_upgrade="true"
   else
-    echo -e " [   ${WHITE_R}1${RESET}   ]  |  Update the UniFi Network Application"
-    echo -e " [   ${WHITE_R}2${RESET}   ]  |  Update UniFi Devices"
-    echo -e " [   ${WHITE_R}3${RESET}   ]  |  Update the Operating System"
-    echo -e " [   ${WHITE_R}4${RESET}   ]  |  Update the UniFi Network Application and UniFi Devices"
-    echo -e " [   ${WHITE_R}5${RESET}   ]  |  Archive/Delete UniFi Network Application events, alarms and alerts"
-    echo -e " [   ${WHITE_R}6${RESET}   ]  |  Get UniFi Network Application Statistics"
-    if [[ "${mongo_version_max}" == '34' ]]; then
-      echo -e " [   ${WHITE_R}7${RESET}   ]  |  Cancel Script\\n\\n"
+    echo -e "  What would you like to perform?\\n\\n"
+    if [[ "${unifi_core_system}" == 'true' ]]; then
+      echo -e " [   ${WHITE_R}1${RESET}   ]  |  Update the UniFi Network Application"
+      echo -e " [   ${WHITE_R}2${RESET}   ]  |  Update UniFi Devices"
+      echo -e " [   ${WHITE_R}3${RESET}   ]  |  Update the UniFi Network Application and UniFi Devices"
+      echo -e " [   ${WHITE_R}4${RESET}   ]  |  Archive/Delete UniFi Network Application events, alarms and alerts"
+      echo -e " [   ${WHITE_R}5${RESET}   ]  |  Get UniFi Network Application Statistics"
+      echo -e " [   ${WHITE_R}6${RESET}   ]  |  Cancel Script\\n\\n"
     else
-      if [[ "${mongodb_org_v::2}" =~ (24|26|30|32|34) && "${mongo_version_max}" == "36" && "${mongodb_upgrade_supported}" == 'true' ]] || [[ "${mongodb_org_v::2}" =~ (24|26|30|32|34|36|40|42) && "${mongo_version_max}" == "44" && "${mongodb_upgrade_supported}" == 'true' ]] || [[ "${mongodb_org_v::2}" =~ (24|26|30|32|34|36|40|42|44|50|60) && "${mongo_version_max}" == "70" && "${mongodb_upgrade_supported}" == 'true' ]] || [[ "${mongodb_org_v::2}" =~ (24|26|30|32|34|36|40|42|44|50|60|70) && "${mongo_version_max}" == "80" && "${mongodb_upgrade_supported}" == 'true' ]]; then
-        echo -e " [   ${WHITE_R}7${RESET}   ]  |  MongoDB upgrade to ${mongo_version_max_with_dot}"
-        echo -e " [   ${WHITE_R}8${RESET}   ]  |  Cancel Script\\n\\n"
-      else
+      echo -e " [   ${WHITE_R}1${RESET}   ]  |  Update the UniFi Network Application"
+      echo -e " [   ${WHITE_R}2${RESET}   ]  |  Update UniFi Devices"
+      echo -e " [   ${WHITE_R}3${RESET}   ]  |  Update the Operating System"
+      echo -e " [   ${WHITE_R}4${RESET}   ]  |  Update the UniFi Network Application and UniFi Devices"
+      echo -e " [   ${WHITE_R}5${RESET}   ]  |  Archive/Delete UniFi Network Application events, alarms and alerts"
+      echo -e " [   ${WHITE_R}6${RESET}   ]  |  Get UniFi Network Application Statistics"
+      if [[ "${mongo_version_max}" == '34' ]]; then
         echo -e " [   ${WHITE_R}7${RESET}   ]  |  Cancel Script\\n\\n"
+      else
+        if [[ "${mongodb_org_v::2}" =~ (24|26|30|32|34) && "${mongo_version_max}" == "36" && "${mongodb_upgrade_supported}" == 'true' ]] || [[ "${mongodb_org_v::2}" =~ (24|26|30|32|34|36|40|42) && "${mongo_version_max}" == "44" && "${mongodb_upgrade_supported}" == 'true' ]] || [[ "${mongodb_org_v::2}" =~ (24|26|30|32|34|36|40|42|44|50|60) && "${mongo_version_max}" == "70" && "${mongodb_upgrade_supported}" == 'true' ]] || [[ "${mongodb_org_v::2}" =~ (24|26|30|32|34|36|40|42|44|50|60|70) && "${mongo_version_max}" == "80" && "${mongodb_upgrade_supported}" == 'true' ]]; then
+          echo -e " [   ${WHITE_R}7${RESET}   ]  |  MongoDB upgrade to ${mongo_version_max_with_dot}"
+          echo -e " [   ${WHITE_R}8${RESET}   ]  |  Cancel Script\\n\\n"
+        else
+          echo -e " [   ${WHITE_R}7${RESET}   ]  |  Cancel Script\\n\\n"
+        fi
       fi
     fi
-  fi
-  read -rp $'Your choice | \033[39m' unifi_easy_update
-  if [[ "${unifi_core_system}" == 'true' ]]; then
-    case "$unifi_easy_update" in
-        1) perform_application_upgrade="true";;
-        2) only_run_unifi_devices_upgrade;;
-        3) perform_application_upgrade="true"; run_unifi_devices_upgrade;;
-        4) alert_event_option;;
-        5) application_statistics;;
-        6*|"") cancel_script;;
-    esac
-  else
-    if [[ "${mongo_version_max}" == '34' ]]; then
+    read -rp $'Your choice | \033[39m' unifi_easy_update
+    if [[ "${unifi_core_system}" == 'true' ]]; then
       case "$unifi_easy_update" in
           1) perform_application_upgrade="true";;
           2) only_run_unifi_devices_upgrade;;
-          3) os_upgrade;;
-          4) perform_application_upgrade="true"; run_unifi_devices_upgrade;;
-          5) alert_event_option;;
-          6) application_statistics;;
-          7*|"") cancel_script;;
+          3) perform_application_upgrade="true"; run_unifi_devices_upgrade;;
+          4) alert_event_option;;
+          5) application_statistics;;
+          6) cancel_script;;
+          *) echo -e "\\n${RED}#${RESET} Invalid input, please answer with a number...\\n"; sleep 3; script_option_run_question;;
       esac
     else
-      if [[ "${mongodb_org_v::2}" =~ (24|26|30|32|34) && "${mongo_version_max}" == "36" && "${mongodb_upgrade_supported}" == 'true' ]] || [[ "${mongodb_org_v::2}" =~ (24|26|30|32|34|36|40|42) && "${mongo_version_max}" == "44" && "${mongodb_upgrade_supported}" == 'true' ]] || [[ "${mongodb_org_v::2}" =~ (24|26|30|32|34|36|40|42|44|50|60) && "${mongo_version_max}" == "70" && "${mongodb_upgrade_supported}" == 'true' ]] || [[ "${mongodb_org_v::2}" =~ (24|26|30|32|34|36|40|42|44|50|60|70) && "${mongo_version_max}" == "80" && "${mongodb_upgrade_supported}" == 'true' ]]; then
+      if [[ "${mongo_version_max}" == '34' ]]; then
         case "$unifi_easy_update" in
             1) perform_application_upgrade="true";;
             2) only_run_unifi_devices_upgrade;;
@@ -10249,23 +10395,39 @@ else
             4) perform_application_upgrade="true"; run_unifi_devices_upgrade;;
             5) alert_event_option;;
             6) application_statistics;;
-            7) mongodb_upgrade;;
-            8*|"") cancel_script;;
+            7) cancel_script;;
+            *) echo -e "\\n${RED}#${RESET} Invalid input, please answer with a number...\\n"; sleep 3; script_option_run_question;;
         esac
       else
-        case "$unifi_easy_update" in
-            1) perform_application_upgrade="true";;
-            2) only_run_unifi_devices_upgrade;;
-            3) os_upgrade;;
-            4) perform_application_upgrade="true"; run_unifi_devices_upgrade;;
-            5) alert_event_option;;
-            6) application_statistics;;
-            7*|"") cancel_script;;
-        esac
+        if [[ "${mongodb_org_v::2}" =~ (24|26|30|32|34) && "${mongo_version_max}" == "36" && "${mongodb_upgrade_supported}" == 'true' ]] || [[ "${mongodb_org_v::2}" =~ (24|26|30|32|34|36|40|42) && "${mongo_version_max}" == "44" && "${mongodb_upgrade_supported}" == 'true' ]] || [[ "${mongodb_org_v::2}" =~ (24|26|30|32|34|36|40|42|44|50|60) && "${mongo_version_max}" == "70" && "${mongodb_upgrade_supported}" == 'true' ]] || [[ "${mongodb_org_v::2}" =~ (24|26|30|32|34|36|40|42|44|50|60|70) && "${mongo_version_max}" == "80" && "${mongodb_upgrade_supported}" == 'true' ]]; then
+          case "$unifi_easy_update" in
+              1) perform_application_upgrade="true";;
+              2) only_run_unifi_devices_upgrade;;
+              3) os_upgrade;;
+              4) perform_application_upgrade="true"; run_unifi_devices_upgrade;;
+              5) alert_event_option;;
+              6) application_statistics;;
+              7) mongodb_upgrade;;
+              8) cancel_script;;
+              *) echo -e "\\n${RED}#${RESET} Invalid input, please answer with a number...\\n"; sleep 3; script_option_run_question;;
+          esac
+        else
+          case "$unifi_easy_update" in
+              1) perform_application_upgrade="true";;
+              2) only_run_unifi_devices_upgrade;;
+              3) os_upgrade;;
+              4) perform_application_upgrade="true"; run_unifi_devices_upgrade;;
+              5) alert_event_option;;
+              6) application_statistics;;
+              7) cancel_script;;
+              *) echo -e "\\n${RED}#${RESET} Invalid input, please answer with a number...\\n"; sleep 3; script_option_run_question;;
+          esac
+        fi
       fi
     fi
   fi
-fi
+}
+script_option_run_question
 
 ###################################################################################################################################################################################################
 #                                                                                                                                                                                                 #
@@ -10277,28 +10439,33 @@ header
 if [[ "${non_interactive_application_upgrade}" != 'true' ]]; then
   echo -e "${GRAY_R}#${RESET} Would you like to create a backup of your UniFi Network Application?"
   echo -e "${GRAY_R}#${RESET} I highly recommend creating a UniFi Network Application backup!${RESET}\\n\\n"
-  read -rp $'\033[39m#\033[0m Do you want to proceed with creating a backup? (Y/n) ' yes_no
-  case "$yes_no" in
-      [Yy]*|"")
-        header
-        echo -e "${GRAY_R}#${RESET} Starting the UniFi Network Application backup! \\n\\n"
-        sleep 3
-        if [[ "${executed_unifi_credentials}" != 'true' ]]; then
-          unifi_credentials
-          executed_unifi_credentials="true"
-        fi
-        unifi_login
-        if [[ "${unifi_backup_cancel}" != 'true' ]]; then
-          debug_check
-          unifi_list_sites
-          unifi_backup
-          unifi_backup_check
-        fi;;
-      [Nn]*)
-        header_red
-        echo -e "${GRAY_R}#${RESET} You choose not to create a backup! \\n\\n"
-        sleep 2;;
-  esac
+  while true; do
+    read -rp $'\033[39m#\033[0m Do you want to proceed with creating a backup? (Y/n) ' yes_no
+    case "$yes_no" in
+        [Yy]*|"")
+          header
+          echo -e "${GRAY_R}#${RESET} Starting the UniFi Network Application backup! \\n\\n"
+          sleep 3
+          if [[ "${executed_unifi_credentials}" != 'true' ]]; then
+            unifi_credentials
+            executed_unifi_credentials="true"
+          fi
+          unifi_login
+          if [[ "${unifi_backup_cancel}" != 'true' ]]; then
+            debug_check
+            unifi_list_sites
+            unifi_backup
+            unifi_backup_check
+          fi
+          break;;
+        [Nn]*)
+          header_red
+          echo -e "${GRAY_R}#${RESET} You choose not to create a backup! \\n\\n"
+          sleep 2
+          break;;
+        *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
+    esac
+  done
 else
   echo -e "${YELLOW}#${RESET} Skipping the backup option because script in running in non-interactive mode. \\n"
   sleep 3
@@ -10308,16 +10475,20 @@ if [[ "${non_interactive_application_upgrade}" != 'true' ]]; then
   if [[ "${glennr_unifi_backup}" != 'success' ]]; then
     header_red
     echo -e "${GRAY_R}#${RESET} You didn't create a backup of your UniFi Network Application! \\n\\n"
-    read -rp $'\033[39m#\033[0m Do you want to proceed with updating your UniFi Network Application? (Y/n) ' yes_no
-    case "$yes_no" in
-        [Yy]*|"") ;;
-        [Nn]*)
-          header_red
-          echo -e "${RED}#${RESET} You didn't download a backup!"
-          echo -e "${RED}#${RESET} Please download a backup and rerun the script..\\n"
-          echo -e "${RED}#${RESET} Cancelling the script!"
-         exit 1;;
-    esac
+    while true; do
+      read -rp $'\033[39m#\033[0m Do you want to proceed with updating your UniFi Network Application? (Y/n) ' yes_no
+      case "$yes_no" in
+          [Yy]*|"") break;;
+          [Nn]*)
+            header_red
+            echo -e "${RED}#${RESET} You didn't download a backup!"
+            echo -e "${RED}#${RESET} Please download a backup and rerun the script..\\n"
+            echo -e "${RED}#${RESET} Cancelling the script!"
+            exit 1
+            break;;
+          *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
+      esac
+    done
   fi
 fi
 
@@ -10458,16 +10629,21 @@ application_upgrade_releases() {
         echo -e "${GRAY_R}#${RESET} UniFi Network Application ${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi} requires MongoDB ${minimum_required_mongodb_version_dot} or newer."
         echo -e "${GRAY_R}#${RESET} The latest version that you can run with MongoDB version $("$(which dpkg)" -l | grep -E "(mongodb-server|mongodb-org-server|mongod-armv8|mongod-amd64)[[:space:]]" | awk '{print $3}' | sed -e 's/.*://' -e 's/-.*//' -e 's/+.*//') is $(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?version=${unifi_latest_supported_version_number}" 2> /dev/null | jq -r '.latest_version' 2> /dev/null) and older.. \\n\\n"
         if [[ "${mongodb_org_v::2}" =~ (24|26|30|32|34) && "${mongo_version_max}" == "36" && "${mongodb_upgrade_supported}" == 'true' ]] || [[ "${mongodb_org_v::2}" =~ (24|26|30|32|34|36|40|42) && "${mongo_version_max}" == "44" && "${mongodb_upgrade_supported}" == 'true' ]] || [[ "${mongodb_org_v::2}" =~ (24|26|30|32|34|36|40|42|44|50|60) && "${mongo_version_max}" == "70" && "${mongodb_upgrade_supported}" == 'true' ]] || [[ "${mongodb_org_v::2}" =~ (24|26|30|32|34|36|40|42|44|50|60|70) && "${mongo_version_max}" == "80" && "${mongodb_upgrade_supported}" == 'true' ]]; then
-          read -rp $'\033[39m#\033[0m Would you like to run the option to upgrade to MongoDB '"${mongo_version_max_with_dot}"'? (Y/n) ' yes_no
-          case "$yes_no" in
-               [Yy]*|"")
-                  unifi_update_mongodb_upgrade_process="true"
-                  echo -e "${GRAY_R}#${RESET} OK... Starting the MongoDB Upgrade process..."
-                  sleep 5
-                  mongodb_upgrade;;
-               [Nn]*)
-                  echo -e "${YELLOW}#${RESET} OK... Please re-execute the script when you feel ready!";;
-          esac
+          while true; do
+            read -rp $'\033[39m#\033[0m Would you like to run the option to upgrade to MongoDB '"${mongo_version_max_with_dot}"'? (Y/n) ' yes_no
+            case "$yes_no" in
+                 [Yy]*|"")
+                    unifi_update_mongodb_upgrade_process="true"
+                    echo -e "${GRAY_R}#${RESET} OK... Starting the MongoDB Upgrade process..."
+                    sleep 5
+                    mongodb_upgrade
+                    break;;
+                 [Nn]*)
+                    echo -e "${YELLOW}#${RESET} OK... Please re-execute the script when you feel ready!"
+                    break;;
+                 *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
+            esac
+          done
         else
           echo -e "${GRAY_R}#${RESET} The script will first update the UniFi Network Application to version $(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?version=${unifi_latest_supported_version_number}" 2> /dev/null | jq -r '.latest_version' 2> /dev/null) before updating to version ${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi}... \\n"
 	      sleep 5
@@ -13794,7 +13970,6 @@ elif [[ "${first_digit_unifi}" == '9' && "${second_digit_unifi}" == '0' ]]; then
   if [[ "${third_digit_unifi}" -gt '114' ]]; then not_supported_version; fi
   release_wanted
   if [[ "${release_stage}" == 'S' ]]; then if [[ "${unifi}" == "${latest_release}" ]]; then debug_check_no_upgrade; unifi_update_latest; fi; fi
-  if [[ "${release_stage}" == 'RC' ]]; then if [[ "${unifi}" == "${rc_version_available}" ]]; then debug_check_no_upgrade; unifi_update_latest; fi; fi
   header
   echo "  To what UniFi Network Application version would you like to update?"
   echo -e "  Currently your UniFi Network Application is on version ${GRAY_R}$unifi${RESET}"
@@ -13821,6 +13996,12 @@ elif [[ "${first_digit_unifi}" == '9' && "${second_digit_unifi}" == '0' ]]; then
   if [[ "${unifi_version}" == "9.0.114" ]]; then
     read -rp $'Your choice | \033[39m' UPGRADE_VERSION
     case "$UPGRADE_VERSION" in
+        #1)
+        #  unifi_update_start
+        #  unifi_firmware_requirement
+        #  application_version="9.0.114-k5dy363g65"
+        #  application_upgrade_releases
+        #  unifi_update_finish;;
         1)
           if [[ "${release_stage}" == 'RC' ]]; then
             unifi_update_start
@@ -13853,6 +14034,77 @@ elif [[ "${first_digit_unifi}" == '9' && "${second_digit_unifi}" == '0' ]]; then
             cancel_script
           fi;;
         3|*) cancel_script;;
+    esac
+  fi
+
+##########################################################################################################################################################################
+#                                                                                                                                                                        #
+#                                                                                  9.1.x                                                                                 #
+#                                                                                                                                                                        #
+##########################################################################################################################################################################
+
+elif [[ "${first_digit_unifi}" == '9' && "${second_digit_unifi}" == '1' ]]; then
+  if [[ "${third_digit_unifi}" -gt '118' ]]; then not_supported_version; fi
+  release_wanted
+  if [[ "${release_stage}" == 'RC' ]]; then if [[ "${unifi}" == "${rc_version_available}" ]]; then debug_check_no_upgrade; unifi_update_latest; fi; fi
+  header
+  echo "  To what UniFi Network Application version would you like to update?"
+  echo -e "  Currently your UniFi Network Application is on version ${GRAY_R}$unifi${RESET}"
+  echo -e "\\n  Release stage is set to | ${GRAY_R}${release_stage_friendly}${RESET}\\n\\n"
+  if [[ "${unifi}" == "9.1.118" ]]; then
+    unifi_version='9.1.118'
+    #echo -e " [   ${WHITE_R}1${RESET}   ]  |  9.1.118"
+    if [[ "${release_stage}" == 'RC' ]]; then
+      echo -e " [   ${WHITE_R}1${RESET}   ]  |  ${rc_version_available}"
+      echo -e " [   ${WHITE_R}2${RESET}   ]  |  Cancel\\n\\n"
+    else
+      echo -e " [   ${WHITE_R}1${RESET}   ]  |  Cancel\\n\\n"
+    fi
+  else
+    #echo -e " [   ${WHITE_R}1${RESET}   ]  |  9.1.118"
+    if [[ "${release_stage}" == 'RC' ]]; then
+      echo -e " [   ${WHITE_R}1${RESET}   ]  |  ${rc_version_available}"
+      echo -e " [   ${WHITE_R}2${RESET}   ]  |  Cancel\\n\\n"
+    else
+      echo -e " [   ${WHITE_R}1${RESET}   ]  |  Cancel\\n\\n"
+    fi
+  fi
+
+  if [[ "${unifi_version}" == "9.1.118" ]]; then
+    read -rp $'Your choice | \033[39m' UPGRADE_VERSION
+    case "$UPGRADE_VERSION" in
+        1)
+          if [[ "${release_stage}" == 'RC' ]]; then
+            unifi_update_start
+            unifi_firmware_requirement
+            application_version="${rc_version_available_secret}"
+            application_upgrade_releases
+            unifi_update_finish
+          else
+            cancel_script
+          fi;;
+        2|*) cancel_script;;
+    esac
+  else
+    read -rp $'Your choice | \033[39m' UPGRADE_VERSION
+    case "$UPGRADE_VERSION" in
+        #1)
+        #  unifi_update_start
+        #  unifi_firmware_requirement
+        #  application_version="9.1.118-99i3gv2dd8"
+        #  application_upgrade_releases
+        #  unifi_update_finish;;
+        1)
+          if [[ "${release_stage}" == 'RC' ]]; then
+            unifi_update_start
+            unifi_firmware_requirement
+            application_version="${rc_version_available_secret}"
+            application_upgrade_releases
+            unifi_update_finish
+          else
+            cancel_script
+          fi;;
+        2|*) cancel_script;;
     esac
   fi
 else

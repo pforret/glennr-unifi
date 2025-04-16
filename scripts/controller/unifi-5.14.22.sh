@@ -62,7 +62,7 @@
 ###################################################################################################################################################################################################
 
 # Script                | UniFi Network Easy Installation Script
-# Version               | 8.7.4
+# Version               | 8.7.5
 # Application version   | 5.14.22-9bf8d2f44f
 # Debian Repo version   | 5.14.22-13865-1
 # Author                | Glenn Rietveld
@@ -702,9 +702,6 @@ support_file() {
         }' &> "/tmp/EUS/support/sysstat.json"
     fi
   fi
-  # shellcheck disable=SC2129
-  sed -n '3p' "${script_location}" &>> "/tmp/EUS/support/script"
-  grep "# Version" "${script_location}" | head -n1 &>> "/tmp/EUS/support/script"
   find "${eus_dir}" -type d -print -o -type f -print &> "/tmp/EUS/support/dirs_and_files"
   # Create a copy of the system.properties file and remove any mongodb PII
   if [[ -e "/usr/lib/unifi/data/system.properties" ]]; then
@@ -769,8 +766,8 @@ support_file() {
       if [[ "$(jq -r '.database["support-file-upload"]' "${eus_dir}/db/db.json")" != 'true' ]]; then
         read -rp $'\033[39m#\033[0m Do you want to upload the support file so that Glenn R. can review it and improve the script? (Y/n) ' yes_no
         case "$yes_no" in
-             [Yy]*|"") eus_support_one_time_upload="true";;
              [Nn]*) ;;
+             *) eus_support_one_time_upload="true";;
         esac
       fi
       if [[ "$(jq -r '.database["support-file-upload"]' "${eus_dir}/db/db.json")" == 'true' ]] || [[ "${eus_support_one_time_upload}" == 'true' ]]; then
@@ -2853,17 +2850,24 @@ if ! grep -iq '^127.0.0.1.*localhost' /etc/hosts; then
   header_red
   echo -e "${GRAY_R}#${RESET} '127.0.0.1   localhost' does not exist in your /etc/hosts file."
   echo -e "${GRAY_R}#${RESET} You will most likely see application startup issues if it doesn't exist..\\n\\n"
-  read -rp $'\033[39m#\033[0m Do you want to add "127.0.0.1   localhost" to your /etc/hosts file? (Y/n) ' yes_no
-  case "$yes_no" in
-      [Yy]*|"")
-          echo -e "${GRAY_R}----${RESET}\\n"
-          echo -e "${GRAY_R}#${RESET} Adding '127.0.0.1       localhost' to /etc/hosts"
-          sed  -i '1i # ------------------------------' /etc/hosts
-          sed  -i '1i 127.0.0.1       localhost' /etc/hosts
-          sed  -i '1i # Added by GlennR EUS script' /etc/hosts && echo -e "${GRAY_R}#${RESET} Done..\\n\\n"
-          sleep 3;;
-      [Nn]*) ;;
-  esac
+  while true; do
+    read -rp $'\033[39m#\033[0m Do you want to add "127.0.0.1   localhost" to your /etc/hosts file? (Y/n) ' yes_no
+    case "$yes_no" in
+        [Yy]*|"")
+            echo -e "${GRAY_R}----${RESET}\\n"
+            echo -e "${GRAY_R}#${RESET} Adding '127.0.0.1       localhost' to /etc/hosts"
+            sed  -i '1i # ------------------------------' /etc/hosts
+            sed  -i '1i 127.0.0.1       localhost' /etc/hosts
+            sed  -i '1i # Added by GlennR EUS script' /etc/hosts && echo -e "${GRAY_R}#${RESET} Done..\\n\\n"
+            sleep 3
+            break;;
+        [Nn]*)
+            break;;
+        *)
+            echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"
+            sleep 3;;
+    esac
+  done
 fi
 
 check_mongodb_installed() {
@@ -3003,11 +3007,14 @@ check_default_repositories() {
 }
 
 attempt_recover_broken_packages_removal_question() {
-  if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Do you allow the script to remove the broken packages? (Y/n) ' yes_no; fi
-  case "$yes_no" in
-       [Yy]*|"") attempt_recover_broken_packages_remove="true";;
-       [Nn]*) attempt_recover_broken_packages_remove="false";;
-  esac
+  while true; do
+    if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Do you allow the script to remove the broken packages? (Y/n) ' yes_no; fi
+    case "$yes_no" in
+         [Yy]*|"") attempt_recover_broken_packages_remove="true"; break;;
+         [Nn]*) attempt_recover_broken_packages_remove="false"; break;;
+         *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
+    esac
+  done
 }
 
 attempt_recover_broken_packages() {
@@ -3443,11 +3450,11 @@ if "$(which dpkg)" -l | grep "unifi \\|unifi-native" | grep -q "^ii\\|^hi"; then
   echo -e "${GRAY_R}#${RESET} You can use my Easy Update Script to update your UniFi Network Application.${RESET}\\n\\n"
   read -rp $'\033[39m#\033[0m Would you like to download and run my Easy Update Script? (Y/n) ' yes_no
   case "$yes_no" in
-      [Yy]*|"")
+      [Nn]*) check_apt_listbugs; exit 0;;
+      *)
         check_apt_listbugs
         rm --force "${script_location}" 2> /dev/null
         curl "${curl_argument[@]}" --remote-name https://get.glennr.nl/unifi/update/unifi-update.sh && bash unifi-update.sh; exit 0;;
-      [Nn]*) check_apt_listbugs; exit 0;;
   esac
 fi
 
@@ -3745,11 +3752,14 @@ custom_url_download_check() {
     else
       header_red
       echo -e "${GRAY_R}#${RESET} You did not provide a UniFi Network Application that is maintained by Ubiquiti ( UniFi )..."
-      read -rp $'\033[39m#\033[0m Do you want to provide the script with another URL? (Y/n) ' yes_no
-      case "$yes_no" in
-          [Yy]*|"") custom_url_question;;
-          [Nn]*) ;;
-      esac
+      while true; do
+        read -rp $'\033[39m#\033[0m Do you want to provide the script with another URL? (Y/n) ' yes_no
+        case "$yes_no" in
+            [Yy]*|"") custom_url_question; break;;
+            [Nn]*) break;;
+            *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
+        esac
+      done
     fi
   fi
 }
@@ -3760,18 +3770,23 @@ free_space_check() {
   if [[ "$(df -B1 / | awk 'NR==2{print $4}')" -le '5368709120' ]]; then
     header_red
     echo -e "${YELLOW}#${RESET} You only have $(df -B1 / | awk 'NR==2{print $4}' | awk '{ split( "B KB MB GB TB PB EB ZB YB" , v ); s=1; while( $1>1024 && s<9 ){ $1/=1024; s++ } printf "%.1f %s", $1, v[s] }') of disk space available on \"/\"... \\n"
-    read -rp $'\033[39m#\033[0m Do you want to proceed with running the script? (y/N) ' yes_no
-    case "$yes_no" in
-       [Nn]*|"")
-          free_space_check_response="Cancel script"
-          free_space_check_date="$(date +%s)"
-          echo -e "${YELLOW}#${RESET} OK... Please free up disk space before running the script again..."
-          cancel_script;;
-       [Yy]*)
-          free_space_check_response="Proceed at own risk"
-          free_space_check_date="$(date +%s)"
-          echo -e "${YELLOW}#${RESET} OK... Proceeding with the script.. please note that failures may occur due to not enough disk space... \\n"; sleep 10;;
-    esac
+    while true; do
+      read -rp $'\033[39m#\033[0m Do you want to proceed with running the script? (y/N) ' yes_no
+      case "$yes_no" in
+         [Nn]*|"")
+            free_space_check_response="Cancel script"
+            free_space_check_date="$(date +%s)"
+            echo -e "${YELLOW}#${RESET} OK... Please free up disk space before running the script again..."
+            cancel_script
+            break;;
+         [Yy]*)
+            free_space_check_response="Proceed at own risk"
+            free_space_check_date="$(date +%s)"
+            echo -e "${YELLOW}#${RESET} OK... Proceeding with the script.. please note that failures may occur due to not enough disk space... \\n"; sleep 10
+            break;;
+         *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
+      esac
+    done
     if [[ -n "$(command -v jq)" ]]; then
       if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" && -e "${eus_dir}/db/db.json" ]]; then
         jq '.scripts."'"${script_name}"'" += {"warnings": {"low-free-disk-space": {"response": "'"${free_space_check_response}"'", "detected-date": "'"${free_space_check_date}"'"}}}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
@@ -3793,18 +3808,23 @@ free_boot_space_check() {
       if [[ "${free_boot_space}" -le '53687091' ]]; then
         header_red
         echo -e "${GRAY_R}#${RESET} You only have $(df -B1 /boot | awk 'NR==2{print $4}' | awk '{ split( "B KB MB GB TB PB EB ZB YB" , v ); s=1; while( $1>1024 && s<9 ){ $1/=1024; s++ } printf "%.1f %s", $1, v[s] }') of disk space available on \"/boot\".. Please expand or clean up old kernel images!"
-        read -rp $'\033[39m#\033[0m Do you want to proceed with running the script? (y/N) ' yes_no
-        case "$yes_no" in
-           [Nn]*|"")
-              free_boot_space_check_response="Cancel script"
-              free_boot_space_check_date="$(date +%s)"
-              echo -e "${YELLOW}#${RESET} OK... Please free up disk space before running the script again..."
-              cancel_script;;
-           [Yy]*)
-              free_boot_space_check_response="Proceed at own risk"
-              free_boot_space_check_date="$(date +%s)"
-              echo -e "${YELLOW}#${RESET} OK... Proceeding with the script.. please note that failures may occur due to not enough disk space... \\n"; sleep 10; skip_linux_images_recovery="true";;
-        esac
+        while true; do
+          read -rp $'\033[39m#\033[0m Do you want to proceed with running the script? (y/N) ' yes_no
+          case "$yes_no" in
+             [Nn]*|"")
+                free_boot_space_check_response="Cancel script"
+                free_boot_space_check_date="$(date +%s)"
+                echo -e "${YELLOW}#${RESET} OK... Please free up disk space before running the script again..."
+                cancel_script
+                break;;
+             [Yy]*)
+                free_boot_space_check_response="Proceed at own risk"
+                free_boot_space_check_date="$(date +%s)"
+                echo -e "${YELLOW}#${RESET} OK... Proceeding with the script.. please note that failures may occur due to not enough disk space... \\n"; sleep 10; skip_linux_images_recovery="true"
+                break;;
+             *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
+          esac
+        done
         if [[ -n "$(command -v jq)" ]]; then
           if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" && -e "${eus_dir}/db/db.json" ]]; then
             jq '.scripts."'"${script_name}"'" += {"warnings": {"low-free-boot-partition-space": {"response": "'"${free_boot_space_check_response}"'", "detected-date": "'"${free_boot_space_check_date}"'"}}}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
@@ -4572,40 +4592,48 @@ mongodb_avx_support_check() {
       cpu_model_regex="^(cortex-a55|cortex-a65|cortex-a65ae|cortex-a75|cortex-a76|cortex-a77|cortex-a78|cortex-x1|cortex-x2|cortex-x3|cortex-x4|neoverse-n1|neoverse-n2|neoverse-n3|neoverse-e1|neoverse-e2|neoverse-v1|neoverse-v2|neoverse-v3|cortex-a510|cortex-a520|cortex-a715|cortex-a720)$"
       if ! [[ "${cpu_model_name}" =~ ${cpu_model_regex} ]] || [[ "${memory_allocation_modifications}" == 'true' ]]; then
         if [[ "${mongo_version_max}" =~ (50|60|70|80) ]]; then
-          if "$(which dpkg)" -l | grep "^ii\\|^hi" | grep -iq "mongod-armv8" || [[ "${script_option_skip}" == 'true' ]] || [[ "${glennr_compiled_mongod}" == 'true' ]]; then
-            echo -e "$(date +%F-%T.%6N) | Automatically answered \"YES\" to the Glenn R. MongoDB Compiled question." &>> "${eus_dir}/logs/avx-questionnaire.log"
-            mongod_armv8_installed="true"
-            yes_no="y"
-          else
-            echo -e "${GRAY_R}----${RESET}\\n"
-            if [[ "${memory_allocation_modifications}" == 'true' ]]; then
-              echo -e "${YELLOW}#${RESET} The script detected system modifications that might affect memory allocation, which\\n${YELLOW}#${RESET} could result in issues with the official MongoDB package..."
+          while true; do
+            if "$(which dpkg)" -l | grep "^ii\\|^hi" | grep -iq "mongod-armv8" || [[ "${script_option_skip}" == 'true' ]] || [[ "${glennr_compiled_mongod}" == 'true' ]]; then
+              echo -e "$(date +%F-%T.%6N) | Automatically answered \"YES\" to the Glenn R. MongoDB Compiled question." &>> "${eus_dir}/logs/avx-questionnaire.log"
+              mongod_armv8_installed="true"
+              yes_no="y"
             else
-              echo -e "${YELLOW}#${RESET} Your CPU is no longer officially supported by MongoDB themselves..."
+              echo -e "${GRAY_R}----${RESET}\\n"
+              if [[ "${memory_allocation_modifications}" == 'true' ]]; then
+                echo -e "${YELLOW}#${RESET} The script detected system modifications that might affect memory allocation, which\\n${YELLOW}#${RESET} could result in issues with the official MongoDB package..."
+              else
+                echo -e "${YELLOW}#${RESET} Your CPU is no longer officially supported by MongoDB themselves..."
+              fi
+              read -rp $'\033[39m#\033[0m Would you like to use mongod compiled from MongoDB source code specifically for your CPU by Glenn R.? (Y/n) ' yes_no
             fi
-            read -rp $'\033[39m#\033[0m Would you like to use mongod compiled from MongoDB source code specifically for your CPU by Glenn R.? (Y/n) ' yes_no
-          fi
-          case "$yes_no" in
-              [Yy]*|"")
-                 echo -e "$(date +%F-%T.%6N) | Answered \"YES\" to the Glenn R. MongoDB Compiled question." &>> "${eus_dir}/logs/avx-questionnaire.log"
-                 if [[ "${mongo_version_max}" == "80" ]]; then add_mongod_80_repo="true"; elif [[ "${mongo_version_max}" == "70" ]]; then add_mongod_70_repo="true"; elif [[ "${mongo_version_max}" == "60" ]]; then add_mongod_60_repo="true"; elif [[ "${mongo_version_max}" == "50" ]]; then add_mongod_50_repo="true"; fi
-                 glennr_compiled_mongod="true"
-                 if [[ "${broken_unifi_install}" == 'true' ]]; then broken_glennr_compiled_mongod="true"; fi
-                 cleanup_unifi_repos
-                 if [[ "${mongod_armv8_installed}" != 'true' ]]; then echo ""; fi;;
-              [Nn]*)
-                 echo -e "$(date +%F-%T.%6N) | Answered \"NO\" to the Glenn R. MongoDB Compiled question." &>> "${eus_dir}/logs/avx-questionnaire.log"
-                 unset add_mongodb_50_repo
-                 unset add_mongodb_60_repo
-                 unset add_mongodb_70_repo
-                 unset add_mongodb_80_repo
-                 add_mongodb_44_repo="true"
-                 mongo_version_max="44"
-                 mongo_version_max_with_dot="4.4"
-                 mongo_version_locked="4.4.18"
-                 echo "";;
-          esac
-          unset yes_no
+            case "$yes_no" in
+                [Yy]*|"")
+                   echo -e "$(date +%F-%T.%6N) | Answered \"${yes_no}\" to the Glenn R. MongoDB Compiled question." &>> "${eus_dir}/logs/avx-questionnaire.log"
+                   if [[ "${mongo_version_max}" == "80" ]]; then add_mongod_80_repo="true"; elif [[ "${mongo_version_max}" == "70" ]]; then add_mongod_70_repo="true"; elif [[ "${mongo_version_max}" == "60" ]]; then add_mongod_60_repo="true"; elif [[ "${mongo_version_max}" == "50" ]]; then add_mongod_50_repo="true"; fi
+                   glennr_compiled_mongod="true"
+                   if [[ "${broken_unifi_install}" == 'true' ]]; then broken_glennr_compiled_mongod="true"; fi
+                   cleanup_unifi_repos
+                   if [[ "${mongod_armv8_installed}" != 'true' ]]; then echo ""; fi
+                   break;;
+                [Nn]*)
+                   echo -e "$(date +%F-%T.%6N) | Answered \"${yes_no}\" to the Glenn R. MongoDB Compiled question." &>> "${eus_dir}/logs/avx-questionnaire.log"
+                   unset add_mongodb_50_repo
+                   unset add_mongodb_60_repo
+                   unset add_mongodb_70_repo
+                   unset add_mongodb_80_repo
+                   add_mongodb_44_repo="true"
+                   mongo_version_max="44"
+                   mongo_version_max_with_dot="4.4"
+                   mongo_version_locked="4.4.18"
+                   echo ""
+                   break;;
+                *)
+                   echo -e "$(date +%F-%T.%6N) | Invalid input \"${yes_no}\", repeating the question..." &>> "${eus_dir}/logs/avx-questionnaire.log"
+                   echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"
+                   sleep 3;;
+            esac
+            unset yes_no
+          done
         else
           echo -e "$(date +%F-%T.%6N) | Did not ask the Glenn R. MongoDB Compiled question." &>> "${eus_dir}/logs/avx-questionnaire.log"
           unset add_mongodb_50_repo
@@ -4620,36 +4648,44 @@ mongodb_avx_support_check() {
       fi
     else
       if [[ "${mongo_version_max}" =~ (50|60|70|80) && "${glennr_mongod_compatible}" == "true" && "${official_mongodb_compatible}" != 'true' ]]; then
-        if "$(which dpkg)" -l | grep "^ii\\|^hi" | grep -iq "mongod-amd64" || [[ "${script_option_skip}" == 'true' ]] || [[ "${glennr_compiled_mongod}" == 'true' ]]; then
-          echo -e "$(date +%F-%T.%6N) | Automatically answered \"YES\" to the Glenn R. MongoDB Compiled question." &>> "${eus_dir}/logs/avx-questionnaire.log"
-          mongod_amd64_installed="true"
-          yes_no="y"
-        else
-          echo -e "${GRAY_R}----${RESET}\\n"
-          echo -e "${YELLOW}#${RESET} Your CPU is no longer officially supported by MongoDB themselves..."
-          read -rp $'\033[39m#\033[0m Would you like to use mongod compiled from MongoDB source code specifically for your CPU by Glenn R.? (Y/n) ' yes_no
-        fi
-        case "$yes_no" in
-            [Yy]*|"")
-               echo -e "$(date +%F-%T.%6N) | Answered \"YES\" to the Glenn R. MongoDB Compiled question." &>> "${eus_dir}/logs/avx-questionnaire.log"
-               if [[ "${mongo_version_max}" == "80" ]]; then add_mongod_80_repo="true"; elif [[ "${mongo_version_max}" == "70" ]]; then add_mongod_70_repo="true"; elif [[ "${mongo_version_max}" == "60" ]]; then add_mongod_60_repo="true"; elif [[ "${mongo_version_max}" == "50" ]]; then add_mongod_50_repo="true"; fi
-               glennr_compiled_mongod="true"
-               if [[ "${broken_unifi_install}" == 'true' ]]; then broken_glennr_compiled_mongod="true"; fi
-               cleanup_unifi_repos
-               if [[ "${mongod_amd64_installed}" != 'true' ]]; then echo ""; fi;;
-            [Nn]*)
-               echo -e "$(date +%F-%T.%6N) | Answered \"NO\" to the Glenn R. MongoDB Compiled question." &>> "${eus_dir}/logs/avx-questionnaire.log"
-               unset add_mongodb_50_repo
-               unset add_mongodb_60_repo
-               unset add_mongodb_70_repo
-               unset add_mongodb_80_repo
-               add_mongodb_44_repo="true"
-               mongo_version_max="44"
-               mongo_version_max_with_dot="4.4"
-               mongo_version_locked="4.4.18"
-               echo "";;
-        esac
-        unset yes_no
+        while true; do
+          if "$(which dpkg)" -l | grep "^ii\\|^hi" | grep -iq "mongod-amd64" || [[ "${script_option_skip}" == 'true' ]] || [[ "${glennr_compiled_mongod}" == 'true' ]]; then
+            echo -e "$(date +%F-%T.%6N) | Automatically answered \"YES\" to the Glenn R. MongoDB Compiled question." &>> "${eus_dir}/logs/avx-questionnaire.log"
+            mongod_amd64_installed="true"
+            yes_no="y"
+          else
+            echo -e "${GRAY_R}----${RESET}\\n"
+            echo -e "${YELLOW}#${RESET} Your CPU is no longer officially supported by MongoDB themselves..."
+            read -rp $'\033[39m#\033[0m Would you like to use mongod compiled from MongoDB source code specifically for your CPU by Glenn R.? (Y/n) ' yes_no
+          fi
+          case "$yes_no" in
+              [Yy]*|"")
+                 echo -e "$(date +%F-%T.%6N) | Answered \"${yes_no}\" to the Glenn R. MongoDB Compiled question." &>> "${eus_dir}/logs/avx-questionnaire.log"
+                 if [[ "${mongo_version_max}" == "80" ]]; then add_mongod_80_repo="true"; elif [[ "${mongo_version_max}" == "70" ]]; then add_mongod_70_repo="true"; elif [[ "${mongo_version_max}" == "60" ]]; then add_mongod_60_repo="true"; elif [[ "${mongo_version_max}" == "50" ]]; then add_mongod_50_repo="true"; fi
+                 glennr_compiled_mongod="true"
+                   if [[ "${broken_unifi_install}" == 'true' ]]; then broken_glennr_compiled_mongod="true"; fi
+                 cleanup_unifi_repos
+                 if [[ "${mongod_amd64_installed}" != 'true' ]]; then echo ""; fi
+                 break;;
+              [Nn]*)
+                 echo -e "$(date +%F-%T.%6N) | Answered \"${yes_no}\" to the Glenn R. MongoDB Compiled question." &>> "${eus_dir}/logs/avx-questionnaire.log"
+                 unset add_mongodb_50_repo
+                 unset add_mongodb_60_repo
+                 unset add_mongodb_70_repo
+                 unset add_mongodb_80_repo
+                 add_mongodb_44_repo="true"
+                 mongo_version_max="44"
+                 mongo_version_max_with_dot="4.4"
+                 mongo_version_locked="4.4.18"
+                 echo ""
+                 break;;
+              *)
+                 echo -e "$(date +%F-%T.%6N) | Invalid input \"${yes_no}\", repeating the question..." &>> "${eus_dir}/logs/avx-questionnaire.log"
+                 echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"
+                 sleep 3;;
+          esac
+          unset yes_no
+        done
       else
         echo -e "$(date +%F-%T.%6N) | Did not ask the Glenn R. MongoDB Compiled question." &>> "${eus_dir}/logs/avx-questionnaire.log"
         if [[ "${avx_compatible}" != 'true' ]]; then
@@ -4666,9 +4702,9 @@ mongodb_avx_support_check() {
       fi
     fi
     if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
-      jq '.scripts["'"$script_name"'"].tasks += {"mongodb-avx-check ('"$(date +%s)"')": [.scripts["'"$script_name"'"].tasks["mongodb-avx-check ('"$(date +%s)"')"][0] + {"CPU":"'"${cpu_model_name}"'","add_mongodb_44_repo":"'"${add_mongodb_44_repo}"'","mongo_version_max":"'"${mongo_version_max}"'","mongo_version_max_with_dot":"'"${mongo_version_max_with_dot}"'","mongo_version_locked":"'"${mongo_version_locked}"'","Official MongoDB Compatible":"'"${official_mongodb_compatible}"'","Glenn R. MongoDB":"'"${glennr_compiled_mongod}"'","Glenn R. MongoDB Compatible":"'"${glennr_mongod_compatible}"'"}]}' "${eus_dir}/db/db.json" > "/tmp/EUS/db-avx-debug.json"
+      jq '.scripts["'"$script_name"'"].tasks += {"mongodb-avx-check ('"$(date +%s)"')": [.scripts["'"$script_name"'"].tasks["mongodb-avx-check ('"$(date +%s)"')"][0] + {"architecture":"'"${architecture}"'","CPU":"'"${cpu_model_name}"'","add_mongodb_44_repo":"'"${add_mongodb_44_repo}"'","mongo_version_max":"'"${mongo_version_max}"'","mongo_version_max_with_dot":"'"${mongo_version_max_with_dot}"'","mongo_version_locked":"'"${mongo_version_locked}"'","Official MongoDB Compatible":"'"${official_mongodb_compatible}"'","Glenn R. MongoDB":"'"${glennr_compiled_mongod}"'","Glenn R. MongoDB Compatible":"'"${glennr_mongod_compatible}"'","Memory Allocation Modifications":"'"${memory_allocation_modifications}"'"}]}' "${eus_dir}/db/db.json" > "/tmp/EUS/db-avx-debug.json"
     else
-      jq --arg script_name "$script_name" --arg date_key "$(date +%s)" --arg cpu_model_name "${cpu_model_name}" --arg add_mongodb_44_repo "$add_mongodb_44_repo" --arg mongo_version_max "$mongo_version_max" --arg mongo_version_max_with_dot "$mongo_version_max_with_dot" --arg mongo_version_locked "$mongo_version_locked" --arg official_mongodb_compatible "$official_mongodb_compatible" --arg glennr_compiled_mongod "$glennr_compiled_mongod" --arg glennr_mongod_compatible "$glennr_mongod_compatible" '.scripts[$script_name].tasks = (.scripts[$script_name].tasks + {("mongodb-avx-check (" + $date_key + ")"): ((.scripts[$script_name].tasks["mongodb-avx-check (" + $date_key + ")"] // []) + [{"CPU": $cpu_model_name, "add_mongodb_44_repo": $add_mongodb_44_repo, "mongo_version_max": $mongo_version_max, "mongo_version_max_with_dot": $mongo_version_max_with_dot, "mongo_version_locked": $mongo_version_locked, "Official MongoDB Compatible": $official_mongodb_compatible, "Glenn R. MongoDB": $glennr_compiled_mongod, "Glenn R. MongoDB Compatible": $glennr_mongod_compatible}] )})' "${eus_dir}/db/db.json" > "/tmp/EUS/db-avx-debug.json"
+      jq --arg script_name "$script_name" --arg date_key "$(date +%s)" --arg cpu_model_name "${cpu_model_name}" --arg architecture "${architecture}" --arg add_mongodb_44_repo "$add_mongodb_44_repo" --arg mongo_version_max "$mongo_version_max" --arg mongo_version_max_with_dot "$mongo_version_max_with_dot" --arg mongo_version_locked "$mongo_version_locked" --arg official_mongodb_compatible "$official_mongodb_compatible" --arg glennr_compiled_mongod "$glennr_compiled_mongod" --arg glennr_mongod_compatible "$glennr_mongod_compatible" --arg memory_allocation_modifications "${memory_allocation_modifications}" '.scripts[$script_name].tasks = (.scripts[$script_name].tasks + {("mongodb-avx-check (" + $date_key + ")"): ((.scripts[$script_name].tasks["mongodb-avx-check (" + $date_key + ")"] // []) + [{"architecture": $architecture, "CPU": $cpu_model_name, "add_mongodb_44_repo": $add_mongodb_44_repo, "mongo_version_max": $mongo_version_max, "mongo_version_max_with_dot": $mongo_version_max_with_dot, "mongo_version_locked": $mongo_version_locked, "Official MongoDB Compatible": $official_mongodb_compatible, "Glenn R. MongoDB": $glennr_compiled_mongod, "Glenn R. MongoDB Compatible": $glennr_mongod_compatible}, "Memory Allocation Modifications": $memory_allocation_modifications}] )})' "${eus_dir}/db/db.json" > "/tmp/EUS/db-avx-debug.json"
     fi
   fi
 }
@@ -4999,173 +5035,181 @@ if [[ "${mongodb_version_installed_no_dots::2}" -gt "${mongo_version_max}" ]]; t
   apt-cache rdepends mongodb-* | sed "/mongo/d" | sed "/Reverse Depends/d" | awk '!a[$0]++' | sed 's/|//g' | sed 's/ //g' | sed -e 's/unifi-video//g' -e 's/unifi//g' -e 's/libstdc++6//g' -e '/^$/d' &> /tmp/EUS/mongodb/reverse_depends
   if [[ -s "/tmp/EUS/mongodb/reverse_depends" ]]; then mongodb_has_dependencies="true"; fi
   header_red
-  echo -e "${GRAY_R}#${RESET} UniFi Network Application ${unifi_clean} does not support MongoDB ${mongodb_version_installed}..."
-  if [[ "${mongodb_has_dependencies}" == 'true' ]]; then
-    echo -e "${GRAY_R}#${RESET} The following services depend on MongoDB..."
-    while read -r service; do echo -e "${RED}-${RESET} ${service}"; done < /tmp/EUS/mongodb/reverse_depends
+  while true; do
+    echo -e "${GRAY_R}#${RESET} UniFi Network Application ${unifi_clean} does not support MongoDB ${mongodb_version_installed}..."
+    if [[ "${mongodb_has_dependencies}" == 'true' ]]; then
+      echo -e "${GRAY_R}#${RESET} The following services depend on MongoDB..."
+      while read -r service; do echo -e "${RED}-${RESET} ${service}"; done < /tmp/EUS/mongodb/reverse_depends
+      echo -e "\\n\\n"
+      echo -e "${RED}#${RESET} Uninstalling MongoDB will also get rid of the applications/services listed above..."
+    fi
     echo -e "\\n\\n"
-    echo -e "${RED}#${RESET} Uninstalling MongoDB will also get rid of the applications/services listed above..."
-  fi
-  echo -e "\\n\\n"
-  if [[ "${script_option_skip}" != 'true' && "${mongodb_has_dependencies}" != 'true' ]]; then
-    read -rp "Do you want to proceed with uninstalling MongoDB? (Y/n)" yes_no
-  else
-    sleep 5
-  fi
-  case "$yes_no" in
-      [Yy]*|"")
-        mongodb_installed="false"
-        header
-        check_dpkg_lock
-        echo -e "${GRAY_R}#${RESET} Preparing unsupported mongodb uninstall... \\n"
-        if [[ -n "${previous_mongodb_version}" ]]; then
-          if [[ "${mongodb_version_installed_no_dots::2}" == "${previous_mongodb_version::2}" ]]; then
-            installed_and_previous_mongodb_match="true"
-            mongodb_downgrade_process="true"
-          fi
-        fi
-        if [[ "$(grep -si is_default /usr/lib/unifi/data/system.properties | awk -F= '{print $2}')" != 'true' && "${installed_and_previous_mongodb_match}" == 'true' ]]; then
-          if "$(which dpkg)" -l "${gr_mongod_name}" 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then mongodb_org_server_package="${gr_mongod_name}"; else mongodb_org_server_package="mongodb-org-server"; fi
-          if "$(which dpkg)" -l "${mongodb_org_server_package}" 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
-            mongodb_org_version="$(dpkg-query --showformat='${Version}' --show "${mongodb_org_server_package}" 2> /dev/null | sed 's/.*://' | sed 's/-.*//g')"
-            mongodb_org_version_major_minor="${mongodb_org_version%.*}"
-            if ! "$(which dpkg)" -l mongodb-org-shell 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
-        	  install_mongodb_org_shell="true"
-            else
-	          install_mongodb_org_shell_version="$(dpkg-query --showformat='${version}' --show mongodb-org-shell 2> /dev/null | sed 's/.*://' | sed 's/-.*//g')"
-              install_mongodb_org_shell_major_minor="${install_mongodb_org_shell_version%.*}"
-              if [[ "${install_mongodb_org_shell_major_minor}" != "${mongodb_org_version_major_minor}" ]]; then install_mongodb_org_shell="true"; fi
-            fi
-            if [[ "${install_mongodb_org_shell}" == 'true' ]]; then
-              unset install_mongodb_org_shell
-              echo -e "${GRAY_R}----${RESET}\\n"
-              multiple_attempt_to_install_package_log="unifi-install-script-required"
-              multiple_attempt_to_install_package_task="install"
-              multiple_attempt_to_install_package_attempts_max="3"
-              multiple_attempt_to_install_package_name="mongodb-org-shell"
-              multiple_attempt_to_install_package_version_with_equal_sign="=${mongodb_org_version}"
-              multiple_attempt_to_install_package
-              get_apt_options
+    if [[ "${script_option_skip}" != 'true' && "${mongodb_has_dependencies}" != 'true' ]]; then
+      read -rp "Do you want to proceed with uninstalling MongoDB? (Y/n)" yes_no
+    else
+      sleep 5
+    fi
+    case "$yes_no" in
+        [Yy]*|"")
+          mongodb_installed="false"
+          header
+          check_dpkg_lock
+          echo -e "${GRAY_R}#${RESET} Preparing unsupported mongodb uninstall... \\n"
+          if [[ -n "${previous_mongodb_version}" ]]; then
+            if [[ "${mongodb_version_installed_no_dots::2}" == "${previous_mongodb_version::2}" ]]; then
+              installed_and_previous_mongodb_match="true"
+              mongodb_downgrade_process="true"
             fi
           fi
-          if "$(which dpkg)" -l "${mongodb_org_server_package}" 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
-            mongodb_org_version="$(dpkg-query --showformat='${Version}' --show "${mongodb_org_server_package}" 2> /dev/null | sed 's/.*://' | sed 's/-.*//g')"
-            mongodb_org_version_no_dots="${mongodb_org_version//./}"
-            if [[ "${mongodb_org_version_no_dots::1}" -ge "5" ]]; then
-              mongodb_mongosh_libssl_version="$(apt-cache depends "${mongodb_org_server_package}"="${mongodb_org_version}" | sed -e 's/>//g' -e 's/<//g' | grep -io "libssl1.1$\\|libssl3$")"
-              if [[ -z "${mongodb_mongosh_libssl_version}" ]]; then
-                mongodb_mongosh_libssl_version="$(apt-cache depends "${mongodb_org_server_package}" | sed -e 's/>//g' -e 's/<//g' | grep -io "libssl1.1$\\|libssl3$")"
-              fi
-              if [[ "${mongodb_mongosh_libssl_version}" == 'libssl3' ]]; then
-                mongodb_mongosh_install_package_name="mongodb-mongosh-shared-openssl3"
-              elif [[ "${mongodb_mongosh_libssl_version}" == 'libssl1.1' ]]; then
-                mongodb_mongosh_install_package_name="mongodb-mongosh-shared-openssl11"
-              elif "$(which dpkg)" -l libssl3t64 libssl3 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
-                mongodb_mongosh_install_package_name="mongodb-mongosh-shared-openssl3"
+          if [[ "$(grep -si is_default /usr/lib/unifi/data/system.properties | awk -F= '{print $2}')" != 'true' && "${installed_and_previous_mongodb_match}" == 'true' ]]; then
+            if "$(which dpkg)" -l "${gr_mongod_name}" 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then mongodb_org_server_package="${gr_mongod_name}"; else mongodb_org_server_package="mongodb-org-server"; fi
+            if "$(which dpkg)" -l "${mongodb_org_server_package}" 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+              mongodb_org_version="$(dpkg-query --showformat='${Version}' --show "${mongodb_org_server_package}" 2> /dev/null | sed 's/.*://' | sed 's/-.*//g')"
+              mongodb_org_version_major_minor="${mongodb_org_version%.*}"
+              if ! "$(which dpkg)" -l mongodb-org-shell 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+        	    install_mongodb_org_shell="true"
               else
-                mongodb_mongosh_install_package_name="mongodb-mongosh-shared-openssl11"
+	            install_mongodb_org_shell_version="$(dpkg-query --showformat='${version}' --show mongodb-org-shell 2> /dev/null | sed 's/.*://' | sed 's/-.*//g')"
+                install_mongodb_org_shell_major_minor="${install_mongodb_org_shell_version%.*}"
+                if [[ "${install_mongodb_org_shell_major_minor}" != "${mongodb_org_version_major_minor}" ]]; then install_mongodb_org_shell="true"; fi
               fi
-              if ! "$(which dpkg)" -l mongodb-mongosh-shared-openssl11 mongodb-mongosh-shared-openssl3 mongodb-mongosh mongosh 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+              if [[ "${install_mongodb_org_shell}" == 'true' ]]; then
+                unset install_mongodb_org_shell
                 echo -e "${GRAY_R}----${RESET}\\n"
-                mongodb_package_libssl="${mongodb_mongosh_install_package_name}"
-                libssl_installation_check
                 multiple_attempt_to_install_package_log="unifi-install-script-required"
                 multiple_attempt_to_install_package_task="install"
                 multiple_attempt_to_install_package_attempts_max="3"
-                multiple_attempt_to_install_package_name="${mongodb_mongosh_install_package_name}"
+                multiple_attempt_to_install_package_name="mongodb-org-shell"
+                multiple_attempt_to_install_package_version_with_equal_sign="=${mongodb_org_version}"
                 multiple_attempt_to_install_package
                 get_apt_options
               fi
             fi
-          fi
-          mongo_command
-          unifi_database_location="$(readlink -f /usr/lib/unifi/data/db)"
-          unifi_database_location_user="$(stat -c "%U" "${unifi_database_location}")"
-          unifi_logs_location="$(readlink -f /usr/lib/unifi/logs)"
-          start_unifi_database_task="unsupported-mongodb-version"
-          start_unifi_database
-          FeatureCompatibilityVersion="${mongo_version_max_with_dot}"
-          echo -e "${GRAY_R}#${RESET} Setting featureCompatibilityVersion to version ${FeatureCompatibilityVersion}..."
-          echo -e "${GRAY_R}#${RESET} This process could take up to 60 seconds before timing out..."
-          check_count=0
-          while [[ "${check_count}" -lt '60' ]]; do
-            if [[ "${mongodb_version_installed_no_dots::2}" -ge "36" ]]; then
-              if grep -sioq "confirm: true" /tmp/EUS/mongodb/setFeatureCompatibilityVersion.log; then
-                "${mongocommand}" --quiet --port 27117 --eval 'db.adminCommand( { setFeatureCompatibilityVersion: "'"${FeatureCompatibilityVersion}"'", confirm: true } )' &> /tmp/EUS/mongodb/setFeatureCompatibilityVersion.log
+            if "$(which dpkg)" -l "${mongodb_org_server_package}" 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+              mongodb_org_version="$(dpkg-query --showformat='${Version}' --show "${mongodb_org_server_package}" 2> /dev/null | sed 's/.*://' | sed 's/-.*//g')"
+              mongodb_org_version_no_dots="${mongodb_org_version//./}"
+              if [[ "${mongodb_org_version_no_dots::1}" -ge "5" ]]; then
+                mongodb_mongosh_libssl_version="$(apt-cache depends "${mongodb_org_server_package}"="${mongodb_org_version}" | sed -e 's/>//g' -e 's/<//g' | grep -io "libssl1.1$\\|libssl3$")"
+                if [[ -z "${mongodb_mongosh_libssl_version}" ]]; then
+                  mongodb_mongosh_libssl_version="$(apt-cache depends "${mongodb_org_server_package}" | sed -e 's/>//g' -e 's/<//g' | grep -io "libssl1.1$\\|libssl3$")"
+                fi
+                if [[ "${mongodb_mongosh_libssl_version}" == 'libssl3' ]]; then
+                  mongodb_mongosh_install_package_name="mongodb-mongosh-shared-openssl3"
+                elif [[ "${mongodb_mongosh_libssl_version}" == 'libssl1.1' ]]; then
+                  mongodb_mongosh_install_package_name="mongodb-mongosh-shared-openssl11"
+                elif "$(which dpkg)" -l libssl3t64 libssl3 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+                  mongodb_mongosh_install_package_name="mongodb-mongosh-shared-openssl3"
+                else
+                  mongodb_mongosh_install_package_name="mongodb-mongosh-shared-openssl11"
+                fi
+                if ! "$(which dpkg)" -l mongodb-mongosh-shared-openssl11 mongodb-mongosh-shared-openssl3 mongodb-mongosh mongosh 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+                  echo -e "${GRAY_R}----${RESET}\\n"
+                  mongodb_package_libssl="${mongodb_mongosh_install_package_name}"
+                  libssl_installation_check
+                  multiple_attempt_to_install_package_log="unifi-install-script-required"
+                  multiple_attempt_to_install_package_task="install"
+                  multiple_attempt_to_install_package_attempts_max="3"
+                  multiple_attempt_to_install_package_name="${mongodb_mongosh_install_package_name}"
+                  multiple_attempt_to_install_package
+                  get_apt_options
+                fi
+              fi
+            fi
+            mongo_command
+            unifi_database_location="$(readlink -f /usr/lib/unifi/data/db)"
+            unifi_database_location_user="$(stat -c "%U" "${unifi_database_location}")"
+            unifi_logs_location="$(readlink -f /usr/lib/unifi/logs)"
+            start_unifi_database_task="unsupported-mongodb-version"
+            start_unifi_database
+            FeatureCompatibilityVersion="${mongo_version_max_with_dot}"
+            echo -e "${GRAY_R}#${RESET} Setting featureCompatibilityVersion to version ${FeatureCompatibilityVersion}..."
+            echo -e "${GRAY_R}#${RESET} This process could take up to 60 seconds before timing out..."
+            check_count=0
+            while [[ "${check_count}" -lt '60' ]]; do
+              if [[ "${mongodb_version_installed_no_dots::2}" -ge "36" ]]; then
+                if grep -sioq "confirm: true" /tmp/EUS/mongodb/setFeatureCompatibilityVersion.log; then
+                  "${mongocommand}" --quiet --port 27117 --eval 'db.adminCommand( { setFeatureCompatibilityVersion: "'"${FeatureCompatibilityVersion}"'", confirm: true } )' &> /tmp/EUS/mongodb/setFeatureCompatibilityVersion.log
+                else
+                  "${mongocommand}" --quiet --port 27117 --eval 'db.adminCommand( { setFeatureCompatibilityVersion: "'"${FeatureCompatibilityVersion}"'" } )' &> /tmp/EUS/mongodb/setFeatureCompatibilityVersion.log
+               fi
+              fi
+              if sed -e 's/ //g' -e 's/"//g' /tmp/EUS/mongodb/setFeatureCompatibilityVersion.log | grep -iq "ok:1"; then
+                echo -e "${GREEN}#${RESET} Successfully set featureCompatibilityVersion to ${FeatureCompatibilityVersion}! \\n"
+                success_setfeaturecompatibilityversion="true"
+                break
               else
-                "${mongocommand}" --quiet --port 27117 --eval 'db.adminCommand( { setFeatureCompatibilityVersion: "'"${FeatureCompatibilityVersion}"'" } )' &> /tmp/EUS/mongodb/setFeatureCompatibilityVersion.log
-             fi
+                ((check_count=check_count+1))
+                sleep 1
+              fi
+            done
+            if [[ "${success_setfeaturecompatibilityversion}" != 'true' ]]; then
+              echo -e "${RED}#${RESET} Failed to set featureCompatibilityVersion to ${FeatureCompatibilityVersion}! \\n${RED}#${RESET} We will keep featureCompatibilityVersion untouched! \\n"
             fi
-            if sed -e 's/ //g' -e 's/"//g' /tmp/EUS/mongodb/setFeatureCompatibilityVersion.log | grep -iq "ok:1"; then
-              echo -e "${GREEN}#${RESET} Successfully set featureCompatibilityVersion to ${FeatureCompatibilityVersion}! \\n"
-              success_setfeaturecompatibilityversion="true"
-              break
+            shutdown_mongodb
+          fi
+          if "$(which dpkg)" -l | grep "unifi " | grep -q "^ii\\|^hi"; then
+            echo -e "${GRAY_R}#${RESET} Removing the UniFi Network Application so that the files are kept on the system...\\n"
+            if "$(which dpkg)" --remove --force-remove-reinstreq unifi &>> "${eus_dir}/logs/unsupported-mongodb-uninstall.log"; then
+              echo -e "${GREEN}#${RESET} Successfully removed the UniFi Network Application! \\n"
             else
-              ((check_count=check_count+1))
-              sleep 1
+              abort_reason="Failed to remove the UniFi Network Application."
+              abort
             fi
-          done
-          if [[ "${success_setfeaturecompatibilityversion}" != 'true' ]]; then
-            echo -e "${RED}#${RESET} Failed to set featureCompatibilityVersion to ${FeatureCompatibilityVersion}! \\n${RED}#${RESET} We will keep featureCompatibilityVersion untouched! \\n"
           fi
-          shutdown_mongodb
-        fi
-        if "$(which dpkg)" -l | grep "unifi " | grep -q "^ii\\|^hi"; then
-          echo -e "${GRAY_R}#${RESET} Removing the UniFi Network Application so that the files are kept on the system...\\n"
-          if "$(which dpkg)" --remove --force-remove-reinstreq unifi &>> "${eus_dir}/logs/unsupported-mongodb-uninstall.log"; then
-            echo -e "${GREEN}#${RESET} Successfully removed the UniFi Network Application! \\n"
-          else
-            abort_reason="Failed to remove the UniFi Network Application."
-            abort
-          fi
-        fi
-        if "$(which dpkg)" -l | grep "unifi-video" | grep -q "^ii\\|^hi"; then
-          echo -e "${GRAY_R}#${RESET} Removing UniFi Video so that the files are kept on the system...\\n"
-          if "$(which dpkg)" --remove --force-remove-reinstreq unifi-video &>> "${eus_dir}/logs/unsupported-mongodb-uninstall.log"; then
-            echo -e "${GREEN}#${RESET} Successfully removed UniFi Video! \\n"
-          else
-            abort_reason="Failed to remove UniFi Video."
-            abort
-          fi
-        fi
-        remove_older_mongodb_repositories
-        sleep 2
-        while read -r mongodb_package_purge; do
-          if "$(which dpkg)" -l | awk '{print$2}' | grep -iq "^${mongodb_package_purge}$"; then
-            check_dpkg_lock
-            echo -e "${GRAY_R}#${RESET} Purging package ${mongodb_package_purge}..."
-            if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' purge "${mongodb_package_purge}" &>> "${eus_dir}/logs/unsupported-mongodb-uninstall.log"; then
-              echo -e "${GREEN}#${RESET} Successfully purged ${mongodb_package_purge}! \\n"
+          if "$(which dpkg)" -l | grep "unifi-video" | grep -q "^ii\\|^hi"; then
+            echo -e "${GRAY_R}#${RESET} Removing UniFi Video so that the files are kept on the system...\\n"
+            if "$(which dpkg)" --remove --force-remove-reinstreq unifi-video &>> "${eus_dir}/logs/unsupported-mongodb-uninstall.log"; then
+              echo -e "${GREEN}#${RESET} Successfully removed UniFi Video! \\n"
             else
-              echo -e "${RED}#${RESET} Failed to purge ${mongodb_package_purge}... \\n"
-              mongodb_package_purge_failed="true"
+              abort_reason="Failed to remove UniFi Video."
+              abort
             fi
           fi
-        done < <("$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep -i "mongo" | awk '{print $2}')
-        if [[ "${mongodb_package_purge_failed}" == 'true' ]]; then
-          echo -e "${YELLOW}#${RESET} There was a failure during the purge process...\\n"
-          echo -e "${GRAY_R}#${RESET} Uninstalling MongoDB with different actions...\\n"
-          while read -r mongodb_package_remove; do
-            if "$(which dpkg)" -l | awk '{print$2}' | grep -iq "^${mongodb_package_remove}$"; then
+          remove_older_mongodb_repositories
+          sleep 2
+          while read -r mongodb_package_purge; do
+            if "$(which dpkg)" -l | awk '{print$2}' | grep -iq "^${mongodb_package_purge}$"; then
               check_dpkg_lock
-              echo -e "${GRAY_R}#${RESET} Removing package ${mongodb_package_remove}..."
-              if DEBIAN_FRONTEND='noninteractive' "$(which dpkg)" --remove --force-remove-reinstreq "${mongodb_package_remove}" &>> "${eus_dir}/logs/unsupported-mongodb-uninstall.log"; then
-                echo -e "${GREEN}#${RESET} Successfully removed ${mongodb_package_remove}! \\n"
+              echo -e "${GRAY_R}#${RESET} Purging package ${mongodb_package_purge}..."
+              if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' purge "${mongodb_package_purge}" &>> "${eus_dir}/logs/unsupported-mongodb-uninstall.log"; then
+                echo -e "${GREEN}#${RESET} Successfully purged ${mongodb_package_purge}! \\n"
               else
-                echo -e "${RED}#${RESET} Failed to remove ${mongodb_package_remove}... \\n"
+                echo -e "${RED}#${RESET} Failed to purge ${mongodb_package_purge}... \\n"
+                mongodb_package_purge_failed="true"
               fi
             fi
           done < <("$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep -i "mongo" | awk '{print $2}')
-        fi
-        echo -e "${GRAY_R}#${RESET} Running apt-get autoremove..."
-        if apt-get -y autoremove &>> "${eus_dir}/logs/apt-cleanup.log"; then echo -e "${GREEN}#${RESET} Successfully ran apt-get autoremove! \\n"; else echo -e "${RED}#${RESET} Failed to run apt-get autoremove"; fi
-        echo -e "${GRAY_R}#${RESET} Running apt-get autoclean..."
-        if apt-get -y autoclean &>> "${eus_dir}/logs/apt-cleanup.log"; then echo -e "${GREEN}#${RESET} Successfully ran apt-get autoclean! \\n"; else echo -e "${RED}#${RESET} Failed to run apt-get autoclean"; fi
-        sleep 3
-        mongodb_unsupported_uninstall="true"
-        unset mongodb_downgrade_process;;
-      [Nn]*) cancel_script;;
-  esac
+          if [[ "${mongodb_package_purge_failed}" == 'true' ]]; then
+            echo -e "${YELLOW}#${RESET} There was a failure during the purge process...\\n"
+            echo -e "${GRAY_R}#${RESET} Uninstalling MongoDB with different actions...\\n"
+            while read -r mongodb_package_remove; do
+              if "$(which dpkg)" -l | awk '{print$2}' | grep -iq "^${mongodb_package_remove}$"; then
+                check_dpkg_lock
+                echo -e "${GRAY_R}#${RESET} Removing package ${mongodb_package_remove}..."
+                if DEBIAN_FRONTEND='noninteractive' "$(which dpkg)" --remove --force-remove-reinstreq "${mongodb_package_remove}" &>> "${eus_dir}/logs/unsupported-mongodb-uninstall.log"; then
+                  echo -e "${GREEN}#${RESET} Successfully removed ${mongodb_package_remove}! \\n"
+                else
+                  echo -e "${RED}#${RESET} Failed to remove ${mongodb_package_remove}... \\n"
+                fi
+              fi
+            done < <("$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep -i "mongo" | awk '{print $2}')
+          fi
+          echo -e "${GRAY_R}#${RESET} Running apt-get autoremove..."
+          if apt-get -y autoremove &>> "${eus_dir}/logs/apt-cleanup.log"; then echo -e "${GREEN}#${RESET} Successfully ran apt-get autoremove! \\n"; else echo -e "${RED}#${RESET} Failed to run apt-get autoremove"; fi
+          echo -e "${GRAY_R}#${RESET} Running apt-get autoclean..."
+          if apt-get -y autoclean &>> "${eus_dir}/logs/apt-cleanup.log"; then echo -e "${GREEN}#${RESET} Successfully ran apt-get autoclean! \\n"; else echo -e "${RED}#${RESET} Failed to run apt-get autoclean"; fi
+          sleep 3
+          mongodb_unsupported_uninstall="true"
+          unset mongodb_downgrade_process
+          break;;
+        [Nn]*)
+          cancel_script
+          break;;
+        *)
+          echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"
+          sleep 3;;
+    esac
+  done
 fi
 
 # Memory and Swap file.
@@ -5311,8 +5355,8 @@ support_file_upload_opt_in() {
     fi
     if [[ "${script_option_skip}" != 'true' ]]; then echo -e "${GRAY_R}#${RESET} The script generates support files when failures are detected, these can help Glenn R. to"; echo -e "${GRAY_R}#${RESET} improve the script quality for the Community and resolve your issues in future versions of the script.\\n"; read -rp $'\033[39m#\033[0m Do you want to automatically upload the support files? (Y/n) ' yes_no; fi
     case "$yes_no" in
-        [Yy]*|"") upload_support_files="true";;
         [Nn]*) upload_support_files="false";;
+        *) upload_support_files="true";;
     esac
     if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
       jq '."database" += {"support-file-upload": "'"${upload_support_files}"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
@@ -5329,8 +5373,8 @@ script_removal() {
   header
   read -rp $'\033[39m#\033[0m Do you want to keep the script on your system after completion? (Y/n) ' yes_no
   case "$yes_no" in
-      [Yy]*|"") ;;
       [Nn]*) delete_script="true";;
+      *) ;;
   esac
 }
 
@@ -5673,7 +5717,7 @@ java_cleanup_not_required_versions() {
               fi
             done < <("$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep -i "openjdk-.*-\\|oracle-java.*\\|temurin-.*-" | grep -v "openjdk-${required_java_version_short}\\|oracle-java${required_java_version_short}\\|openjdk-${required_java_version_short}\\|temurin-${required_java_version_short}" | awk '{print $2}' | sed 's/:.*//')
             sleep 3;;
-         [Nn]*|"") ;;
+         *) ;;
     esac
   fi
 }
@@ -5988,15 +6032,18 @@ rm --force /tmp/EUS/upgrade/upgrade_list &> /dev/null
 if [[ -f /tmp/EUS/upgrade/upgrade_list ]]; then number_of_updates=$(wc -l < /tmp/EUS/upgrade/upgrade_list); else number_of_updates='0'; fi
 if [[ "${number_of_updates}" == '0' ]]; then echo -e "${GRAY_R}#${RESET} There are no packages that need an upgrade..."; fi
 echo -e "\\n${GRAY_R}----${RESET}\\n"
-if [[ "${script_option_skip}" != 'true' ]]; then
-  read -rp $'\033[39m#\033[0m Do you want to proceed with updating your system? (Y/n) ' yes_no
-else
-  echo -e "${GRAY_R}#${RESET} Performing the updates!"
-fi
-case "$yes_no" in
-    [Yy]*|"") echo -e "\\n${GRAY_R}----${RESET}\\n"; system_upgrade; check_mongodb_installed;;
-    [Nn]*) ;;
-esac
+while true; do
+  if [[ "${script_option_skip}" != 'true' ]]; then
+    read -rp $'\033[39m#\033[0m Do you want to proceed with updating your system? (Y/n) ' yes_no
+  else
+    echo -e "${GRAY_R}#${RESET} Performing the updates!"
+  fi
+  case "$yes_no" in
+      [Yy]*|"") echo -e "\\n${GRAY_R}----${RESET}\\n"; system_upgrade; check_mongodb_installed; break;;
+      [Nn]*) break;;
+      *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
+  esac
+done
 check_dpkg_lock
 while read -r mongo_package; do
   echo "${mongo_package} install" | "$(which dpkg)" --set-selections &> /dev/null
@@ -7317,7 +7364,7 @@ if [[ "${script_option_skip}" != 'true' || "${script_option_add_repository}" == 
         else
           echo -e "${RED}#${RESET} Failed to download the key for the UniFi Network Application repository...\\n"
         fi;;
-      [Nn]*|"") ;;
+      *) ;;
   esac
   unset yes_no
 fi
@@ -7331,14 +7378,21 @@ if "$(which dpkg)" -l ufw | grep -q "^ii\\|^hi"; then
   if ufw status verbose | awk '/^Status:/{print $2}' | grep -xq "active"; then
     if [[ "${script_option_skip}" != 'true' && "${script_option_local_install}" != 'true' ]]; then
       header
-      read -rp $'\033[39m#\033[0m Is/will your application only be used locally ( regarding device discovery )? (Y/n) ' yes_no
-      case "${yes_no}" in
-          [Yy]*|"")
-              echo -e "${GRAY_R}#${RESET} Script will ensure that 10001/udp for device discovery will be added to UFW."
-              script_option_local_install="true"
-              sleep 3;;
-          [Nn]*|*) ;;
-      esac
+      while true; do
+        read -rp $'\033[39m#\033[0m Is/will your application only be used locally ( regarding device discovery )? (Y/n) ' yes_no
+        case "${yes_no}" in
+            [Yy]*|"")
+                echo -e "${GRAY_R}#${RESET} Script will ensure that 10001/udp for device discovery will be added to UFW."
+                script_option_local_install="true"
+                sleep 3
+                break;;
+            [Nn]*)
+                break;;
+            *)
+                echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"
+                sleep 3;;
+        esac
+      done
     fi
     header
     echo -e "${GRAY_R}#${RESET} Uncomplicated Firewall ( UFW ) seems to be active."
@@ -7370,54 +7424,68 @@ if "$(which dpkg)" -l ufw | grep -q "^ii\\|^hi"; then
     if [[ "${required_port_missing}" == 'true' ]]; then
       echo -e "\\n${GRAY_R}----${RESET}\\n\\n"
       echo -e "${GRAY_R}#${RESET} We are missing required ports.."
-      if [[ "${script_option_skip}" != 'true' ]]; then
-        read -rp $'\033[39m#\033[0m Do you want to add the required ports for your UniFi Network Application? (Y/n) ' yes_no
-      else
-        echo -e "${GRAY_R}#${RESET} Adding required UniFi ports.."
-        sleep 2
-      fi
-      case "${yes_no}" in
-         [Yy]*|"")
-            echo -e "\\n${GRAY_R}----${RESET}\\n\\n"
-            for port in "${unifi_ports[@]}"; do
-              port_number=$(echo "${port}" | cut -d'/' -f1)
-              ufw allow "${port}" &> "/tmp/EUS/ports/${port_number}"
-              if [[ -f "/tmp/EUS/ports/${port_number}" && -s "/tmp/EUS/ports/${port_number}" ]]; then
-                if grep -iq "added" "/tmp/EUS/ports/${port_number}"; then
-                  echo -e "${GREEN}#${RESET} Successfully added port ${port} to UFW."
+      while true; do
+        if [[ "${script_option_skip}" != 'true' ]]; then
+          read -rp $'\033[39m#\033[0m Do you want to add the required ports for your UniFi Network Application? (Y/n) ' yes_no
+        else
+          echo -e "${GRAY_R}#${RESET} Adding required UniFi ports.."
+          sleep 2
+        fi
+        case "${yes_no}" in
+           [Yy]*|"")
+              echo -e "\\n${GRAY_R}----${RESET}\\n\\n"
+              for port in "${unifi_ports[@]}"; do
+                port_number=$(echo "${port}" | cut -d'/' -f1)
+                ufw allow "${port}" &> "/tmp/EUS/ports/${port_number}"
+                if [[ -f "/tmp/EUS/ports/${port_number}" && -s "/tmp/EUS/ports/${port_number}" ]]; then
+                  if grep -iq "added" "/tmp/EUS/ports/${port_number}"; then
+                    echo -e "${GREEN}#${RESET} Successfully added port ${port} to UFW."
+                  fi
+                  if grep -iq "skipping" "/tmp/EUS/ports/${port_number}"; then
+                    echo -e "${YELLOW}#${RESET} Port ${port} was already added to UFW."
+                  fi
                 fi
-                if grep -iq "skipping" "/tmp/EUS/ports/${port_number}"; then
-                  echo -e "${YELLOW}#${RESET} Port ${port} was already added to UFW."
+              done
+              if [[ -f /etc/ssh/sshd_config && -s /etc/ssh/sshd_config ]]; then
+                if ! ufw status verbose | grep -v "(v6)" | grep "${ssh_port}" | grep -iq "ALLOW IN"; then
+                  while true; do
+                    echo -e "\\n${GRAY_R}----${RESET}\\n\\n${GRAY_R}#${RESET} Your SSH port ( ${ssh_port} ) doesn't seem to be in your UFW list.."
+                    if [[ "${script_option_skip}" != 'true' ]]; then
+                      read -rp $'\033[39m#\033[0m Do you want to add your SSH port to the UFW list? (Y/n) ' yes_no
+                    else
+                      echo -e "${GRAY_R}#${RESET} Adding port ${ssh_port}.."
+                      sleep 2
+                    fi
+                    case "${yes_no}" in
+                       [Yy]*|"")
+                          echo -e "\\n${GRAY_R}----${RESET}\\n"
+                          ufw allow "${ssh_port}" &> "/tmp/EUS/ports/${ssh_port}"
+                          if [[ -f "/tmp/EUS/ports/${ssh_port}" && -s "/tmp/EUS/ports/${ssh_port}" ]]; then
+                            if grep -iq "added" "/tmp/EUS/ports/${ssh_port}"; then
+                              echo -e "${GREEN}#${RESET} Successfully added port ${ssh_port} to UFW."
+                            fi
+                            if grep -iq "skipping" "/tmp/EUS/ports/${ssh_port}"; then
+                              echo -e "${YELLOW}#${RESET} Port ${ssh_port} was already added to UFW."
+                            fi
+                          fi
+                          break;;
+                       [Nn]*)
+                          break;;
+                       *)
+                          echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"
+                          sleep 3;;
+                    esac
+                  done
                 fi
               fi
-            done
-            if [[ -f /etc/ssh/sshd_config && -s /etc/ssh/sshd_config ]]; then
-              if ! ufw status verbose | grep -v "(v6)" | grep "${ssh_port}" | grep -iq "ALLOW IN"; then
-                echo -e "\\n${GRAY_R}----${RESET}\\n\\n${GRAY_R}#${RESET} Your SSH port ( ${ssh_port} ) doesn't seem to be in your UFW list.."
-                if [[ "${script_option_skip}" != 'true' ]]; then
-                  read -rp $'\033[39m#\033[0m Do you want to add your SSH port to the UFW list? (Y/n) ' yes_no
-                else
-                  echo -e "${GRAY_R}#${RESET} Adding port ${ssh_port}.."
-                  sleep 2
-                fi
-                case "${yes_no}" in
-                   [Yy]*|"")
-                      echo -e "\\n${GRAY_R}----${RESET}\\n"
-                      ufw allow "${ssh_port}" &> "/tmp/EUS/ports/${ssh_port}"
-                      if [[ -f "/tmp/EUS/ports/${ssh_port}" && -s "/tmp/EUS/ports/${ssh_port}" ]]; then
-                        if grep -iq "added" "/tmp/EUS/ports/${ssh_port}"; then
-                          echo -e "${GREEN}#${RESET} Successfully added port ${ssh_port} to UFW."
-                        fi
-                        if grep -iq "skipping" "/tmp/EUS/ports/${ssh_port}"; then
-                          echo -e "${YELLOW}#${RESET} Port ${ssh_port} was already added to UFW."
-                        fi
-                      fi;;
-                   [Nn]*|*) ;;
-                esac
-              fi
-            fi;;
-         [Nn]*|*) ;;
-      esac
+              break;;
+           [Nn]*)
+              break;;
+           *)
+              echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"
+              sleep 3;;
+        esac
+      done
     else
       echo -e "\\n${GRAY_R}----${RESET}\\n\\n${GRAY_R}#${RESET} All required ports already exist!"
     fi
@@ -7482,14 +7550,21 @@ if [[ "${public_reachable}" == 'true' || "${run_easy_encrypt}" == 'true' ]] && [
   echo -e "${GRAY_R}#${RESET} Requirements:"
   echo -e "${GRAY_R}-${RESET} A domain name and A record pointing to the server that runs the UniFi Network Application."
   echo -e "${GRAY_R}-${RESET} Port 80 needs to be open ( port forwarded )\\n\\n"
-  if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Do you want to download and execute my UniFi Easy Encrypt Script? (Y/n) ' yes_no; fi
-  case "$yes_no" in
-      [Yy]*|"")
-          rm --force unifi-easy-encrypt.sh &> /dev/null
-          # shellcheck disable=SC2068
-          curl "${curl_argument[@]}" --remote-name https://get.glennr.nl/unifi/extra/unifi-easy-encrypt.sh && bash unifi-easy-encrypt.sh ${le_script_options[@]};;
-      [Nn]*) ;;
-  esac
+  while true; do
+    if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Do you want to download and execute my UniFi Easy Encrypt Script? (Y/n) ' yes_no; fi
+    case "$yes_no" in
+        [Yy]*|"")
+            rm --force unifi-easy-encrypt.sh &> /dev/null
+            # shellcheck disable=SC2068
+            curl "${curl_argument[@]}" --remote-name https://get.glennr.nl/unifi/extra/unifi-easy-encrypt.sh && bash unifi-easy-encrypt.sh ${le_script_options[@]}
+            break;;
+        [Nn]*)
+            break;;
+        *)
+            echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"
+            sleep 3;;
+    esac
+  done
 fi
 
 if [[ "${netcat_installed}" == 'true' ]]; then
