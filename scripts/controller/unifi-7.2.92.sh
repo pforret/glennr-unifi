@@ -62,7 +62,7 @@
 ###################################################################################################################################################################################################
 
 # Script                | UniFi Network Easy Installation Script
-# Version               | 8.7.5
+# Version               | 8.7.7
 # Application version   | 7.2.92-c5bb7ccb18
 # Debian Repo version   | 7.2.92-18687-1
 # Author                | Glenn Rietveld
@@ -2907,11 +2907,48 @@ update_script() {
   header_red
   echo -e "${GRAY_R}#${RESET} You're currently running script version ${local_version} while ${online_version} is the latest!"
   echo -e "${GRAY_R}#${RESET} Downloading and executing version ${online_version} of the script...\\n\\n"
-  sleep 3
-  rm --force "${script_location}" 2> /dev/null
-  rm --force "unifi-${version}.sh" 2> /dev/null
-  # shellcheck disable=SC2068
-  curl "${curl_argument[@]}" --remote-name "https://get.glennr.nl/unifi/install/unifi-${version}.sh" && bash "unifi-${version}.sh" ${script_options[@]}; exit 0
+  sleep 2
+  if [[ -n "$(command -v jq)" ]]; then
+    online_sha256sum="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-script-version?script=unifi-install&version=${version}" 2> /dev/null | jq -r '.checksums.sha256sum' 2> /dev/null | sed '/null/d')"
+  else
+    online_sha256sum="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-script-version?script=unifi-install&version=${version}" 2> /dev/null | grep -oP '"sha256sum"\s*:\s*"\K[^"]+')"
+  fi
+  if curl "${curl_argument[@]}" -o "${script_location}.tmp" "https://get.glennr.nl/unifi/install/unifi-${version}.sh"; then
+    if [[ -n "${online_sha256sum}" && "$(command -v sha256sum)" ]]; then
+      local_checksum="$(sha256sum "${script_location}.tmp" 2> /dev/null | awk '{print $1}')"
+      if [[ "${local_checksum}" != "${online_sha256sum}" ]]; then
+        for attempt in {1..5}; do
+          if [[ -n "$(command -v jq)" ]]; then
+            online_sha256sum_latest="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-script-version?script=unifi-install&version=${version}" 2> /dev/null | jq -r '.checksums.sha256sum' 2> /dev/null | sed '/null/d')"
+          else
+            online_sha256sum_latest="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-script-version?script=unifi-install&version=${version}" 2> /dev/null | grep -oP '"sha256sum"\s*:\s*"\K[^"]+')"
+          fi
+          if [[ -n "${online_sha256sum_latest}" ]]; then online_sha256sum="${online_sha256sum_latest}"; unset online_sha256sum_latest; fi
+          local_checksum="$(sha256sum "${script_location}.tmp" 2> /dev/null | awk '{print $1}')"
+          if [[ "${local_checksum}" == "${online_sha256sum}" ]]; then
+            rm --force "${script_location}" 2> /dev/null
+            # shellcheck disable=SC2068
+            mv "${script_location}.tmp" "${script_location}" && bash "${script_location}" ${script_options[@]}
+            exit 0
+          else
+            echo -e "${RED}#${RESET} Checksum mismatch (attempt ${attempt}/5), retrying download..."
+            curl "${curl_argument[@]}" -o "${script_location}.tmp" "https://get.glennr.nl/unifi/install/unifi-${version}.sh"
+          fi
+        done
+        abort_reason="Failed to update the script, checksum mismatch"
+        abort
+      else
+        rm --force "${script_location}" 2> /dev/null
+        # shellcheck disable=SC2068
+        mv "${script_location}.tmp" "${script_location}" && bash "${script_location}" ${script_options[@]}
+        exit 0
+      fi
+    else
+      rm --force "unifi-${version}.sh" 2> /dev/null
+      # shellcheck disable=SC2068
+      curl "${curl_argument[@]}" --remote-name "https://get.glennr.nl/unifi/install/unifi-${version}.sh" && bash "unifi-${version}.sh" ${script_options[@]}; exit 0
+    fi
+  fi
 }
 
 script_version_check() {
@@ -4704,7 +4741,7 @@ mongodb_avx_support_check() {
     if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
       jq '.scripts["'"$script_name"'"].tasks += {"mongodb-avx-check ('"$(date +%s)"')": [.scripts["'"$script_name"'"].tasks["mongodb-avx-check ('"$(date +%s)"')"][0] + {"architecture":"'"${architecture}"'","CPU":"'"${cpu_model_name}"'","add_mongodb_44_repo":"'"${add_mongodb_44_repo}"'","mongo_version_max":"'"${mongo_version_max}"'","mongo_version_max_with_dot":"'"${mongo_version_max_with_dot}"'","mongo_version_locked":"'"${mongo_version_locked}"'","Official MongoDB Compatible":"'"${official_mongodb_compatible}"'","Glenn R. MongoDB":"'"${glennr_compiled_mongod}"'","Glenn R. MongoDB Compatible":"'"${glennr_mongod_compatible}"'","Memory Allocation Modifications":"'"${memory_allocation_modifications}"'"}]}' "${eus_dir}/db/db.json" > "/tmp/EUS/db-avx-debug.json"
     else
-      jq --arg script_name "$script_name" --arg date_key "$(date +%s)" --arg cpu_model_name "${cpu_model_name}" --arg architecture "${architecture}" --arg add_mongodb_44_repo "$add_mongodb_44_repo" --arg mongo_version_max "$mongo_version_max" --arg mongo_version_max_with_dot "$mongo_version_max_with_dot" --arg mongo_version_locked "$mongo_version_locked" --arg official_mongodb_compatible "$official_mongodb_compatible" --arg glennr_compiled_mongod "$glennr_compiled_mongod" --arg glennr_mongod_compatible "$glennr_mongod_compatible" --arg memory_allocation_modifications "${memory_allocation_modifications}" '.scripts[$script_name].tasks = (.scripts[$script_name].tasks + {("mongodb-avx-check (" + $date_key + ")"): ((.scripts[$script_name].tasks["mongodb-avx-check (" + $date_key + ")"] // []) + [{"architecture": $architecture, "CPU": $cpu_model_name, "add_mongodb_44_repo": $add_mongodb_44_repo, "mongo_version_max": $mongo_version_max, "mongo_version_max_with_dot": $mongo_version_max_with_dot, "mongo_version_locked": $mongo_version_locked, "Official MongoDB Compatible": $official_mongodb_compatible, "Glenn R. MongoDB": $glennr_compiled_mongod, "Glenn R. MongoDB Compatible": $glennr_mongod_compatible}, "Memory Allocation Modifications": $memory_allocation_modifications}] )})' "${eus_dir}/db/db.json" > "/tmp/EUS/db-avx-debug.json"
+      jq --arg script_name "$script_name" --arg date_key "$(date +%s)" --arg cpu_model_name "$cpu_model_name" --arg architecture "$architecture" --arg add_mongodb_44_repo "$add_mongodb_44_repo" --arg mongo_version_max "$mongo_version_max" --arg mongo_version_max_with_dot "$mongo_version_max_with_dot" --arg mongo_version_locked "$mongo_version_locked" --arg official_mongodb_compatible "$official_mongodb_compatible" --arg glennr_compiled_mongod "$glennr_compiled_mongod" --arg glennr_mongod_compatible "$glennr_mongod_compatible" --arg memory_allocation_modifications "$memory_allocation_modifications" '.scripts[$script_name].tasks += {("mongodb-avx-check (" + $date_key + ")"): ((.scripts[$script_name].tasks["mongodb-avx-check (" + $date_key + ")"] // []) + [{"architecture": $architecture, "CPU": $cpu_model_name, "add_mongodb_44_repo": $add_mongodb_44_repo, "mongo_version_max": $mongo_version_max, "mongo_version_max_with_dot": $mongo_version_max_with_dot, "mongo_version_locked": $mongo_version_locked, "Official MongoDB Compatible": $official_mongodb_compatible, "Glenn R. MongoDB": $glennr_compiled_mongod, "Glenn R. MongoDB Compatible": $glennr_mongod_compatible, "Memory Allocation Modifications": $memory_allocation_modifications}])}' "${eus_dir}/db/db.json" > "/tmp/EUS/db-avx-debug.json"
     fi
   fi
 }

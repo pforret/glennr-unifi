@@ -2,7 +2,7 @@
 
 # UniFi Easy Encrypt script.
 # Script   | UniFi Network Easy Encrypt Script
-# Version  | 3.5.9
+# Version  | 3.6.0
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -476,9 +476,6 @@ support_file() {
         }' &> "/tmp/EUS/support/sysstat.json"
     fi
   fi
-  # shellcheck disable=SC2129
-  sed -n '3p' "${script_location}" &>> "/tmp/EUS/support/script"
-  grep "# Version" "${script_location}" | head -n1 &>> "/tmp/EUS/support/script"
   #
   echo "${server_fqdn}" &>> "/tmp/EUS/support/fqdn"
   echo "${server_ip}" &>> "/tmp/EUS/support/ip"
@@ -536,8 +533,8 @@ support_file() {
       if [[ "$(jq -r '.database["support-file-upload"]' "${eus_dir}/db/db.json")" != 'true' ]]; then
         read -rp $'\033[39m#\033[0m Do you want to upload the support file so that Glenn R. can review it and improve the script? (Y/n) ' yes_no
         case "$yes_no" in
-             [Yy]*|"") eus_support_one_time_upload="true";;
              [Nn]*) ;;
+             *) eus_support_one_time_upload="true";;
         esac
       fi
       if [[ "$(jq -r '.database["support-file-upload"]' "${eus_dir}/db/db.json")" == 'true' ]] || [[ "${eus_support_one_time_upload}" == 'true' ]]; then
@@ -1614,11 +1611,14 @@ remove_apt_options="false"
 get_apt_options
 
 attempt_recover_broken_packages_removal_question() {
-  if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Do you allow the script to remove the broken packages? (Y/n) ' yes_no; fi
-  case "$yes_no" in
-       [Yy]*|"") attempt_recover_broken_packages_remove="true";;
-       [Nn]*) attempt_recover_broken_packages_remove="false";;
-  esac
+  while true; do
+    if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Do you allow the script to remove the broken packages? (Y/n) ' yes_no; fi
+    case "$yes_no" in
+         [Yy]*|"") attempt_recover_broken_packages_remove="true"; break;;
+         [Nn]*) attempt_recover_broken_packages_remove="false"; break;;
+         *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
+    esac
+  done
 }
 
 broken_packages_check() {
@@ -1832,11 +1832,48 @@ update_script() {
   header_red
   echo -e "${GRAY_R}#${RESET} You're currently running script version ${local_version} while ${online_version} is the latest!"
   echo -e "${GRAY_R}#${RESET} Downloading and executing version ${online_version} of the script...\\n\\n"
-  sleep 3
-  rm --force "${script_location}" 2> /dev/null
-  rm --force unifi-update.sh 2> /dev/null
-  # shellcheck disable=SC2068
-  curl "${curl_argument[@]}" --remote-name https://get.glennr.nl/unifi/extra/unifi-easy-encrypt.sh && bash unifi-easy-encrypt.sh ${script_options[@]}; exit 0
+  sleep 2
+  if [[ -n "$(command -v jq)" ]]; then
+    online_sha256sum="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-script-version?script=unifi-easy-encrypt" 2> /dev/null | jq -r '.checksums.sha256sum' 2> /dev/null | sed '/null/d')"
+  else
+    online_sha256sum="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-script-version?script=unifi-easy-encrypt" 2> /dev/null | grep -oP '"sha256sum"\s*:\s*"\K[^"]+')"
+  fi
+  if curl "${curl_argument[@]}" -o "${script_location}.tmp" https://get.glennr.nl/unifi/extra/unifi-easy-encrypt.sh; then
+    if [[ -n "${online_sha256sum}" && "$(command -v sha256sum)" ]]; then
+      local_checksum="$(sha256sum "${script_location}.tmp" 2> /dev/null | awk '{print $1}')"
+      if [[ "${local_checksum}" != "${online_sha256sum}" ]]; then
+        for attempt in {1..5}; do
+          if [[ -n "$(command -v jq)" ]]; then
+            online_sha256sum_latest="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-script-version?script=unifi-easy-encrypt" 2> /dev/null | jq -r '.checksums.sha256sum' 2> /dev/null | sed '/null/d')"
+          else
+            online_sha256sum_latest="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-script-version?script=unifi-easy-encrypt" 2> /dev/null | grep -oP '"sha256sum"\s*:\s*"\K[^"]+')"
+          fi
+          if [[ -n "${online_sha256sum_latest}" ]]; then online_sha256sum="${online_sha256sum_latest}"; unset online_sha256sum_latest; fi
+          local_checksum="$(sha256sum "${script_location}.tmp" 2> /dev/null | awk '{print $1}')"
+          if [[ "${local_checksum}" == "${online_sha256sum}" ]]; then
+            rm --force "${script_location}" 2> /dev/null
+            # shellcheck disable=SC2068
+            mv "${script_location}.tmp" "${script_location}" && bash "${script_location}" ${script_options[@]}
+            exit 0
+          else
+            echo -e "${RED}#${RESET} Checksum mismatch (attempt ${attempt}/5), retrying download..."
+            curl "${curl_argument[@]}" -o "${script_location}.tmp" https://get.glennr.nl/unifi/extra/unifi-easy-encrypt.sh
+          fi
+        done
+        abort_reason="Failed to update the script, checksum mismatch"
+        abort
+      else
+        rm --force "${script_location}" 2> /dev/null
+        # shellcheck disable=SC2068
+        mv "${script_location}.tmp" "${script_location}" && bash "${script_location}" ${script_options[@]}
+        exit 0
+      fi
+    else
+      rm --force unifi-easy-encrypt.sh 2> /dev/null
+      # shellcheck disable=SC2068
+      curl "${curl_argument[@]}" --remote-name https://get.glennr.nl/unifi/extra/unifi-easy-encrypt.sh && bash unifi-easy-encrypt.sh ${script_options[@]}; exit 0
+    fi
+  fi
 }
 
 script_version_check() {
@@ -2447,9 +2484,10 @@ certbot_install_function() {
                 echo -e "${GRAY_R}#${RESET} Creating symlink for certbot..."
                 if ln -s /snap/bin/certbot /usr/bin/certbot &>> "${eus_dir}/logs/certbot-symlink.log"; then echo -e "${GREEN}#${RESET} Successfully created symlink for certbot! \\n"; else abort_reason="Failed to create symlink for certbot."; abort; fi
               fi
+              certbot_type="snapd"
 	        else
               echo -e "${RED}#${RESET} Failed to install certbot via snapd... \\n"
-              echo -e "${GRAY_R}#${RESET} Trying to remove cerbot snapd..."
+              echo -e "${GRAY_R}#${RESET} Trying to remove Certbot snapd..."
               echo -e "\\n------- certbot removal ------- $(date +%F-%T.%6N) -------\\n" &>> "${eus_dir}/logs/snapd.log"
               if snap remove certbot &>> "${eus_dir}/logs/snapd.log"; then
                 echo -e "${GREEN}#${RESET} Successfully removed certbot! \\n"
@@ -2468,6 +2506,7 @@ certbot_install_function() {
           echo -e "${GRAY_R}#${RESET} Installing certbot..."
           if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install certbot &>> "${eus_dir}/logs/required.log"; then
             echo -e "${GREEN}#${RESET} Successfully installed certbot! \\n" && sleep 2
+            certbot_type="certbot"
 	      else
             echo -e "${RED}#${RESET} Failed to install certbot in the first run... \\n"
             certbot_repositories
@@ -2815,8 +2854,8 @@ support_file_upload_opt_in() {
     fi
     if [[ "${script_option_skip}" != 'true' ]]; then echo -e "${GRAY_R}#${RESET} The script generates support files when failures are detected, these can help Glenn R. to"; echo -e "${GRAY_R}#${RESET} improve the script quality for the Community and resolve your issues in future versions of the script.\\n"; read -rp $'\033[39m#\033[0m Do you want to automatically upload the support files? (Y/n) ' yes_no; fi
     case "$yes_no" in
-        [Yy]*|"") upload_support_files="true";;
         [Nn]*) upload_support_files="false";;
+        *) upload_support_files="true";;
     esac
     if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
       jq '."database" += {"support-file-upload": "'"${upload_support_files}"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
@@ -2971,26 +3010,30 @@ timezone() {
     fi
     header
     echo -e "${GRAY_R}#${RESET} Your timezone is set to ${time_zone}."
-    read -rp $'\033[39m#\033[0m Is your timezone correct? (Y/n) ' yes_no
-    case "${yes_no}" in
-       [Yy]*|"") touch "${eus_dir}/timezone_correct";;
-       [Nn]*|*)
-          header
-          echo -e "${GRAY_R}#${RESET} Let's change your timezone!" && sleep 3; mkdir -p /tmp/EUS/
-          dpkg-reconfigure tzdata && clear
-          if [[ -f /etc/timezone && -s /etc/timezone ]]; then
-            time_zone="$(awk '{print $1}' /etc/timezone)"
-          else
-            time_zone="$(timedatectl | grep -i "time zone" | awk '{print $3}')"
-          fi
-          rm --force /tmp/EUS/timezone 2> /dev/null
-          header
-          read -rp $'\033[39m#\033[0m Your timezone is now set to "'"${time_zone}"'", is that correct? (Y/n) ' yes_no
-          case "${yes_no}" in
-             [Yy]*|"") touch "${eus_dir}/timezone_correct";;
-             [Nn]*|*) timezone;;
-          esac;;
-    esac
+    while true; do
+      read -rp $'\033[39m#\033[0m Is your timezone correct? (Y/n) ' yes_no
+      case "${yes_no}" in
+         [Yy]*|"") touch "${eus_dir}/timezone_correct"; break;;
+         [Nn]*)
+            header
+            echo -e "${GRAY_R}#${RESET} Let's change your timezone!" && sleep 3; mkdir -p /tmp/EUS/
+            dpkg-reconfigure tzdata && clear
+            if [[ -f /etc/timezone && -s /etc/timezone ]]; then
+              time_zone="$(awk '{print $1}' /etc/timezone)"
+            else
+              time_zone="$(timedatectl | grep -i "time zone" | awk '{print $3}')"
+            fi
+            rm --force /tmp/EUS/timezone 2> /dev/null
+            header
+            read -rp $'\033[39m#\033[0m Your timezone is now set to "'"${time_zone}"'", is that correct? (Y/n) ' yes_no
+            case "${yes_no}" in
+               [Yy]*|"") touch "${eus_dir}/timezone_correct";;
+               *) timezone;;
+            esac
+            break;;
+         *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
+      esac
+    done
   fi
 }
 
@@ -3010,11 +3053,14 @@ domain_name() {
   fi
   header
   echo -e "${GRAY_R}#${RESET} Your FQDN is set to '${server_fqdn}'"
-  read -rp $'\033[39m#\033[0m Is the domain name/FQDN above correct? (Y/n) ' yes_no
-  case "${yes_no}" in
-     [Yy]*|"") le_resolve;;
-     [Nn]*|*) le_manual_fqdn;;
-  esac
+  while true; do
+    read -rp $'\033[39m#\033[0m Is the domain name/FQDN above correct? (Y/n) ' yes_no
+    case "${yes_no}" in
+       [Yy]*|"") le_resolve; break;;
+       [Nn]*) le_manual_fqdn; break;;
+       *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
+    esac
+  done
 }
 
 multiple_fqdn_resolve() {
@@ -3048,29 +3094,38 @@ multiple_fqdn_resolve() {
   elif [[ "${server_fqdn}" == "${other_fqdn}" ]]; then
     header
     echo -e "${GRAY_R}#${RESET} '${other_fqdn}' is the same as '${server_fqdn}' and already entered..."
-    read -rp $'\033[39m#\033[0m Do you want to add another FQDN? (Y/n) ' yes_no
-    case "$yes_no" in
-       [Yy]*|"") multiple_fqdn;;
-       [Nn]*) ;;
-    esac
+    while true; do
+      read -rp $'\033[39m#\033[0m Do you want to add another FQDN? (Y/n) ' yes_no
+      case "$yes_no" in
+         [Yy]*|"") multiple_fqdn; break;;
+         [Nn]*) break;;
+         *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
+      esac
+    done
   elif grep -ixq "${other_fqdn}" "${eus_dir}/other_domain_records" &> /dev/null; then
     header
     echo -e "${GRAY_R}#${RESET} '${other_fqdn}' was already entered..."
-    read -rp $'\033[39m#\033[0m Do you want to add another FQDN? (Y/n) ' yes_no
-    case "$yes_no" in
-       [Yy]*|"") multiple_fqdn;;
-       [Nn]*) ;;
-    esac
+    while true; do
+      read -rp $'\033[39m#\033[0m Do you want to add another FQDN? (Y/n) ' yes_no
+      case "$yes_no" in
+         [Yy]*|"") multiple_fqdn; break;;
+         [Nn]*) break;;
+         *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
+      esac
+    done
   else
     multiple_fqdn_resolved="true"
     echo "${other_fqdn}" | tr '[:upper:]' '[:lower:]' &>> "${eus_dir}/other_domain_records"
     echo -e "${GRAY_R}#${RESET} '${other_fqdn}' resolved correctly!"
     echo -e "\\n${GREEN}---${RESET}\\n"
-    read -rp $'\033[39m#\033[0m Do you want to add more FQDNs? (Y/n) ' yes_no
-    case "$yes_no" in
-       [Yy]*|"") multiple_fqdn;;
-       [Nn]*) ;;
-    esac
+    while true; do
+      read -rp $'\033[39m#\033[0m Do you want to add more FQDNs? (Y/n) ' yes_no
+      case "$yes_no" in
+         [Yy]*|"") multiple_fqdn; break;;
+         [Nn]*) break;;
+         *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
+      esac
+    done
   fi
 }
 
@@ -3163,11 +3218,14 @@ le_resolve() {
     echo -e "${GRAY_R}#${RESET} '${server_fqdn}' resolved correctly!"
     if [[ "${install_script}" == 'true' ]]; then echo "${server_fqdn}" &> "${eus_dir}/server_fqdn_install"; fi
     echo -e "\\n${GREEN}---${RESET}\\n"
-    read -rp $'\033[39m#\033[0m Do you want to add more FQDNs? (Y/n) ' yes_no
-    case "$yes_no" in
-       [Yy]*|"") multiple_fqdn;;
-       [Nn]*) ;;
-    esac
+    while true; do
+      read -rp $'\033[39m#\033[0m Do you want to add more FQDNs? (Y/n) ' yes_no
+      case "$yes_no" in
+         [Yy]*|"") multiple_fqdn; break;;
+         [Nn]*) break;;
+         *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
+      esac
+    done
   fi
 }
 
@@ -3178,18 +3236,22 @@ change_application_hostname() {
     echo -e "${GRAY_R}#${RESET} Would you like to change it to '${server_fqdn}'?"
     echo ""
     echo ""
-    read -rp $'\033[39m#\033[0m Would you like to apply the change? (Y/n) ' yes_no
-    case "$yes_no" in
-       [Yy]*|"")
-          if [[ "$("${mongocommand}" --quiet --port 27117 ace --eval "${mongoprefix}db.getCollection('setting').find({key:'super_mgmt'})${mongosuffix}" | jq -r '.[].override_inform_host')" != 'true' ]]; then
-            if "${mongocommand}" --quiet --port 27117 ace --eval "db.setting.updateOne({\"hostname\":\"${current_server_fqdn}\"}, {\$set: {\"hostname\":\"${server_fqdn}\"}})" | grep -iq "\"nModified\":.*1"; then
-              header
-              echo -e "${GREEN}#${RESET} Successfully changed the UniFi Network Application Hostname to '${server_fqdn}'"
-              sleep 2
+    while true; do
+      read -rp $'\033[39m#\033[0m Would you like to apply the change? (Y/n) ' yes_no
+      case "$yes_no" in
+         [Yy]*|"")
+            if [[ "$("${mongocommand}" --quiet --port 27117 ace --eval "${mongoprefix}db.getCollection('setting').find({key:'super_mgmt'})${mongosuffix}" | jq -r '.[].override_inform_host')" != 'true' ]]; then
+              if "${mongocommand}" --quiet --port 27117 ace --eval "db.setting.updateOne({\"hostname\":\"${current_server_fqdn}\"}, {\$set: {\"hostname\":\"${server_fqdn}\"}})" | grep -iq "\"nModified\":.*1"; then
+                header
+                echo -e "${GREEN}#${RESET} Successfully changed the UniFi Network Application Hostname to '${server_fqdn}'"
+                sleep 2
+              fi
             fi
-          fi;;
-       [Nn]*) ;;
-    esac
+            break;;
+         [Nn]*) break;;
+         *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
+      esac
+    done
   fi
 }
 
@@ -3224,32 +3286,37 @@ le_manual_fqdn() {
 le_email() {
   email_reg='^(([A-Za-z0-9]+((\.|\-|\_|\+)?[A-Za-z0-9]?)*[A-Za-z0-9]+)|[A-Za-z0-9]+)@(([A-Za-z0-9]+)+((\.|\-|\_)?([A-Za-z0-9]+)+)*)+\.([A-Za-z]{2,})+$'
   header
-  if [[ "${skip_email_question}" != 'yes' ]]; then
-    read -rp $'\033[39m#\033[0m Do you want to setup a email address for renewal notifications? (Y/n) ' yes_no
-  fi
-  case "$yes_no" in
-     [Yy]*|"")
-        header
-        echo -e "${GRAY_R}#${RESET} Please enter the email address below."
-        read -rp $'\033[39m#\033[0m ' le_user_mail
-        if ! [[ "${le_user_mail}" =~ ${email_reg} ]]; then
-          header_red
-          echo -e "${RED}#${RESET} ${le_user_mail} is an invalid email address..."
-          read -rp $'\033[39m#\033[0m Do you want to try another email address? (Y/n) ' yes_no
-          case "$yes_no" in
-             [Yy]*|"")
-                skip_email_question=yes
-                le_email
-                return;;
-             [Nn]*|*)
-                email="--register-unsafely-without-email";;
-          esac
-        else
-          email="--email ${le_user_mail}"
-        fi;;
-     [Nn]*|*)
-        email="--register-unsafely-without-email";;
-  esac
+  while true; do
+    if [[ "${skip_email_question}" != 'yes' ]]; then
+      read -rp $'\033[39m#\033[0m Do you want to setup a email address for renewal notifications? (Y/n) ' yes_no
+    fi
+    case "$yes_no" in
+       [Yy]*|"")
+          header
+          echo -e "${GRAY_R}#${RESET} Please enter the email address below."
+          read -rp $'\033[39m#\033[0m ' le_user_mail
+          if ! [[ "${le_user_mail}" =~ ${email_reg} ]]; then
+            header_red
+            echo -e "${RED}#${RESET} ${le_user_mail} is an invalid email address..."
+            read -rp $'\033[39m#\033[0m Do you want to try another email address? (Y/n) ' yes_no
+            case "$yes_no" in
+               [Yy]*|"")
+                  skip_email_question=yes
+                  le_email
+                  return;;
+               [Nn]*|*)
+                  email="--register-unsafely-without-email";;
+            esac
+          else
+            email="--email ${le_user_mail}"
+          fi
+          break;;
+       [Nn]*)
+          email="--register-unsafely-without-email"
+          break;;
+       *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
+    esac
+  done
 }
 
 le_pre_hook() {
@@ -3832,56 +3899,60 @@ SSL
     fi
     if [[ "${radius_certs_available}" == 'true' ]]; then
       echo -e "\\n${YELLOW}#${RESET} ATTENTION, please backup your system before continuing!!"
-      # shellcheck disable=2086
-      read -rp $'\033[39m#\033[0m Do you want to apply the same certificates to RADIUS on your "'${unifi_core_device}'"? (y/N) ' yes_no
-      case "$yes_no" in
-          [Yy]*)
-              mkdir -p /data/eus_certificates/raddb
-              echo -e "\\n${GRAY_R}#${RESET} Backing up original server.pem certificate..."
-              if [[ "${debbox}" == 'true' ]]; then
-                if cp "/data/udapi-config/raddb/certs/server.pem" "/data/eus_certificates/raddb/original_server_${time_date}.pem" &>> "${eus_dir}/logs/radius.log"; then echo -e "${GREEN}#${RESET} Successfully backed up server.pem ( RADIUS certificate )! \\n"; else echo -e "${RED}#${RESET} Failed to backup RADIUS certificate... \\n"; sleep 5; return; fi
-              else
-                if ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -ql root 127.0.0.1 "cp /mnt/data/udapi-config/raddb/certs/server.pem /data/eus_certificates/raddb/original_server_${time_date}.pem" &>> "${eus_dir}/logs/radius.log"; then echo -e "${GREEN}#${RESET} Successfully backed up server.pem ( RADIUS certificate )! \\n"; else echo -e "${RED}#${RESET} Failed to backup RADIUS certificate... \\n"; sleep 5; return; fi
-              fi
-              echo -e "${GRAY_R}#${RESET} Backing up original server-key.pem certificate..."
-              if [[ "${debbox}" == 'true' ]]; then
-                if cp "/data/udapi-config/raddb/certs/server-key.pem" "/data/eus_certificates/raddb/original_server-key_${time_date}.pem" &>> "${eus_dir}/logs/radius.log"; then echo -e "${GREEN}#${RESET} Successfully backed up server-key.pem ( RADIUS certificate )! \\n"; else echo -e "${RED}#${RESET} Failed to backup RADIUS certificate... \\n"; sleep 5; return; fi
-              else
-                if ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -ql root 127.0.0.1 "cp /mnt/data/udapi-config/raddb/certs/server-key.pem /data/eus_certificates/raddb/original_server-key_${time_date}.pem" &>> "${eus_dir}/logs/radius.log"; then echo -e "${GREEN}#${RESET} Successfully backed up server-key.pem ( RADIUS certificate )! \\n"; else echo -e "${RED}#${RESET} Failed to backup RADIUS certificate... \\n"; sleep 5; return; fi
-              fi
-              echo -e "${GRAY_R}#${RESET} Applying new server.pem certificate..."
-              if [[ -f "/data/eus_certificates/unifi-os.crt" ]]; then
-                raddb_cert_file="/data/eus_certificates/unifi-os.crt"
-              else
-                cp "/etc/letsencrypt/live/${server_fqdn}${le_var}/fullchain.pem" /data/eus_certificates/raddb-server.pem
-                raddb_cert_file="/data/eus_certificates/raddb-server.pem"
-              fi
-              if [[ "${debbox}" == 'true' ]]; then
-                if cp "${raddb_cert_file}" "/data/udapi-config/raddb/certs/server.pem" &>> "${eus_dir}/logs/radius.log"; then echo -e "${GREEN}#${RESET} Successfully applied the new server.pem ( RADIUS certificate )! \\n"; else echo -e "${RED}#${RESET} Failed to apply the new RADIUS certificate... \\n"; sleep 5; return; fi
-              else
-                if ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -ql root 127.0.0.1 "cp ${raddb_cert_file} /mnt/data/udapi-config/raddb/certs/server.pem" &>> "${eus_dir}/logs/radius.log"; then echo -e "${GREEN}#${RESET} Successfully applied the new server.pem ( RADIUS certificate )! \\n"; else echo -e "${RED}#${RESET} Failed to apply the new RADIUS certificate... \\n"; sleep 5; return; fi
-              fi
-              echo -e "${GRAY_R}#${RESET} Applying new server-key.pem certificate..."
-              if [[ -f "/data/eus_certificates/unifi-os.key" ]]; then
-                raddb_key_file="/data/eus_certificates/unifi-os.key"
-              else
-                cp "/etc/letsencrypt/live/${server_fqdn}${le_var}/privkey.pem" /data/eus_certificates/raddb-server-key.pem
-                raddb_key_file="/data/eus_certificates/raddb-server-key.pem"
-              fi
-              if [[ "${debbox}" == 'true' ]]; then
-                if cp "${raddb_key_file}" "/data/udapi-config/raddb/certs/server-key.pem" &>> "${eus_dir}/logs/radius.log"; then echo -e "${GREEN}#${RESET} Successfully applied the new server-key.pem ( RADIUS certificate )! \\n"; else echo -e "${RED}#${RESET} Failed to apply the new RADIUS certificate... \\n"; sleep 5; return; fi
-              else
-                if ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -ql root 127.0.0.1 "cp ${raddb_key_file} /mnt/data/udapi-config/raddb/certs/server-key.pem" &>> "${eus_dir}/logs/radius.log"; then echo -e "${GREEN}#${RESET} Successfully applied the new server-key.pem ( RADIUS certificate )! \\n"; else echo -e "${RED}#${RESET} Failed to apply the new RADIUS certificate... \\n"; sleep 5; return; fi
-              fi
-              echo -e "${GRAY_R}#${RESET} Restarting udapi-server..."
-              if [[ "${debbox}" == 'true' ]]; then
-                if systemctl restart udapi-server &>> "${eus_dir}/logs/radius.log"; then echo -e "${GREEN}#${RESET} Successfully restarted udapi-server! \\n"; else echo -e "${RED}#${RESET} Failed to restart udapi-server... \\n${RED}#${RESET} Please reboot your UDM ASAP!\\n"; abort_reason="Failed to restart udapi-server."; abort; fi
-              else
-                if ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -ql root 127.0.0.1 "/etc/init.d/S45ubios-udapi-server restart" &>> "${eus_dir}/logs/radius.log"; then echo -e "${GREEN}#${RESET} Successfully restarted udapi-server! \\n"; else echo -e "${RED}#${RESET} Failed to restart udapi-server... \\n${RED}#${RESET} Please reboot your UDM ASAP!\\n"; abort_reason="Failed to restart udapi-server."; abort; fi
-              fi
-              sleep 3;;
-          [Nn]*|"") ;;
-      esac
+      while true; do
+        # shellcheck disable=2086
+        read -rp $'\033[39m#\033[0m Do you want to apply the same certificates to RADIUS on your "'${unifi_core_device}'"? (y/N) ' yes_no
+        case "$yes_no" in
+            [Yy]*)
+                mkdir -p /data/eus_certificates/raddb
+                echo -e "\\n${GRAY_R}#${RESET} Backing up original server.pem certificate..."
+                if [[ "${debbox}" == 'true' ]]; then
+                  if cp "/data/udapi-config/raddb/certs/server.pem" "/data/eus_certificates/raddb/original_server_${time_date}.pem" &>> "${eus_dir}/logs/radius.log"; then echo -e "${GREEN}#${RESET} Successfully backed up server.pem ( RADIUS certificate )! \\n"; else echo -e "${RED}#${RESET} Failed to backup RADIUS certificate... \\n"; sleep 5; return; fi
+                else
+                  if ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -ql root 127.0.0.1 "cp /mnt/data/udapi-config/raddb/certs/server.pem /data/eus_certificates/raddb/original_server_${time_date}.pem" &>> "${eus_dir}/logs/radius.log"; then echo -e "${GREEN}#${RESET} Successfully backed up server.pem ( RADIUS certificate )! \\n"; else echo -e "${RED}#${RESET} Failed to backup RADIUS certificate... \\n"; sleep 5; return; fi
+                fi
+                echo -e "${GRAY_R}#${RESET} Backing up original server-key.pem certificate..."
+                if [[ "${debbox}" == 'true' ]]; then
+                  if cp "/data/udapi-config/raddb/certs/server-key.pem" "/data/eus_certificates/raddb/original_server-key_${time_date}.pem" &>> "${eus_dir}/logs/radius.log"; then echo -e "${GREEN}#${RESET} Successfully backed up server-key.pem ( RADIUS certificate )! \\n"; else echo -e "${RED}#${RESET} Failed to backup RADIUS certificate... \\n"; sleep 5; return; fi
+                else
+                  if ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -ql root 127.0.0.1 "cp /mnt/data/udapi-config/raddb/certs/server-key.pem /data/eus_certificates/raddb/original_server-key_${time_date}.pem" &>> "${eus_dir}/logs/radius.log"; then echo -e "${GREEN}#${RESET} Successfully backed up server-key.pem ( RADIUS certificate )! \\n"; else echo -e "${RED}#${RESET} Failed to backup RADIUS certificate... \\n"; sleep 5; return; fi
+                fi
+                echo -e "${GRAY_R}#${RESET} Applying new server.pem certificate..."
+                if [[ -f "/data/eus_certificates/unifi-os.crt" ]]; then
+                  raddb_cert_file="/data/eus_certificates/unifi-os.crt"
+                else
+                  cp "/etc/letsencrypt/live/${server_fqdn}${le_var}/fullchain.pem" /data/eus_certificates/raddb-server.pem
+                  raddb_cert_file="/data/eus_certificates/raddb-server.pem"
+                fi
+                if [[ "${debbox}" == 'true' ]]; then
+                  if cp "${raddb_cert_file}" "/data/udapi-config/raddb/certs/server.pem" &>> "${eus_dir}/logs/radius.log"; then echo -e "${GREEN}#${RESET} Successfully applied the new server.pem ( RADIUS certificate )! \\n"; else echo -e "${RED}#${RESET} Failed to apply the new RADIUS certificate... \\n"; sleep 5; return; fi
+                else
+                  if ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -ql root 127.0.0.1 "cp ${raddb_cert_file} /mnt/data/udapi-config/raddb/certs/server.pem" &>> "${eus_dir}/logs/radius.log"; then echo -e "${GREEN}#${RESET} Successfully applied the new server.pem ( RADIUS certificate )! \\n"; else echo -e "${RED}#${RESET} Failed to apply the new RADIUS certificate... \\n"; sleep 5; return; fi
+                fi
+                echo -e "${GRAY_R}#${RESET} Applying new server-key.pem certificate..."
+                if [[ -f "/data/eus_certificates/unifi-os.key" ]]; then
+                  raddb_key_file="/data/eus_certificates/unifi-os.key"
+                else
+                  cp "/etc/letsencrypt/live/${server_fqdn}${le_var}/privkey.pem" /data/eus_certificates/raddb-server-key.pem
+                  raddb_key_file="/data/eus_certificates/raddb-server-key.pem"
+                fi
+                if [[ "${debbox}" == 'true' ]]; then
+                  if cp "${raddb_key_file}" "/data/udapi-config/raddb/certs/server-key.pem" &>> "${eus_dir}/logs/radius.log"; then echo -e "${GREEN}#${RESET} Successfully applied the new server-key.pem ( RADIUS certificate )! \\n"; else echo -e "${RED}#${RESET} Failed to apply the new RADIUS certificate... \\n"; sleep 5; return; fi
+                else
+                  if ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -ql root 127.0.0.1 "cp ${raddb_key_file} /mnt/data/udapi-config/raddb/certs/server-key.pem" &>> "${eus_dir}/logs/radius.log"; then echo -e "${GREEN}#${RESET} Successfully applied the new server-key.pem ( RADIUS certificate )! \\n"; else echo -e "${RED}#${RESET} Failed to apply the new RADIUS certificate... \\n"; sleep 5; return; fi
+                fi
+                echo -e "${GRAY_R}#${RESET} Restarting udapi-server..."
+                if [[ "${debbox}" == 'true' ]]; then
+                  if systemctl restart udapi-server &>> "${eus_dir}/logs/radius.log"; then echo -e "${GREEN}#${RESET} Successfully restarted udapi-server! \\n"; else echo -e "${RED}#${RESET} Failed to restart udapi-server... \\n${RED}#${RESET} Please reboot your UDM ASAP!\\n"; abort_reason="Failed to restart udapi-server."; abort; fi
+                else
+                  if ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -ql root 127.0.0.1 "/etc/init.d/S45ubios-udapi-server restart" &>> "${eus_dir}/logs/radius.log"; then echo -e "${GREEN}#${RESET} Successfully restarted udapi-server! \\n"; else echo -e "${RED}#${RESET} Failed to restart udapi-server... \\n${RED}#${RESET} Please reboot your UDM ASAP!\\n"; abort_reason="Failed to restart udapi-server."; abort; fi
+                fi
+                sleep 3
+                break;;
+            [Nn]*|"") break;;
+            *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
+        esac
+      done
     fi
   fi
 }
@@ -4174,80 +4245,106 @@ import_ssl_certificates() {
       if [[ "${unifi_core_system}" == 'true' ]]; then
         echo -e "\\n${GRAY_R}----${RESET}\\n"
         echo -e "${GRAY_R}#${RESET} UniFi OS on your ${unifi_core_device} has been detected!"
-        if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Would you like to apply the certificates to UniFi OS? (Y/n) ' yes_no; fi
-        case "$yes_no" in
-           [Yy]*|"")
-              unifi_core
-              if [[ "${is_cloudkey}" == 'true' ]]; then run_uck_scripts="true"; fi;;
-           [Nn]*) ;;
-        esac
+        while true; do
+          if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Would you like to apply the certificates to UniFi OS? (Y/n) ' yes_no; fi
+          case "$yes_no" in
+             [Yy]*|"")
+                unifi_core
+                if [[ "${is_cloudkey}" == 'true' ]]; then run_uck_scripts="true"; fi
+                break;;
+             [Nn]*) break;;
+             *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
+          esac
+        done
       elif dpkg -l unifi 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi" && [[ "${unifi_core_system}" != 'true' ]] || [[ -e "/usr/lib/unifi/data/keystore" && "${unifi_core_system}" != 'true' ]]; then
         echo -e "\\n${GRAY_R}----${RESET}\\n"
         echo -e "${GRAY_R}#${RESET} UniFi Network Application has been detected!"
-        if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Would you like to apply the certificates to the UniFi Network Application? (Y/n) ' yes_no; fi
-        case "$yes_no" in
-           [Yy]*|"")
-              unifi_network_application
-              if [[ "${is_cloudkey}" == 'true' ]]; then run_uck_scripts="true"; fi;;
-           [Nn]*) ;;
-        esac
+        while true; do
+          if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Would you like to apply the certificates to the UniFi Network Application? (Y/n) ' yes_no; fi
+          case "$yes_no" in
+             [Yy]*|"")
+                unifi_network_application
+                if [[ "${is_cloudkey}" == 'true' ]]; then run_uck_scripts="true"; fi
+                break;;
+             [Nn]*) break;;
+             *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
+          esac
+        done
       fi
     fi
     if [[ "${is_cloudkey}" == 'true' ]] && [[ "${unifi_core_system}" != 'true' ]]; then
       echo -e "\\n${GRAY_R}----${RESET}\\n"
       echo -e "${GRAY_R}#${RESET} You seem to have a Cloud Key!"
-      if [[ "${is_cloudkey_gen2_plus}" == 'true' ]] && dpkg -l unifi-protect 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi"; then
-        if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Would you like to apply the certificates to the UniFi Cloudkey User Interface and UniFi-Protect? (Y/n) ' yes_no; fi
-      else
-        if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Would you like to apply the certificates to the UniFi Cloudkey User Interface? (Y/n) ' yes_no; fi
-      fi
-      case "$yes_no" in
-         [Yy]*|"")
-            cloudkey_management_ui
-            run_uck_scripts="true";;
-         [Nn]*) ;;
-      esac
+      while true; do
+        if [[ "${is_cloudkey_gen2_plus}" == 'true' ]] && dpkg -l unifi-protect 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi"; then
+          if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Would you like to apply the certificates to the UniFi Cloudkey User Interface and UniFi-Protect? (Y/n) ' yes_no; fi
+        else
+          if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Would you like to apply the certificates to the UniFi Cloudkey User Interface? (Y/n) ' yes_no; fi
+        fi
+        case "$yes_no" in
+           [Yy]*|"")
+              cloudkey_management_ui
+              run_uck_scripts="true"
+              break;;
+           [Nn]*) break;;
+           *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
+        esac
+      done
       if dpkg -l unifi-led 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi" && [[ "${unifi_core_system}" != 'true' ]]; then
         echo -e "\\n${GRAY_R}----${RESET}\\n"
         echo -e "${GRAY_R}#${RESET} UniFi-LED has been detected!"
-        if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Would you like to apply the certificates to UniFi-LED? (Y/n) ' yes_no; fi
-        case "$yes_no" in
-           [Yy]*|"")
-            cloudkey_unifi_led
-            run_uck_scripts="true";;
-           [Nn]*) ;;
-        esac
+        while true; do
+          if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Would you like to apply the certificates to UniFi-LED? (Y/n) ' yes_no; fi
+          case "$yes_no" in
+               [Yy]*|"")
+                  cloudkey_unifi_led
+                  run_uck_scripts="true"
+                  break;;
+             [Nn]*) break;;
+             *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
+          esac
+        done
       fi
       if dpkg -l unifi-talk 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi" && [[ "${unifi_core_system}" != 'true' ]]; then
         echo -e "\\n${GRAY_R}----${RESET}\\n"
         echo -e "${GRAY_R}#${RESET} UniFi-Talk has been detected!"
-        if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Would you like to apply the certificates to UniFi-Talk? (Y/n) ' yes_no; fi
-        case "$yes_no" in
-           [Yy]*|"")
-            cloudkey_unifi_talk
-            run_uck_scripts="true";;
-           [Nn]*) ;;
-        esac
+        while true; do
+          if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Would you like to apply the certificates to UniFi-Talk? (Y/n) ' yes_no; fi
+          case "$yes_no" in
+             [Yy]*|"")
+                cloudkey_unifi_talk
+                run_uck_scripts="true"
+                break;;
+             [Nn]*) break;;
+             *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
+          esac
+        done
       fi
     fi
     if dpkg -l | grep -iq "\\bUAS\\b\\|UniFi Application Server" && [[ "${unifi_core_system}" != 'true' ]]; then
       echo -e "\\n${GRAY_R}----${RESET}\\n"
       echo -e "${GRAY_R}#${RESET} You seem to have a UniFi Application Server!"
-      if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Would you like to apply the certificates to the UniFi Application Server User Interface? (Y/n) ' yes_no; fi
-      case "$yes_no" in
-         [Yy]*|"") uas_management_ui;;
-         [Nn]*) ;;
-      esac
+      while true; do
+        if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Would you like to apply the certificates to the UniFi Application Server User Interface? (Y/n) ' yes_no; fi
+        case "$yes_no" in
+           [Yy]*|"") uas_management_ui; break;;
+           [Nn]*) break;;
+           *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
+        esac
+      done
       if dpkg -l uas-led 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi" && [[ "${unifi_core_system}" != 'true' ]]; then
         if dpkg -l | awk '{print $2}' | grep -iq "^docker.io\\|^docker-ce"; then
           if docker ps -a | grep -iq 'ubnt/eot'; then
             echo -e "\\n${GRAY_R}----${RESET}\\n"
             echo -e "${GRAY_R}#${RESET} UniFi-LED has been detected!"
-            if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Would you like to apply the certificates to UniFi-LED? (Y/n) ' yes_no; fi
-            case "$yes_no" in
-                [Yy]*|"") uas_unifi_led;;
-                [Nn]*) ;;
-            esac
+            while true; do
+              if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Would you like to apply the certificates to UniFi-LED? (Y/n) ' yes_no; fi
+              case "$yes_no" in
+                  [Yy]*|"") uas_unifi_led; break;;
+                  [Nn]*) break;;
+                  *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
+              esac
+            done
           fi
         fi
       fi
@@ -4255,21 +4352,27 @@ import_ssl_certificates() {
     if dpkg -l unifi-video 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi" && [[ "${unifi_core_system}" != 'true' ]]; then
       echo -e "\\n${GRAY_R}----${RESET}\\n"
       echo -e "${GRAY_R}#${RESET} UniFi-Video has been detected!"
-      if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Would you like to apply the certificates to UniFi-Video? (Y/n) ' yes_no; fi
-      case "$yes_no" in
-         [Yy]*|"") unifi_video;;
-         [Nn]*) ;;
-      esac
+      while true; do
+        if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Would you like to apply the certificates to UniFi-Video? (Y/n) ' yes_no; fi
+        case "$yes_no" in
+           [Yy]*|"") unifi_video; break;;
+           [Nn]*) break;;
+           *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
+        esac
+      done
     fi
     if dpkg -l | awk '{print $2}' | grep -iq "^docker.io\\|^docker-ce" && [[ "${unifi_core_system}" != 'true' ]]; then
       if docker ps -a | grep -iq 'ubnt/eot'; then
         echo -e "\\n${GRAY_R}----${RESET}\\n"
         echo -e "${GRAY_R}#${RESET} UniFi-LED has been detected!"
-        if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Would you like to apply the certificates to UniFi-LED? (Y/n) ' yes_no; fi
-        case "$yes_no" in
-           [Yy]*|"") uas_unifi_led;;
-           [Nn]*) ;;
-        esac
+        while true; do
+          if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Would you like to apply the certificates to UniFi-LED? (Y/n) ' yes_no; fi
+          case "$yes_no" in
+             [Yy]*|"") uas_unifi_led; break;;
+             [Nn]*) break;;
+             *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
+          esac
+        done
       fi
     fi
     if [[ "${dns_manual_certbot_success}" == 'true' ]]; then
@@ -5152,26 +5255,37 @@ lets_encrypt() {
     if [[ "${run_force_renew}" == 'true' ]] || [[ "${valid_days}" == 'EXPIRED' ]] || [[ "${valid_days}" -lt '30' ]]; then
       echo -e "\\n${GREEN}----${RESET}\\n"
       if [[ "${valid_days}" == 'EXPIRED' ]]; then echo -e "${GRAY_R}#${RESET} Your certificates for '${server_fqdn}' are already EXPIRED!"; else echo -e "${GRAY_R}#${RESET} Your certificates for '${server_fqdn}' expire in ${valid_days} days..."; fi
-      if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Do you want to force renew the certficiates? (Y/n) ' yes_no; elif [[ "${script_option_renew}" != 'true' ]]; then echo -e "${GRAY_R}#${RESET} No... I don't want to force renew my certificates"; else echo -e "${GRAY_R}#${RESET} Yes, I want to force renew the certificates!"; fi
-      case "$yes_no" in
-          [Yy]*|"")
-              renewal_option="--force-renewal"
-              import_ssl_certificates;;
-          [Nn]*)
-              read -rp $'\033[39m#\033[0m Would you like to import the existing certificates? (Y/n) ' yes_no
-              case "$yes_no" in
-                   [Yy]*|"") import_existing_ssl_certificates;;
-                   [Nn]*) ;;
-              esac;;
-      esac
+      while true; do
+        if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Do you want to force renew the certficiates? (Y/n) ' yes_no; elif [[ "${script_option_renew}" != 'true' ]]; then echo -e "${GRAY_R}#${RESET} No... I don't want to force renew my certificates"; else echo -e "${GRAY_R}#${RESET} Yes, I want to force renew the certificates!"; fi
+        case "$yes_no" in
+            [Yy]*|"")
+                renewal_option="--force-renewal"
+                import_ssl_certificates
+                break;;
+            [Nn]*)
+                while true; do
+                  read -rp $'\033[39m#\033[0m Would you like to import the existing certificates? (Y/n) ' yes_no
+                  case "$yes_no" in
+                       [Yy]*|"") import_existing_ssl_certificates; break;;
+                       [Nn]*) break;;
+                       *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
+                  esac
+                done
+                break;;
+            *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
+        esac
+      done
     elif [[ "${valid_days}" -ge '30' ]]; then
       echo -e "\\n${GREEN}----${RESET}\\n"
       echo -e "${GRAY_R}#${RESET} You already seem to have certificates for '${server_fqdn}', those expire in ${valid_days} days..."
-      if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Would you like to import the existing certificates? (Y/n) ' yes_no; fi
-      case "$yes_no" in
-           [Yy]*|"") import_existing_ssl_certificates;;
-           [Nn]*) ;;
-      esac
+      while true; do
+        if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Would you like to import the existing certificates? (Y/n) ' yes_no; fi
+        case "$yes_no" in
+             [Yy]*|"") import_existing_ssl_certificates; break;;
+             [Nn]*) break;;
+             *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
+        esac
+      done
     fi
   else
     import_ssl_certificates
@@ -5196,397 +5310,55 @@ EOF
 SHELL=/bin/sh
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 @reboot root sleep 300 && /bin/bash ${eus_dir}/cronjob/install_certbot.sh
+0 * * * * root /bin/bash ${eus_dir}/cronjob/install_certbot.sh
 EOF
     # shellcheck disable=SC1117
-    tee "${eus_dir}/cronjob/install_certbot.sh" &>/dev/null << EOF
-#!/bin/bash
-
-architecture=\$(dpkg --print-architecture)
-if [[ "\${architecture}" == 'i686' ]]; then architecture="i386"; fi
-if [[ -n "\$(find /etc/apt/sources.list.d/ -name "*.sources" -print -quit 2>/dev/null)" ]]; then use_deb822_format="true"; fi
-if [[ "\${use_deb822_format}" == 'true' ]]; then source_file_format="sources"; else source_file_format="list"; fi
-if [[ "\$("\$(which dpkg)" -l apt | grep ^"ii" | awk '{print \$2,\$3}' | awk '{print \$2}' | cut -d'.' -f1)" -gt "2" ]] || [[ "\$("\$(which dpkg)" -l apt | grep ^"ii" | awk '{print \$2,\$3}' | awk '{print \$2}' | cut -d'.' -f1)" == "2" && "\$("\$(which dpkg)" -l apt | grep ^"ii" | awk '{print \$2,\$3}' | awk '{print \$2}' | cut -d'.' -f2)" -ge "2" ]]; then apt_key_deprecated="true"; fi
-
-eus_create_directories() {
-  for dir_name in "\$@"; do
-    if ! [[ -d "\${eus_directory_location}/\${dir_name}" ]]; then 
-      if ! [[ -d "${eus_dir}/logs" ]]; then 
-        mkdir -p "\${eus_directory_location}/\${dir_name}"
-      else 
-        mkdir -p "\${eus_directory_location}/\${dir_name}" &>> "${eus_dir}/logs/create-directories.log"
-      fi 
+    if [[ "${certbot_multi_plugin}" == 'true' ]]; then
+      certbot_type="multi"
+    elif [[ "${certbot_native_plugin}" == 'true' ]]; then
+      certbot_type="native"
     fi
-  done
-  eus_directory_location="${eus_dir}"
-}
-
-# Functions
-get_distro() {
-  if [[ -z "\$(command -v lsb_release)" ]] || [[ "\${skip_use_lsb_release}" == 'true' ]]; then
-    if [[ -f "/etc/os-release" ]]; then
-      if grep -iq VERSION_CODENAME /etc/os-release; then
-        os_codename="\$(grep VERSION_CODENAME /etc/os-release | sed 's/VERSION_CODENAME//g' | tr -d '="' | tr '[:upper:]' '[:lower:]')"
-        os_id="\$(grep ^"ID=" /etc/os-release | sed 's/ID//g' | tr -d '="' | tr '[:upper:]' '[:lower:]')"
-      elif ! grep -iq VERSION_CODENAME /etc/os-release; then
-        os_codename="\$(grep PRETTY_NAME /etc/os-release | sed 's/PRETTY_NAME=//g' | tr -d '="' | awk '{print $4}' | sed 's/\((\|)\)//g' | sed 's/\/sid//g' | tr '[:upper:]' '[:lower:]')"
-        os_id="\$(grep -io "debian\\|ubuntu" /etc/os-release | tr '[:upper:]' '[:lower:]' | head -n1)"
-        if [[ -z "\${os_codename}" ]]; then
-          os_codename="\$(grep PRETTY_NAME /etc/os-release | sed 's/PRETTY_NAME=//g' | tr -d '="' | awk '{print $3}' | sed 's/\((\|)\)//g' | sed 's/\/sid//g' | tr '[:upper:]' '[:lower:]')"
-        fi
-      fi
-    fi
-  else
-    os_codename="\$(lsb_release --codename --short | tr '[:upper:]' '[:lower:]')"
-    os_id="\$(lsb_release --id --short | tr '[:upper:]' '[:lower:]')"
-    if [[ "\${os_codename}" == 'n/a' ]] || [[ -z "\${os_codename}" ]]; then
-      skip_use_lsb_release="true"
-      get_distro
-      return
-    elif [[ "\${os_codename}" == 'lts' ]]; then
-      os_codename="\$(grep -io "wheezy\\|jessie\\|stretch\\|buster\\|bullseye\\|bookworm\\|trixie\\|forky\\|precise\\|trusty\\|xenial\\|bionic\\|cosmic\\|disco\\|eoan\\|focal\\|groovy\\|hirsute\\|impish\\|jammy\\|kinetic\\|lunar\\|mantic\\|noble\\|oracular\\|plucky" /etc/os-release | tr '[:upper:]' '[:lower:]' | awk '!NF || !seen[$0]++' | head -n1)"
-    fi
-  fi
-  if [[ ! "\${os_id}" =~ (ubuntu|debian) ]] && [[ -e "/etc/os-release" ]]; then os_id="\$(grep -io "debian\\|ubuntu" /etc/os-release | tr '[:upper:]' '[:lower:]' | head -n1)"; fi
-  if [[ "\${os_codename}" =~ ^(precise|maya|luna)$ ]]; then repo_codename="precise"; os_codename="precise"; os_id="ubuntu"
-  elif [[ "\${os_codename}" =~ ^(trusty|qiana|rebecca|rafaela|rosa|freya)$ ]]; then repo_codename="trusty"; os_codename="trusty"; os_id="ubuntu"
-  elif [[ "\${os_codename}" =~ ^(xenial|sarah|serena|sonya|sylvia|loki)$ ]]; then repo_codename="xenial"; os_codename="xenial"; os_id="ubuntu"
-  elif [[ "\${os_codename}" =~ ^(bionic|tara|tessa|tina|tricia|hera|juno)$ ]]; then repo_codename="bionic"; os_codename="bionic"; os_id="ubuntu"
-  elif [[ "\${os_codename}" =~ ^(focal|ulyana|ulyssa|uma|una|odin|jolnir)$ ]]; then repo_codename="focal"; os_codename="focal"; os_id="ubuntu"
-  elif [[ "\${os_codename}" =~ ^(jammy|vanessa|vera|victoria|virginia|horus|cade)$ ]]; then repo_codename="jammy"; os_codename="jammy"; os_id="ubuntu"
-  elif [[ "\${os_codename}" =~ ^(noble|wilma|xia|scootski|circe)$ ]]; then repo_codename="noble"; os_codename="noble"; os_id="ubuntu"
-  elif [[ "\${os_codename}" =~ ^(oracular)$ ]]; then repo_codename="oracular"; os_codename="oracular"; os_id="ubuntu"
-  elif [[ "\${os_codename}" =~ ^(plucky)$ ]]; then repo_codename="plucky"; os_codename="plucky"; os_id="ubuntu"
-  elif [[ "\${os_codename}" =~ ^(jessie|betsy)$ ]]; then repo_codename="jessie"; os_codename="jessie"; os_id="debian"
-  elif [[ "\${os_codename}" =~ ^(stretch|continuum|helium|cindy|tyche)$ ]]; then repo_codename="stretch"; os_codename="stretch"; os_id="debian"
-  elif [[ "\${os_codename}" =~ ^(buster|debbie|parrot|engywuck-backports|engywuck|deepin|lithium|beowulf|po-tolo|nibiru|amber)$ ]]; then repo_codename="buster"; os_codename="buster"; os_id="debian"
-  elif [[ "\${os_codename}" =~ ^(bullseye|kali-rolling|elsie|ara|beryllium|chimaera|orion-belt|byzantium)$ ]]; then repo_codename="bullseye"; os_codename="bullseye"; os_id="debian"
-  elif [[ "\${os_codename}" =~ ^(bookworm|lory|faye|boron|beige|preslee|daedalus|crimson)$ ]]; then repo_codename="bookworm"; os_codename="bookworm"; os_id="debian"
-  elif [[ "\${os_codename}" =~ ^(trixie|excalibur|the-seven-sisters)$ ]]; then repo_codename="trixie"; os_codename="trixie"; os_id="debian"
-  elif [[ "\${os_codename}" =~ ^(forky|freia)$ ]]; then repo_codename="forky"; os_codename="forky"; os_id="debian"
-  elif [[ "\${os_codename}" =~ ^(unstable|rolling|nest)$ ]]; then repo_codename="unstable"; os_codename="unstable"; os_id="debian"
-  else
-    repo_codename="\${os_codename}"
-  fi
-  if [[ -n "\$(command -v jq)" && "\$(jq -r '.database.distribution' "${eus_dir}/db/db.json")" != "\${os_codename}" ]]; then
-    if [[ "\$(dpkg-query --showformat='\${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
-      jq '."database" += {"distribution": "'"\${os_codename}"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+    if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
+      jq '.scripts."'"$script_name"'" += {"variables": {"dns-provider": "'"${auto_dns_challenge_provider}"'","certbot-plugin-type": "'"${certbot_type}"'"}}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
     else
-      jq --arg os_codename "$os_codename" '.database.distribution = $os_codename' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+      jq --arg script_name "$script_name" --arg dns_provider "${auto_dns_challenge_provider}" --arg certbot_type "${certbot_type}" '.scripts[$script_name] += {"variables": {"dns-provider": $dns_provider,"certbot-plugin-type": $certbot_type}}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
     fi
     eus_database_move
-  fi
-}
-get_distro
-
-get_repo_url() {
-  unset archived_repo
-  if [[ "\${os_codename}" != "\${repo_codename}" ]]; then os_codename="\${repo_codename}"; os_codename_changed="true"; fi
-  if "\$(which dpkg)" -l apt 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then apt_package_version="\$(dpkg-query --showformat='\${version}' --show apt 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)"; fi
-  if "\$(which dpkg)" -l apt-transport-https 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui" || [[ "\${apt_package_version::2}" -ge "15" ]]; then
-    http_or_https="https"
-    add_repositories_http_or_https="http[s]*"
-    if [[ "\${copied_source_files}" == 'true' ]]; then
-      while read -r revert_https_repo_needs_http_file; do
-        if [[ "\${revert_https_repo_needs_http_file}" == 'source.list' ]]; then
-          mv "\${revert_https_repo_needs_http_file}" "/etc/apt/source.list" &>> "${eus_dir}/logs/revert-https-repo-needs-http.log"
-        else
-          mv "\${revert_https_repo_needs_http_file}" "/etc/apt/source.list.d/\$(basename "\${revert_https_repo_needs_http_file}")" &>> "${eus_dir}/logs/revert-https-repo-needs-http.log"
-        fi
-      done < <(find "${eus_dir}/repositories" -type f -name "*.list")
-    fi
-  else
-    http_or_https="http"
-    add_repositories_http_or_https="http"
-  fi
-  if "\$(which dpkg)" -l curl 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
-    if [[ "\$(command -v jq)" ]]; then distro_api_status="\$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/distro?status" 2> /dev/null | jq -r '.availability' 2> /dev/null)"; else distro_api_status="\$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/distro?status" 2> /dev/null | grep -oP '(?<="availability":")[^"]+')"; fi
-    if [[ "\${distro_api_status}" == "OK" ]]; then
-      if [[ "\${http_or_https}" == "http" ]]; then api_repo_url_procotol="&protocol=insecure"; fi
-      #if [[ "\${use_raspberrypi_repo}" == 'true' ]]; then os_id="raspbian"; if [[ "\${architecture}" == 'arm64' ]]; then repo_arch_value="arch=arm64"; fi; unset use_raspberrypi_repo; fi
-      distro_api_output="\$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/distro?distribution=\${os_id}&version=\${os_codename}&architecture=\${architecture}\${api_repo_url_procotol}" 2> /dev/null)"
-      if [[ "\$(command -v jq)" ]]; then archived_repo="\$(echo "\${distro_api_output}" | jq -r '.codename_eol')"; else archived_repo="\$(echo "\${distro_api_output}" | grep -oP '"codename_eol":\s*\K[^,}]+')"; fi
-      if [[ "\${get_repo_url_security_url}" == "true" ]]; then get_repo_url_url_argument="security_repository"; unset get_repo_url_security_url; else get_repo_url_url_argument="repository"; fi
-      if [[ "\$(command -v jq)" ]]; then repo_url="\$(echo "\${distro_api_output}" | jq -r ".\${get_repo_url_url_argument}")"; else repo_url="\$(echo "\${distro_api_output}" | grep -oP "\"\${get_repo_url_url_argument}\":\s*\"\K[^\"]+")"; fi
-      distro_api="true"
+    if [[ -n "$(command -v jq)" ]]; then
+      online_sha256sum="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-script-version?script=unifi-easy-encrypt-install-certbot" 2> /dev/null | jq -r '.checksums.sha256sum' 2> /dev/null | sed '/null/d')"
     else
-      if [[ "\${os_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky) ]]; then
-        if curl "${curl_argument[@]}" "\${http_or_https}://old-releases.ubuntu.com/ubuntu/dists/" 2> /dev/null | grep -iq "\${os_codename}" 2> /dev/null; then archived_repo="true"; fi
-        if [[ "\${architecture}" =~ (amd64|i386) ]]; then
-          if [[ "\${archived_repo}" == "true" ]]; then repo_url="\${http_or_https}://old-releases.ubuntu.com/ubuntu"; else repo_url="\${http_or_https}://archive.ubuntu.com/ubuntu"; fi
-        else
-          if [[ "\${archived_repo}" == "true" ]]; then repo_url="\${http_or_https}://old-releases.ubuntu.com/ubuntu"; else repo_url="\${http_or_https}://ports.ubuntu.com"; fi
-        fi
-      elif [[ "\${os_codename}" =~ (wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky|unstable) ]]; then
-        if curl "${curl_argument[@]}" "\${http_or_https}://archive.debian.org/debian/dists/" 2> /dev/null | grep -iq "\${os_codename}" 2> /dev/null; then archived_repo="true"; fi
-        if [[ "\${archived_repo}" == "true" ]]; then repo_url="\${http_or_https}://archive.debian.org/debian"; else repo_url="\${http_or_https}://deb.debian.org/debian"; fi
-      fi
+      online_sha256sum="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-script-version?script=unifi-easy-encrypt-install-certbot" 2> /dev/null | grep -oP '"sha256sum"\s*:\s*"\K[^"]+')"
     fi
-  else
-    if [[ "\${os_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky) ]]; then
-      repo_url="\${http_or_https}://archive.ubuntu.com/ubuntu"
-    elif [[ "\${os_codename}" =~ (wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky|unstable) ]]; then
-      repo_url="\${http_or_https}://deb.debian.org/debian"
-    fi
-  fi
-}
-get_repo_url
-
-add_repositories() {
-  # Check if repository is already added
-  if grep -sq "^deb .*http\?s\?://\$(echo "\${repo_url}" | sed -e 's/https\:\/\///g' -e 's/http\:\/\///g')\${repo_url_arguments}\?/\? \${repo_codename}\${repo_codename_argument} \${repo_component}" /etc/apt/sources.list /etc/apt/sources.list.d/*; then
-    echo -e "\$(date +%F-%T.%6N) | \"\${repo_url}\${repo_url_arguments} \${repo_codename}\${repo_codename_argument} \${repo_component}\" was found, not adding to repository lists. \$(grep -srIl "^deb .*http\?s\?://\$(echo "\${repo_url}" | sed -e 's/https\:\/\///g' -e 's/http\:\/\///g')\${repo_url_arguments}\?/\? \${repo_codename}\${repo_codename_argument} \${repo_component}" /etc/apt/sources.list /etc/apt/sources.list.d/*)..." &>> "${eus_dir}/logs/already-found-repository.log"
-    unset_add_repositories_variables
-    return  # Repository already added, exit function
-  elif find /etc/apt/sources.list.d/ -name "*.sources" | grep -ioq /etc/apt; then
-    repo_component_trimmed="\${repo_component#"\${repo_component%%[![:space:]]*}"}" # remove leading space
-    while IFS= read -r repository_file; do
-      last_line_repository_file="\$(tail -n1 "\${repository_file}")"
-      while IFS= read -r line || [[ -n "\${line}" ]]; do
-        if [[ -z "\${line}" || "\${last_line_repository_file}" == "\${line}" ]]; then
-          if [[ -n "$section" ]]; then
-            section_types="\$(grep -oPm1 'Types: \K.*' <<< "$section")"
-            section_url="\$(grep -oPm1 'URIs: \K.*' <<< "$section" | grep -i "http\?s\?://\$(echo "\${repo_url}" | sed -e 's/https\:\/\///g' -e 's/http\:\/\///g')\${repo_url_arguments}\?/\?")"
-            section_suites="\$(grep -oPm1 'Suites: \K.*' <<< "$section")"
-            section_components="\$(grep -oPm1 'Components: \K.*' <<< "$section")"
-            section_enabled="\$(grep -oPm1 'Enabled: \K.*' <<< "$section")"
-            if [[ -z "\${section_enabled}" ]]; then section_enabled="yes"; fi
-            if [[ -n "\${section_url}" && "\${section_enabled}" == 'yes' && "\${section_types}" == *"deb"* && "\${section_suites}" == "\${repo_codename}\${repo_codename_argument}" && "\${section_components}" == *"\${repo_component_trimmed}"* ]]; then
-              echo -e "\$(date +%F-%T.%6N) | URIs: $section_url Types: $section_types Suites: $section_suites Components: $section_components was found, not adding to repository lists..." &>> "${eus_dir}/logs/already-found-repository.log"
-              unset_add_repositories_variables
-              unset_section_variables
-              return
+    echo -e "${WHITE_R}#${RESET} Downloading the UniFi Easy Encrypt Certbot Installation script..."
+    if curl "${curl_argument[@]}" -o "${eus_dir}/cronjob/install_certbot.sh" https://get.glennr.nl/unifi/extra/unifi-easy-encrypt-install-certbot.sh; then
+      if [[ -n "${online_sha256sum}" && "$(command -v sha256sum)" ]]; then
+        local_checksum="$(sha256sum "${eus_dir}/cronjob/install_certbot.sh" 2> /dev/null | awk '{print $1}')"
+        if [[ "${local_checksum}" != "${online_sha256sum}" ]]; then
+          for attempt in {1..5}; do
+            if [[ -n "$(command -v jq)" ]]; then
+              online_sha256sum_latest="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-script-version?script=unifi-easy-encrypt-install-certbot" 2> /dev/null | jq -r '.checksums.sha256sum' 2> /dev/null | sed '/null/d')"
+            else
+              online_sha256sum_latest="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-script-version?script=unifi-easy-encrypt-install-certbot" 2> /dev/null | grep -oP '"sha256sum"\s*:\s*"\K[^"]+')"
             fi
-            unset_section_variables
-          fi
+            if [[ -n "${online_sha256sum_latest}" ]]; then online_sha256sum="${online_sha256sum_latest}"; unset online_sha256sum_latest; fi
+            local_checksum="$(sha256sum "${eus_dir}/cronjob/install_certbot.sh" 2> /dev/null | awk '{print $1}')"
+            if [[ "${local_checksum}" != "${online_sha256sum}" ]]; then
+              echo -e "${RED}#${RESET} Checksum mismatch (attempt ${attempt}/5), retrying download..."
+              curl "${curl_argument[@]}" -o "${eus_dir}/cronjob/install_certbot.sh" https://get.glennr.nl/unifi/extra/unifi-easy-encrypt-install-certbot.sh
+            else
+              echo -e "${GREEN}#${RESET} Successfully downloaded the UniFi Easy Encrypt Certbot Installation script! \\n"
+              break
+            fi
+            if [[ "${attempt}" -eq '5' ]]; then
+              abort_reason="Failed to download the unifi-easy-encrypt-install-certbot script, checksum mismatch"
+              abort
+            fi
+          done
         else
-          section+="\${line}"$'\n'
-        fi
-      done < "\${repository_file}"
-    done < <(find /etc/apt/sources.list.d/ -name "*.sources" | grep -i /etc/apt)
-  fi
-  # Override the source list
-  if [[ -n "\${add_repositories_source_list_override}" ]]; then
-    add_repositories_source_list="/etc/apt/sources.list.d/\${add_repositories_source_list_override}.\${source_file_format}"
-  else
-    add_repositories_source_list="/etc/apt/sources.list.d/glennr-install-script.\${source_file_format}"
-  fi
-  # Add repository key if required
-  if [[ "\${apt_key_deprecated}" == 'true' && -n "\${repo_key}" && -n "\${repo_key_name}" ]]; then
-    eus_directory_location="/tmp/EUS"
-    eus_create_directories "apt"
-    if gpg --no-default-keyring --keyring "/etc/apt/keyrings/\${repo_key_name}.gpg" --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys "\${repo_key}" &> /tmp/EUS/apt/repository-key.log; then
-      signed_by_value_repo_key="signed-by=/etc/apt/keyrings/\${repo_key_name}.gpg"
-      repository_key_location="/etc/apt/keyrings/\${repo_key_name}.gpg"; check_repository_key_permissions
-    fi
-  fi
-  # Handle Debian versions
-  if [[ "\${os_codename}" =~ (wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky|unstable) && "\$(command -v jq)" ]]; then
-    os_version_number="\$(lsb_release -rs | tr '[:upper:]' '[:lower:]' | cut -d'.' -f1)"
-    check_debian_version="\${os_version_number}"
-    if echo "\${repo_url}" | grep -ioq "archive.debian"; then 
-      check_debian_version="\${os_version_number}-archive"
-    elif echo "\${repo_url_arguments}" | grep -ioq "security.debian"; then 
-      check_debian_version="\${os_version_number}-security"
-    fi
-    if [[ "\$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/debian-release?version=\${check_debian_version}" 2> /dev/null | jq -r '.expired' 2> /dev/null)" == 'true' ]]; then 
-      if [[ "\${use_deb822_format}" == 'true' ]]; then
-        deb822_trusted="\nTrusted: yes"
-      else
-        signed_by_value_repo_key+=" trusted=yes"
-      fi
-    fi
-  fi
-  # Prepare repository entry
-  if [[ -n "\${signed_by_value_repo_key}" && -n "\${repo_arch_value}" ]]; then
-    local brackets="[\${signed_by_value_repo_key}\${repo_arch_value}] "
-  else
-    local brackets=""
-  fi
-  # Attempt to find the repository signing key for Debian/Ubuntu.
-  if [[ -z "\${signed_by_value_repo_key}" && "\${use_deb822_format}" == 'true' ]] && echo "\${repo_url}" | grep -ioq "ports.ubuntu\\|archive.ubuntu\\|security.ubuntu\\|deb.debian"; then
-    signed_by_value_repo_key_find="\$(echo "\${repo_url}" | sed -e 's/https\:\/\///g' -e 's/http\:\/\///g' -e 's/\/.*//g' -e 's/\.com//g' -e 's/\./-/g' -e 's/\./-/g' -e 's/deb-debian/archive-debian/g' -e 's/security-ubuntu/archive-ubuntu/g' -e 's/ports-ubuntu/archive-ubuntu/g' -e 's/old-releases/archive-ubuntu/g' | awk -F'-' '{print $2 "-" $1}')"
-    if [[ -n "\${signed_by_value_repo_key_find}" ]]; then
-      if [[ "\${repo_codename_argument//-/}" == "security" ]]; then signed_by_value_repo_security="\${repo_codename_argument}"; else unset signed_by_value_repo_security; fi
-      if [[ "\${os_id}" == "debian" ]]; then
-        if [[ "\${signed_by_value_repo_security//-/}" == "security" ]]; then
-          signed_by_value_repo_key="signed-by=\$(find /usr/share/keyrings/ /etc/apt/keyrings/ -name "\${signed_by_value_repo_key_find}-\${repo_codename}\${signed_by_value_repo_security}*" | sed '/removed/d' | head -n1)"
-        else
-          signed_by_value_repo_key="signed-by=\$(find /usr/share/keyrings/ /etc/apt/keyrings/ -name "\${signed_by_value_repo_key_find}-\${repo_codename}*" ! -name "*security*" | sed '/removed/d' | head -n1)"
-        fi
-      else
-        signed_by_value_repo_key="signed-by=\$(find /usr/share/keyrings/ /etc/apt/keyrings/ -name "\${signed_by_value_repo_key_find}*" | sed '/removed/d' | head -n1)"
-      fi
-    fi
-  fi
-  # Determine format
-  if [[ "\${use_deb822_format}" == 'true' ]]; then
-    repo_component_trimmed="\${repo_component#"\${repo_component%%[![:space:]]*}"}" # remove leading space
-    repo_entry="Types: deb\nURIs: \${repo_url}\${repo_url_arguments}\nSuites: \${repo_codename}\${repo_codename_argument}\nComponents: \${repo_component_trimmed}"
-    if [[ -n "\${signed_by_value_repo_key}" ]]; then repo_entry+="\nSigned-By: \${signed_by_value_repo_key/signed-by=/}"; fi
-    if [[ -n "\${repo_arch_value}" ]]; then repo_entry+="\nArchitectures: \${repo_arch_value//arch=/}"; fi
-    if [[ -n "\${deb822_trusted}" ]]; then repo_entry+="\${deb822_trusted}"; fi
-    repo_entry+="\n"
-  else
-    repo_entry="deb \${brackets}\${repo_url}\${repo_url_arguments} \${repo_codename}\${repo_codename_argument} \${repo_component}"
-  fi
-  # Add repository to sources list
-  if echo -e "\${repo_entry}" >> "\${add_repositories_source_list}"; then
-    echo -e "\$(date +%F-%T.%6N) | Successfully added \"\${repo_entry}\" to \${add_repositories_source_list}!" &>> "${eus_dir}/logs/added-repository.log"
-  fi
-  # Handle HTTP repositories
-  if [[ "\${add_repositories_http_or_https}" == 'http' ]]; then
-    eus_create_directories "repositories"
-    while read -r https_repo_needs_http_file; do
-      if [[ -d "${eus_dir}/repositories" ]]; then 
-        cp "\${https_repo_needs_http_file}" "${eus_dir}/repositories/\$(basename "\${https_repo_needs_http_file}")" &>> "${eus_dir}/logs/https-repo-needs-http.log"
-        copied_source_files="true"
-      fi
-      sed -i '/https/{s/^/#/}' "\${https_repo_needs_http_file}" &>> "${eus_dir}/logs/https-repo-needs-http.log"
-      sed -i 's/##/#/g' "\${https_repo_needs_http_file}" &>> "${eus_dir}/logs/https-repo-needs-http.log"
-    done < <(grep -sril "^deb https*://\$(echo "\${repo_url}" | sed -e 's/https\:\/\///g' -e 's/http\:\/\///g') \${repo_codename}\${repo_codename_argument} \${repo_component}" /etc/apt/sources.list /etc/apt/sources.list.d/*)
-  fi 
-  # Clean up unset variables
-  unset_add_repositories_variables
-  # Check if OS codename changed and reset variables
-  if [[ "\${os_codename_changed}" == 'true' ]]; then 
-    unset os_codename_changed
-    get_distro
-    get_repo_url
-  else
-    if [[ "\${os_id}" == "raspbian" ]]; then get_distro; fi
-  fi
-}
-
-while [ -n "\$1" ]; do
-  case "\$1" in
-  --force-dpkg) script_option_force_dpkg="true";;
-  esac
-  shift
-done
-echo -e "\\n------- \$(date +%F-%T.%6N) -------\\n" &>>${eus_dir}/logs/cronjob_install.log
-mkdir -p ${eus_dir}/tmp/
-while fuser /var/lib/dpkg/lock /var/lib/apt/lists/lock /var/cache/apt/archives/lock >/dev/null 2>&1; do
-  unset dpkg_locked
-  if [[ "\${script_option_force_dpkg}" == "true" ]]; then
-    current_time=\$(date "+%Y-%m-%d %H:%M")
-    echo "Force killing the lock... | \${current_time}" &>> ${eus_dir}/logs/cronjob_install.log
-    rm --force ${eus_dir}/tmp/dpkg_lock &> /dev/null
-    pgrep "apt" >> ${eus_dir}/tmp/apt
-    while read -r glennr_apt; do
-      kill -9 "\$glennr_apt" &> /dev/null
-    done < ${eus_dir}/tmp/apt
-    rm --force ${eus_dir}/tmp/apt &> /dev/null
-    rm --force /var/lib/apt/lists/lock &> /dev/null
-    rm --force /var/cache/apt/archives/lock &> /dev/null
-    rm --force /var/lib/dpkg/lock* &> /dev/null
-    dpkg --configure -a &> /dev/null
-    DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install --fix-broken &> /dev/null
-  else
-    if [[ \$(grep -c "eus_lock_active" ${eus_dir}/tmp/dpkg_lock) -ge 60 ]]; then
-      echo "dpkg lock still active after 600 seconds..." &>> ${eus_dir}/logs/cronjob_install.log
-      date_minute=\$(date +%M)
-      if ! grep -iq "${eus_dir}/cronjob/install_certbot.sh" /etc/crontab; then
-        echo "\${date_minute} * * * * root /bin/bash ${eus_dir}/cronjob/install_certbot.sh --force-dpkg" >> /etc/crontab
-        if grep -iq "root /bin/bash ${eus_dir}/cronjob/install_certbot.sh --force-dpkg" /etc/crontab; then
-          echo "Script has been scheduled to run on a later time..." &>> ${eus_dir}/logs/cronjob_install.log
-          exit 0
+          echo -e "${GREEN}#${RESET} Successfully downloaded the UniFi Easy Encrypt Certbot Installation script! \\n"
         fi
       fi
     fi
-  fi
-  echo "eus_lock_active" >> ${eus_dir}/tmp/dpkg_lock
-  sleep 10
-done;
-rm --force ${eus_dir}/tmp/dpkg_lock_test &> /dev/null
-rmdir ${eus_dir}/tmp/ &> /dev/null
-if ! dpkg -l certbot 2> /dev/null | awk '{print \$1}' | grep -iq "^ii\\|^hi"; then
-  if [[ -f ${eus_dir}/certbot_install_failed ]]; then
-    rm --force ${eus_dir}/certbot_install_failed
-  fi
-  if [[ -f ${eus_dir}/logs/cronjob_install.log ]]; then
-    cronjob_install_log_size=\$(du -sc ${eus_dir}/logs/cronjob_install.log | grep total\$ | awk '{print \$1}')
-    if [[ \${cronjob_install_log_size} -gt '50' ]]; then
-      tail -n100 ${eus_dir}/logs/cronjob_install.log &> ${eus_dir}/logs/cronjob_install_tmp.log
-      cp ${eus_dir}/logs/cronjob_install_tmp.log ${eus_dir}/logs/cronjob_install.log && rm --force ${eus_dir}/logs/cronjob_install_tmp.log
-    fi
-  fi
-  get_distro
-  if [[ \$os_codename == "jessie" ]]; then
-    if [[ ! -f "${eus_dir}/certbot-auto" && -s "${eus_dir}/certbot-auto" ]]; then
-      curl -s https://raw.githubusercontent.com/certbot/certbot/v1.9.0/certbot-auto -o "${eus_dir}/certbot-auto" &>>${eus_dir}/logs/cronjob_install.log
-      chown root ${eus_dir}/certbot-auto &>>${eus_dir}/logs/cronjob_install.log
-      chmod 0755 ${eus_dir}/certbot-auto &>>${eus_dir}/logs/cronjob_install.log
-    else
-      echo "certbot-auto is available!" &>>${eus_dir}/logs/cronjob_install.log
-    fi
-    if ! dpkg -l libssl-dev 2> /dev/null | awk '{print \$1}' | grep -iq "^ii\\|^hi"; then
-      if ! apt-get install libssl-dev -y; then
-        echo deb ${http_or_https}://archive.debian.org/debian jessie-backports main >>/etc/apt/sources.list.d/glennr-install-script.list
-        apt-get update -o Acquire::Check-Valid-Until=false &>>${eus_dir}/logs/cronjob_install.log
-        apt-get install -t jessie-backports libssl-dev -y &>>${eus_dir}/logs/cronjob_install.log
-        sed -i '/jessie-backports/d' /etc/apt/sources.list.d/glennr-install-script.list &>>${eus_dir}/logs/cronjob_install.log
-      fi
-    else
-      echo "libssl-dev is installed!" &>>${eus_dir}/logs/cronjob_install.log
-    fi
-    if [[ -f "${eus_dir}/certbot-auto" || -s "${eus_dir}/certbot-auto" ]]; then
-      if [[ \$(stat -c "%a" "${eus_dir}/certbot-auto") != "755" ]]; then
-        chmod 0755 ${eus_dir}/certbot-auto
-      fi
-      if [[ \$(stat -c "%U" "${eus_dir}/certbot-auto") != "root" ]] ; then
-        chown root ${eus_dir}/certbot-auto
-      fi
-    fi
-    ${eus_dir}/certbot-auto --non-interactive --install-only --verbose &>>${eus_dir}/logs/cronjob_install.log
-  fi
-  if [[ \$os_codename =~ (stretch|bullseye|bookworm|trixie|forky|unstable) ]]; then
-    repo_component="main"
-    add_repositories
-    apt-get update &>>${eus_dir}/logs/cronjob_install.log
-    apt-get install certbot -y &>>${eus_dir}/logs/cronjob_install.log || touch ${eus_dir}/certbot_install_failed
-  fi
-fi
-if [[ -n "\${auto_dns_challenge_provider}" ]]; then
-  if dpkg -l certbot 2> /dev/null | awk '{print \$1}' | grep -iq "^ii\\|^hi"; then
-    DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' remove certbot &>> "${eus_dir}/logs/remove-certbot.log"
-  fi
-  if [[ "${certbot_native_plugin}" == 'true' ]]; then
-    if ! dpkg -l "python3-certbot-dns-${auto_dns_challenge_provider}" 2> /dev/null | awk '{print \$1}' | grep -iq "^ii\\|^hi"; then
-      if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "python3-certbot-dns-${auto_dns_challenge_provider}" &>> "${eus_dir}/logs/required.log"; then
-        if [[ "\${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky) ]]; then
-          if [[ "\${repo_codename}" =~ (focal|groovy|hirsute|impish) ]]; then repo_component="main universe"; add_repositories; fi
-          if [[ "\${repo_codename}" =~ (jammy|kinetic|lunar|mantic|noble|oracular|plucky) ]]; then repo_component="main"; add_repositories; fi
-          repo_codename_argument="-security"
-          repo_component="main universe"
-        elif [[ "\${repo_codename}" =~ (wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky|unstable) ]]; then
-          if [[ "\${repo_codename}" =~ (stretch) ]]; then repo_url_arguments="-security/"; repo_codename_argument="/updates"; repo_component="main"; add_repositories; fi
-          repo_component="main"
-        fi
-        add_repositories
-        required_package="python3-certbot-dns-${auto_dns_challenge_provider}"
-        apt_get_install_package
-      fi
-    fi
-    if ! dpkg -l python3-certbot 2> /dev/null | awk '{print \$1}' | grep -iq "^ii\\|^hi"; then
-      if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install python3-certbot &>> "${eus_dir}/logs/required.log"; then
-        if [[ "\${repo_codename}" =~ (precise|trusty|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky) ]]; then
-          if [[ "\${repo_codename}" =~ (focal|groovy|hirsute|impish) ]]; then repo_component="main universe"; add_repositories; fi
-          if [[ "\${repo_codename}" =~ (jammy|kinetic|lunar|mantic|noble|oracular|plucky) ]]; then repo_component="main"; add_repositories; fi
-          repo_codename_argument="-security"
-          repo_component="main universe"
-        elif [[ "\${repo_codename}" =~ (wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky|unstable) ]]; then
-          if [[ "\${repo_codename}" =~ (stretch) ]]; then repo_url_arguments="-security/"; repo_codename_argument="/updates"; repo_component="main"; add_repositories; fi
-          repo_component="main"
-        fi
-        add_repositories
-        required_package="python3-certbot"
-        apt_get_install_package
-      fi
-    fi
-  fi
-fi
-if [[ "\${script_option_force_dpkg}" == "true" ]]; then sed -i "/install_certbot.sh/d" /etc/crontab &> /dev/null; fi
-EOF
     chmod +x "${eus_dir}/cronjob/install_certbot.sh" 2> /dev/null
   fi
   if [[ "${run_uck_scripts}" == 'true' ]]; then

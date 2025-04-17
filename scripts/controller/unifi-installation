@@ -11,6 +11,19 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 8.7.7
+  
+ - Fixed AVX debug information for systems running JQ 1.5 or older.
+ 
+ ####
+
+ |  UniFi Network Application Installation Script  |  Version 8.7.6
+  
+ - Improved obtaining the UniFi Application Version number.
+ - Improved the script update process.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 8.7.5
   
  - Fixed an issue where unexpected answers to questions weren't treated properly.

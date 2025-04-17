@@ -2,7 +2,7 @@
 
 # UniFi Network Application Easy Update Script.
 # Script   | UniFi Network Easy Update Script
-# Version  | 10.1.4
+# Version  | 10.1.6
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -89,11 +89,11 @@ if ! "$(which dpkg)" -l unifi-core 2> /dev/null | awk '{print $1}' | grep -iq "^
 fi
 
 get_unifi_version() {
-  unifi="$("$(which dpkg)" -l | grep "unifi " | awk '{print $3}' | sed 's/-.*//')"
+  unifi="$("$(which dpkg)" -l | awk '$2 == "unifi" {print $3}' | sed 's/-.*//')"
   first_digit_unifi="$(echo "${unifi}" | cut -d'.' -f1)"
   second_digit_unifi="$(echo "${unifi}" | cut -d'.' -f2)"
   third_digit_unifi="$(echo "${unifi}" | cut -d'.' -f3)"
-  unifi_release="$("$(which dpkg)" -l | grep "unifi " | awk '{print $3}' | sed 's/-.*//' | sed 's/\.//g')"
+  unifi_release="$("$(which dpkg)" -l | awk '$2 == "unifi" {print $3}' | sed 's/-.*//' | sed 's/\.//g')"
 }
 
 cleanup_codename_mismatch_repos() {
@@ -1781,6 +1781,80 @@ else
   mongodb_upgrade_supported="true"
 fi
 
+update_script() {
+  check_apt_listbugs
+  header_red
+  echo -e "${GRAY_R}#${RESET} You're currently running script version ${local_version} while ${online_version} is the latest!"
+  echo -e "${GRAY_R}#${RESET} Downloading and executing version ${online_version} of the script...\\n\\n"
+  sleep 2
+  if [[ -n "$(command -v jq)" ]]; then
+    online_sha256sum="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-script-version?script=unifi-update&api_version=2" 2> /dev/null | jq -r '.checksums.sha256sum' 2> /dev/null | sed '/null/d')"
+  else
+    online_sha256sum="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-script-version?script=unifi-update&api_version=2" 2> /dev/null | grep -oP '"sha256sum"\s*:\s*"\K[^"]+')"
+  fi
+  if curl "${curl_argument[@]}" -o "${script_location}.tmp" https://get.glennr.nl/unifi/update/unifi-update.sh; then
+    if [[ -n "${online_sha256sum}" && "$(command -v sha256sum)" ]]; then
+      local_checksum="$(sha256sum "${script_location}.tmp" 2> /dev/null | awk '{print $1}')"
+      if [[ "${local_checksum}" != "${online_sha256sum}" ]]; then
+        for attempt in {1..5}; do
+          if [[ -n "$(command -v jq)" ]]; then
+            online_sha256sum_latest="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-script-version?script=unifi-update&api_version=2" 2> /dev/null | jq -r '.checksums.sha256sum' 2> /dev/null | sed '/null/d')"
+          else
+            online_sha256sum_latest="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-script-version?script=unifi-update&api_version=2" 2> /dev/null | grep -oP '"sha256sum"\s*:\s*"\K[^"]+')"
+          fi
+          if [[ -n "${online_sha256sum_latest}" ]]; then online_sha256sum="${online_sha256sum_latest}"; unset online_sha256sum_latest; fi
+          local_checksum="$(sha256sum "${script_location}.tmp" 2> /dev/null | awk '{print $1}')"
+          if [[ "${local_checksum}" == "${online_sha256sum}" ]]; then
+            rm --force "${script_location}" 2> /dev/null
+            # shellcheck disable=SC2068
+            mv "${script_location}.tmp" "${script_location}" && bash "${script_location}" ${script_options[@]}
+            exit 0
+          else
+            echo -e "${RED}#${RESET} Checksum mismatch (attempt ${attempt}/5), retrying download..."
+            curl "${curl_argument[@]}" -o "${script_location}.tmp" https://get.glennr.nl/unifi/update/unifi-update.sh
+          fi
+        done
+        abort_reason="Failed to update the script, checksum mismatch"
+        abort
+      else
+        rm --force "${script_location}" 2> /dev/null
+        # shellcheck disable=SC2068
+        mv "${script_location}.tmp" "${script_location}" && bash "${script_location}" ${script_options[@]}
+        exit 0
+      fi
+    else
+      rm --force unifi-update.sh 2> /dev/null
+      # shellcheck disable=SC2068
+      curl "${curl_argument[@]}" --remote-name https://get.glennr.nl/unifi/update/unifi-update.sh && bash unifi-update.sh ${script_options[@]}; exit 0
+    fi
+  fi
+}
+
+script_version_check() {
+  local local_version
+  local online_version
+  local_version="$(grep -i "# Version" "${script_location}" | head -n 1 | cut -d'|' -f2 | sed 's/ //g')"
+  if [[ -n "$(command -v jq)" ]]; then
+    online_version="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-script-version?script=unifi-update&api_version=2" 2> /dev/null | jq -r '."latest-script-version"' 2> /dev/null)"
+  else
+    online_version="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-script-version?script=unifi-update&api_version=2" 2> /dev/null | grep -oP '(?<="latest-script-version":")[0-9.]+')"
+  fi
+  IFS='.' read -r -a local_parts <<< "${local_version}"
+  IFS='.' read -r -a online_parts <<< "${online_version}"
+  local max_length=$(( ${#local_parts[@]} > ${#online_parts[@]} ? ${#local_parts[@]} : ${#online_parts[@]} ))
+  for ((i = 0; i < max_length; i++)); do
+    local local_segment="${local_parts[$i]:-0}"
+    local online_segment="${online_parts[$i]:-0}"
+    if (( local_segment < online_segment )); then
+      update_script
+      return
+    elif (( local_segment > online_segment )); then
+      return
+    fi
+  done
+}
+if [[ "$(command -v curl)" ]]; then script_version_check; fi
+
 # Remove dummy unifi-beta, unifi-rapid and unifi-alpha packages
 unifi_dummy_packages=("unifi-beta" "unifi-rapid" "unifi-alpha")
 for unifi_dummy_package in "${unifi_dummy_packages[@]}"; do
@@ -2506,43 +2580,6 @@ check_dpkg_lock() {
   done
   check_dpkg_interrupted
 }
-
-update_script() {
-  check_apt_listbugs
-  header_red
-  echo -e "${GRAY_R}#${RESET} You're currently running script version ${local_version} while ${online_version} is the latest!"
-  echo -e "${GRAY_R}#${RESET} Downloading and executing version ${online_version} of the script...\\n\\n"
-  sleep 3
-  rm --force "${script_location}" 2> /dev/null
-  rm --force unifi-update.sh 2> /dev/null
-  # shellcheck disable=SC2068
-  curl "${curl_argument[@]}" --remote-name https://get.glennr.nl/unifi/update/unifi-update.sh && bash unifi-update.sh ${script_options[@]}; exit 0
-}
-
-script_version_check() {
-  local local_version
-  local online_version
-  local_version="$(grep -i "# Version" "${script_location}" | head -n 1 | cut -d'|' -f2 | sed 's/ //g')"
-  if [[ -n "$(command -v jq)" ]]; then
-    online_version="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-script-version?script=unifi-update&api_version=2" 2> /dev/null | jq -r '."latest-script-version"' 2> /dev/null)"
-  else
-    online_version="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-script-version?script=unifi-update&api_version=2" 2> /dev/null | grep -oP '(?<="latest-script-version":")[0-9.]+')"
-  fi
-  IFS='.' read -r -a local_parts <<< "${local_version}"
-  IFS='.' read -r -a online_parts <<< "${online_version}"
-  local max_length=$(( ${#local_parts[@]} > ${#online_parts[@]} ? ${#local_parts[@]} : ${#online_parts[@]} ))
-  for ((i = 0; i < max_length; i++)); do
-    local local_segment="${local_parts[$i]:-0}"
-    local online_segment="${online_parts[$i]:-0}"
-    if (( local_segment < online_segment )); then
-      update_script
-      return
-    elif (( local_segment > online_segment )); then
-      return
-    fi
-  done
-}
-if [[ "$(command -v curl)" ]]; then script_version_check; fi
 
 if ! [[ "${os_codename}" =~ (precise|maya|trusty|qiana|rebecca|rafaela|rosa|xenial|sarah|serena|sonya|sylvia|bionic|tara|tessa|tina|tricia|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky|wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky|unstable) ]]; then
   if [[ -e "/etc/os-release" ]]; then full_os_details="$(sed ':a;N;$!ba;s/\n/\\n/g' /etc/os-release | sed 's/"/\\"/g')"; fi
@@ -5949,7 +5986,7 @@ mongodb_avx_support_check() {
     if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
       jq '.scripts["'"$script_name"'"].tasks += {"mongodb-avx-check ('"$(date +%s)"')": [.scripts["'"$script_name"'"].tasks["mongodb-avx-check ('"$(date +%s)"')"][0] + {"architecture":"'"${architecture}"'","CPU":"'"${cpu_model_name}"'","add_mongodb_44_repo":"'"${add_mongodb_44_repo}"'","mongo_version_max":"'"${mongo_version_max}"'","mongo_version_max_with_dot":"'"${mongo_version_max_with_dot}"'","mongo_version_locked":"'"${mongo_version_locked}"'","Official MongoDB Compatible":"'"${official_mongodb_compatible}"'","Glenn R. MongoDB":"'"${glennr_compiled_mongod}"'","Glenn R. MongoDB Compatible":"'"${glennr_mongod_compatible}"'","Memory Allocation Modifications":"'"${memory_allocation_modifications}"'"}]}' "${eus_dir}/db/db.json" > "/tmp/EUS/db-avx-debug.json"
     else
-      jq --arg script_name "$script_name" --arg date_key "$(date +%s)" --arg cpu_model_name "${cpu_model_name}" --arg architecture "${architecture}" --arg add_mongodb_44_repo "$add_mongodb_44_repo" --arg mongo_version_max "$mongo_version_max" --arg mongo_version_max_with_dot "$mongo_version_max_with_dot" --arg mongo_version_locked "$mongo_version_locked" --arg official_mongodb_compatible "$official_mongodb_compatible" --arg glennr_compiled_mongod "$glennr_compiled_mongod" --arg glennr_mongod_compatible "$glennr_mongod_compatible" --arg memory_allocation_modifications "${memory_allocation_modifications}" '.scripts[$script_name].tasks = (.scripts[$script_name].tasks + {("mongodb-avx-check (" + $date_key + ")"): ((.scripts[$script_name].tasks["mongodb-avx-check (" + $date_key + ")"] // []) + [{"architecture": $architecture, "CPU": $cpu_model_name, "add_mongodb_44_repo": $add_mongodb_44_repo, "mongo_version_max": $mongo_version_max, "mongo_version_max_with_dot": $mongo_version_max_with_dot, "mongo_version_locked": $mongo_version_locked, "Official MongoDB Compatible": $official_mongodb_compatible, "Glenn R. MongoDB": $glennr_compiled_mongod, "Glenn R. MongoDB Compatible": $glennr_mongod_compatible}, "Memory Allocation Modifications": $memory_allocation_modifications}] )})' "${eus_dir}/db/db.json" > "/tmp/EUS/db-avx-debug.json"
+      jq --arg script_name "$script_name" --arg date_key "$(date +%s)" --arg cpu_model_name "$cpu_model_name" --arg architecture "$architecture" --arg add_mongodb_44_repo "$add_mongodb_44_repo" --arg mongo_version_max "$mongo_version_max" --arg mongo_version_max_with_dot "$mongo_version_max_with_dot" --arg mongo_version_locked "$mongo_version_locked" --arg official_mongodb_compatible "$official_mongodb_compatible" --arg glennr_compiled_mongod "$glennr_compiled_mongod" --arg glennr_mongod_compatible "$glennr_mongod_compatible" --arg memory_allocation_modifications "$memory_allocation_modifications" '.scripts[$script_name].tasks += {("mongodb-avx-check (" + $date_key + ")"): ((.scripts[$script_name].tasks["mongodb-avx-check (" + $date_key + ")"] // []) + [{"architecture": $architecture, "CPU": $cpu_model_name, "add_mongodb_44_repo": $add_mongodb_44_repo, "mongo_version_max": $mongo_version_max, "mongo_version_max_with_dot": $mongo_version_max_with_dot, "mongo_version_locked": $mongo_version_locked, "Official MongoDB Compatible": $official_mongodb_compatible, "Glenn R. MongoDB": $glennr_compiled_mongod, "Glenn R. MongoDB Compatible": $glennr_mongod_compatible, "Memory Allocation Modifications": $memory_allocation_modifications}])}' "${eus_dir}/db/db.json" > "/tmp/EUS/db-avx-debug.json"
     fi
   fi
 }
@@ -6030,7 +6067,7 @@ migration_check() {
   read -rt 600 < <(tail -n 0 -f /usr/lib/unifi/logs/server.log | grep --line-buffered "DB migration to version (.*) is complete\\|*** Factory Default ***") && unifi_update="true" || TIMED_OUT="true"
   if [[ "${unifi_update}" == 'true' ]]; then
     unset UNIFI
-    unifi=$("$(which dpkg)" -l | grep "unifi " | awk '{print $3}' | sed 's/-.*//')
+    unifi=$("$(which dpkg)" -l | awk '$2 == "unifi" {print $3}' | sed 's/-.*//')
     header
     echo -e "${GRAY_R}#${RESET} UniFi Network Application DB migration was successful"
     echo -e "${GRAY_R}#${RESET} Currently your UniFi Network Application is on version ${GRAY_R}$unifi${RESET}\\n\\n"
@@ -6352,7 +6389,7 @@ get_sysinfo() {
       sysinfo_version=$(grep -io '"version":".*"' /tmp/EUS/application/sysinfo | cut -d':' -f2 | cut -d'}' -f1 | tr -d '"' | cut -d'.' -f1-2 | tr -d '.')
     fi
    else
-    sysinfo_version=$("$(which dpkg)" -l | grep "unifi " | awk '{print $3}' | sed 's/-.*//' | cut -d'.' -f1-2 | tr -d '.')
+    sysinfo_version=$("$(which dpkg)" -l | awk '$2 == "unifi" {print $3}' | sed 's/-.*//' | cut -d'.' -f1-2 | tr -d '.')
   fi
 }
 
@@ -8529,7 +8566,7 @@ mongodb_upgrade_custom_unifi_download_url_check() {
 
 custom_url_upgrade_check() {
   if [[ -z "${custom_application_version}" ]]; then custom_application_version="$(echo "${custom_download_url}" | grep -io "5.*\\|6.*\\|7.*\\|8.*\\|9.*\\|10.*" | sed 's/-.*//g' | sed 's/\/.*//g')"; fi
-  current_application_version="$("$(which dpkg)" -l | grep "unifi " | awk '{print $3}' | sed 's/-.*//g')"
+  current_application_version="$("$(which dpkg)" -l | awk '$2 == "unifi" {print $3}' | sed 's/-.*//g')"
   if [[ -e "/usr/lib/unifi/data/db/version" ]]; then
     unifi_database_version="$(grep -E '^[0-9.]+$' "/usr/lib/unifi/data/db/version")"
     if [[ "${current_application_version}" != "${unifi_database_version}" ]]; then
@@ -8862,7 +8899,7 @@ mongodb_upgrade() {
     jq '.scripts["'"${script_name}"'"] |= (.tasks += {"mongodb-upgrade ('"${mongodb_upgrade_date}"')": [{"distribution": "'"${os_codename}"'", "from": "'"${mongodb_upgrade_from_version_with_dots}"'", "to": "'"${mongo_version_max_with_dot}"'", "unifi-version": "'"${unifi}"'", "Glenn R. MongoDB": "'"${glennr_compiled_mongod}"'"}]})' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
   fi
   eus_database_move
-  unifi_video="$("$(which dpkg)" -l | grep "unifi-video" | awk '{print $3}' | sed 's/-.*//')"
+  unifi_video="$("$(which dpkg)" -l | awk '$2 == "unifi-video" {print $3}' | sed 's/-.*//')"
   if "$(which dpkg)" -l | grep "unifi-video" | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU"; then
     if [[ "${mongo_version_max}" == '36' ]]; then
       first_digit_unifi_video="$(echo "${unifi_video}" | cut -d'.' -f1)"
