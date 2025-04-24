@@ -11,6 +11,12 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 10.1.7
+  
+ - Added support for upgrading to 9.1.119 RC.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 10.1.6
   
  - Fixed AVX debug information for systems running JQ 1.5 or older.
