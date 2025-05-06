@@ -11,6 +11,18 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 10.2.2
+  
+ - Added application recovery for Cortex A53 systems running Temurin JRE 21.0.7.0.0+6-0.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 10.2.1
+  
+ - Fixed an issue where the application could fail to start with Temurin JRE 21.0.7.0.0+6-0 on boards with a Cortex A53.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 10.2.0
   
  - Added support for upgrading to 9.1.120 Stable/Official.

@@ -68,7 +68,7 @@
 ###################################################################################################################################################################################################
 
 # Script                | UniFi Network Easy Installation Script
-# Version               | 8.7.7
+# Version               | 8.7.8
 # Application version   | 5.10.21-77f3252525
 # Debian Repo version   | 5.10.21-11661-1
 # Author                | Glenn Rietveld
@@ -4621,6 +4621,23 @@ java_required_variables() {
   else
     required_java_version="openjdk-8"
     required_java_version_short="8"
+  fi
+  # Failed to instantiate [ch.qos.logback.classic.LoggerContext] issue with temurin-21-jre 21.0.7.0.0+6-0
+  if [[ "${architecture}" == "arm64" && "${required_java_version_short}" == "21" ]]; then
+    cpu_model_name="$(lscpu | tr '[:upper:]' '[:lower:]' | grep -i '^model name' | cut -f 2 -d ":" | awk '{$1=$1}1')"
+    if [[ -z "${cpu_model_name}" ]]; then cpu_model_name="$(lscpu | tr '[:upper:]' '[:lower:]' | sed -n 's/^model name:[[:space:]]*//p')"; fi
+    if [[ "${cpu_model_name}" =~ (cortex-a53) ]]; then
+      if "$(which dpkg)" -l | grep "^ii\\|^hi" | grep -iq "temurin-21-jre"; then
+        temurin_21_version="$(dpkg-query --showformat='${version}' --show temurin-21-jre 2> /dev/null | sed -e 's/.*://' -e 's/[^0-9.]//g' -e 's/\.//g')"
+      else
+        temurin_21_version="$(apt-cache policy temurin-21-jre 2> /dev/null | tr '[:upper:]' '[:lower:]' | grep "candidate:" | cut -d':' -f2 | sed -e 's/ //g' -e 's/.*://' -e 's/[^0-9.]//g' -e 's/\.//g')"
+      fi
+      temurin_21_candidate_version="$(apt-cache policy temurin-21-jre 2> /dev/null | tr '[:upper:]' '[:lower:]' | grep "candidate:" | cut -d':' -f2 | sed -e 's/ //g' -e 's/.*://' -e 's/[^0-9.]//g' -e 's/\.//g')"
+      if [[ "${temurin_21_version}" =~ (21070060) ]] || [[ "${temurin_21_candidate_version}" =~ (21070060) ]]; then
+        required_java_version="openjdk-17"
+        required_java_version_short="17"
+      fi
+    fi
   fi
 }
 java_required_variables

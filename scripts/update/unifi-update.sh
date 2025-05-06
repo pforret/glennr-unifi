@@ -2,7 +2,7 @@
 
 # UniFi Network Application Easy Update Script.
 # Script   | UniFi Network Easy Update Script
-# Version  | 10.1.8
+# Version  | 10.2.2
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -1935,14 +1935,14 @@ release_wanted () {
       esac
     done
   fi
-  if [[ "${release_stage}" == 'RC' ]]; then rc_version_available="9.1.119"; rc_version_available_secret="9.1.119-00wkk4q4wj"; fi
+  if [[ "${release_stage}" == 'RC' ]]; then rc_version_available="9.1.120"; rc_version_available_secret="9.1.120-e1aep1zs38"; fi
 }
 
 if [[ "$(command -v jq)" ]]; then latest_release_api_status="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?status" 2> /dev/null | jq -r '.availability' 2> /dev/null)"; else latest_release_api_status="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?status" 2> /dev/null | grep -oP '(?<="availability":")[^"]+')"; fi
 if [[ "${latest_release_api_status}" == "OK" ]]; then
   if [[ -n "$(command -v jq)" ]]; then latest_release="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?version=latest" 2> /dev/null | jq -r '.latest_release' 2> /dev/null)"; else latest_release="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?version=latest" 2> /dev/null | sed -n 's/.*"latest_release":"\([^"]*\)".*/\1/p')"; fi
 else
-  latest_release="9.1.119"
+  latest_release="9.1.120"
 fi
 
 broken_packages_check() {
@@ -4244,6 +4244,23 @@ java_required_variables() {
   else
     required_java_version="openjdk-8"
     required_java_version_short="8"
+  fi
+  # Failed to instantiate [ch.qos.logback.classic.LoggerContext] issue with temurin-21-jre 21.0.7.0.0+6-0
+  if [[ "${architecture}" == "arm64" && "${required_java_version_short}" == "21" ]]; then
+    cpu_model_name="$(lscpu | tr '[:upper:]' '[:lower:]' | grep -i '^model name' | cut -f 2 -d ":" | awk '{$1=$1}1')"
+    if [[ -z "${cpu_model_name}" ]]; then cpu_model_name="$(lscpu | tr '[:upper:]' '[:lower:]' | sed -n 's/^model name:[[:space:]]*//p')"; fi
+    if [[ "${cpu_model_name}" =~ (cortex-a53) ]]; then
+      if "$(which dpkg)" -l | grep "^ii\\|^hi" | grep -iq "temurin-21-jre"; then
+        temurin_21_version="$(dpkg-query --showformat='${version}' --show temurin-21-jre 2> /dev/null | sed -e 's/.*://' -e 's/[^0-9.]//g' -e 's/\.//g')"
+      else
+        temurin_21_version="$(apt-cache policy temurin-21-jre 2> /dev/null | tr '[:upper:]' '[:lower:]' | grep "candidate:" | cut -d':' -f2 | sed -e 's/ //g' -e 's/.*://' -e 's/[^0-9.]//g' -e 's/\.//g')"
+      fi
+      temurin_21_candidate_version="$(apt-cache policy temurin-21-jre 2> /dev/null | tr '[:upper:]' '[:lower:]' | grep "candidate:" | cut -d':' -f2 | sed -e 's/ //g' -e 's/.*://' -e 's/[^0-9.]//g' -e 's/\.//g')"
+      if [[ "${temurin_21_version}" =~ (21070060) ]] || [[ "${temurin_21_candidate_version}" =~ (21070060) ]]; then
+        required_java_version="openjdk-17"
+        required_java_version_short="17"
+      fi
+    fi
   fi
 }
 
@@ -10242,10 +10259,22 @@ not_running_dir_check() {
   if ! [[ -d "$(readlink -f /usr/lib/unifi/logs)" ]]; then install -o unifi -g unifi -m 750 -d "$(readlink -f /usr/lib/unifi/logs)" &>> "${eus_dir}/logs/unifi-logs-dir-missing.log"; fi
 }
 
+not_running_temurin_21_check() {
+  # Failed to instantiate [ch.qos.logback.classic.LoggerContext] issue with temurin-21-jre 21.0.7.0.0+6-0
+  if [[ "${architecture}" == "arm64" ]]; then
+    cpu_model_name="$(lscpu | tr '[:upper:]' '[:lower:]' | grep -i '^model name' | cut -f 2 -d ":" | awk '{$1=$1}1')"
+    if [[ -z "${cpu_model_name}" ]]; then cpu_model_name="$(lscpu | tr '[:upper:]' '[:lower:]' | sed -n 's/^model name:[[:space:]]*//p')"; fi
+    if [[ "${cpu_model_name}" =~ (cortex-a53) ]]; then
+      java_install_check
+    fi
+  fi
+}
+
 if [[ "${limited_functionality}" == 'true' ]]; then
   if ! [[ "$(pgrep -f "/usr/lib/unifi" | grep -cv grep)" -ge "2" ]]; then
     if [[ "${installing_required_package}" != 'yes' ]]; then echo -e "\\n${GREEN}---${RESET}\\n"; else header; fi
     not_running_dir_check
+    not_running_temurin_21_check
     echo -e "${GRAY_R}#${RESET} The UniFi Network Application does not appear to be running... Trying to start it..."
     if service unifi start &> /dev/null; then echo -e "${GREEN}#${RESET} The UniFi Network Application started successfully!"; sleep 3; fi
     if ! [[ "$(pgrep -f "/usr/lib/unifi" | grep -cv grep)" -ge "2" ]]; then
@@ -10257,6 +10286,7 @@ else
     if ! systemctl status unifi | grep -iq running; then
       if [[ "${installing_required_package}" != 'yes' ]]; then echo -e "\\n${GREEN}---${RESET}\\n"; else header; fi
       not_running_dir_check
+      not_running_temurin_21_check
       echo -e "${GRAY_R}#${RESET} The UniFi Network Application does not appear to be running... Trying to start it..."
       if systemctl start unifi &> /dev/null; then echo -e "${GREEN}#${RESET} The UniFi Network Application started successfully!"; sleep 3; fi
       if ! systemctl status unifi | grep -iq running; then
@@ -10267,6 +10297,7 @@ else
     if ! systemctl is-active -q unifi; then
       if [[ "${installing_required_package}" != 'yes' ]]; then echo -e "\\n${GREEN}---${RESET}\\n"; else header; fi
       not_running_dir_check
+      not_running_temurin_21_check
       echo -e "${GRAY_R}#${RESET} The UniFi Network Application does not appear to be running... Trying to start it..."
       if systemctl start unifi &> /dev/null; then echo -e "${GREEN}#${RESET} The UniFi Network Application started successfully!"; sleep 3; fi
       if ! systemctl is-active -q unifi; then
@@ -10848,7 +10879,7 @@ if [[ "${first_digit_unifi}" == '5' && "${second_digit_unifi}" =~ ^(0|1|2|3|4|5)
   echo -e " [   ${WHITE_R}15${RESET}  ]  |  8.5.6"
   echo -e " [   ${WHITE_R}16${RESET}  ]  |  8.6.9"
   echo -e " [   ${WHITE_R}17${RESET}  ]  |  9.0.114"
-  echo -e " [   ${WHITE_R}18${RESET}  ]  |  9.1.119"
+  echo -e " [   ${WHITE_R}18${RESET}  ]  |  9.1.120"
   if [[ "${release_stage}" == 'RC' ]]; then
     echo -e " [   ${WHITE_R}19${RESET}  ]  |  ${rc_version_available}"
     echo -e " [   ${WHITE_R}20${RESET}  ]  |  Cancel\\n\\n"
@@ -10963,7 +10994,7 @@ if [[ "${first_digit_unifi}" == '5' && "${second_digit_unifi}" =~ ^(0|1|2|3|4|5)
       18)
         unifi_update_start
         unifi_firmware_requirement
-        application_version="9.1.119-00wkk4q4wj"
+        application_version="9.1.120-e1aep1zs38"
         application_upgrade_releases
         unifi_update_finish;;
       19)
@@ -11009,7 +11040,7 @@ elif [[ "${first_digit_unifi}" == '5' && "${second_digit_unifi}" == '6' ]]; then
     echo -e " [   ${WHITE_R}14${RESET}  ]  |  8.5.6"
     echo -e " [   ${WHITE_R}15${RESET}  ]  |  8.6.9"
     echo -e " [   ${WHITE_R}16${RESET}  ]  |  9.0.114"
-    echo -e " [   ${WHITE_R}17${RESET}  ]  |  9.1.119"
+    echo -e " [   ${WHITE_R}17${RESET}  ]  |  9.1.120"
     if [[ "${release_stage}" == 'RC' ]]; then
       echo -e " [   ${WHITE_R}18${RESET}  ]  |  ${rc_version_available}"
       echo -e " [   ${WHITE_R}19${RESET}  ]  |  Cancel\\n\\n"
@@ -11033,7 +11064,7 @@ elif [[ "${first_digit_unifi}" == '5' && "${second_digit_unifi}" == '6' ]]; then
     echo -e " [   ${WHITE_R}13${RESET}  ]  |  8.5.6"
     echo -e " [   ${WHITE_R}14${RESET}  ]  |  8.6.9"
     echo -e " [   ${WHITE_R}15${RESET}  ]  |  9.0.114"
-    echo -e " [   ${WHITE_R}16${RESET}  ]  |  9.1.119"
+    echo -e " [   ${WHITE_R}16${RESET}  ]  |  9.1.120"
     if [[ "${release_stage}" == 'RC' ]]; then
       echo -e " [   ${WHITE_R}17${RESET}  ]  |  ${rc_version_available}"
       echo -e " [   ${WHITE_R}18${RESET}  ]  |  Cancel\\n\\n"
@@ -11058,7 +11089,7 @@ elif [[ "${first_digit_unifi}" == '5' && "${second_digit_unifi}" == '6' ]]; then
     echo -e " [   ${WHITE_R}15${RESET}  ]  |  8.5.6"
     echo -e " [   ${WHITE_R}16${RESET}  ]  |  8.6.9"
     echo -e " [   ${WHITE_R}17${RESET}  ]  |  9.0.114"
-    echo -e " [   ${WHITE_R}18${RESET}  ]  |  9.1.119"
+    echo -e " [   ${WHITE_R}18${RESET}  ]  |  9.1.120"
     if [[ "${release_stage}" == 'RC' ]]; then
       echo -e " [   ${WHITE_R}19${RESET}  ]  |  ${rc_version_available}"
       echo -e " [   ${WHITE_R}20${RESET}  ]  |  Cancel\\n\\n"
@@ -11208,7 +11239,7 @@ elif [[ "${first_digit_unifi}" == '5' && "${second_digit_unifi}" == '6' ]]; then
         17)
           unifi_update_start
           unifi_firmware_requirement
-          application_version="9.1.119-00wkk4q4wj"
+          application_version="9.1.120-e1aep1zs38"
           application_upgrade_releases
           unifi_update_finish;;
         18)
@@ -11322,7 +11353,7 @@ elif [[ "${first_digit_unifi}" == '5' && "${second_digit_unifi}" == '6' ]]; then
         16)
           unifi_update_start
           unifi_firmware_requirement
-          application_version="9.1.119-00wkk4q4wj"
+          application_version="9.1.120-e1aep1zs38"
           application_upgrade_releases
           unifi_update_finish;;
         17)
@@ -11444,7 +11475,7 @@ elif [[ "${first_digit_unifi}" == '5' && "${second_digit_unifi}" == '6' ]]; then
         18)
           unifi_update_start
           unifi_firmware_requirement
-          application_version="9.1.119-00wkk4q4wj"
+          application_version="9.1.120-e1aep1zs38"
           application_upgrade_releases
           unifi_update_finish;;
         19)
@@ -11488,7 +11519,7 @@ elif [[ "${first_digit_unifi}" == '5' && "${second_digit_unifi}" =~ ^(7|8|9|10|1
   echo -e " [   ${WHITE_R}13${RESET}  ]  |  8.5.6"
   echo -e " [   ${WHITE_R}14${RESET}  ]  |  8.6.9"
   echo -e " [   ${WHITE_R}15${RESET}  ]  |  9.0.114"
-  echo -e " [   ${WHITE_R}16${RESET}  ]  |  9.1.119"
+  echo -e " [   ${WHITE_R}16${RESET}  ]  |  9.1.120"
   if [[ "${release_stage}" == 'RC' ]]; then
     echo -e " [   ${WHITE_R}17${RESET}  ]  |  ${rc_version_available}"
     echo -e " [   ${WHITE_R}18${RESET}  ]  |  Cancel\\n\\n"
@@ -11591,7 +11622,7 @@ elif [[ "${first_digit_unifi}" == '5' && "${second_digit_unifi}" =~ ^(7|8|9|10|1
       16)
         unifi_update_start
         unifi_firmware_requirement
-        application_version="9.1.119-00wkk4q4wj"
+        application_version="9.1.120-e1aep1zs38"
         application_upgrade_releases
         unifi_update_finish;;
       17)
@@ -11635,7 +11666,7 @@ elif [[ "${first_digit_unifi}" == '6' && "${second_digit_unifi}" == '5' ]]; then
     echo -e " [   ${WHITE_R}12${RESET}  ]  |  8.5.6"
     echo -e " [   ${WHITE_R}13${RESET}  ]  |  8.6.9"
     echo -e " [   ${WHITE_R}14${RESET}  ]  |  9.0.114"
-    echo -e " [   ${WHITE_R}15${RESET}  ]  |  9.1.119"
+    echo -e " [   ${WHITE_R}15${RESET}  ]  |  9.1.120"
     if [[ "${release_stage}" == 'RC' ]]; then
       echo -e " [   ${WHITE_R}16${RESET}  ]  |  ${rc_version_available}"
       echo -e " [   ${WHITE_R}17${RESET}  ]  |  Cancel\\n\\n"
@@ -11658,7 +11689,7 @@ elif [[ "${first_digit_unifi}" == '6' && "${second_digit_unifi}" == '5' ]]; then
     echo -e " [   ${WHITE_R}13${RESET}  ]  |  8.5.6"
     echo -e " [   ${WHITE_R}14${RESET}  ]  |  8.6.9"
     echo -e " [   ${WHITE_R}15${RESET}  ]  |  9.0.114"
-    echo -e " [   ${WHITE_R}16${RESET}  ]  |  9.1.119"
+    echo -e " [   ${WHITE_R}16${RESET}  ]  |  9.1.120"
     if [[ "${release_stage}" == 'RC' ]]; then
       echo -e " [   ${WHITE_R}17${RESET}  ]  |  ${rc_version_available}"
       echo -e " [   ${WHITE_R}18${RESET}  ]  |  Cancel\\n\\n"
@@ -11757,7 +11788,7 @@ elif [[ "${first_digit_unifi}" == '6' && "${second_digit_unifi}" == '5' ]]; then
         15)
           unifi_update_start
           unifi_firmware_requirement
-          application_version="9.1.119-00wkk4q4wj"
+          application_version="9.1.120-e1aep1zs38"
           application_upgrade_releases
           unifi_update_finish;;
         16)
@@ -11868,7 +11899,7 @@ elif [[ "${first_digit_unifi}" == '6' && "${second_digit_unifi}" == '5' ]]; then
         16)
           unifi_update_start
           unifi_firmware_requirement
-          application_version="9.1.119-00wkk4q4wj"
+          application_version="9.1.120-e1aep1zs38"
           application_upgrade_releases
           unifi_update_finish;;
         17)
@@ -11912,7 +11943,7 @@ elif [[ "${first_digit_unifi}" == '7' && "${second_digit_unifi}" == '0' ]]; then
     echo -e " [   ${WHITE_R}11${RESET}  ]  |  8.5.6"
     echo -e " [   ${WHITE_R}12${RESET}  ]  |  8.6.9"
     echo -e " [   ${WHITE_R}13${RESET}  ]  |  9.0.114"
-    echo -e " [   ${WHITE_R}14${RESET}  ]  |  9.1.119"
+    echo -e " [   ${WHITE_R}14${RESET}  ]  |  9.1.120"
     if [[ "${release_stage}" == 'RC' ]]; then
       echo -e " [   ${WHITE_R}15${RESET}  ]  |  ${rc_version_available}"
       echo -e " [   ${WHITE_R}16${RESET}  ]  |  Cancel\\n\\n"
@@ -11934,7 +11965,7 @@ elif [[ "${first_digit_unifi}" == '7' && "${second_digit_unifi}" == '0' ]]; then
     echo -e " [   ${WHITE_R}12${RESET}  ]  |  8.5.6"
     echo -e " [   ${WHITE_R}13${RESET}  ]  |  8.6.9"
     echo -e " [   ${WHITE_R}14${RESET}  ]  |  9.0.114"
-    echo -e " [   ${WHITE_R}15${RESET}  ]  |  9.1.119"
+    echo -e " [   ${WHITE_R}15${RESET}  ]  |  9.1.120"
     if [[ "${release_stage}" == 'RC' ]]; then
       echo -e " [   ${WHITE_R}16${RESET}  ]  |  ${rc_version_available}"
       echo -e " [   ${WHITE_R}17${RESET}  ]  |  Cancel\\n\\n"
@@ -12027,7 +12058,7 @@ elif [[ "${first_digit_unifi}" == '7' && "${second_digit_unifi}" == '0' ]]; then
         14)
           unifi_update_start
           unifi_firmware_requirement
-          application_version="9.1.119-00wkk4q4wj"
+          application_version="9.1.120-e1aep1zs38"
           application_upgrade_releases
           unifi_update_finish;;
         15)
@@ -12132,7 +12163,7 @@ elif [[ "${first_digit_unifi}" == '7' && "${second_digit_unifi}" == '0' ]]; then
         15)
           unifi_update_start
           unifi_firmware_requirement
-          application_version="9.1.119-00wkk4q4wj"
+          application_version="9.1.120-e1aep1zs38"
           application_upgrade_releases
           unifi_update_finish;;
         16)
@@ -12175,7 +12206,7 @@ elif [[ "${first_digit_unifi}" == '7' && "${second_digit_unifi}" == '1' ]]; then
     echo -e " [   ${WHITE_R}10${RESET}  ]  |  8.5.6"
     echo -e " [   ${WHITE_R}11${RESET}  ]  |  8.6.9"
     echo -e " [   ${WHITE_R}12${RESET}  ]  |  9.0.114"
-    echo -e " [   ${WHITE_R}13${RESET}  ]  |  9.1.119"
+    echo -e " [   ${WHITE_R}13${RESET}  ]  |  9.1.120"
     if [[ "${release_stage}" == 'RC' ]]; then
       echo -e " [   ${WHITE_R}14${RESET}  ]  |  ${rc_version_available}"
       echo -e " [   ${WHITE_R}15${RESET}  ]  |  Cancel\\n\\n"
@@ -12196,7 +12227,7 @@ elif [[ "${first_digit_unifi}" == '7' && "${second_digit_unifi}" == '1' ]]; then
     echo -e " [   ${WHITE_R}11${RESET}  ]  |  8.5.6"
     echo -e " [   ${WHITE_R}12${RESET}  ]  |  8.6.9"
     echo -e " [   ${WHITE_R}13${RESET}  ]  |  9.0.114"
-    echo -e " [   ${WHITE_R}14${RESET}  ]  |  9.1.119"
+    echo -e " [   ${WHITE_R}14${RESET}  ]  |  9.1.120"
     if [[ "${release_stage}" == 'RC' ]]; then
       echo -e " [   ${WHITE_R}15${RESET}  ]  |  ${rc_version_available}"
       echo -e " [   ${WHITE_R}16${RESET}  ]  |  Cancel\\n\\n"
@@ -12283,7 +12314,7 @@ elif [[ "${first_digit_unifi}" == '7' && "${second_digit_unifi}" == '1' ]]; then
         13)
           unifi_update_start
           unifi_firmware_requirement
-          application_version="9.1.119-00wkk4q4wj"
+          application_version="9.1.120-e1aep1zs38"
           application_upgrade_releases
           unifi_update_finish;;
         14)
@@ -12382,7 +12413,7 @@ elif [[ "${first_digit_unifi}" == '7' && "${second_digit_unifi}" == '1' ]]; then
         14)
           unifi_update_start
           unifi_firmware_requirement
-          application_version="9.1.119-00wkk4q4wj"
+          application_version="9.1.120-e1aep1zs38"
           application_upgrade_releases
           unifi_update_finish;;
         15)
@@ -12424,7 +12455,7 @@ elif [[ "${first_digit_unifi}" == '7' && "${second_digit_unifi}" == '2' ]]; then
     echo -e " [   ${WHITE_R}9${RESET}   ]  |  8.5.6"
     echo -e " [   ${WHITE_R}10${RESET}  ]  |  8.6.9"
     echo -e " [   ${WHITE_R}11${RESET}  ]  |  9.0.114"
-    echo -e " [   ${WHITE_R}12${RESET}  ]  |  9.1.119"
+    echo -e " [   ${WHITE_R}12${RESET}  ]  |  9.1.120"
     if [[ "${release_stage}" == 'RC' ]]; then
       echo -e " [   ${WHITE_R}13${RESET}  ]  |  ${rc_version_available}"
       echo -e " [   ${WHITE_R}14${RESET}  ]  |  Cancel\\n\\n"
@@ -12444,7 +12475,7 @@ elif [[ "${first_digit_unifi}" == '7' && "${second_digit_unifi}" == '2' ]]; then
     echo -e " [   ${WHITE_R}10${RESET}  ]  |  8.5.6"
     echo -e " [   ${WHITE_R}11${RESET}  ]  |  8.6.9"
     echo -e " [   ${WHITE_R}12${RESET}  ]  |  9.0.114"
-    echo -e " [   ${WHITE_R}13${RESET}  ]  |  9.1.119"
+    echo -e " [   ${WHITE_R}13${RESET}  ]  |  9.1.120"
     if [[ "${release_stage}" == 'RC' ]]; then
       echo -e " [   ${WHITE_R}14${RESET}  ]  |  ${rc_version_available}"
       echo -e " [   ${WHITE_R}15${RESET}  ]  |  Cancel\\n\\n"
@@ -12525,7 +12556,7 @@ elif [[ "${first_digit_unifi}" == '7' && "${second_digit_unifi}" == '2' ]]; then
         12)
           unifi_update_start
           unifi_firmware_requirement
-          application_version="9.1.119-00wkk4q4wj"
+          application_version="9.1.120-e1aep1zs38"
           application_upgrade_releases
           unifi_update_finish;;
         13)
@@ -12618,7 +12649,7 @@ elif [[ "${first_digit_unifi}" == '7' && "${second_digit_unifi}" == '2' ]]; then
         13)
           unifi_update_start
           unifi_firmware_requirement
-          application_version="9.1.119-00wkk4q4wj"
+          application_version="9.1.120-e1aep1zs38"
           application_upgrade_releases
           unifi_update_finish;;
         14)
@@ -12659,7 +12690,7 @@ elif [[ "${first_digit_unifi}" == '7' && "${second_digit_unifi}" == '3' ]]; then
     echo -e " [   ${WHITE_R}8${RESET}   ]  |  8.5.6"
     echo -e " [   ${WHITE_R}9${RESET}   ]  |  8.6.9"
     echo -e " [   ${WHITE_R}10${RESET}  ]  |  9.0.114"
-    echo -e " [   ${WHITE_R}11${RESET}  ]  |  9.1.119"
+    echo -e " [   ${WHITE_R}11${RESET}  ]  |  9.1.120"
     if [[ "${release_stage}" == 'RC' ]]; then
       echo -e " [   ${WHITE_R}12${RESET}  ]  |  ${rc_version_available}"
       echo -e " [   ${WHITE_R}13${RESET}  ]  |  Cancel\\n\\n"
@@ -12678,7 +12709,7 @@ elif [[ "${first_digit_unifi}" == '7' && "${second_digit_unifi}" == '3' ]]; then
     echo -e " [   ${WHITE_R}9${RESET}   ]  |  8.5.6"
     echo -e " [   ${WHITE_R}10${RESET}  ]  |  8.6.9"
     echo -e " [   ${WHITE_R}11${RESET}  ]  |  9.0.114"
-    echo -e " [   ${WHITE_R}12${RESET}  ]  |  9.1.119"
+    echo -e " [   ${WHITE_R}12${RESET}  ]  |  9.1.120"
     if [[ "${release_stage}" == 'RC' ]]; then
       echo -e " [   ${WHITE_R}13${RESET}  ]  |  ${rc_version_available}"
       echo -e " [   ${WHITE_R}14${RESET}  ]  |  Cancel\\n\\n"
@@ -12753,7 +12784,7 @@ elif [[ "${first_digit_unifi}" == '7' && "${second_digit_unifi}" == '3' ]]; then
         11)
           unifi_update_start
           unifi_firmware_requirement
-          application_version="9.1.119-00wkk4q4wj"
+          application_version="9.1.120-e1aep1zs38"
           application_upgrade_releases
           unifi_update_finish;;
         12)
@@ -12840,7 +12871,7 @@ elif [[ "${first_digit_unifi}" == '7' && "${second_digit_unifi}" == '3' ]]; then
         12)
           unifi_update_start
           unifi_firmware_requirement
-          application_version="9.1.119-00wkk4q4wj"
+          application_version="9.1.120-e1aep1zs38"
           application_upgrade_releases
           unifi_update_finish;;
         13)
@@ -12880,7 +12911,7 @@ elif [[ "${first_digit_unifi}" == '7' && "${second_digit_unifi}" == '4' ]]; then
     echo -e " [   ${WHITE_R}7${RESET}   ]  |  8.5.6"
     echo -e " [   ${WHITE_R}8${RESET}   ]  |  8.6.9"
     echo -e " [   ${WHITE_R}9${RESET}   ]  |  9.0.114"
-    echo -e " [   ${WHITE_R}10${RESET}  ]  |  9.1.119"
+    echo -e " [   ${WHITE_R}10${RESET}  ]  |  9.1.120"
     if [[ "${release_stage}" == 'RC' ]]; then
       echo -e " [   ${WHITE_R}11${RESET}  ]  |  ${rc_version_available}"
       echo -e " [   ${WHITE_R}12${RESET}  ]  |  Cancel\\n\\n"
@@ -12898,7 +12929,7 @@ elif [[ "${first_digit_unifi}" == '7' && "${second_digit_unifi}" == '4' ]]; then
     echo -e " [   ${WHITE_R}8${RESET}   ]  |  8.5.6"
     echo -e " [   ${WHITE_R}9${RESET}   ]  |  8.6.9"
     echo -e " [   ${WHITE_R}10${RESET}  ]  |  9.0.114"
-    echo -e " [   ${WHITE_R}11${RESET}  ]  |  9.1.119"
+    echo -e " [   ${WHITE_R}11${RESET}  ]  |  9.1.120"
     if [[ "${release_stage}" == 'RC' ]]; then
       echo -e " [   ${WHITE_R}12${RESET}  ]  |  ${rc_version_available}"
       echo -e " [   ${WHITE_R}13${RESET}  ]  |  Cancel\\n\\n"
@@ -12967,7 +12998,7 @@ elif [[ "${first_digit_unifi}" == '7' && "${second_digit_unifi}" == '4' ]]; then
         10)
           unifi_update_start
           unifi_firmware_requirement
-          application_version="9.1.119-00wkk4q4wj"
+          application_version="9.1.120-e1aep1zs38"
           application_upgrade_releases
           unifi_update_finish;;
         11)
@@ -13048,7 +13079,7 @@ elif [[ "${first_digit_unifi}" == '7' && "${second_digit_unifi}" == '4' ]]; then
         11)
           unifi_update_start
           unifi_firmware_requirement
-          application_version="9.1.119-00wkk4q4wj"
+          application_version="9.1.120-e1aep1zs38"
           application_upgrade_releases
           unifi_update_finish;;
         12)
@@ -13087,7 +13118,7 @@ elif [[ "${first_digit_unifi}" == '7' && "${second_digit_unifi}" == '5' ]]; then
     echo -e " [   ${WHITE_R}6${RESET}   ]  |  8.5.6"
     echo -e " [   ${WHITE_R}7${RESET}   ]  |  8.6.9"
     echo -e " [   ${WHITE_R}8${RESET}   ]  |  9.0.114"
-    echo -e " [   ${WHITE_R}9${RESET}   ]  |  9.1.119"
+    echo -e " [   ${WHITE_R}9${RESET}   ]  |  9.1.120"
     if [[ "${release_stage}" == 'RC' ]]; then
       echo -e " [   ${WHITE_R}10${RESET}  ]  |  ${rc_version_available}"
       echo -e " [   ${WHITE_R}11${RESET}  ]  |  Cancel\\n\\n"
@@ -13104,7 +13135,7 @@ elif [[ "${first_digit_unifi}" == '7' && "${second_digit_unifi}" == '5' ]]; then
     echo -e " [   ${WHITE_R}7${RESET}   ]  |  8.5.6"
     echo -e " [   ${WHITE_R}8${RESET}   ]  |  8.6.9"
     echo -e " [   ${WHITE_R}9${RESET}   ]  |  9.0.114"
-    echo -e " [   ${WHITE_R}10${RESET}  ]  |  9.1.119"
+    echo -e " [   ${WHITE_R}10${RESET}  ]  |  9.1.120"
     if [[ "${release_stage}" == 'RC' ]]; then
       echo -e " [   ${WHITE_R}11${RESET}  ]  |  ${rc_version_available}"
       echo -e " [   ${WHITE_R}12${RESET}  ]  |  Cancel\\n\\n"
@@ -13167,7 +13198,7 @@ elif [[ "${first_digit_unifi}" == '7' && "${second_digit_unifi}" == '5' ]]; then
         9)
           unifi_update_start
           unifi_firmware_requirement
-          application_version="9.1.119-00wkk4q4wj"
+          application_version="9.1.120-e1aep1zs38"
           application_upgrade_releases
           unifi_update_finish;;
         10)
@@ -13242,7 +13273,7 @@ elif [[ "${first_digit_unifi}" == '7' && "${second_digit_unifi}" == '5' ]]; then
         10)
           unifi_update_start
           unifi_firmware_requirement
-          application_version="9.1.119-00wkk4q4wj"
+          application_version="9.1.120-e1aep1zs38"
           application_upgrade_releases
           unifi_update_finish;;
         11)
@@ -13280,7 +13311,7 @@ elif [[ "${first_digit_unifi}" == '8' && "${second_digit_unifi}" == '0' ]]; then
     echo -e " [   ${WHITE_R}5${RESET}   ]  |  8.5.6"
     echo -e " [   ${WHITE_R}6${RESET}   ]  |  8.6.9"
     echo -e " [   ${WHITE_R}7${RESET}   ]  |  9.0.114"
-    echo -e " [   ${WHITE_R}8${RESET}   ]  |  9.1.119"
+    echo -e " [   ${WHITE_R}8${RESET}   ]  |  9.1.120"
     if [[ "${release_stage}" == 'RC' ]]; then
       echo -e " [   ${WHITE_R}9${RESET}   ]  |  ${rc_version_available}"
       echo -e " [   ${WHITE_R}10${RESET}  ]  |  Cancel\\n\\n"
@@ -13296,7 +13327,7 @@ elif [[ "${first_digit_unifi}" == '8' && "${second_digit_unifi}" == '0' ]]; then
     echo -e " [   ${WHITE_R}6${RESET}   ]  |  8.5.6"
     echo -e " [   ${WHITE_R}7${RESET}   ]  |  8.6.9"
     echo -e " [   ${WHITE_R}8${RESET}   ]  |  9.0.114"
-    echo -e " [   ${WHITE_R}9${RESET}   ]  |  9.1.119"
+    echo -e " [   ${WHITE_R}9${RESET}   ]  |  9.1.120"
     if [[ "${release_stage}" == 'RC' ]]; then
       echo -e " [   ${WHITE_R}10${RESET}  ]  |  ${rc_version_available}"
       echo -e " [   ${WHITE_R}11${RESET}  ]  |  Cancel\\n\\n"
@@ -13353,7 +13384,7 @@ elif [[ "${first_digit_unifi}" == '8' && "${second_digit_unifi}" == '0' ]]; then
         8)
           unifi_update_start
           unifi_firmware_requirement
-          application_version="9.1.119-00wkk4q4wj"
+          application_version="9.1.120-e1aep1zs38"
           application_upgrade_releases
           unifi_update_finish;;
         9)
@@ -13422,7 +13453,7 @@ elif [[ "${first_digit_unifi}" == '8' && "${second_digit_unifi}" == '0' ]]; then
         9)
           unifi_update_start
           unifi_firmware_requirement
-          application_version="9.1.119-00wkk4q4wj"
+          application_version="9.1.120-e1aep1zs38"
           application_upgrade_releases
           unifi_update_finish;;
         10)
@@ -13459,7 +13490,7 @@ elif [[ "${first_digit_unifi}" == '8' && "${second_digit_unifi}" == '1' ]]; then
     echo -e " [   ${WHITE_R}4${RESET}   ]  |  8.5.6"
     echo -e " [   ${WHITE_R}5${RESET}   ]  |  8.6.9"
     echo -e " [   ${WHITE_R}6${RESET}   ]  |  9.0.114"
-    echo -e " [   ${WHITE_R}7${RESET}   ]  |  9.1.119"
+    echo -e " [   ${WHITE_R}7${RESET}   ]  |  9.1.120"
     if [[ "${release_stage}" == 'RC' ]]; then
       echo -e " [   ${WHITE_R}8${RESET}   ]  |  ${rc_version_available}"
       echo -e " [   ${WHITE_R}9${RESET}   ]  |  Cancel\\n\\n"
@@ -13474,7 +13505,7 @@ elif [[ "${first_digit_unifi}" == '8' && "${second_digit_unifi}" == '1' ]]; then
     echo -e " [   ${WHITE_R}5${RESET}   ]  |  8.5.6"
     echo -e " [   ${WHITE_R}6${RESET}   ]  |  8.6.9"
     echo -e " [   ${WHITE_R}7${RESET}   ]  |  9.0.114"
-    echo -e " [   ${WHITE_R}8${RESET}   ]  |  9.1.119"
+    echo -e " [   ${WHITE_R}8${RESET}   ]  |  9.1.120"
     if [[ "${release_stage}" == 'RC' ]]; then
       echo -e " [   ${WHITE_R}9${RESET}   ]  |  ${rc_version_available}"
       echo -e " [   ${WHITE_R}10${RESET}  ]  |  Cancel\\n\\n"
@@ -13525,7 +13556,7 @@ elif [[ "${first_digit_unifi}" == '8' && "${second_digit_unifi}" == '1' ]]; then
         7)
           unifi_update_start
           unifi_firmware_requirement
-          application_version="9.1.119-00wkk4q4wj"
+          application_version="9.1.120-e1aep1zs38"
           application_upgrade_releases
           unifi_update_finish;;
         8)
@@ -13588,7 +13619,7 @@ elif [[ "${first_digit_unifi}" == '8' && "${second_digit_unifi}" == '1' ]]; then
         8)
           unifi_update_start
           unifi_firmware_requirement
-          application_version="9.1.119-00wkk4q4wj"
+          application_version="9.1.120-e1aep1zs38"
           application_upgrade_releases
           unifi_update_finish;;
         9)
@@ -13624,7 +13655,7 @@ elif [[ "${first_digit_unifi}" == '8' && "${second_digit_unifi}" == '2' ]]; then
     echo -e " [   ${WHITE_R}3${RESET}   ]  |  8.5.6"
     echo -e " [   ${WHITE_R}4${RESET}   ]  |  8.6.9"
     echo -e " [   ${WHITE_R}5${RESET}   ]  |  9.0.114"
-    echo -e " [   ${WHITE_R}6${RESET}   ]  |  9.1.119"
+    echo -e " [   ${WHITE_R}6${RESET}   ]  |  9.1.120"
     if [[ "${release_stage}" == 'RC' ]]; then
       echo -e " [   ${WHITE_R}7${RESET}   ]  |  ${rc_version_available}"
       echo -e " [   ${WHITE_R}8${RESET}   ]  |  Cancel\\n\\n"
@@ -13638,7 +13669,7 @@ elif [[ "${first_digit_unifi}" == '8' && "${second_digit_unifi}" == '2' ]]; then
     echo -e " [   ${WHITE_R}4${RESET}   ]  |  8.5.6"
     echo -e " [   ${WHITE_R}5${RESET}   ]  |  8.6.9"
     echo -e " [   ${WHITE_R}6${RESET}   ]  |  9.0.114"
-    echo -e " [   ${WHITE_R}7${RESET}   ]  |  9.1.119"
+    echo -e " [   ${WHITE_R}7${RESET}   ]  |  9.1.120"
     if [[ "${release_stage}" == 'RC' ]]; then
       echo -e " [   ${WHITE_R}8${RESET}   ]  |  ${rc_version_available}"
       echo -e " [   ${WHITE_R}9${RESET}   ]  |  Cancel\\n\\n"
@@ -13683,7 +13714,7 @@ elif [[ "${first_digit_unifi}" == '8' && "${second_digit_unifi}" == '2' ]]; then
         6)
           unifi_update_start
           unifi_firmware_requirement
-          application_version="9.1.119-00wkk4q4wj"
+          application_version="9.1.120-e1aep1zs38"
           application_upgrade_releases
           unifi_update_finish;;
         7)
@@ -13740,7 +13771,7 @@ elif [[ "${first_digit_unifi}" == '8' && "${second_digit_unifi}" == '2' ]]; then
         7)
           unifi_update_start
           unifi_firmware_requirement
-          application_version="9.1.119-00wkk4q4wj"
+          application_version="9.1.120-e1aep1zs38"
           application_upgrade_releases
           unifi_update_finish;;
         8)
@@ -13775,7 +13806,7 @@ elif [[ "${first_digit_unifi}" == '8' && "${second_digit_unifi}" == '3' ]]; then
     echo -e " [   ${WHITE_R}2${RESET}   ]  |  8.5.6"
     echo -e " [   ${WHITE_R}3${RESET}   ]  |  8.6.9"
     echo -e " [   ${WHITE_R}4${RESET}   ]  |  9.0.114"
-    echo -e " [   ${WHITE_R}5${RESET}   ]  |  9.1.119"
+    echo -e " [   ${WHITE_R}5${RESET}   ]  |  9.1.120"
     if [[ "${release_stage}" == 'RC' ]]; then
       echo -e " [   ${WHITE_R}6${RESET}   ]  |  ${rc_version_available}"
       echo -e " [   ${WHITE_R}7${RESET}   ]  |  Cancel\\n\\n"
@@ -13788,7 +13819,7 @@ elif [[ "${first_digit_unifi}" == '8' && "${second_digit_unifi}" == '3' ]]; then
     echo -e " [   ${WHITE_R}3${RESET}   ]  |  8.5.6"
     echo -e " [   ${WHITE_R}4${RESET}   ]  |  8.6.9"
     echo -e " [   ${WHITE_R}5${RESET}   ]  |  9.0.114"
-    echo -e " [   ${WHITE_R}6${RESET}   ]  |  9.1.119"
+    echo -e " [   ${WHITE_R}6${RESET}   ]  |  9.1.120"
     if [[ "${release_stage}" == 'RC' ]]; then
       echo -e " [   ${WHITE_R}7${RESET}   ]  |  ${rc_version_available}"
       echo -e " [   ${WHITE_R}8${RESET}   ]  |  Cancel\\n\\n"
@@ -13827,7 +13858,7 @@ elif [[ "${first_digit_unifi}" == '8' && "${second_digit_unifi}" == '3' ]]; then
         5)
           unifi_update_start
           unifi_firmware_requirement
-          application_version="9.1.119-00wkk4q4wj"
+          application_version="9.1.120-e1aep1zs38"
           application_upgrade_releases
           unifi_update_finish;;
         6)
@@ -13878,7 +13909,7 @@ elif [[ "${first_digit_unifi}" == '8' && "${second_digit_unifi}" == '3' ]]; then
         6)
           unifi_update_start
           unifi_firmware_requirement
-          application_version="9.1.119-00wkk4q4wj"
+          application_version="9.1.120-e1aep1zs38"
           application_upgrade_releases
           unifi_update_finish;;
         7)
@@ -13913,7 +13944,7 @@ elif [[ "${first_digit_unifi}" == '8' && "${second_digit_unifi}" == '4' ]]; then
     echo -e " [   ${WHITE_R}1${RESET}   ]  |  8.5.6"
     echo -e " [   ${WHITE_R}2${RESET}   ]  |  8.6.9"
     echo -e " [   ${WHITE_R}3${RESET}   ]  |  9.0.114"
-    echo -e " [   ${WHITE_R}4${RESET}   ]  |  9.1.119"
+    echo -e " [   ${WHITE_R}4${RESET}   ]  |  9.1.120"
     if [[ "${release_stage}" == 'RC' ]]; then
       echo -e " [   ${WHITE_R}5${RESET}   ]  |  ${rc_version_available}"
       echo -e " [   ${WHITE_R}6${RESET}   ]  |  Cancel\\n\\n"
@@ -13925,7 +13956,7 @@ elif [[ "${first_digit_unifi}" == '8' && "${second_digit_unifi}" == '4' ]]; then
     echo -e " [   ${WHITE_R}2${RESET}   ]  |  8.5.6"
     echo -e " [   ${WHITE_R}3${RESET}   ]  |  8.6.9"
     echo -e " [   ${WHITE_R}4${RESET}   ]  |  9.0.114"
-    echo -e " [   ${WHITE_R}5${RESET}   ]  |  9.1.119"
+    echo -e " [   ${WHITE_R}5${RESET}   ]  |  9.1.120"
     if [[ "${release_stage}" == 'RC' ]]; then
       echo -e " [   ${WHITE_R}6${RESET}   ]  |  ${rc_version_available}"
       echo -e " [   ${WHITE_R}7${RESET}   ]  |  Cancel\\n\\n"
@@ -13958,7 +13989,7 @@ elif [[ "${first_digit_unifi}" == '8' && "${second_digit_unifi}" == '4' ]]; then
         4)
           unifi_update_start
           unifi_firmware_requirement
-          application_version="9.1.119-00wkk4q4wj"
+          application_version="9.1.120-e1aep1zs38"
           application_upgrade_releases
           unifi_update_finish;;
         5)
@@ -14003,7 +14034,7 @@ elif [[ "${first_digit_unifi}" == '8' && "${second_digit_unifi}" == '4' ]]; then
         5)
           unifi_update_start
           unifi_firmware_requirement
-          application_version="9.1.119-00wkk4q4wj"
+          application_version="9.1.120-e1aep1zs38"
           application_upgrade_releases
           unifi_update_finish;;
         6)
@@ -14037,7 +14068,7 @@ elif [[ "${first_digit_unifi}" == '8' && "${second_digit_unifi}" == '5' ]]; then
     unifi_version='8.5.6'
     echo -e " [   ${WHITE_R}1${RESET}   ]  |  8.6.9"
     echo -e " [   ${WHITE_R}2${RESET}   ]  |  9.0.114"
-    echo -e " [   ${WHITE_R}3${RESET}   ]  |  9.1.119"
+    echo -e " [   ${WHITE_R}3${RESET}   ]  |  9.1.120"
     if [[ "${release_stage}" == 'RC' ]]; then
       echo -e " [   ${WHITE_R}4${RESET}   ]  |  ${rc_version_available}"
       echo -e " [   ${WHITE_R}5${RESET}   ]  |  Cancel\\n\\n"
@@ -14048,7 +14079,7 @@ elif [[ "${first_digit_unifi}" == '8' && "${second_digit_unifi}" == '5' ]]; then
     echo -e " [   ${WHITE_R}1${RESET}   ]  |  8.5.6"
     echo -e " [   ${WHITE_R}2${RESET}   ]  |  8.6.9"
     echo -e " [   ${WHITE_R}3${RESET}   ]  |  9.0.114"
-    echo -e " [   ${WHITE_R}4${RESET}   ]  |  9.1.119"
+    echo -e " [   ${WHITE_R}4${RESET}   ]  |  9.1.120"
     if [[ "${release_stage}" == 'RC' ]]; then
       echo -e " [   ${WHITE_R}5${RESET}   ]  |  ${rc_version_available}"
       echo -e " [   ${WHITE_R}6${RESET}   ]  |  Cancel\\n\\n"
@@ -14075,7 +14106,7 @@ elif [[ "${first_digit_unifi}" == '8' && "${second_digit_unifi}" == '5' ]]; then
         3)
           unifi_update_start
           unifi_firmware_requirement
-          application_version="9.1.119-00wkk4q4wj"
+          application_version="9.1.120-e1aep1zs38"
           application_upgrade_releases
           unifi_update_finish;;
         4)
@@ -14114,7 +14145,7 @@ elif [[ "${first_digit_unifi}" == '8' && "${second_digit_unifi}" == '5' ]]; then
         4)
           unifi_update_start
           unifi_firmware_requirement
-          application_version="9.1.119-00wkk4q4wj"
+          application_version="9.1.120-e1aep1zs38"
           application_upgrade_releases
           unifi_update_finish;;
         5)
@@ -14147,7 +14178,7 @@ elif [[ "${first_digit_unifi}" == '8' && "${second_digit_unifi}" == '6' ]]; then
   if [[ "${unifi}" == "8.6.9" ]]; then
     unifi_version='8.6.9'
     echo -e " [   ${WHITE_R}1${RESET}   ]  |  9.0.114"
-    echo -e " [   ${WHITE_R}2${RESET}   ]  |  9.1.119"
+    echo -e " [   ${WHITE_R}2${RESET}   ]  |  9.1.120"
     if [[ "${release_stage}" == 'RC' ]]; then
       echo -e " [   ${WHITE_R}3${RESET}   ]  |  ${rc_version_available}"
       echo -e " [   ${WHITE_R}4${RESET}   ]  |  Cancel\\n\\n"
@@ -14157,7 +14188,7 @@ elif [[ "${first_digit_unifi}" == '8' && "${second_digit_unifi}" == '6' ]]; then
   else
     echo -e " [   ${WHITE_R}1${RESET}   ]  |  8.6.9"
     echo -e " [   ${WHITE_R}2${RESET}   ]  |  9.0.114"
-    echo -e " [   ${WHITE_R}3${RESET}   ]  |  9.1.119"
+    echo -e " [   ${WHITE_R}3${RESET}   ]  |  9.1.120"
     if [[ "${release_stage}" == 'RC' ]]; then
       echo -e " [   ${WHITE_R}4${RESET}   ]  |  ${rc_version_available}"
       echo -e " [   ${WHITE_R}5${RESET}   ]  |  Cancel\\n\\n"
@@ -14178,7 +14209,7 @@ elif [[ "${first_digit_unifi}" == '8' && "${second_digit_unifi}" == '6' ]]; then
         2)
           unifi_update_start
           unifi_firmware_requirement
-          application_version="9.1.119-00wkk4q4wj"
+          application_version="9.1.120-e1aep1zs38"
           application_upgrade_releases
           unifi_update_finish;;
         3)
@@ -14211,7 +14242,7 @@ elif [[ "${first_digit_unifi}" == '8' && "${second_digit_unifi}" == '6' ]]; then
         3)
           unifi_update_start
           unifi_firmware_requirement
-          application_version="9.1.119-00wkk4q4wj"
+          application_version="9.1.120-e1aep1zs38"
           application_upgrade_releases
           unifi_update_finish;;
         4)
@@ -14243,7 +14274,7 @@ elif [[ "${first_digit_unifi}" == '9' && "${second_digit_unifi}" == '0' ]]; then
   echo -e "\\n  Release stage is set to | ${GRAY_R}${release_stage_friendly}${RESET}\\n\\n"
   if [[ "${unifi}" == "9.0.114" ]]; then
     unifi_version='9.0.114'
-    echo -e " [   ${WHITE_R}1${RESET}   ]  |  9.1.119"
+    echo -e " [   ${WHITE_R}1${RESET}   ]  |  9.1.120"
     if [[ "${release_stage}" == 'RC' ]]; then
       echo -e " [   ${WHITE_R}2${RESET}   ]  |  ${rc_version_available}"
       echo -e " [   ${WHITE_R}3${RESET}   ]  |  Cancel\\n\\n"
@@ -14252,7 +14283,7 @@ elif [[ "${first_digit_unifi}" == '9' && "${second_digit_unifi}" == '0' ]]; then
     fi
   else
     echo -e " [   ${WHITE_R}1${RESET}   ]  |  9.0.114"
-    echo -e " [   ${WHITE_R}2${RESET}   ]  |  9.1.119"
+    echo -e " [   ${WHITE_R}2${RESET}   ]  |  9.1.120"
     if [[ "${release_stage}" == 'RC' ]]; then
       echo -e " [   ${WHITE_R}3${RESET}   ]  |  ${rc_version_available}"
       echo -e " [   ${WHITE_R}4${RESET}   ]  |  Cancel\\n\\n"
@@ -14267,7 +14298,7 @@ elif [[ "${first_digit_unifi}" == '9' && "${second_digit_unifi}" == '0' ]]; then
         1)
           unifi_update_start
           unifi_firmware_requirement
-          application_version="9.1.119-00wkk4q4wj"
+          application_version="9.1.120-e1aep1zs38"
           application_upgrade_releases
           unifi_update_finish;;
         2)
@@ -14294,7 +14325,7 @@ elif [[ "${first_digit_unifi}" == '9' && "${second_digit_unifi}" == '0' ]]; then
         2)
           unifi_update_start
           unifi_firmware_requirement
-          application_version="9.1.119-00wkk4q4wj"
+          application_version="9.1.120-e1aep1zs38"
           application_upgrade_releases
           unifi_update_finish;;
         3)
@@ -14318,7 +14349,7 @@ elif [[ "${first_digit_unifi}" == '9' && "${second_digit_unifi}" == '0' ]]; then
 ##########################################################################################################################################################################
 
 elif [[ "${first_digit_unifi}" == '9' && "${second_digit_unifi}" == '1' ]]; then
-  if [[ "${third_digit_unifi}" -gt '119' ]]; then not_supported_version; fi
+  if [[ "${third_digit_unifi}" -gt '120' ]]; then not_supported_version; fi
   release_wanted
   if [[ "${release_stage}" == 'S' ]]; then if [[ "${unifi}" == "${latest_release}" ]]; then debug_check_no_upgrade; unifi_update_latest; fi; fi
   if [[ "${release_stage}" == 'RC' ]]; then if [[ "${unifi}" == "${rc_version_available}" ]]; then debug_check_no_upgrade; unifi_update_latest; fi; fi
@@ -14326,9 +14357,9 @@ elif [[ "${first_digit_unifi}" == '9' && "${second_digit_unifi}" == '1' ]]; then
   echo "  To what UniFi Network Application version would you like to update?"
   echo -e "  Currently your UniFi Network Application is on version ${GRAY_R}$unifi${RESET}"
   echo -e "\\n  Release stage is set to | ${GRAY_R}${release_stage_friendly}${RESET}\\n\\n"
-  if [[ "${unifi}" == "9.1.119" ]]; then
-    unifi_version='9.1.119'
-    #echo -e " [   ${WHITE_R}1${RESET}   ]  |  9.1.119"
+  if [[ "${unifi}" == "9.1.120" ]]; then
+    unifi_version='9.1.120'
+    #echo -e " [   ${WHITE_R}1${RESET}   ]  |  9.1.120"
     if [[ "${release_stage}" == 'RC' ]]; then
       echo -e " [   ${WHITE_R}1${RESET}   ]  |  ${rc_version_available}"
       echo -e " [   ${WHITE_R}2${RESET}   ]  |  Cancel\\n\\n"
@@ -14336,7 +14367,7 @@ elif [[ "${first_digit_unifi}" == '9' && "${second_digit_unifi}" == '1' ]]; then
       echo -e " [   ${WHITE_R}1${RESET}   ]  |  Cancel\\n\\n"
     fi
   else
-    echo -e " [   ${WHITE_R}1${RESET}   ]  |  9.1.119"
+    echo -e " [   ${WHITE_R}1${RESET}   ]  |  9.1.120"
     if [[ "${release_stage}" == 'RC' ]]; then
       echo -e " [   ${WHITE_R}2${RESET}   ]  |  ${rc_version_available}"
       echo -e " [   ${WHITE_R}3${RESET}   ]  |  Cancel\\n\\n"
@@ -14345,7 +14376,7 @@ elif [[ "${first_digit_unifi}" == '9' && "${second_digit_unifi}" == '1' ]]; then
     fi
   fi
 
-  if [[ "${unifi_version}" == "9.1.119" ]]; then
+  if [[ "${unifi_version}" == "9.1.120" ]]; then
     read -rp $'Your choice | \033[39m' UPGRADE_VERSION
     case "$UPGRADE_VERSION" in
         1)
@@ -14366,7 +14397,7 @@ elif [[ "${first_digit_unifi}" == '9' && "${second_digit_unifi}" == '1' ]]; then
         1)
           unifi_update_start
           unifi_firmware_requirement
-          application_version="9.1.119-00wkk4q4wj"
+          application_version="9.1.120-e1aep1zs38"
           application_upgrade_releases
           unifi_update_finish;;
         2)
