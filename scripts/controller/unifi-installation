@@ -11,6 +11,12 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 8.7.9
+  
+ - Fixed an issue where the application could fail to start with OpenJDK JRE 21.0.7 on boards with a Cortex A53.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 8.7.8
   
  - Fixed an issue where the application could fail to start with Temurin JRE 21.0.7.0.0+6-0 on boards with a Cortex A53.

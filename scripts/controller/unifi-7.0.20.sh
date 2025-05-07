@@ -68,7 +68,7 @@
 ###################################################################################################################################################################################################
 
 # Script                | UniFi Network Easy Installation Script
-# Version               | 8.7.8
+# Version               | 8.7.9
 # Application version   | 7.0.20-894288bd9b
 # Debian Repo version   | 7.0.20-17279-1
 # Author                | Glenn Rietveld
@@ -2938,6 +2938,7 @@ update_script() {
             exit 0
           else
             echo -e "${RED}#${RESET} Checksum mismatch (attempt ${attempt}/5), retrying download..."
+            sleep 5
             curl "${curl_argument[@]}" -o "${script_location}.tmp" "https://get.glennr.nl/unifi/install/unifi-${version}.sh"
           fi
         done
@@ -4623,6 +4624,7 @@ java_required_variables() {
     required_java_version_short="8"
   fi
   # Failed to instantiate [ch.qos.logback.classic.LoggerContext] issue with temurin-21-jre 21.0.7.0.0+6-0
+  # Could not find or load main class com.ubnt.ace.Launcher issue with openjdk-21-jre-headless 21.0.7
   if [[ "${architecture}" == "arm64" && "${required_java_version_short}" == "21" ]]; then
     cpu_model_name="$(lscpu | tr '[:upper:]' '[:lower:]' | grep -i '^model name' | cut -f 2 -d ":" | awk '{$1=$1}1')"
     if [[ -z "${cpu_model_name}" ]]; then cpu_model_name="$(lscpu | tr '[:upper:]' '[:lower:]' | sed -n 's/^model name:[[:space:]]*//p')"; fi
@@ -4633,7 +4635,13 @@ java_required_variables() {
         temurin_21_version="$(apt-cache policy temurin-21-jre 2> /dev/null | tr '[:upper:]' '[:lower:]' | grep "candidate:" | cut -d':' -f2 | sed -e 's/ //g' -e 's/.*://' -e 's/[^0-9.]//g' -e 's/\.//g')"
       fi
       temurin_21_candidate_version="$(apt-cache policy temurin-21-jre 2> /dev/null | tr '[:upper:]' '[:lower:]' | grep "candidate:" | cut -d':' -f2 | sed -e 's/ //g' -e 's/.*://' -e 's/[^0-9.]//g' -e 's/\.//g')"
-      if [[ "${temurin_21_version}" =~ (21070060) ]] || [[ "${temurin_21_candidate_version}" =~ (21070060) ]]; then
+      if "$(which dpkg)" -l | grep "^ii\\|^hi" | grep -iq "openjdk-21-jre-headless"; then
+        openjdk_21_version="$(dpkg-query --showformat='${version}' --show openjdk-21-jre-headless 2> /dev/null | sed -e 's/+.*//g' -e 's/.*://' -e 's/[^0-9.]//g' -e 's/\.//g')"
+      else
+        openjdk_21_version="$(apt-cache policy openjdk-21-jre-headless 2> /dev/null | tr '[:upper:]' '[:lower:]' | grep "candidate:" | cut -d':' -f2 | sed -e 's/ //g' -e 's/+.*//g' -e 's/.*://' -e 's/[^0-9.]//g' -e 's/\.//g')"
+      fi
+      openjdk_21_candidate_version="$(apt-cache policy openjdk-21-jre-headless 2> /dev/null | tr '[:upper:]' '[:lower:]' | grep "candidate:" | cut -d':' -f2 | sed -e 's/ //g' -e 's/+.*//g' -e 's/.*://' -e 's/[^0-9.]//g' -e 's/\.//g')"
+      if [[ "${temurin_21_version}" =~ (21070060) ]] || [[ "${temurin_21_candidate_version}" =~ (21070060) ]] || [[ "${openjdk_21_version}" =~ (2107) ]] || [[ "${openjdk_21_candidate_version}" =~ (2107) ]]; then
         required_java_version="openjdk-17"
         required_java_version_short="17"
       fi
