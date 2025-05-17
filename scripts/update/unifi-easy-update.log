@@ -11,6 +11,12 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 10.2.4
+  
+ - Added support for Ubuntu Questing Quokka 25.10.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 10.2.3
   
  - Fixed an issue where the application could fail to start with OpenJDK JRE 21.0.7 on boards with a Cortex A53.
