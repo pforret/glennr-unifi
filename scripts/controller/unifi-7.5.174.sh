@@ -69,7 +69,7 @@
 ###################################################################################################################################################################################################
 
 # Script                | UniFi Network Easy Installation Script
-# Version               | 8.8.0
+# Version               | 8.8.1
 # Application version   | 7.5.174-e258d1dd8c
 # Debian Repo version   | 7.5.174-22700-1
 # Author                | Glenn Rietveld
@@ -1273,9 +1273,9 @@ fi
 # Original release of the Glenn R. APT Repository was /ubuntu and /debian, decided to get rid of that.
 glennr_mongod_original_check() {
   while read -r glennr_repo_list; do
-    if grep -riIl "apt.glennr.nl/debian" "${glennr_repo_list}"; then
+    if grep -qriIl "apt.glennr.nl/debian" "${glennr_repo_list}"; then
       sed -i 's/\/debian/\/repo/g' "${glennr_repo_list}" &> /dev/null
-    elif grep -riIl "apt.glennr.nl/ubuntu" "${glennr_repo_list}"; then
+    elif grep -qriIl "apt.glennr.nl/ubuntu" "${glennr_repo_list}"; then
       sed -i 's/\/debian/\/repo/g' "${glennr_repo_list}" &> /dev/null
     fi
   done < <(grep -riIl "apt.glennr.nl/debian\\|apt.glennr.nl/ubuntu" /etc/apt/)
@@ -1634,7 +1634,7 @@ run_apt_get_update() {
   fi
   if grep -ioq "fix-missing" /tmp/EUS/apt/apt-update.log; then run_with_apt_fix_missing="true"; return; else unset apt_fix_missing; fi
   grep -o 'NO_PUBKEY.*' /tmp/EUS/apt/apt-update.log | sed 's/NO_PUBKEY //g' | tr ' ' '\n' | awk '!a[$0]++' &> /tmp/EUS/apt/missing_keys
-  if [[ -s "/tmp/EUS/apt/missing_keys_done" ]]; then
+  if [[ -s "/tmp/EUS/apt/missing_keys_done" || -s "/tmp/EUS/apt/missing_keys_failed" ]]; then
     while read -r key_done; do
       if grep -ioq "${key_done}" /tmp/EUS/apt/missing_keys; then sed -i "/${key_done}/d" /tmp/EUS/apt/missing_keys; fi
     done < <(cat /tmp/EUS/apt/missing_keys_done /tmp/EUS/apt/missing_keys_failed 2> /dev/null)

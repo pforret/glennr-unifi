@@ -11,6 +11,12 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 8.8.1
+  
+ - Fixed an issue where it kept failing to recover the same key.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 8.8.0
   
  - Added support for Ubuntu Questing Quokka 25.10.
