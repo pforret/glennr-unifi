@@ -11,6 +11,13 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 10.2.6
+  
+ - Added an recovery mechanism when mongosh appears to be corrupted.
+ - Fixed an issue where the script could loop when checking for duplicated default networks.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 10.2.5
   
  - Fixed an issue where it kept failing to recover the same key.

@@ -2,7 +2,7 @@
 
 # UniFi Network Application Easy Update Script.
 # Script   | UniFi Network Easy Update Script
-# Version  | 10.2.5
+# Version  | 10.2.6
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -2272,8 +2272,12 @@ cleanup_multiple_default_lan_networks() {
   cleanup_epoch="$(date +%s)"
   eus_create_directories "data"
   eus_create_directories "data/multiple-default-lan-networks"
-  "${mongocommand}" --quiet --port 27117 ace --eval "${mongoprefix}db.getCollection('networkconf').aggregate([{ \"\$match\": { \"attr_no_delete\": true, \"attr_hidden_id\": \"LAN\" } }, { \"\$group\": { \"_id\": \"\$site_id\", \"count\": { \"\$sum\": 1 }, \"ids\": { \"\$push\": \"\$_id\" } } }, { \"\$match\": { \"count\": { \"\$gte\": 2 } } }, { \"\$project\": { \"_id\": 0, \"site_id\": \"\$_id\", \"count\": 1, \"duplicate_ids\": \"\$ids\" } }])${mongosuffix}" | jq 'map({count: .count, site_id: .site_id, duplicate_ids: (.duplicate_ids | map(.["$oid"]))})' &> "${eus_dir}/data/multiple-default-lan-networks/${cleanup_epoch}-data.json"
+  "${mongocommand}" --quiet --port 27117 ace --eval "${mongoprefix}db.getCollection('networkconf').aggregate([{ \"\$match\": { \"attr_no_delete\": true, \"attr_hidden_id\": \"LAN\" } }, { \"\$group\": { \"_id\": \"\$site_id\", \"count\": { \"\$sum\": 1 }, \"ids\": { \"\$push\": \"\$_id\" } } }, { \"\$match\": { \"count\": { \"\$gte\": 2 } } }, { \"\$project\": { \"_id\": 0, \"site_id\": \"\$_id\", \"count\": 1, \"duplicate_ids\": \"\$ids\" } }])${mongosuffix}" 2> /dev/null | jq 'map({count: .count, site_id: .site_id, duplicate_ids: (.duplicate_ids | map(.["$oid"]))})' &> "${eus_dir}/data/multiple-default-lan-networks/${cleanup_epoch}-data.json"
   affected_sites_count="$(jq 'length' "${eus_dir}/data/multiple-default-lan-networks/${cleanup_epoch}-data.json")"
+  if [[ -z "${affected_sites_count}" ]] || [[ "${affected_sites_count}" == 'null' ]]; then
+    echo -e "$(date +%F-%T.%6N) | Variable affected_sites_count was \"${affected_sites_count}\", skipping..." &>> "${eus_dir}/logs/cleanup-multiple-default-lan-networks.log"
+    return
+  fi
   if [[ "${affected_sites_count}" == '0' ]]; then
     rm --force "${eus_dir}/data/multiple-default-lan-networks/${cleanup_epoch}-data.json" &> /dev/null
     if [[ "$(jq -r '.scripts."'"${script_name}"'".tasks | to_entries[]? | select(.key | startswith("cleanup-multiple-default-lan-networks")) | .value[]? | ."check-completed" // empty' "${eus_dir}/db/db.json" 2> /dev/null | tail -n1)" != 'true' ]]; then
@@ -2288,12 +2292,12 @@ cleanup_multiple_default_lan_networks() {
   fi
   duplicate_resolve_cycles="0"
   until [[ "${duplicate_resolve_cycles}" == "${affected_sites_count}" ]]; do
-    cleanup_multiple_default_lan_networks_site_id="$(jq -r ".[${duplicate_resolve_cycles}].site_id" "${eus_dir}/data/multiple-default-lan-networks/${cleanup_epoch}-data.json")"
+    cleanup_multiple_default_lan_networks_site_id="$(jq -r ".[${duplicate_resolve_cycles}].site_id" "${eus_dir}/data/multiple-default-lan-networks/${cleanup_epoch}-data.json" 2> /dev/null)"
     cleanup_multiple_default_lan_networks_site_desc="$("${mongocommand}" --quiet --port 27117 ace --eval "${mongoprefix}db.getCollection('site').find({\"_id\":ObjectId('${cleanup_multiple_default_lan_networks_site_id}')})${mongosuffix}" 2> /dev/null | sed 's/\(ObjectId(\|)\|NumberLong(\)\|ISODate(//g' 2> /dev/null | jq -r '.[].desc' 2> /dev/null)"
     echo -e "${GRAY_R}#${RESET} Checking for multiple default LAN networks for site ${cleanup_multiple_default_lan_networks_site_desc}..."
     declare -A timestamp_map
     while read -r duplicated_id; do
-      time_stamp="$("${mongocommand}" --quiet --port 27117 ace --eval 'Math.floor(ObjectId("'"${duplicated_id}"'").getTimestamp().getTime() / 1000)')"
+      time_stamp="$("${mongocommand}" --quiet --port 27117 ace --eval 'Math.floor(ObjectId("'"${duplicated_id}"'").getTimestamp().getTime() / 1000)' 2> /dev/null)"
       timestamp_map["$time_stamp"]+="$duplicated_id "
     done < <(jq -r ".[${duplicate_resolve_cycles}].duplicate_ids[]" "${eus_dir}/data/multiple-default-lan-networks/${cleanup_epoch}-data.json")
     max_timestamp=""
@@ -5363,6 +5367,26 @@ if "$(which dpkg)" -l "${mongodb_org_server_package}" 2> /dev/null | awk '{print
   mongodb_org_version="$(dpkg-query --showformat='${Version}' --show "${mongodb_org_server_package}" 2> /dev/null | sed 's/.*://' | sed 's/-.*//g')"
   mongodb_org_version_no_dots="${mongodb_org_version//./}"
   if [[ "${mongodb_org_version_no_dots::1}" -ge "5" ]]; then
+    if [[ -z "$(mongosh --version 2> /dev/null)" ]]; then
+      while read -r mongosh_package; do
+        echo -e "\\n------- $(date +%F-%T.%6N) -------\\n" &>> "${eus_dir}/logs/mongosh-corruption.log"
+        check_dpkg_lock
+        echo -e "${GRAY_R}#${RESET} ${mongosh_package} appears to be corrupted, purging the package..."
+        if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' purge "${mongosh_package}" &>> "${eus_dir}/logs/mongosh-corruption.log"; then
+          echo -e "${GREEN}#${RESET} Successfully purged ${mongosh_package}! \\n"
+        else
+          echo -e "${RED}#${RESET} Failed to purge ${mongosh_package}...\\n"
+          echo -e "${GRAY_R}#${RESET} Trying another method to get rid of ${mongosh_package}..."
+          check_dpkg_lock
+          if DEBIAN_FRONTEND='noninteractive' "$(which dpkg)" --remove --force-remove-reinstreq "${mongosh_package}" &>> "${eus_dir}/logs/mongosh-corruption.log"; then
+            echo -e "${GREEN}#${RESET} Successfully removed ${mongosh_package}! \\n"
+          else
+            echo -e "${RED}#${RESET} Failed to force remove ${mongosh_package}...\\n"
+            abort_reason="Failed to purge ${mongosh_package}."; abort
+          fi
+        fi
+      done < <("$(which dpkg)" -l | awk '$1 ~ /^(ii|hi)$/ {print $2}' | grep -E "^mongodb-mongosh-shared-openssl3$|^mongodb-mongosh-shared-openssl11$|^mongodb-mongosh$|^mongosh$")
+    fi
     if ! apt-cache depends "${mongodb_org_server_package}" &> /dev/null; then silent_run_apt_get_update="true"; run_apt_get_update; fi
     mongodb_mongosh_libssl_version="$(apt-cache depends "${mongodb_org_server_package}"="${mongodb_org_version}" | sed -e 's/>//g' -e 's/<//g' | grep -io "libssl1.1$\\|libssl3$")"
     if [[ -z "${mongodb_mongosh_libssl_version}" ]]; then
