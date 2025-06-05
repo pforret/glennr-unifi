@@ -11,6 +11,12 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 10.2.7
+  
+ - Added support for upgrading to 9.2.86 RC.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 10.2.6
   
  - Added an recovery mechanism when mongosh appears to be corrupted.
