@@ -69,7 +69,7 @@
 ###################################################################################################################################################################################################
 
 # Script                | UniFi Network Easy Installation Script
-# Version               | 8.8.1
+# Version               | 8.8.2
 # Application version   | 5.12.22-478dfbf57c
 # Debian Repo version   | 5.12.22-12966-1
 # Author                | Glenn Rietveld
@@ -2915,6 +2915,7 @@ update_script() {
   header_red
   echo -e "${GRAY_R}#${RESET} You're currently running script version ${local_version} while ${online_version} is the latest!"
   echo -e "${GRAY_R}#${RESET} Downloading and executing version ${online_version} of the script...\\n\\n"
+  echo -e "$(date +%F-%T.%6N) | Updating script \"${script_name}\" from version \"${local_version}\" to \"${online_version}\"..." &>> "${eus_dir}/logs/script-update.log"
   sleep 2
   if [[ -n "$(command -v jq)" ]]; then
     online_sha256sum="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-script-version?script=unifi-install&version=${version}" 2> /dev/null | jq -r '.checksums.sha256sum' 2> /dev/null | sed '/null/d')"
@@ -2934,11 +2935,13 @@ update_script() {
           if [[ -n "${online_sha256sum_latest}" ]]; then online_sha256sum="${online_sha256sum_latest}"; unset online_sha256sum_latest; fi
           local_checksum="$(sha256sum "${script_location}.tmp" 2> /dev/null | awk '{print $1}')"
           if [[ "${local_checksum}" == "${online_sha256sum}" ]]; then
+            echo -e "$(date +%F-%T.%6N) | Successfully updated script \"${script_name}\" from version \"${local_version}\" to \"${online_version}\"!" &>> "${eus_dir}/logs/script-update.log"
             rm --force "${script_location}" 2> /dev/null
             # shellcheck disable=SC2068
             mv "${script_location}.tmp" "${script_location}" && bash "${script_location}" ${script_options[@]}
             exit 0
           else
+            echo -e "$(date +%F-%T.%6N) | Local script file SHA256 is \"${local_checksum}\" while it should be \"${online_sha256sum_latest}\" (attempt ${attempt}/5)..." &>> "${eus_dir}/logs/script-update.log"
             echo -e "${RED}#${RESET} Checksum mismatch (attempt ${attempt}/5), retrying download..."
             sleep 5
             curl "${curl_argument[@]}" -o "${script_location}.tmp" "https://get.glennr.nl/unifi/install/unifi-${version}.sh"
@@ -2947,12 +2950,18 @@ update_script() {
         abort_reason="Failed to update the script, checksum mismatch"
         abort
       else
+        echo -e "$(date +%F-%T.%6N) | Successfully updated script \"${script_name}\" from version \"${local_version}\" to \"${online_version}\"!" &>> "${eus_dir}/logs/script-update.log"
         rm --force "${script_location}" 2> /dev/null
         # shellcheck disable=SC2068
         mv "${script_location}.tmp" "${script_location}" && bash "${script_location}" ${script_options[@]}
         exit 0
       fi
     else
+      if [[ -n "${online_sha256sum}" ]]; then
+        echo -e "$(date +%F-%T.%6N) | Variable \"online_sha256sum\" is empty..." &>> "${eus_dir}/logs/script-update.log"
+      elif [[ "$(command -v sha256sum)" ]]; then
+        echo -e "$(date +%F-%T.%6N) | Unknown command \"sha256sum\"..." &>> "${eus_dir}/logs/script-update.log"
+      fi
       rm --force "unifi-${version}.sh" 2> /dev/null
       # shellcheck disable=SC2068
       curl "${curl_argument[@]}" --remote-name "https://get.glennr.nl/unifi/install/unifi-${version}.sh" && bash "unifi-${version}.sh" ${script_options[@]}; exit 0

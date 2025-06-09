@@ -11,6 +11,13 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 10.2.8
+  
+ - Added logging for the script update process.
+ - Added support for upgrading to 9.2.87 RC.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 10.2.7
   
  - Added support for upgrading to 9.2.86 RC.

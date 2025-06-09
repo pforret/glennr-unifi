@@ -2,7 +2,7 @@
 
 # UniFi Network Application Easy Update Script.
 # Script   | UniFi Network Easy Update Script
-# Version  | 10.2.7
+# Version  | 10.2.8
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -1787,6 +1787,7 @@ update_script() {
   header_red
   echo -e "${GRAY_R}#${RESET} You're currently running script version ${local_version} while ${online_version} is the latest!"
   echo -e "${GRAY_R}#${RESET} Downloading and executing version ${online_version} of the script...\\n\\n"
+  echo -e "$(date +%F-%T.%6N) | Updating script \"${script_name}\" from version \"${local_version}\" to \"${online_version}\"..." &>> "${eus_dir}/logs/script-update.log"
   sleep 2
   if [[ -n "$(command -v jq)" ]]; then
     online_sha256sum="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-script-version?script=unifi-update&api_version=2" 2> /dev/null | jq -r '.checksums.sha256sum' 2> /dev/null | sed '/null/d')"
@@ -1806,11 +1807,13 @@ update_script() {
           if [[ -n "${online_sha256sum_latest}" ]]; then online_sha256sum="${online_sha256sum_latest}"; unset online_sha256sum_latest; fi
           local_checksum="$(sha256sum "${script_location}.tmp" 2> /dev/null | awk '{print $1}')"
           if [[ "${local_checksum}" == "${online_sha256sum}" ]]; then
+            echo -e "$(date +%F-%T.%6N) | Successfully updated script \"${script_name}\" from version \"${local_version}\" to \"${online_version}\"!" &>> "${eus_dir}/logs/script-update.log"
             rm --force "${script_location}" 2> /dev/null
             # shellcheck disable=SC2068
             mv "${script_location}.tmp" "${script_location}" && bash "${script_location}" ${script_options[@]}
             exit 0
           else
+            echo -e "$(date +%F-%T.%6N) | Local script file SHA256 is \"${local_checksum}\" while it should be \"${online_sha256sum_latest}\" (attempt ${attempt}/5)..." &>> "${eus_dir}/logs/script-update.log"
             echo -e "${RED}#${RESET} Checksum mismatch (attempt ${attempt}/5), retrying download..."
             sleep 5
             curl "${curl_argument[@]}" -o "${script_location}.tmp" https://get.glennr.nl/unifi/update/unifi-update.sh
@@ -1819,12 +1822,18 @@ update_script() {
         abort_reason="Failed to update the script, checksum mismatch"
         abort
       else
+        echo -e "$(date +%F-%T.%6N) | Successfully updated script \"${script_name}\" from version \"${local_version}\" to \"${online_version}\"!" &>> "${eus_dir}/logs/script-update.log"
         rm --force "${script_location}" 2> /dev/null
         # shellcheck disable=SC2068
         mv "${script_location}.tmp" "${script_location}" && bash "${script_location}" ${script_options[@]}
         exit 0
       fi
     else
+      if [[ -n "${online_sha256sum}" ]]; then
+        echo -e "$(date +%F-%T.%6N) | Variable \"online_sha256sum\" is empty..." &>> "${eus_dir}/logs/script-update.log"
+      elif [[ "$(command -v sha256sum)" ]]; then
+        echo -e "$(date +%F-%T.%6N) | Unknown command \"sha256sum\"..." &>> "${eus_dir}/logs/script-update.log"
+      fi
       rm --force unifi-update.sh 2> /dev/null
       # shellcheck disable=SC2068
       curl "${curl_argument[@]}" --remote-name https://get.glennr.nl/unifi/update/unifi-update.sh && bash unifi-update.sh ${script_options[@]}; exit 0
@@ -1937,7 +1946,7 @@ release_wanted () {
       esac
     done
   fi
-  if [[ "${release_stage}" == 'RC' ]]; then rc_version_available="9.2.86"; rc_version_available_secret="9.2.86-727e1s1e5l"; fi
+  if [[ "${release_stage}" == 'RC' ]]; then rc_version_available="9.2.87"; rc_version_available_secret="9.2.87-uf39xch68k"; fi
 }
 
 if [[ "$(command -v jq)" ]]; then latest_release_api_status="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?status" 2> /dev/null | jq -r '.availability' 2> /dev/null)"; else latest_release_api_status="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?status" 2> /dev/null | grep -oP '(?<="availability":")[^"]+')"; fi
@@ -14455,16 +14464,16 @@ elif [[ "${first_digit_unifi}" == '9' && "${second_digit_unifi}" == '1' ]]; then
 ##########################################################################################################################################################################
 
 elif [[ "${first_digit_unifi}" == '9' && "${second_digit_unifi}" == '2' ]]; then
-  if [[ "${third_digit_unifi}" -gt '86' ]]; then not_supported_version; fi
+  if [[ "${third_digit_unifi}" -gt '87' ]]; then not_supported_version; fi
   release_wanted
   if [[ "${release_stage}" == 'RC' ]]; then if [[ "${unifi}" == "${rc_version_available}" ]]; then debug_check_no_upgrade; unifi_update_latest; fi; fi
   header
   echo "  To what UniFi Network Application version would you like to update?"
   echo -e "  Currently your UniFi Network Application is on version ${GRAY_R}$unifi${RESET}"
   echo -e "\\n  Release stage is set to | ${GRAY_R}${release_stage_friendly}${RESET}\\n\\n"
-  if [[ "${unifi}" == "9.2.86" ]]; then
-    unifi_version='9.2.86'
-    #echo -e " [   ${WHITE_R}1${RESET}   ]  |  9.2.86"
+  if [[ "${unifi}" == "9.2.87" ]]; then
+    unifi_version='9.2.87'
+    #echo -e " [   ${WHITE_R}1${RESET}   ]  |  9.2.87"
     if [[ "${release_stage}" == 'RC' ]]; then
       echo -e " [   ${WHITE_R}1${RESET}   ]  |  ${rc_version_available}"
       echo -e " [   ${WHITE_R}2${RESET}   ]  |  Cancel\\n\\n"
@@ -14472,7 +14481,7 @@ elif [[ "${first_digit_unifi}" == '9' && "${second_digit_unifi}" == '2' ]]; then
       echo -e " [   ${WHITE_R}1${RESET}   ]  |  Cancel\\n\\n"
     fi
   else
-    #echo -e " [   ${WHITE_R}1${RESET}   ]  |  9.2.86"
+    #echo -e " [   ${WHITE_R}1${RESET}   ]  |  9.2.87"
     if [[ "${release_stage}" == 'RC' ]]; then
       echo -e " [   ${WHITE_R}1${RESET}   ]  |  ${rc_version_available}"
       echo -e " [   ${WHITE_R}2${RESET}   ]  |  Cancel\\n\\n"
@@ -14481,7 +14490,7 @@ elif [[ "${first_digit_unifi}" == '9' && "${second_digit_unifi}" == '2' ]]; then
     fi
   fi
 
-  if [[ "${unifi_version}" == "9.2.86" ]]; then
+  if [[ "${unifi_version}" == "9.2.87" ]]; then
     read -rp $'Your choice | \033[39m' UPGRADE_VERSION
     case "$UPGRADE_VERSION" in
         1)
@@ -14502,7 +14511,7 @@ elif [[ "${first_digit_unifi}" == '9' && "${second_digit_unifi}" == '2' ]]; then
         #1)
         #  unifi_update_start
         #  unifi_firmware_requirement
-        #  application_version="9.2.86-727e1s1e5l"
+        #  application_version="9.2.87-uf39xch68k"
         #  application_upgrade_releases
         #  unifi_update_finish;;
         1)
