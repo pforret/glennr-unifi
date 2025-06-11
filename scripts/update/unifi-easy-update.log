@@ -11,6 +11,13 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 10.2.9
+  
+ - Added support for upgrading to 9.2.87 Stable/Official.
+ - Automatically set Release Stage to Stable when there aren't any Release Candidates.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 10.2.8
   
  - Added logging for the script update process.
