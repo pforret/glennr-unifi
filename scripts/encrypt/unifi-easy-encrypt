@@ -11,6 +11,13 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Encrypt Script  |  Version 3.6.4
+  
+ - Added support for UnionTech OS Desktop 20.
+ - Added support for Devuan ASCII.
+ 
+ ####
+
  |  UniFi Easy Encrypt Script  |  Version 3.6.3
   
  - Added logging for the script update process.

@@ -54,7 +54,7 @@
 #                       | Linux Mint 6 ( Faye )
 #                       | MX Linux 18 ( Continuum )
 #                       | BunsenLabs Linux ( Boron | Beryllium | Lithium | Helium )
-#                       | Devuan ( Beowulf | Chimaera | Daedalus | Excalibur | Freia )
+#                       | Devuan ( ASCII | Beowulf | Chimaera | Daedalus | Excalibur | Freia )
 #                       | Progress-Linux ( Engywuck )
 #                       | Parrot OS ( Lory )
 #                       | Elementary OS
@@ -64,12 +64,13 @@
 #                       | PikaOS ( Nest )
 #                       | SparkyLinux ( Tyche | Nibiru | Po Tolo | Orion Belt | The Seven Sisters )
 #                       | PureOS ( Crimson | Byzantium | Amber )
+#                       | UnionTech OS Desktop 20
 #                       | Kali Linux ( rolling )
 
 ###################################################################################################################################################################################################
 
 # Script                | UniFi Network Easy Installation Script
-# Version               | 8.8.2
+# Version               | 8.8.3
 # Application version   | 7.2.97-fa3c0ace6e
 # Debian Repo version   | 7.2.97-18705-1
 # Author                | Glenn Rietveld
@@ -2550,8 +2551,8 @@ get_distro() {
     elif [[ "${os_codename}" =~ ^(plucky)$ ]]; then repo_codename="plucky"; os_codename="plucky"; os_id="ubuntu"
     elif [[ "${os_codename}" =~ ^(questing)$ ]]; then repo_codename="questing"; os_codename="questing"; os_id="ubuntu"
     elif [[ "${os_codename}" =~ ^(jessie|betsy)$ ]]; then repo_codename="jessie"; os_codename="jessie"; os_id="debian"
-    elif [[ "${os_codename}" =~ ^(stretch|continuum|helium|cindy|tyche)$ ]]; then repo_codename="stretch"; os_codename="stretch"; os_id="debian"
-    elif [[ "${os_codename}" =~ ^(buster|debbie|parrot|engywuck-backports|engywuck|deepin|lithium|beowulf|po-tolo|nibiru|amber)$ ]]; then repo_codename="buster"; os_codename="buster"; os_id="debian"
+    elif [[ "${os_codename}" =~ ^(stretch|continuum|helium|cindy|tyche|ascii)$ ]]; then repo_codename="stretch"; os_codename="stretch"; os_id="debian"
+    elif [[ "${os_codename}" =~ ^(buster|debbie|parrot|engywuck-backports|engywuck|deepin|lithium|beowulf|po-tolo|nibiru|amber|eagle)$ ]]; then repo_codename="buster"; os_codename="buster"; os_id="debian"
     elif [[ "${os_codename}" =~ ^(bullseye|kali-rolling|elsie|ara|beryllium|chimaera|orion-belt|byzantium)$ ]]; then repo_codename="bullseye"; os_codename="bullseye"; os_id="debian"
     elif [[ "${os_codename}" =~ ^(bookworm|lory|faye|boron|beige|preslee|daedalus|crimson)$ ]]; then repo_codename="bookworm"; os_codename="bookworm"; os_id="debian"
     elif [[ "${os_codename}" =~ ^(trixie|excalibur|the-seven-sisters)$ ]]; then repo_codename="trixie"; os_codename="trixie"; os_id="debian"

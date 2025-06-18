@@ -11,6 +11,13 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 8.8.3
+  
+ - Added support for UnionTech OS Desktop 20.
+ - Added support for Devuan ASCII.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 8.8.2
   
  - Added logging for the script update process.
