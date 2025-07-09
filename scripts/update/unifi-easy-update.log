@@ -11,6 +11,12 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 10.3.1
+  
+ - Added support for Linux Mint 22.2 Zara.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 10.3.0
   
  - Added support for UnionTech OS Desktop 20.

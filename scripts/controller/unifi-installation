@@ -11,6 +11,12 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 8.8.4
+  
+ - Added support for Linux Mint 22.2 Zara.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 8.8.3
   
  - Added support for UnionTech OS Desktop 20.
