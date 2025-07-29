@@ -2,7 +2,7 @@
 
 # UniFi Network Application Easy Update Script.
 # Script   | UniFi Network Easy Update Script
-# Version  | 10.3.3
+# Version  | 10.3.4
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -1892,7 +1892,7 @@ if ! "$(which dpkg)" -l unifi 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|
 fi
 
 # If there a RC?
-is_there_a_release_candidate='no'
+is_there_a_release_candidate='yes'
 
 # UniFi Core Setups if no RC channel is available
 if [[ "${unifi_core_system}" == 'true' && "${is_there_a_release_candidate}" == 'yes' ]]; then
@@ -1957,7 +1957,7 @@ release_wanted () {
       esac
     done
   fi
-  if [[ "${release_stage}" == 'RC' ]]; then rc_version_available="9.3.43"; rc_version_available_secret="9.3.43-2a2e9ad4pa"; fi
+  if [[ "${release_stage}" == 'RC' ]]; then rc_version_available="9.3.45"; rc_version_available_secret="9.3.45-9iw96x349g"; fi
 }
 
 if [[ "$(command -v jq)" ]]; then latest_release_api_status="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?status" 2> /dev/null | jq -r '.availability' 2> /dev/null)"; else latest_release_api_status="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?status" 2> /dev/null | grep -oP '(?<="availability":")[^"]+')"; fi
@@ -15077,7 +15077,7 @@ elif [[ "${first_digit_unifi}" == '9' && "${second_digit_unifi}" == '2' ]]; then
 ##########################################################################################################################################################################
 
 elif [[ "${first_digit_unifi}" == '9' && "${second_digit_unifi}" == '3' ]]; then
-  if [[ "${third_digit_unifi}" -gt '43' ]]; then not_supported_version; fi
+  if [[ "${third_digit_unifi}" -gt '45' ]]; then not_supported_version; fi
   release_wanted
   if [[ "${release_stage}" == 'RC' ]]; then if [[ "${unifi}" == "${rc_version_available}" ]]; then debug_check_no_upgrade; unifi_update_latest; fi; fi
   header
