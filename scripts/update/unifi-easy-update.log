@@ -11,6 +11,12 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 10.3.7
+  
+ - Fixed the inability to update to 9.4.17 from 9.3.45.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 10.3.6
   
  - Added support for upgrading to 9.4.17 RC.
