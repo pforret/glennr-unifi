@@ -2,7 +2,7 @@
 
 # UniFi Network Application Easy Update Script.
 # Script   | UniFi Network Easy Update Script
-# Version  | 10.4.0
+# Version  | 10.4.2
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -5534,7 +5534,7 @@ if [[ -d "${unifi_logs_location}/" ]]; then
   if [[ -z "${last_known_good_mongodb_version}" ]]; then
     if [[ -e "${eus_dir}/logs/mongodb-unsupported-version-change-locate.log" ]]; then
       mapfile -t eus_marked_bad_versions < <("${grep_command}" -E '"[0-9]+\.[0-9]+\.[0-9]+" .* bad' "${eus_dir}/logs/mongodb-unsupported-version-change-locate.log" | sed -E 's/.*"([0-9]+\.[0-9]+\.[0-9]+)".*/\1/' | sort -rV | uniq)
-      mapfile -t dpkg_log_mongodb_server_versions < <(find /var/log/ --maxdepth 1 -type f -name "dpkg*" -print0 | xargs -0 "${grep_command}" ${grep_matches:+${grep_matches}} -sEia "upgrade mongodb-org-server|upgrade mongodb-server|upgrade mongod-armv8|upgrade mongod-amd64" | awk '{for(i=1;i<NF;i++) if ($i == "upgrade") {print $(i+2); break}}' | cut -d':' -f2 | sed -E 's/-.*//' | sort -rV | uniq)
+      mapfile -t dpkg_log_mongodb_server_versions < <(find /var/log/ -maxdepth 1 -type f -name "dpkg*" -print0 | xargs -0 "${grep_command}" ${grep_matches:+${grep_matches}} -sEia "upgrade mongodb-org-server|upgrade mongodb-server|upgrade mongod-armv8|upgrade mongod-amd64" | awk '{for(i=1;i<NF;i++) if ($i == "upgrade") {print $(i+2); break}}' | cut -d':' -f2 | sed -E 's/-.*//' | sort -rV | uniq)
       for version in "${dpkg_log_mongodb_server_versions[@]}"; do
         if [[ ! " ${eus_marked_bad_versions[*]} " =~ ${version} ]]; then
           dpkg_log_mongodb_server="${version}"
@@ -15361,10 +15361,10 @@ elif [[ "${first_digit_unifi}" == '9' && "${second_digit_unifi}" == '3' ]]; then
     unifi_version='9.3.45'
     echo -e " [   ${WHITE_R}1${RESET}   ]  |  9.4.19"
     if [[ "${release_stage}" == 'RC' ]]; then
-      echo -e " [   ${WHITE_R}1${RESET}   ]  |  ${rc_version_available}"
-      echo -e " [   ${WHITE_R}2${RESET}   ]  |  Cancel\\n\\n"
+      echo -e " [   ${WHITE_R}2${RESET}   ]  |  ${rc_version_available}"
+      echo -e " [   ${WHITE_R}3${RESET}   ]  |  Cancel\\n\\n"
     else
-      echo -e " [   ${WHITE_R}1${RESET}   ]  |  Cancel\\n\\n"
+      echo -e " [   ${WHITE_R}2${RESET}   ]  |  Cancel\\n\\n"
     fi
   else
     echo -e " [   ${WHITE_R}1${RESET}   ]  |  9.3.45"

@@ -11,6 +11,18 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 10.4.2
+  
+ - Fixed numbering for those on 9.3.45.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 10.4.1
+  
+ - Fixed a typo.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 10.4.0
   
  - Added support for upgrading to 9.4.19 Stable/Official.
