@@ -50,7 +50,7 @@ function Script:main() {
     cp "$latest" "./scripts/latest/install_unifi_video.sh"
 
     git add ./scripts
-    if git diff --QUIET --cached; then
+    if git diff --quiet --cached; then
       IO:success "No changes!                                "
     else
       IO:success "Updating changes ...                                "
