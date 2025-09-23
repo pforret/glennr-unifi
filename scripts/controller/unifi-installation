@@ -11,6 +11,23 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 8.8.6
+  
+ - Fixed an issue where UniFi OS Server was showing up as available on unsupported platforms.
+ 
+ ####
+
+ |  UniFi Network Application Installation Script  |  Version 8.8.5
+  
+ - Added support for installing UniFi OS Server.
+ - Added free disk space check.
+ - Improved the UniFi Network Application installation process.
+ - Reworked the Public Reachable Install Check.
+ - Reworked the Uncomplicated Firewall Check.
+ - Updated lots of API endpoints.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 8.8.4
   
  - Added support for Linux Mint 22.2 Zara.

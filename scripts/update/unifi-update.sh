@@ -2,7 +2,7 @@
 
 # UniFi Network Application Easy Update Script.
 # Script   | UniFi Network Easy Update Script
-# Version  | 10.4.2
+# Version  | 10.4.4
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -94,6 +94,13 @@ get_unifi_version() {
   second_digit_unifi="$(echo "${unifi}" | cut -d'.' -f2)"
   third_digit_unifi="$(echo "${unifi}" | cut -d'.' -f3)"
   unifi_release="$("$(which dpkg)" -l | awk '$2 == "unifi" {print $3}' | sed 's/-.*//' | sed 's/\.//g')"
+}
+
+get_uos_server_version() {
+  uos_version="$(grep -sE '^UOS_SERVER_VERSION=' /var/lib/uosserver/server.conf 2> /dev/null | cut -d= -f2)"
+  #first_digit_uos_server="$(echo "${uos_version}" | cut -d'.' -f1)"
+  #second_digit_uos_server="$(echo "${uos_version}" | cut -d'.' -f2)"
+  #third_digit_uos_server="$(echo "${uos_version}" | cut -d'.' -f3)"
 }
 
 cleanup_codename_mismatch_repos() {
@@ -1880,10 +1887,10 @@ for unifi_dummy_package in "${unifi_dummy_packages[@]}"; do
   fi
 done
 
-# Check if UniFi is already installed.
-if ! "$(which dpkg)" -l unifi 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi"; then
+# Check if UniFi or UniFi OS Server is already installed.
+if ! "$(which dpkg)" -l unifi 2>/dev/null | awk '{print $1}' | grep -iqE "^ii|^hi" && ! systemctl list-unit-files uosserver.service 2>/dev/null | grep -q 'enabled\|disabled'; then
   header_red
-  echo -e "${GRAY_R}#${RESET} UniFi is not installed on your system or is in a broken state!"
+  echo -e "${GRAY_R}#${RESET} The UniFi Network Application or UniFi OS Server is not installed on your system or is in a broken state!"
   if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Do you want to run the Easy Installation Script? (Y/n) ' yes_no; fi
   case "$yes_no" in
       [Nn]*) check_apt_listbugs; exit 0;;
@@ -1891,81 +1898,86 @@ if ! "$(which dpkg)" -l unifi 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|
   esac
 fi
 
-# If there a RC?
-is_there_a_release_candidate='no'
+if [[ "$(command -v jq)" ]]; then latest_application_release_api_status="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-application-release?status" 2> /dev/null | jq -r '.availability' 2> /dev/null)"; else latest_application_release_api_status="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-application-release?status" 2> /dev/null | grep -oP '(?<="availability":")[^"]+')"; fi
+if [[ "${latest_application_release_api_status}" == "OK" ]]; then
+  if [[ -n "$(command -v jq)" ]]; then latest_net_release_candidate="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-application-release?app=network&version=latest-release-candidate" 2> /dev/null | jq -r '.latest_release_candidate' 2> /dev/null)"; else latest_net_release_candidate="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-application-release?app=network&version=latest-release-candidate" 2> /dev/null | sed -n 's/.*"latest_release_candidate":"\([^"]*\)".*/\1/p')"; fi
+  if [[ -n "$(command -v jq)" ]]; then latest_net_release="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-application-release?app=network&version=latest" 2> /dev/null | jq -r '.latest_release' 2> /dev/null)"; else latest_net_release="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-application-release?app=network&version=latest" 2> /dev/null | sed -n 's/.*"latest_release":"\([^"]*\)".*/\1/p')"; fi
+  if [[ -n "$(command -v jq)" ]]; then latest_uos_server_release_candidate="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-application-release?app=unifi-os-server&version=latest-release-candidate" 2> /dev/null | jq -r '.latest_release_candidate' 2> /dev/null)"; else latest_uos_server_release_candidate="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-application-release?app=unifi-os-server&version=latest-release-candidate" 2> /dev/null | sed -n 's/.*"latest_release_candidate":"\([^"]*\)".*/\1/p')"; fi
+  if [[ -n "$(command -v jq)" ]]; then latest_uos_server_release="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-application-release?app=unifi-os-server&version=latest" 2> /dev/null | jq -r '.latest_release' 2> /dev/null)"; else latest_uos_server_release="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-application-release?app=unifi-os-server&version=latest" 2> /dev/null | sed -n 's/.*"latest_release":"\([^"]*\)".*/\1/p')"; fi
+else
+  latest_net_release="9.4.19"
+  latest_uos_server_release="4.3.4"
+fi
+
+if [[ "${latest_net_release_candidate}" == "${latest_net_release}" ]]; then
+  network_release_candidate="false"
+else
+  network_release_candidate="true"
+fi
+
+#if [[ "${latest_uos_server_release_candidate}" == "${latest_uos_server_release}" ]]; then
+#  uosserver_release_candidate="false"
+#else
+#  uosserver_release_candidate="true"
+#fi
 
 # UniFi Core Setups if no RC channel is available
-if [[ "${unifi_core_system}" == 'true' && "${is_there_a_release_candidate}" == 'yes' ]]; then
-  if ! grep -siq release-candidate /etc/apt/sources.list.d/ubiquiti.list; then
+if [[ "${unifi_core_system}" == 'true' && "${network_release_candidate}" == 'true' ]]; then
+  if ! grep -siq release-candidate /etc/apt/sources.list.d/ubiquiti.list /data/unifi-core/config/firmware.yaml; then
     console_has_no_rc="true"
-    is_there_a_release_candidate='no'
+    network_release_candidate='false'
   fi
 fi 
 
-release_wanted () {
-  if [[ "${is_there_a_release_candidate}" != 'yes' ]]; then
+release_wanted() {
+  set_stage() {
+    release_stage="$1"
+    release_stage_friendly="$2"
+    echo -e "${GRAY_R}#${RESET} Release Stage set to | ${release_stage_friendly}."
+    sleep 3
+  }
+  if [[ "${network_release_candidate}" != 'true' ]]; then
     header
     if [[ "${console_has_no_rc}" == 'true' ]]; then
       if [[ "${unifi_core_remote_access}" == 'true' ]]; then
-        echo -e "${GRAY_R}#${RESET} Your account does not have access to the Release Candidate channel, you can enable access under ui.com/beta..."
-        echo -e "${GRAY_R}#${RESET} Release Stage set to | Stable."
+        echo -e "${GRAY_R}#${RESET} Your account does not have access to the RC channel. Enable access at ui.com/beta..."
       else
-        echo -e "${GRAY_R}#${RESET} Remote Access is required to access the Release Candidate channel, please enable it in your UniFi OS Settings..."
-        echo -e "${GRAY_R}#${RESET} Release Stage set to | Stable."
+        echo -e "${GRAY_R}#${RESET} Remote Access is required to access the RC channel. Enable it in UniFi OS Settings..."
       fi
-      sleep 4
     else
       echo -e "${GRAY_R}#${RESET} There are currently no Release Candidates."
-      echo -e "${GRAY_R}#${RESET} Release Stage set to | Stable."
     fi
-    release_stage="S"
-    release_stage_friendly="Stable"
-    sleep 4
-  else
-    header
-    echo -e "${GRAY_R}#${RESET} What release stage do you want to upgrade to?\\n"
-    echo -e " [   ${WHITE_R}1${RESET}   ]  |  Stable ( default )"
-    echo -e " [   ${WHITE_R}2${RESET}   ]  |  Release Candidate\\n\\n"
-    while true; do
-      read -rp $'Your choice | \033[39m' release_stage
-      case "$release_stage" in
-          1*|"")
-            release_stage="S"
-            release_stage_friendly="Stable"
-            if [[ "${unifi}" == "${latest_release}" ]]; then
-              header_red
-              echo -e "${GRAY_R}#${RESET} There are currently no newer Stable Releases."
-              echo -e "${GRAY_R}#${RESET} Release Stage set to | Release Candidate.\\n\\n"
-              release_stage="RC"
-              release_stage_friendly="Release Candidate"
-              sleep 4
-            fi
-            break;;
-          2*)
-            release_stage="RC"
-            release_stage_friendly="Release Candidate"
-            if [[ "${is_there_a_release_candidate}" == "no" ]]; then
-              header_red
-              echo -e "${GRAY_R}#${RESET} There are currently no Release Candidates."
-              echo -e "${GRAY_R}#${RESET} Release Stage set to | Stable.\\n\\n"
-              release_stage="S"
-              release_stage_friendly="Stable"
-              sleep 4
-            fi
-            break;;
-          *) echo -e "\\n${RED}#${RESET} Invalid input, please answer with a number...\\n"; sleep 3;;
-      esac
-    done
+    set_stage "S" "Stable"
+    return
   fi
-  if [[ "${release_stage}" == 'RC' ]]; then rc_version_available="9.4.19"; rc_version_available_secret="9.4.19-0f76duk082"; fi
+  while true; do
+    header
+    echo -e "${GRAY_R}#${RESET} What release stage do you want to upgrade to?\n"
+    echo -e " [   ${WHITE_R}1${RESET}   ]  |  Stable (default)"
+    echo -e " [   ${WHITE_R}2${RESET}   ]  |  Release Candidate\n"
+    read -rp $'Your choice | \033[39m' choice
+    case "$choice" in
+      1*|"")
+        if [[ "${unifi}" == "${latest_net_release}" ]]; then
+          header_red
+          echo -e "${GRAY_R}#${RESET} There are currently no newer Stable Releases."
+          set_stage "RC" "Release Candidate"
+        else
+          header
+          set_stage "S" "Stable"
+        fi
+        return;;
+      2*)
+        header
+        set_stage "RC" "Release Candidate"
+        return;;
+      *)
+        header_red
+        echo -e "\n${RED}#${RESET} Invalid input, please answer with a number...\n"
+        sleep 3;;
+    esac
+  done
 }
-
-if [[ "$(command -v jq)" ]]; then latest_release_api_status="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?status" 2> /dev/null | jq -r '.availability' 2> /dev/null)"; else latest_release_api_status="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?status" 2> /dev/null | grep -oP '(?<="availability":")[^"]+')"; fi
-if [[ "${latest_release_api_status}" == "OK" ]]; then
-  if [[ -n "$(command -v jq)" ]]; then latest_release="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?version=latest" 2> /dev/null | jq -r '.latest_release' 2> /dev/null)"; else latest_release="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?version=latest" 2> /dev/null | sed -n 's/.*"latest_release":"\([^"]*\)".*/\1/p')"; fi
-else
-  latest_release="9.3.45"
-fi
 
 broken_packages_check() {
   local broken_packages
@@ -4342,24 +4354,24 @@ unifi_deb_package_modification() {
     prevent_mongodb_org_server_install
   fi
   if [[ "${custom_unifi_deb_file_required}" == 'true' ]]; then
-    if [[ "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/locate-network-release?status" 2> /dev/null | jq -r '.availability' 2> /dev/null)" == "OK" ]]; then download_pre_build_deb_available="true"; fi
+    if [[ "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/application-release?status" 2> /dev/null | jq -r '.availability' 2> /dev/null)" == "OK" ]]; then download_pre_build_deb_available="true"; fi
     if [[ -n "${unifi_deb_package_modification_mongodb_package}" && -n "${temurin_type}" ]]; then
       unifi_deb_package_modification_message_1="temurin-${required_java_version_short}-${temurin_type} and ${unifi_deb_package_modification_mongodb_package}"
       if [[ "${download_pre_build_deb_available}" == 'true' ]]; then
-        pre_build_fw_update_dl_link="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/locate-network-release?mongodb=${unifi_deb_package_modification_mongodb_package}&java=temurin-${required_java_version_short}-${temurin_type}&unifi-version=${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi}" | jq -r '."download_link"' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
-        pre_build_fw_update_dl_link_sha256sum="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/locate-network-release?mongodb=${unifi_deb_package_modification_mongodb_package}&java=temurin-${required_java_version_short}-${temurin_type}&unifi-version=${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi}" | jq -r '.sha256sum' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
+        pre_build_fw_update_dl_link="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/application-release?mongodb=${unifi_deb_package_modification_mongodb_package}&java=temurin-${required_java_version_short}-${temurin_type}&unifi-version=${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi}" | jq -r '."download_link"' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
+        pre_build_fw_update_dl_link_sha256sum="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/application-release?mongodb=${unifi_deb_package_modification_mongodb_package}&java=temurin-${required_java_version_short}-${temurin_type}&unifi-version=${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi}" | jq -r '.sha256sum' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
       fi
     elif [[ -n "${temurin_type}" ]]; then
       unifi_deb_package_modification_message_1="temurin-${required_java_version_short}-${temurin_type}"
       if [[ "${download_pre_build_deb_available}" == 'true' ]]; then
-        pre_build_fw_update_dl_link="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/locate-network-release?java=temurin-${required_java_version_short}-${temurin_type}&unifi-version=${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi}" | jq -r '."download_link"' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
-        pre_build_fw_update_dl_link_sha256sum="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/locate-network-release?java=temurin-${required_java_version_short}-${temurin_type}&unifi-version=${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi}" | jq -r '.sha256sum' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
+        pre_build_fw_update_dl_link="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/application-release?java=temurin-${required_java_version_short}-${temurin_type}&unifi-version=${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi}" | jq -r '."download_link"' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
+        pre_build_fw_update_dl_link_sha256sum="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/application-release?java=temurin-${required_java_version_short}-${temurin_type}&unifi-version=${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi}" | jq -r '.sha256sum' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
       fi
     elif [[ -n "${unifi_deb_package_modification_mongodb_package}" ]]; then
       unifi_deb_package_modification_message_1="${unifi_deb_package_modification_mongodb_package}"
       if [[ "${download_pre_build_deb_available}" == 'true' ]]; then
-        pre_build_fw_update_dl_link="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/locate-network-release?mongodb=${unifi_deb_package_modification_mongodb_package}&unifi-version=${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi}" | jq -r '."download_link"' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
-        pre_build_fw_update_dl_link_sha256sum="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/locate-network-release?mongodb=${unifi_deb_package_modification_mongodb_package}&unifi-version=${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi}" | jq -r '.sha256sum' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
+        pre_build_fw_update_dl_link="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/application-release?mongodb=${unifi_deb_package_modification_mongodb_package}&unifi-version=${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi}" | jq -r '."download_link"' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
+        pre_build_fw_update_dl_link_sha256sum="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/application-release?mongodb=${unifi_deb_package_modification_mongodb_package}&unifi-version=${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi}" | jq -r '.sha256sum' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
       fi
     elif [[ -n "${non_default_java_package}" ]]; then
       unifi_deb_package_modification_message_1="${non_default_java_package}"
@@ -5779,10 +5791,10 @@ if [[ "${mongo_version_locked}" == '4.4.18' ]] || [[ "${unsupported_database_ver
     if [[ "${reinstall_unifi}" == 'true' ]]; then
       reinstall_unifi_version="$(head -n1 /usr/lib/unifi/data/db/version | sed 's/[^0-9.]//g' 2> /dev/null)"
       if [[ -z "${reinstall_unifi_version}" ]]; then reinstall_unifi_version="$(dpkg-query --showformat='${version}' --show unifi 2> /dev/null | awk -F '[-]' '{print $1}')"; fi
-      if [[ "$(curl "${curl_argument[@]}" https://api.glennr.nl/api/network-release?status 2> /dev/null | jq -r '.[]' 2> /dev/null)" == "OK" ]]; then
-        fw_update_dl_link="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-release?version=${reinstall_unifi_version}${unifi_core_glennr_api}" | jq -r '."download_link"' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
-        fw_update_gr_dl_link="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-release?version=${reinstall_unifi_version}&server=archive${unifi_core_glennr_api}" | jq -r '."download_link"' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
-        fw_update_dl_link_sha256sum="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-release?version=${reinstall_unifi_version}${unifi_core_glennr_api}" | jq -r '.sha256sum' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
+      if [[ "$(curl "${curl_argument[@]}" https://api.glennr.nl/api/application-release?status 2> /dev/null | jq -r '.[]' 2> /dev/null)" == "OK" ]]; then
+        fw_update_dl_link="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/application-release?app=network&version=${reinstall_unifi_version}${unifi_core_glennr_api}" | jq -r '."download_link"' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
+        fw_update_gr_dl_link="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/application-release?app=network&version=${reinstall_unifi_version}&server=archive${unifi_core_glennr_api}" | jq -r '."download_link"' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
+        fw_update_dl_link_sha256sum="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/application-release?app=network&version=${reinstall_unifi_version}${unifi_core_glennr_api}" | jq -r '.sha256sum' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
       fi
       if [[ -z "${fw_update_dl_link}" ]]; then
         fw_update_dl_link="$(curl "${curl_argument[@]}" --location --request GET "https://fw-update.ui.com/api/firmware-latest?filter=eq~~version_major~~$(awk -F'.' '{print $1}' <<< "${reinstall_unifi_version}")&filter=eq~~version_minor~~$(awk -F'.' '{print $2}' <<< "${reinstall_unifi_version}")&filter=eq~~version_patch~~$(awk -F'.' '{print $3}' <<< "${reinstall_unifi_version}")&filter=eq~~platform~~debian" 2> "${eus_dir}/logs/locate-download.log" | jq -r "._embedded.firmware[0]._links.data.href" 2> "${eus_dir}/logs/locate-download.log" | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
@@ -6062,8 +6074,8 @@ mongodb_avx_support_check() {
 }
 mongodb_avx_support_check
 mongo_command
-
-unifi_version=''
+perform_application_upgrade=""
+perform_uos_upgrade=""
 
 glennr_unifi_backup=''
 executed_unifi_credentials=''
@@ -6158,12 +6170,20 @@ remove_yourself() {
   script_cleanup
   if [[ "${set_lc_all}" == 'true' ]]; then if [[ -n "${original_lang}" ]]; then export LANG="${original_lang}"; else unset LANG; fi; if [[ -n "${original_lcall}" ]]; then export LC_ALL="${original_lcall}"; else unset LC_ALL; fi; fi
   if [[ "${stopped_unattended_upgrade}" == 'true' ]]; then systemctl start unattended-upgrades &>> "${eus_dir}/logs/unattended-upgrades.log"; unset stopped_unattended_upgrade; fi
-  if [[ "${delete_script}" == 'true' ]]; then if [[ -e "${script_location}" ]]; then rm --force "${script_location}" 2> /dev/null; fi; fi
+  if [[ "$(jq -r '.database["keep-script-on-system"]' "${eus_dir}/db/db.json")" == "false" ]]; then if [[ -e "${script_location}" ]]; then rm --force "${script_location}" 2> /dev/null; fi; fi
 }
 
-unifi_update_start() {
+upgrade_start() {
+  local app="${1}"
+  if [[ "${app}" == "network" ]]; then
+    app_pretty="UniFi Network Application"
+  elif [[ "${app}" == "uosserver" ]]; then
+    app_pretty="UniFi OS Server"
+  else
+    app_pretty="Unknown"
+  fi
   header
-  echo -e "${GRAY_R}#${RESET} Starting the UniFi Network Application update! \\n\\n"
+  echo -e "${GRAY_R}#${RESET} Starting the ${app_pretty} update! \\n\\n"
   sleep 2
 }
 
@@ -6327,30 +6347,42 @@ check_mongodb_connection() {
   fi
 }
 
-unifi_update_finish() {
-  if [[ "${application_login}" == 'success' ]]; then
-    application_login_attempt
+upgrade_finished() {
+  local app="${1}"
+  if [[ "${app}" == "network" ]]; then
+    app_pretty="UniFi Network Application"
+    upgrade_finished_version="$(dpkg-query --showformat='${version}' --show unifi 2> /dev/null | awk -F '[-]' '{print $1}')"
+    if [[ "${application_login}" == 'success' ]]; then application_login_attempt; fi
+    login_cleanup
+  elif [[ "${app}" == "uosserver" ]]; then
+    app_pretty="UniFi OS Server"
+    upgrade_finished_version="$(grep -sE '^UOS_SERVER_VERSION=' /var/lib/uosserver/server.conf 2> /dev/null | cut -d= -f2)"
+  else
+    app_pretty="Unknown"
+    upgrade_finished_version="Unknown"
   fi
-  login_cleanup
   header
-  echo -e "${GRAY_R}#${RESET} Your UniFi Network Application has been successfully updated to $(dpkg-query --showformat='${version}' --show unifi 2> /dev/null | awk -F '[-]' '{print $1}')"
-  if [[ "${script_option_do_not_start_unifi}" == 'true' ]]; then
-    echo -e "${GRAY_R}#${RESET} You've used the script option \"Do Not Start UniFi\"... Stopping the service..."
-    echo -e "$(date +%F-%T.%6N) | Script option \"Do Not Start UniFi\" was used... Stopping the UniFi Network Application..." &>> "${eus_dir}/logs/script-option-do-not-start-unifi.log"
-    if [[ "${limited_functionality}" == 'true' ]]; then
-      if service unifi stop &>> "${eus_dir}/logs/script-option-do-not-start-unifi.log"; then echo -e "${GREEN}#${RESET} Successfully stopped service unifi! \\n"; else echo -e "${RED}#${RESET} Failed to stop service unifi..."; fi
-    else
-      if systemctl stop unifi &>> "${eus_dir}/logs/script-option-do-not-start-unifi.log"; then echo -e "${GREEN}#${RESET} Successfully stopped service unifi! \\n"; else echo -e "${RED}#${RESET} Failed to stop service unifi..."; fi
+  echo -e "${GRAY_R}#${RESET} Your ${app_pretty} has been successfully updated to ${upgrade_finished_version}!"
+  
+  if [[ "${app}" == "network" ]]; then
+    if [[ "${script_option_do_not_start_unifi}" == 'true' ]]; then
+      echo -e "${GRAY_R}#${RESET} You've used the script option \"Do Not Start UniFi\"... Stopping the service..."
+      echo -e "$(date +%F-%T.%6N) | Script option \"Do Not Start UniFi\" was used... Stopping the UniFi Network Application..." &>> "${eus_dir}/logs/script-option-do-not-start-unifi.log"
+      if [[ "${limited_functionality}" == 'true' ]]; then
+        if service unifi stop &>> "${eus_dir}/logs/script-option-do-not-start-unifi.log"; then echo -e "${GREEN}#${RESET} Successfully stopped service unifi! \\n"; else echo -e "${RED}#${RESET} Failed to stop service unifi..."; fi
+      else
+        if systemctl stop unifi &>> "${eus_dir}/logs/script-option-do-not-start-unifi.log"; then echo -e "${GREEN}#${RESET} Successfully stopped service unifi! \\n"; else echo -e "${RED}#${RESET} Failed to stop service unifi..."; fi
+      fi
     fi
-  fi
-  backup_save_location
-  check_mongodb_connection
-  if [[ "${mongodb_connected}" == 'true' ]]; then
-    auto_backup_write_warning
-    if [[ "${first_digit_unifi}" -ge '6' ]] || [[ "${first_digit_unifi}" -ge '5' && "${second_digit_unifi}" -ge '12' ]]; then mail_server_recommendation; fi
-  fi
-  if [[ "${keystore_alias_checked}" == "true" ]]; then
-    echo -e "\\n${GRAY_R}#${RESET} The script has detected a invalid keystore and removed it..."
+    backup_save_location
+    check_mongodb_connection
+    if [[ "${mongodb_connected}" == 'true' ]]; then
+      auto_backup_write_warning
+      if [[ "${first_digit_unifi}" -ge '6' ]] || [[ "${first_digit_unifi}" -ge '5' && "${second_digit_unifi}" -ge '12' ]]; then mail_server_recommendation; fi
+    fi
+    if [[ "${keystore_alias_checked}" == "true" ]]; then
+      echo -e "\\n${GRAY_R}#${RESET} The script has detected a invalid keystore and removed it..."
+    fi
   fi
   echo -e "\\n"
   author
@@ -6358,19 +6390,28 @@ unifi_update_finish() {
   exit 0
 }
 
-unifi_update_latest() {
-  login_cleanup
-  header
-  if [[ "${release_stage}" == 'RC' ]]; then
-    echo -e "${GRAY_R}#${RESET} Your UniFi Network Application is already on the latest release candidate! ( ${GRAY_R}$unifi${RESET} )"
+upgrade_latest() {
+  local app="${1}"
+  if [[ "${app}" == "network" ]]; then
+    app_pretty="UniFi Network Application"
+    current_version="${unifi}"
+    login_cleanup
+  elif [[ "${app}" == "uosserver" ]]; then
+    app_pretty="UniFi OS Server"
+    current_version="${uos_version}"
   else
-    echo -e "${GRAY_R}#${RESET} Your UniFi Network Application is already on the latest stable release! ( ${GRAY_R}$unifi${RESET} )"
+    app_pretty="Unknown"
+    current_version="Unknown"
   fi
-  backup_save_location
-  check_mongodb_connection
-  if [[ "${mongodb_connected}" == 'true' ]]; then
-    auto_backup_write_warning
-    if [[ "${first_digit_unifi}" -ge '6' ]] || [[ "${first_digit_unifi}" -ge '5' && "${second_digit_unifi}" -ge '12' ]]; then mail_server_recommendation; fi
+  header
+  echo -e "${GRAY_R}#${RESET} Your ${app_pretty} is already on the latest ${release_stage_friendly}! ( ${GRAY_R}${current_version}${RESET} )"
+  if [[ "${app}" == "network" ]]; then
+    backup_save_location
+    check_mongodb_connection
+    if [[ "${mongodb_connected}" == 'true' ]]; then
+      auto_backup_write_warning
+      if [[ "${first_digit_unifi}" -ge '6' ]] || [[ "${first_digit_unifi}" -ge '5' && "${second_digit_unifi}" -ge '12' ]]; then mail_server_recommendation; fi
+    fi
   fi
   echo -e "\\n"
   author
@@ -8665,7 +8706,7 @@ custom_url_upgrade_check() {
       if [[ "${first_digit_unifi}" -gt '7' ]] || [[ "${first_digit_unifi}" == '7' && "${second_digit_unifi}" -ge '3' ]]; then
         header_red
         echo -e "${GRAY_R}#${RESET} UniFi Network Application ${custom_application_digit_1}.${custom_application_digit_2}.${custom_application_digit_3} is not supported on your Gen1 UniFi Cloudkey (UC-CK)."
-        echo -e "${GRAY_R}#${RESET} The latest supported version on your Cloudkey is $(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?version=7.2" 2> /dev/null | jq -r '.latest_version' 2> /dev/null) and older.. \\n\\n"
+        echo -e "${GRAY_R}#${RESET} The latest supported version on your Cloudkey is $(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-application-release?app=network&version=7.2" 2> /dev/null | jq -r '.latest_version' 2> /dev/null) and older.. \\n\\n"
         echo -e "${GRAY_R}#${RESET} Consider upgrading to a Gen2 Cloudkey:"
         echo -e "${GRAY_R}#${RESET} UniFi Cloud Key Gen2       | https://store.ui.com/products/unifi-cloud-key-gen2"
         echo -e "${GRAY_R}#${RESET} UniFi Cloud Key Gen2 Plus  | https://store.ui.com/products/unifi-cloudkey-gen2-plus\\n\\n"
@@ -8679,7 +8720,7 @@ custom_url_upgrade_check() {
         mongodb_server_version="$("$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep -E "(mongodb-server|mongodb-org-server|mongod-armv8|mongod-amd64)[[:space:]]" | awk '{print $3}' | sed -e 's/.*://' -e 's/-.*//' -e 's/+.*//' -e 's/\.//g')"
         if [[ "${mongodb_server_version::2}" -le "25" ]]; then unifi_latest_supported_version="7.3"; else unifi_latest_supported_version="7.4"; fi
         echo -e "${GRAY_R}#${RESET} Your 32-bit system/OS is no longer supported by UniFi Network Application ${custom_application_version}!"
-        echo -e "${GRAY_R}#${RESET} The latest supported version on your system/OS is $(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?version=${unifi_latest_supported_version}" 2> /dev/null | jq -r '.latest_version' 2> /dev/null) and older..."
+        echo -e "${GRAY_R}#${RESET} The latest supported version on your system/OS is $(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-application-release?app=network&version=${unifi_latest_supported_version}" 2> /dev/null | jq -r '.latest_version' 2> /dev/null) and older..."
         echo -e "${GRAY_R}#${RESET} Consider upgrading to a 64-bit system/OS!\\n\\n"
         author
         exit 0
@@ -8702,7 +8743,7 @@ custom_url_upgrade_check() {
             if [[ "${os_codename}" == 'stretch' ]]; then
               header_red
               echo -e "${GRAY_R}#${RESET} UniFi Network Application ${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi} requires a newer version of UniFi OS."
-              echo -e "${GRAY_R}#${RESET} The latest version that you can run with UniFi OS version $(cut -d'.' -f3,4,5 /usr/lib/version | sed 's/v//g') is $(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?version=${unifi_latest_supported_version_number}" 2> /dev/null | jq -r '.latest_version' 2> /dev/null) and older.. \\n\\n"
+              echo -e "${GRAY_R}#${RESET} The latest version that you can run with UniFi OS version $(cut -d'.' -f3,4,5 /usr/lib/version | sed 's/v//g') is $(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-application-release?app=network&version=${unifi_latest_supported_version_number}" 2> /dev/null | jq -r '.latest_version' 2> /dev/null) and older.. \\n\\n"
               unifi_core_upgrade_message="true"
             else
               unifi_core_mongodb_upgrade_bypass="true"
@@ -8710,7 +8751,7 @@ custom_url_upgrade_check() {
           else
             header_red
             echo -e "${GRAY_R}#${RESET} UniFi Network Application ${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi} requires MongoDB ${minimum_required_mongodb_version_dot} or newer."
-            echo -e "${GRAY_R}#${RESET} The latest version that you can run with MongoDB version $("$(which dpkg)" -l | grep -E "(mongodb-server|mongodb-org-server|mongod-armv8|mongod-amd64)[[:space:]]" | awk '{print $3}' | sed -e 's/.*://' -e 's/-.*//' -e 's/+.*//') is $(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?version=${unifi_latest_supported_version_number}" 2> /dev/null | jq -r '.latest_version' 2> /dev/null) and older.. \\n\\n"
+            echo -e "${GRAY_R}#${RESET} The latest version that you can run with MongoDB version $("$(which dpkg)" -l | grep -E "(mongodb-server|mongodb-org-server|mongod-armv8|mongod-amd64)[[:space:]]" | awk '{print $3}' | sed -e 's/.*://' -e 's/-.*//' -e 's/+.*//') is $(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-application-release?app=network&version=${unifi_latest_supported_version_number}" 2> /dev/null | jq -r '.latest_version' 2> /dev/null) and older.. \\n\\n"
             if [[ "${mongodb_org_v::2}" =~ (24|26|30|32|34) && "${mongo_version_max}" == "36" && "${mongodb_upgrade_supported}" == 'true' ]] || [[ "${mongodb_org_v::2}" =~ (24|26|30|32|34|36|40|42) && "${mongo_version_max}" == "44" && "${mongodb_upgrade_supported}" == 'true' ]]; then
               while true; do
                 read -rp $'\033[39m#\033[0m Would you like to run the option to upgrade to MongoDB '"${mongo_version_max_with_dot}"'? (Y/n) ' yes_no
@@ -8728,10 +8769,10 @@ custom_url_upgrade_check() {
                 esac
               done
             else
-              echo -e "${GRAY_R}#${RESET} The script will first update the UniFi Network Application to version $(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?version=${unifi_latest_supported_version_number}" 2> /dev/null | jq -r '.latest_version' 2> /dev/null) before updating to version ${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi}... \\n"
+              echo -e "${GRAY_R}#${RESET} The script will first update the UniFi Network Application to version $(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-application-release?app=network&version=${unifi_latest_supported_version_number}" 2> /dev/null | jq -r '.latest_version' 2> /dev/null) before updating to version ${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi}... \\n"
 	          sleep 5
               original_application_version="${custom_application_version}"
-              application_version="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?version=${unifi_latest_supported_version_number}" 2> /dev/null | jq -r '.latest_version' 2> /dev/null)"
+              application_version="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-application-release?app=network&version=${unifi_latest_supported_version_number}" 2> /dev/null | jq -r '.latest_version' 2> /dev/null)"
               application_upgrade_releases
               get_mongo_version_max
               application_version="${original_application_version}"
@@ -8749,9 +8790,9 @@ custom_url_upgrade_check() {
         fi
       fi
     fi
-    if [[ "$(command -v jq)" ]]; then net_update_supported_api_status="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-supported-upgrade?status" 2> /dev/null | jq -r '.availability' 2> /dev/null)"; else net_update_supported_api_status="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-supported-upgrade?status" 2> /dev/null | grep -oP '(?<="availability":")[^"]+')"; fi
-    if [[ "${net_update_supported_api_status}" == "OK" ]]; then
-      if [[ "$(command -v jq)" ]]; then net_update_supported="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-supported-upgrade?current_version=${current_application_version}&new_version=${custom_application_version}" 2> /dev/null | jq -r '.supported' 2> /dev/null | sed '/null/d' 2> "${eus_dir}/logs/glennr-api.log")"; else net_update_supported="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-supported-upgrade?current_version=${current_application_version}&new_version=${custom_application_version}" 2> /dev/null | grep -oP '(?<="supported":")[^"]+')"; fi
+    if [[ "$(command -v jq)" ]]; then supported_upgrade_api_status="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/supported-upgrade?status" 2> /dev/null | jq -r '.availability' 2> /dev/null)"; else supported_upgrade_api_status="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/supported-upgrade?status" 2> /dev/null | grep -oP '(?<="availability":")[^"]+')"; fi
+    if [[ "${supported_upgrade_api_status}" == "OK" ]]; then
+      if [[ "$(command -v jq)" ]]; then net_update_supported="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/supported-upgrade?app=network&current_version=${current_application_version}&new_version=${custom_application_version}" 2> /dev/null | jq -r '.supported' 2> /dev/null | sed '/null/d' 2> "${eus_dir}/logs/glennr-api.log")"; else net_update_supported="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/supported-upgrade?app=network&current_version=${current_application_version}&new_version=${custom_application_version}" 2> /dev/null | grep -oP '(?<="supported":")[^"]+')"; fi
       if [[ "${net_update_supported}" == 'true' ]]; then
         custom_url_install
       elif [[ "${net_update_supported}" == 'false' ]]; then
@@ -8906,7 +8947,7 @@ custom_url_install() {
   sleep 3
   java_cleanup_not_required_versions
   rm --force "$unifi_temp" 2> /dev/null
-  unifi_update_finish
+  upgrade_finished network
 }
 
 ###################################################################################################################################################################################################
@@ -9484,12 +9525,12 @@ mongodb_upgrade() {
       unifi_deb_md5="$(curl "${curl_argument[@]}" --location --request GET "https://fw-update.ui.com/api/firmware-latest?filter=eq~~version_major~~${first_digit_current_unifi}&filter=eq~~version_minor~~${second_digit_current_unifi}&filter=eq~~version_patch~~${third_digit_current_unifi}&filter=eq~~platform~~debian" 2> "${eus_dir}/logs/locate-download.log" | jq -r "._embedded.firmware[0].md5" 2> "${eus_dir}/logs/locate-download.log" | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
       if [[ -z "${unifi_deb_md5}" ]]; then unifi_deb_md5="$(curl "${curl_argument[@]}" --location --request GET "http://fw-update.ui.com/api/firmware-latest?filter=eq~~version_major~~${first_digit_current_unifi}&filter=eq~~version_minor~~${second_digit_current_unifi}&filter=eq~~version_patch~~${third_digit_current_unifi}&filter=eq~~platform~~debian" 2> "${eus_dir}/logs/locate-download.log" | jq -r "._embedded.firmware[0].md5" 2> "${eus_dir}/logs/locate-download.log" | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"; fi
     fi
-    if [[ "$(curl "${curl_argument[@]}" https://api.glennr.nl/api/network-release?status 2> /dev/null | jq -r '.[]' 2> /dev/null)" == "OK" ]]; then
+    if [[ "$(curl "${curl_argument[@]}" https://api.glennr.nl/api/application-release?status 2> /dev/null | jq -r '.[]' 2> /dev/null)" == "OK" ]]; then
       if [[ -z "${unifi_deb_dl}" ]]; then
-        unifi_deb_dl="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-release?version=${first_digit_current_unifi}.${second_digit_current_unifi}.${third_digit_current_unifi}${unifi_core_glennr_api}" | jq -r '.download_link' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
-        unifi_deb_md5="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-release?version=${first_digit_current_unifi}.${second_digit_current_unifi}.${third_digit_current_unifi}${unifi_core_glennr_api}" | jq -r '.md5sum' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
+        unifi_deb_dl="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/application-release?app=network&version=${first_digit_current_unifi}.${second_digit_current_unifi}.${third_digit_current_unifi}${unifi_core_glennr_api}" | jq -r '.download_link' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
+        unifi_deb_md5="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/application-release?app=network&version=${first_digit_current_unifi}.${second_digit_current_unifi}.${third_digit_current_unifi}${unifi_core_glennr_api}" | jq -r '.md5sum' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
       fi
-      unifi_deb_gr_dl="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-release?version=${first_digit_current_unifi}.${second_digit_current_unifi}.${third_digit_current_unifi}&server=archive${unifi_core_glennr_api}" | jq -r '.download_link' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
+      unifi_deb_gr_dl="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/application-release?app=network&version=${first_digit_current_unifi}.${second_digit_current_unifi}.${third_digit_current_unifi}&server=archive${unifi_core_glennr_api}" | jq -r '.download_link' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
     fi
     if [[ -z "${unifi_deb_dl}" ]]; then
       unifi_deb_dl_failed="true"
@@ -10162,16 +10203,20 @@ support_file_upload_opt_in
 support_file_requests_opt_in
 
 script_removal() {
-  if [[ "${installing_required_package}" != 'yes' ]]; then
-    echo -e "${GREEN}---${RESET}\\n"
-  else
+  if [[ "$(jq -r '.database["keep-script-on-system"]' "${eus_dir}/db/db.json")" != 'true' ]]; then
     header
+    read -rp $'\033[39m#\033[0m Do you want to keep the script on your system after completion? (Y/n) ' yes_no
+    case "$yes_no" in
+        [Nn]*) keep_script_on_system="false";;
+        *) keep_script_on_system="true";;
+    esac
+    if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
+      jq '."database" += {"keep-script-on-system": "'"${keep_script_on_system}"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+    else
+      jq --arg keep_script_on_system "$keep_script_on_system" '.database = (.database + {"keep-script-on-system": $keep_script_on_system})' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+    fi
+    eus_database_move
   fi
-  if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Do you want to keep the script on your system after completion? (Y/n) ' yes_no; fi
-  case "$yes_no" in
-      [Nn]*) delete_script="true";;
-      *) ;;
-  esac
 }
 script_removal
 
@@ -10295,6 +10340,22 @@ free_var_log_space_check() {
 }
 free_var_log_space_check
 
+free_disk_space_check() {
+  local path="${1}"
+  local min_gb="${2}"
+  # Get available space in GB (integer)
+  local free_gb
+  free_gb="$(df -BG --output=avail "${path}" | tail -n 1 | sed 's/[[:space:]]//g; s/G//')"
+  if (( free_gb < min_gb )); then
+    echo -e "$(date +%F-%T.%6N) | ${path} has only $(df -B1 "${path}" | awk 'NR==2{print $4}' | awk '{ split( "B KB MB GB TB PB EB ZB YB" , v ); s=1; while( $1>1024 && s<9 ){ $1/=1024; s++ } printf "%.1f %s", $1, v[s] }') free (needs at least ${min_gb}GB)" &>> "${eus_dir}/logs/free-disk-space-check.log"
+    abort_reason="${path} has only $(df -B1 "${path}" | awk 'NR==2{print $4}' | awk '{ split( "B KB MB GB TB PB EB ZB YB" , v ); s=1; while( $1>1024 && s<9 ){ $1/=1024; s++ } printf "%.1f %s", $1, v[s] }') free (needs at least ${min_gb} GB)"
+    return 1
+  else
+    echo -e "$(date +%F-%T.%6N) | ${path} has $(df -B1 "${path}" | awk 'NR==2{print $4}' | awk '{ split( "B KB MB GB TB PB EB ZB YB" , v ); s=1; while( $1>1024 && s<9 ){ $1/=1024; s++ } printf "%.1f %s", $1, v[s] }') free (≥ ${min_gb} GB)" &>> "${eus_dir}/logs/free-disk-space-check.log"
+    return 0
+  fi
+}
+
 not_running_proceed() {
   echo -e "${RED}#${RESET} The UniFi Network Application is still not running.. you may experience login issues..."
   while true; do
@@ -10336,26 +10397,28 @@ if [[ "${limited_functionality}" == 'true' ]]; then
     fi
   fi
 else
-  if [[ "${os_codename}" =~ (precise|maya|trusty|utopic|vivid|wily|yakkety|zesty|artful|qiana|rebecca|rafaela|rosa|utopic|vivid|wily|yakkety|zesty|artful) ]]; then
-    if ! systemctl status unifi | grep -iq running; then
-      if [[ "${installing_required_package}" != 'yes' ]]; then echo -e "\\n${GREEN}---${RESET}\\n"; else header; fi
-      not_running_dir_check
-      not_running_java_21_check
-      echo -e "${GRAY_R}#${RESET} The UniFi Network Application does not appear to be running... Trying to start it..."
-      if systemctl start unifi &> /dev/null; then echo -e "${GREEN}#${RESET} The UniFi Network Application started successfully!"; sleep 3; fi
+  if ! systemctl is-active -q uosserver; then
+    if [[ "${os_codename}" =~ (precise|maya|trusty|utopic|vivid|wily|yakkety|zesty|artful|qiana|rebecca|rafaela|rosa|utopic|vivid|wily|yakkety|zesty|artful) ]]; then
       if ! systemctl status unifi | grep -iq running; then
-        not_running_proceed
+        if [[ "${installing_required_package}" != 'yes' ]]; then echo -e "\\n${GREEN}---${RESET}\\n"; else header; fi
+        not_running_dir_check
+        not_running_java_21_check
+        echo -e "${GRAY_R}#${RESET} The UniFi Network Application does not appear to be running... Trying to start it..."
+        if systemctl start unifi &> /dev/null; then echo -e "${GREEN}#${RESET} The UniFi Network Application started successfully!"; sleep 3; fi
+        if ! systemctl status unifi | grep -iq running; then
+          not_running_proceed
+        fi
       fi
-    fi
-  else
-    if ! systemctl is-active -q unifi; then
-      if [[ "${installing_required_package}" != 'yes' ]]; then echo -e "\\n${GREEN}---${RESET}\\n"; else header; fi
-      not_running_dir_check
-      not_running_java_21_check
-      echo -e "${GRAY_R}#${RESET} The UniFi Network Application does not appear to be running... Trying to start it..."
-      if systemctl start unifi &> /dev/null; then echo -e "${GREEN}#${RESET} The UniFi Network Application started successfully!"; sleep 3; fi
+    else
       if ! systemctl is-active -q unifi; then
-        not_running_proceed
+        if [[ "${installing_required_package}" != 'yes' ]]; then echo -e "\\n${GREEN}---${RESET}\\n"; else header; fi
+        not_running_dir_check
+        not_running_java_21_check
+        echo -e "${GRAY_R}#${RESET} The UniFi Network Application does not appear to be running... Trying to start it..."
+        if systemctl start unifi &> /dev/null; then echo -e "${GREEN}#${RESET} The UniFi Network Application started successfully!"; sleep 3; fi
+        if ! systemctl is-active -q unifi; then
+          not_running_proceed
+        fi
       fi
     fi
   fi
@@ -10466,88 +10529,113 @@ daemon_reexec
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+build_menu() {
+  MENU_ITEMS=()
+  declare -A seen=()
+  add_menu_item() {
+    local item="${1}"
+    local key="${item%%|*}"
+    if [[ -z "${seen[$key]}" ]]; then
+      MENU_ITEMS+=("${item}")
+      seen["${key}"]=1
+    fi
+  }
+  if [[ "${unifi_core_system}" == "true" ]]; then
+    add_menu_item "Update the UniFi Network Application|perform_application_upgrade=true"
+    add_menu_item "Update UniFi Devices|only_run_unifi_devices_upgrade"
+    add_menu_item "Update the UniFi Network Application and UniFi Devices|perform_application_upgrade=true; run_unifi_devices_upgrade"
+    add_menu_item "Archive/Delete UniFi Network Application events, alarms and alerts|alert_event_option"
+    add_menu_item "Get UniFi Network Application Statistics|application_statistics"
+    add_menu_item "Cancel Script|cancel_script"
+  else
+    if "$(which dpkg)" -l unifi 2>/dev/null | awk '{print $1}' | grep -iqE "^ii|^hi"; then
+      add_menu_item "Update the UniFi Network Application|perform_application_upgrade=true"
+      add_menu_item "Update UniFi Devices|only_run_unifi_devices_upgrade"
+      add_menu_item "Update the Operating System|os_upgrade"
+      add_menu_item "Update the UniFi Network Application and UniFi Devices|perform_application_upgrade=true; run_unifi_devices_upgrade"
+      add_menu_item "Archive/Delete UniFi Network Application events, alarms and alerts|alert_event_option"
+      add_menu_item "Get UniFi Network Application Statistics|application_statistics"
+    fi
+    if systemctl list-unit-files uosserver.service 2>/dev/null | grep -q 'enabled\|disabled'; then
+      add_menu_item "Update the UniFi OS Server|perform_uos_upgrade=true"
+      add_menu_item "Update the Operating System|os_upgrade"
+    fi
+    if supports_mongo_upgrade; then
+      add_menu_item "MongoDB upgrade to ${mongo_version_max_with_dot}|mongodb_upgrade"
+    fi
+    add_menu_item "Cancel Script|cancel_script"
+  fi
+}
+
+print_menu() {
+  local options=("$@")
+  local idx=1
+  local total_width=5
+  for opt in "${options[@]}"; do
+    local display
+    if [[ "$opt" == *"|"* ]]; then
+      display="${opt%%|*}" # Split on | if present
+    elif [[ "$opt" == *"-"* ]]; then
+      display="${opt%%-*}" # Split on - if present
+    else
+      display="$opt" # No delimiter, just show whole string
+    fi
+    local num_len=${#idx}
+    local left=$(( (total_width - num_len) / 2 ))
+    local right=$(( total_width - num_len - left ))
+    printf " [ %*s%s%*s ]  |  %s\n" "${left}" "" "${idx}" "${right}" "" "${display}"
+    ((idx++))
+  done
+  echo ""
+}
+
+handle_selection() {
+  local choice="$1"
+  if (( choice >= 1 && choice <= ${#MENU_ITEMS[@]} )); then
+    local item="${MENU_ITEMS[$((choice-1))]}"
+    local action
+    if [[ "$item" == *"|"* ]]; then
+      action="${item#*|}"
+    elif [[ "$item" == *"-"* ]]; then
+      action="${item#*-}"
+    else
+      action=""
+    fi
+    if [[ -n "$action" ]]; then
+      eval "$action"
+    fi
+  else
+    invalid_choice
+  fi
+}
+
+
+invalid_choice() {
+  echo -e "\n${RED}#${RESET} Invalid input, please answer with a number...\n"
+  sleep 3
+  script_option_run_question
+}
+
 script_option_run_question() {
   header
   if [[ "${script_option_skip}" == 'true' && "${script_option_unifi_version}" == 'true' ]]; then
     non_interactive_application_upgrade="true"
-  else
-    echo -e "  What would you like to perform?\\n\\n"
-    if [[ "${unifi_core_system}" == 'true' ]]; then
-      echo -e " [   ${WHITE_R}1${RESET}   ]  |  Update the UniFi Network Application"
-      echo -e " [   ${WHITE_R}2${RESET}   ]  |  Update UniFi Devices"
-      echo -e " [   ${WHITE_R}3${RESET}   ]  |  Update the UniFi Network Application and UniFi Devices"
-      echo -e " [   ${WHITE_R}4${RESET}   ]  |  Archive/Delete UniFi Network Application events, alarms and alerts"
-      echo -e " [   ${WHITE_R}5${RESET}   ]  |  Get UniFi Network Application Statistics"
-      echo -e " [   ${WHITE_R}6${RESET}   ]  |  Cancel Script\\n\\n"
-    else
-      echo -e " [   ${WHITE_R}1${RESET}   ]  |  Update the UniFi Network Application"
-      echo -e " [   ${WHITE_R}2${RESET}   ]  |  Update UniFi Devices"
-      echo -e " [   ${WHITE_R}3${RESET}   ]  |  Update the Operating System"
-      echo -e " [   ${WHITE_R}4${RESET}   ]  |  Update the UniFi Network Application and UniFi Devices"
-      echo -e " [   ${WHITE_R}5${RESET}   ]  |  Archive/Delete UniFi Network Application events, alarms and alerts"
-      echo -e " [   ${WHITE_R}6${RESET}   ]  |  Get UniFi Network Application Statistics"
-      if [[ "${mongo_version_max}" == '34' ]]; then
-        echo -e " [   ${WHITE_R}7${RESET}   ]  |  Cancel Script\\n\\n"
-      else
-        if [[ "${mongodb_org_v::2}" =~ (24|26|30|32|34) && "${mongo_version_max}" == "36" && "${mongodb_upgrade_supported}" == 'true' ]] || [[ "${mongodb_org_v::2}" =~ (24|26|30|32|34|36|40|42) && "${mongo_version_max}" == "44" && "${mongodb_upgrade_supported}" == 'true' ]] || [[ "${mongodb_org_v::2}" =~ (24|26|30|32|34|36|40|42|44|50|60) && "${mongo_version_max}" == "70" && "${mongodb_upgrade_supported}" == 'true' ]] || [[ "${mongodb_org_v::2}" =~ (24|26|30|32|34|36|40|42|44|50|60|70) && "${mongo_version_max}" == "80" && "${mongodb_upgrade_supported}" == 'true' ]]; then
-          echo -e " [   ${WHITE_R}7${RESET}   ]  |  MongoDB upgrade to ${mongo_version_max_with_dot}"
-          echo -e " [   ${WHITE_R}8${RESET}   ]  |  Cancel Script\\n\\n"
-        else
-          echo -e " [   ${WHITE_R}7${RESET}   ]  |  Cancel Script\\n\\n"
-        fi
-      fi
-    fi
-    read -rp $'Your choice | \033[39m' unifi_easy_update
-    if [[ "${unifi_core_system}" == 'true' ]]; then
-      case "$unifi_easy_update" in
-          1) perform_application_upgrade="true";;
-          2) only_run_unifi_devices_upgrade;;
-          3) perform_application_upgrade="true"; run_unifi_devices_upgrade;;
-          4) alert_event_option;;
-          5) application_statistics;;
-          6) cancel_script;;
-          *) echo -e "\\n${RED}#${RESET} Invalid input, please answer with a number...\\n"; sleep 3; script_option_run_question;;
-      esac
-    else
-      if [[ "${mongo_version_max}" == '34' ]]; then
-        case "$unifi_easy_update" in
-            1) perform_application_upgrade="true";;
-            2) only_run_unifi_devices_upgrade;;
-            3) os_upgrade;;
-            4) perform_application_upgrade="true"; run_unifi_devices_upgrade;;
-            5) alert_event_option;;
-            6) application_statistics;;
-            7) cancel_script;;
-            *) echo -e "\\n${RED}#${RESET} Invalid input, please answer with a number...\\n"; sleep 3; script_option_run_question;;
-        esac
-      else
-        if [[ "${mongodb_org_v::2}" =~ (24|26|30|32|34) && "${mongo_version_max}" == "36" && "${mongodb_upgrade_supported}" == 'true' ]] || [[ "${mongodb_org_v::2}" =~ (24|26|30|32|34|36|40|42) && "${mongo_version_max}" == "44" && "${mongodb_upgrade_supported}" == 'true' ]] || [[ "${mongodb_org_v::2}" =~ (24|26|30|32|34|36|40|42|44|50|60) && "${mongo_version_max}" == "70" && "${mongodb_upgrade_supported}" == 'true' ]] || [[ "${mongodb_org_v::2}" =~ (24|26|30|32|34|36|40|42|44|50|60|70) && "${mongo_version_max}" == "80" && "${mongodb_upgrade_supported}" == 'true' ]]; then
-          case "$unifi_easy_update" in
-              1) perform_application_upgrade="true";;
-              2) only_run_unifi_devices_upgrade;;
-              3) os_upgrade;;
-              4) perform_application_upgrade="true"; run_unifi_devices_upgrade;;
-              5) alert_event_option;;
-              6) application_statistics;;
-              7) mongodb_upgrade;;
-              8) cancel_script;;
-              *) echo -e "\\n${RED}#${RESET} Invalid input, please answer with a number...\\n"; sleep 3; script_option_run_question;;
-          esac
-        else
-          case "$unifi_easy_update" in
-              1) perform_application_upgrade="true";;
-              2) only_run_unifi_devices_upgrade;;
-              3) os_upgrade;;
-              4) perform_application_upgrade="true"; run_unifi_devices_upgrade;;
-              5) alert_event_option;;
-              6) application_statistics;;
-              7) cancel_script;;
-              *) echo -e "\\n${RED}#${RESET} Invalid input, please answer with a number...\\n"; sleep 3; script_option_run_question;;
-          esac
-        fi
-      fi
-    fi
+    return
   fi
+  build_menu
+  print_menu "${MENU_ITEMS[@]}"
+  read -rp $'Your choice | \033[39m' unifi_easy_update
+  handle_selection "$unifi_easy_update"
+}
+
+supports_mongo_upgrade() {
+  [[ "${mongodb_upgrade_supported}" == 'true' ]] && case "${mongo_version_max}" in
+    36) [[ "${mongodb_org_v::2}" =~ (24|26|30|32|34) ]] ;;
+    44) [[ "${mongodb_org_v::2}" =~ (24|26|30|32|34|36|40|42) ]] ;;
+    70) [[ "${mongodb_org_v::2}" =~ (24|26|30|32|34|36|40|42|44|50|60) ]] ;;
+    80) [[ "${mongodb_org_v::2}" =~ (24|26|30|32|34|36|40|42|44|50|60|70) ]] ;;
+    *) false ;;
+  esac
 }
 script_option_run_question
 
@@ -10557,60 +10645,61 @@ script_option_run_question
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
-header
-if [[ "${non_interactive_application_upgrade}" != 'true' ]]; then
-  echo -e "${GRAY_R}#${RESET} Would you like to create a backup of your UniFi Network Application?"
-  echo -e "${GRAY_R}#${RESET} I highly recommend creating a UniFi Network Application backup!${RESET}\\n\\n"
-  while true; do
-    read -rp $'\033[39m#\033[0m Do you want to proceed with creating a backup? (Y/n) ' yes_no
-    case "$yes_no" in
-        [Yy]*|"")
-          header
-          echo -e "${GRAY_R}#${RESET} Starting the UniFi Network Application backup! \\n\\n"
-          sleep 3
-          if [[ "${executed_unifi_credentials}" != 'true' ]]; then
-            unifi_credentials
-            executed_unifi_credentials="true"
-          fi
-          unifi_login
-          if [[ "${unifi_backup_cancel}" != 'true' ]]; then
-            debug_check
-            unifi_list_sites
-            unifi_backup
-            unifi_backup_check
-          fi
-          break;;
-        [Nn]*)
-          header_red
-          echo -e "${GRAY_R}#${RESET} You choose not to create a backup! \\n\\n"
-          sleep 2
-          break;;
-        *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
-    esac
-  done
-else
-  echo -e "${YELLOW}#${RESET} Skipping the backup option because script in running in non-interactive mode. \\n"
-  sleep 3
-fi
-
-if [[ "${non_interactive_application_upgrade}" != 'true' ]]; then
-  if [[ "${glennr_unifi_backup}" != 'success' ]]; then
-    header_red
-    echo -e "${GRAY_R}#${RESET} You didn't create a backup of your UniFi Network Application! \\n\\n"
+if [[ "${perform_application_upgrade}" == 'true' ]]; then
+  header
+  if [[ "${non_interactive_application_upgrade}" != 'true' ]]; then
+    echo -e "${GRAY_R}#${RESET} Would you like to create a backup of your UniFi Network Application?"
+    echo -e "${GRAY_R}#${RESET} I highly recommend creating a UniFi Network Application backup!${RESET}\\n\\n"
     while true; do
-      read -rp $'\033[39m#\033[0m Do you want to proceed with updating your UniFi Network Application? (Y/n) ' yes_no
+      read -rp $'\033[39m#\033[0m Do you want to proceed with creating a backup? (Y/n) ' yes_no
       case "$yes_no" in
-          [Yy]*|"") break;;
+          [Yy]*|"")
+            header
+            echo -e "${GRAY_R}#${RESET} Starting the UniFi Network Application backup! \\n\\n"
+            sleep 3
+            if [[ "${executed_unifi_credentials}" != 'true' ]]; then
+              unifi_credentials
+              executed_unifi_credentials="true"
+            fi
+            unifi_login
+            if [[ "${unifi_backup_cancel}" != 'true' ]]; then
+              debug_check
+              unifi_list_sites
+              unifi_backup
+              unifi_backup_check
+            fi
+            break;;
           [Nn]*)
             header_red
-            echo -e "${RED}#${RESET} You didn't download a backup!"
-            echo -e "${RED}#${RESET} Please download a backup and rerun the script..\\n"
-            echo -e "${RED}#${RESET} Cancelling the script!"
-            exit 1
+            echo -e "${GRAY_R}#${RESET} You choose not to create a backup! \\n\\n"
+            sleep 2
             break;;
           *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
       esac
     done
+  else
+    echo -e "${YELLOW}#${RESET} Skipping the backup option because script in running in non-interactive mode. \\n"
+    sleep 3
+  fi
+  if [[ "${non_interactive_application_upgrade}" != 'true' ]]; then
+    if [[ "${glennr_unifi_backup}" != 'success' ]]; then
+      header_red
+      echo -e "${GRAY_R}#${RESET} You didn't create a backup of your UniFi Network Application! \\n\\n"
+      while true; do
+        read -rp $'\033[39m#\033[0m Do you want to proceed with updating your UniFi Network Application? (Y/n) ' yes_no
+        case "$yes_no" in
+            [Yy]*|"") break;;
+            [Nn]*)
+              header_red
+              echo -e "${RED}#${RESET} You didn't download a backup!"
+              echo -e "${RED}#${RESET} Please download a backup and rerun the script..\\n"
+              echo -e "${RED}#${RESET} Cancelling the script!"
+              exit 1
+              break;;
+            *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
+        esac
+      done
+    fi
   fi
 fi
 
@@ -10620,24 +10709,24 @@ fi
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
-if [[ "${perform_application_upgrade}" == 'true' ]]; then prevent_unifi_upgrade; fi
-alert_event_cleanup
-
-if [[ "${backup_location}" == "custom" ]]; then
-  if echo "$auto_dir" | grep -q '/$'; then
-    cleanup_backup_files_dir="${auto_dir}glennr-unifi-backups/"
-  else
-    cleanup_backup_files_dir="$auto_dir/glennr-unifi-backups/"
+if [[ "${perform_application_upgrade}" == 'true' ]]; then
+  prevent_unifi_upgrade
+  alert_event_cleanup
+  if [[ "${backup_location}" == "custom" ]]; then
+    if echo "$auto_dir" | grep -q '/$'; then
+      cleanup_backup_files_dir="${auto_dir}glennr-unifi-backups/"
+    else
+      cleanup_backup_files_dir="$auto_dir/glennr-unifi-backups/"
+    fi
+  elif [[ "${backup_location}" == "sd_card" ]]; then
+    cleanup_backup_files_dir="/data/glennr-unifi-backups/glennr-unifi-backups/"
+  elif [[ "${backup_location}" == "sd_card_unifi_os" ]]; then
+    cleanup_backup_files_dir="/sdcard/glennr-unifi-backups/glennr-unifi-backups/"
+  elif [[ "${backup_location}" == "unifi_dir" ]]; then
+    cleanup_backup_files_dir="/usr/lib/unifi/data/backup/glennr-unifi-backups/"
   fi
-elif [[ "${backup_location}" == "sd_card" ]]; then
-  cleanup_backup_files_dir="/data/glennr-unifi-backups/glennr-unifi-backups/"
-elif [[ "${backup_location}" == "sd_card_unifi_os" ]]; then
-  cleanup_backup_files_dir="/sdcard/glennr-unifi-backups/glennr-unifi-backups/"
-elif [[ "${backup_location}" == "unifi_dir" ]]; then
-  cleanup_backup_files_dir="/usr/lib/unifi/data/backup/glennr-unifi-backups/"
+  if [[ -n "${cleanup_backup_files_dir}" ]]; then cleanup_backup_files; fi
 fi
-
-if [[ -n "${cleanup_backup_files_dir}" ]]; then cleanup_backup_files; fi
 
 ###################################################################################################################################################################################################
 #                                                                                                                                                                                                 #
@@ -10645,7 +10734,7 @@ if [[ -n "${cleanup_backup_files_dir}" ]]; then cleanup_backup_files; fi
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
-java_install_check
+if [[ "${perform_application_upgrade}" == 'true' ]]; then java_install_check; fi
 
 ##########################################################################################################################################################################
 #                                                                                                                                                                        #
@@ -10705,7 +10794,7 @@ application_upgrade_releases() {
     if [[ "${first_digit_unifi}" -gt '7' ]] || [[ "${first_digit_unifi}" == '7' && "${second_digit_unifi}" -ge '3' ]]; then
       header_red
       echo -e "${GRAY_R}#${RESET} UniFi Network Application ${application_version_release_digit_1}.${application_version_release_digit_2}.${application_version_release_digit_3} is not supported on your Gen1 UniFi Cloudkey (UC-CK)."
-      echo -e "${GRAY_R}#${RESET} The latest supported version on your Cloudkey is $(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?version=7.2" 2> /dev/null | jq -r '.latest_version' 2> /dev/null) and older.. \\n\\n"
+      echo -e "${GRAY_R}#${RESET} The latest supported version on your Cloudkey is $(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-application-release?app=network&version=7.2" 2> /dev/null | jq -r '.latest_version' 2> /dev/null) and older.. \\n\\n"
       echo -e "${GRAY_R}#${RESET} Consider upgrading to a Gen2 Cloudkey:"
       echo -e "${GRAY_R}#${RESET} UniFi Cloud Key Gen2       | https://store.ui.com/products/unifi-cloud-key-gen2"
       echo -e "${GRAY_R}#${RESET} UniFi Cloud Key Gen2 Plus  | https://store.ui.com/products/unifi-cloudkey-gen2-plus\\n\\n"
@@ -10719,7 +10808,7 @@ application_upgrade_releases() {
       mongodb_server_version="$("$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | grep -E "(mongodb-server|mongodb-org-server|mongod-armv8|mongod-amd64)[[:space:]]" | awk '{print $3}' | sed -e 's/.*://' -e 's/-.*//' -e 's/+.*//' -e 's/\.//g')"
       if [[ "${mongodb_server_version::2}" -le "25" ]]; then unifi_latest_supported_version="7.3"; else unifi_latest_supported_version="7.4"; fi
       echo -e "${GRAY_R}#${RESET} Your 32-bit system/OS is no longer supported by UniFi Network Application ${application_version_release}!"
-      echo -e "${GRAY_R}#${RESET} The latest supported version on your system/OS is $(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?version=${unifi_latest_supported_version}" 2> /dev/null | jq -r '.latest_version' 2> /dev/null) and older..."
+      echo -e "${GRAY_R}#${RESET} The latest supported version on your system/OS is $(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-application-release?app=network&version=${unifi_latest_supported_version}" 2> /dev/null | jq -r '.latest_version' 2> /dev/null) and older..."
       echo -e "${GRAY_R}#${RESET} Consider upgrading to a 64-bit system/OS!\\n\\n"
       author
       exit 0
@@ -10741,7 +10830,7 @@ application_upgrade_releases() {
         if [[ "${os_codename}" == 'stretch' ]]; then
           header_red
           echo -e "${GRAY_R}#${RESET} UniFi Network Application ${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi} requires a newer version of UniFi OS."
-          echo -e "${GRAY_R}#${RESET} The latest version that you can run with UniFi OS version $(cut -d'.' -f3,4,5 /usr/lib/version | sed 's/v//g') is $(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?version=${unifi_latest_supported_version_number}" 2> /dev/null | jq -r '.latest_version' 2> /dev/null) and older.. \\n\\n"
+          echo -e "${GRAY_R}#${RESET} The latest version that you can run with UniFi OS version $(cut -d'.' -f3,4,5 /usr/lib/version | sed 's/v//g') is $(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-application-release?app=network&version=${unifi_latest_supported_version_number}" 2> /dev/null | jq -r '.latest_version' 2> /dev/null) and older.. \\n\\n"
           unifi_core_upgrade_message="true"
         else
           unifi_core_mongodb_upgrade_bypass="true"
@@ -10749,7 +10838,7 @@ application_upgrade_releases() {
       else
         header_red
         echo -e "${GRAY_R}#${RESET} UniFi Network Application ${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi} requires MongoDB ${minimum_required_mongodb_version_dot} or newer."
-        echo -e "${GRAY_R}#${RESET} The latest version that you can run with MongoDB version $("$(which dpkg)" -l | grep -E "(mongodb-server|mongodb-org-server|mongod-armv8|mongod-amd64)[[:space:]]" | awk '{print $3}' | sed -e 's/.*://' -e 's/-.*//' -e 's/+.*//') is $(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?version=${unifi_latest_supported_version_number}" 2> /dev/null | jq -r '.latest_version' 2> /dev/null) and older.. \\n\\n"
+        echo -e "${GRAY_R}#${RESET} The latest version that you can run with MongoDB version $("$(which dpkg)" -l | grep -E "(mongodb-server|mongodb-org-server|mongod-armv8|mongod-amd64)[[:space:]]" | awk '{print $3}' | sed -e 's/.*://' -e 's/-.*//' -e 's/+.*//') is $(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-application-release?app=network&version=${unifi_latest_supported_version_number}" 2> /dev/null | jq -r '.latest_version' 2> /dev/null) and older.. \\n\\n"
         if [[ "${mongodb_org_v::2}" =~ (24|26|30|32|34) && "${mongo_version_max}" == "36" && "${mongodb_upgrade_supported}" == 'true' ]] || [[ "${mongodb_org_v::2}" =~ (24|26|30|32|34|36|40|42) && "${mongo_version_max}" == "44" && "${mongodb_upgrade_supported}" == 'true' ]] || [[ "${mongodb_org_v::2}" =~ (24|26|30|32|34|36|40|42|44|50|60) && "${mongo_version_max}" == "70" && "${mongodb_upgrade_supported}" == 'true' ]] || [[ "${mongodb_org_v::2}" =~ (24|26|30|32|34|36|40|42|44|50|60|70) && "${mongo_version_max}" == "80" && "${mongodb_upgrade_supported}" == 'true' ]]; then
           while true; do
             read -rp $'\033[39m#\033[0m Would you like to run the option to upgrade to MongoDB '"${mongo_version_max_with_dot}"'? (Y/n) ' yes_no
@@ -10767,10 +10856,10 @@ application_upgrade_releases() {
             esac
           done
         else
-          echo -e "${GRAY_R}#${RESET} The script will first update the UniFi Network Application to version $(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?version=${unifi_latest_supported_version_number}" 2> /dev/null | jq -r '.latest_version' 2> /dev/null) before updating to version ${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi}... \\n"
+          echo -e "${GRAY_R}#${RESET} The script will first update the UniFi Network Application to version $(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-application-release?app=network&version=${unifi_latest_supported_version_number}" 2> /dev/null | jq -r '.latest_version' 2> /dev/null) before updating to version ${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi}... \\n"
 	      sleep 5
           original_application_version="${application_version}"
-          application_version="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-latest?version=${unifi_latest_supported_version_number}" 2> /dev/null | jq -r '.latest_version' 2> /dev/null)"
+          application_version="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-application-release?app=network&version=${unifi_latest_supported_version_number}" 2> /dev/null | jq -r '.latest_version' 2> /dev/null)"
           application_upgrade_releases
           get_mongo_version_max
           application_version="${original_application_version}"
@@ -10802,15 +10891,15 @@ application_upgrade_releases() {
   check_service_timeoutsec_increase
   echo -e "${GRAY_R}#${RESET} Updating your UniFi Network Application version from ${unifi_current} to ${application_version_release}! \\n"
   echo -e "${GRAY_R}#${RESET} Downloading UniFi Network Application version ${application_version_release}..."
-  if [[ "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/locate-network-release?status" 2> "${eus_dir}/logs/locate-download.log" | jq -r '.availability' 2> "${eus_dir}/logs/locate-download.log")" == "OK" ]]; then
-    fw_update_dl_link="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-release?version=${application_version_release}${unifi_core_glennr_api}" | jq -r '.download_link' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
-    fw_update_gr_dl_link="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-release?version=${application_version_release}&server=archive${unifi_core_glennr_api}" | jq -r '.download_link' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
+  if [[ "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/application-release?status" 2> "${eus_dir}/logs/locate-download.log" | jq -r '.availability' 2> "${eus_dir}/logs/locate-download.log")" == "OK" ]]; then
+    fw_update_dl_link="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/application-release?app=network&version=${application_version_release}${unifi_core_glennr_api}" | jq -r '.download_link' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
+    fw_update_gr_dl_link="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/application-release?app=network&version=${application_version_release}&server=archive${unifi_core_glennr_api}" | jq -r '.download_link' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
   else
     fw_update_dl_link="$(curl "${curl_argument[@]}" "https://fw-update.ui.com/api/firmware-latest?filter=eq~~version_major~~${application_version_release_digit_1}&filter=eq~~version_minor~~${application_version_release_digit_2}&filter=eq~~version_patch~~${application_version_release_digit_3}&filter=eq~~platform~~debian" 2> "${eus_dir}/logs/locate-download.log" | jq -r "._embedded.firmware[]._links.data.href" 2> "${eus_dir}/logs/locate-download.log" | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
   fi
   if [[ "${unifi_deb_file_name}" == "unifi_sysvinit_all" ]]; then
-    if [[ "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/locate-network-release?status" 2> "${eus_dir}/logs/locate-download.log" | jq -r '.availability' 2> "${eus_dir}/logs/locate-download.log")" == "OK" ]]; then
-      unifi_sha256sum="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/network-release?version=${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi}${unifi_core_glennr_api}" | jq -r '."sha256sum"' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
+    if [[ "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/application-release?status" 2> "${eus_dir}/logs/locate-download.log" | jq -r '.availability' 2> "${eus_dir}/logs/locate-download.log")" == "OK" ]]; then
+      unifi_sha256sum="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/application-release?app=network&version=${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi}${unifi_core_glennr_api}" | jq -r '."sha256sum"' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
     else
       unifi_sha256sum="$(curl "${curl_argument[@]}" "https://fw-update.ui.com/api/firmware-latest?filter=eq~~version_major~~${application_version_release_digit_1}&filter=eq~~version_minor~~${application_version_release_digit_2}&filter=eq~~version_patch~~${application_version_release_digit_3}&filter=eq~~platform~~debian" 2> "${eus_dir}/logs/locate-download.log" | jq -r "._embedded.firmware[].sha256_checksum" 2> "${eus_dir}/logs/locate-download.log" | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
     fi
@@ -10898,4606 +10987,205 @@ application_upgrade_releases() {
 
 ##########################################################################################################################################################################
 #                                                                                                                                                                        #
-#                                                             5.0.x | 5.1.x | 5.2.x | 5.3.x | 5.4.x | 5.5.x                                                              #
+#                                                                UniFi OS Server download and installation                                                               #
 #                                                                                                                                                                        #
 ##########################################################################################################################################################################
 
-start_application_upgrade
+# TODO: Add supported upgrade check via API.
+uos_server_upgrade_process() {
+  header
+  tmp_dir_candidates=("/tmp" "/var/tmp")
+  uos_server_tmp_dir=""
+  for directory in "${tmp_dir_candidates[@]}"; do
+    if [[ -d "${directory}" ]]; then
+      uos_server_tmp_dir="${directory}"
+      break
+    fi
+  done
+  free_disk_space_check "${uos_server_tmp_dir}" "2"
+  free_disk_space_check "/var/lib" "1"
+  free_disk_space_check "/home" "15"
+  if [[ "${architecture}" == "amd64" ]]; then fwupdate_uos_server_platform="linux-x64"; elif [[ "${architecture}" == "arm64" ]]; then fwupdate_uos_server_platform="linux-arm64"; fi
+  if [[ "$(curl "${curl_argument[@]}" https://api.glennr.nl/api/application-release?status 2> /dev/null | jq -r '.[]' 2> /dev/null)" == "OK" ]]; then
+    fw_update_dl_link="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/application-release?app=uosserver&version=${uos_server_version}&architecture=${architecture}" | jq -r '."download_link"' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
+    fw_update_gr_dl_link="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/application-release?app=uosserver&version=${uos_server_version}&server=archive&architecture=${architecture}" | jq -r '."download_link"' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
+    fw_update_dl_link_sha256sum="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/application-release?app=uosserver&version=${uos_server_version}&architecture=${architecture}" | jq -r '.sha256sum' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
+  fi
+  if [[ -z "${fw_update_dl_link}" ]]; then
+    fw_update_dl_link="$(curl "${curl_argument[@]}" --location --request GET "https://fw-update.ui.com/api/firmware-latest?filter=eq~~version_major~~$(awk -F'.' '{print $1}' <<< "${uos_server_version}")&filter=eq~~version_minor~~$(awk -F'.' '{print $2}' <<< "${uos_server_version}")&filter=eq~~version_patch~~$(awk -F'.' '{print $3}' <<< "${uos_server_version}")&filter=eq~~platform~~${fwupdate_uos_server_platform}" 2> "${eus_dir}/logs/locate-download.log" | jq -r "._embedded.firmware[0]._links.data.href" 2> "${eus_dir}/logs/locate-download.log" | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
+    fw_update_dl_link_sha256sum="$(curl "${curl_argument[@]}" --location --request GET "https://fw-update.ui.com/api/firmware-latest?filter=eq~~version_major~~$(awk -F'.' '{print $1}' <<< "${uos_server_version}")&filter=eq~~version_minor~~$(awk -F'.' '{print $2}' <<< "${uos_server_version}")&filter=eq~~version_patch~~$(awk -F'.' '{print $3}' <<< "${uos_server_version}")&filter=eq~~platform~~${fwupdate_uos_server_platform}" 2> "${eus_dir}/logs/locate-download.log" | jq -r "._embedded.firmware[0].sha256_checksum" 2> "${eus_dir}/logs/locate-download.log" | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
+  fi
+  fw_update_dl_links=()
+  if [[ "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/geo" 2> /dev/null | jq -r '."continent_code"' 2> /dev/null)" == "EU" ]]; then
+    if [[ -n "${fw_update_gr_dl_link}" ]]; then fw_update_dl_links+=("${fw_update_gr_dl_link}"); fi
+    if [[ -n "${fw_update_dl_link}" ]]; then fw_update_dl_links+=("${fw_update_dl_link}"); fi
+  else
+    if [[ -n "${fw_update_dl_link}" ]]; then fw_update_dl_links+=("${fw_update_dl_link}"); fi
+    if [[ -n "${fw_update_gr_dl_link}" ]]; then fw_update_dl_links+=("${fw_update_gr_dl_link}"); fi
+  fi
+  for fw_update_dl_link in "${fw_update_dl_links[@]}"; do
+    eus_tmp_directory_check
+    uos_server_file_temp_file="$(mktemp "uos-server-${uos_server_version}_XXXXX" --tmpdir="${eus_tmp_directory_location}")"
+    echo -e "$(date +%F-%T.%6N) | Downloading ${fw_update_dl_link} to ${uos_server_file_temp_file}" &>> "${eus_dir}/logs/uos-server-download.log"
+    if [[ "${uos_server_download_message_printed}" != 'true' ]]; then echo -e "${GRAY_R}#${RESET} Downloading UniFi OS Server version ${uos_server_version}..."; uos_server_download_message_printed="true"; fi
+    if curl "${nos_curl_argument[@]}" --output "${uos_server_file_temp_file}" "${fw_update_dl_link}" &>> "${eus_dir}/logs/uos-server-download.log"; then
+      if command -v sha256sum &> /dev/null; then
+        if [[ "$(sha256sum "${uos_server_file_temp_file}" | awk '{print $1}')" != "${fw_update_dl_link_sha256sum}" ]]; then
+          if curl "${nos_curl_argument[@]}" --output "${uos_server_file_temp_file}" "${fw_update_dl_link}" &>> "${eus_dir}/logs/uos-server-download.log"; then
+            if [[ "$(sha256sum "${uos_server_file_temp_file}" | awk '{print $1}')" != "${fw_update_dl_link_sha256sum}" ]]; then
+              continue
+            fi
+          fi
+        fi
+      fi
+      echo -e "${GREEN}#${RESET} Successfully downloaded UniFi OS Server version ${uos_server_version}! \\n"; uos_server_downloaded="true"; break
+    else
+      continue
+    fi
+  done
+  if [[ "${uos_server_downloaded}" == 'true' ]]; then
+    unset uos_server_downloaded
+    echo -e "${GRAY_R}#${RESET} Upgrading UniFi OS Server version ${uos_version} to ${uos_server_version}..."
+    check_dpkg_lock
+    if ! chmod +x "${uos_server_file_temp_file}" &>> "${eus_dir}/logs/uos-server-install.log"; then
+      abort_reason="Failed to change the permissions on ${uos_server_file_temp_file}."
+      abort
+    fi
+    if "${uos_server_file_temp_file}" install --non-interactive &>> "${eus_dir}/logs/uos-server-install.log"; then
+      echo -e "${GREEN}#${RESET} Successfully updated UniFi OS Server version ${uos_version} to ${uos_server_version}! \\n"
+    else
+      abort_reason="Failed to upgrade UniFi OS Server ${uos_version} to ${uos_server_version}."
+      abort
+    fi
+  else
+    abort_reason="Failed to download UniFi OS Server version ${uos_server_version}."
+    abort
+  fi
+}
+
+##########################################################################################################################################################################
+#                                                                                                                                                                        #
+#                                                                     non-interactive Upgrade Process                                                                    #
+#                                                                                                                                                                        #
+##########################################################################################################################################################################
+
 if [[ "${non_interactive_application_upgrade}" == 'true' ]]; then
-  unifi_update_start
-  if [[ "${application_version}" == "latest" ]]; then application_version="${latest_release}"; fi
+  upgrade_start network
+  if [[ "${application_version}" == "latest" ]]; then application_version="${latest_net_release}"; fi
   application_upgrade_releases
-  unifi_update_finish
+  upgrade_finished network
 fi
 
-if [[ "${first_digit_unifi}" == '5' && "${second_digit_unifi}" =~ ^(0|1|2|3|4|5)$ ]]; then
-  release_wanted
-  header
-  echo "  To what UniFi Network Application version would you like to update?"
-  echo -e "  Currently your UniFi Network Application is on version ${GRAY_R}$unifi${RESET}"
-  echo -e "\\n  Release stage is set to | ${GRAY_R}${release_stage_friendly}${RESET}\\n\\n"
-  echo -e " [   ${WHITE_R}1${RESET}   ]  |  5.6.40 ( UAP-AC, UAP-AC v2, UAP-AC-OD, PicoM2 )"
-  echo -e " [   ${WHITE_R}2${RESET}   ]  |  5.6.42 ( UAP-AC, UAP-AC v2, UAP-AC-OD )"
-  echo -e " [   ${WHITE_R}3${RESET}   ]  |  6.5.55"
-  echo -e " [   ${WHITE_R}4${RESET}   ]  |  7.0.25"
-  echo -e " [   ${WHITE_R}5${RESET}   ]  |  7.1.68"
-  echo -e " [   ${WHITE_R}6${RESET}   ]  |  7.2.97"
-  echo -e " [   ${WHITE_R}7${RESET}   ]  |  7.3.83"
-  echo -e " [   ${WHITE_R}8${RESET}   ]  |  7.4.162"
-  echo -e " [   ${WHITE_R}9${RESET}   ]  |  7.5.187"
-  echo -e " [   ${WHITE_R}10${RESET}  ]  |  8.0.28"
-  echo -e " [   ${WHITE_R}11${RESET}  ]  |  8.1.127"
-  echo -e " [   ${WHITE_R}12${RESET}  ]  |  8.2.93"
-  echo -e " [   ${WHITE_R}13${RESET}  ]  |  8.3.32"
-  echo -e " [   ${WHITE_R}14${RESET}  ]  |  8.4.62"
-  echo -e " [   ${WHITE_R}15${RESET}  ]  |  8.5.6"
-  echo -e " [   ${WHITE_R}16${RESET}  ]  |  8.6.9"
-  echo -e " [   ${WHITE_R}17${RESET}  ]  |  9.0.114"
-  echo -e " [   ${WHITE_R}18${RESET}  ]  |  9.1.120"
-  echo -e " [   ${WHITE_R}19${RESET}  ]  |  9.2.87"
-  echo -e " [   ${WHITE_R}20${RESET}  ]  |  9.3.45"
-  echo -e " [   ${WHITE_R}21${RESET}  ]  |  9.4.19"
-  if [[ "${release_stage}" == 'RC' ]]; then
-    echo -e " [   ${WHITE_R}22${RESET}  ]  |  ${rc_version_available}"
-    echo -e " [   ${WHITE_R}23${RESET}  ]  |  Cancel\\n\\n"
-  else
-    echo -e " [   ${WHITE_R}22${RESET}  ]  |  Cancel\\n\\n"
-  fi
+##########################################################################################################################################################################
+#                                                                                                                                                                        #
+#                                                           UniFi Network Application/OS Server Upgrade Process                                                          #
+#                                                                                                                                                                        #
+##########################################################################################################################################################################
 
-  read -rp $'Your choice | \033[39m' UPGRADE_VERSION
-  case "$UPGRADE_VERSION" in
-      1)
-        unifi_update_start
-        unifi_firmware_requirement
-        application_version="5.6.40"
-        application_upgrade_releases
-        unifi_update_finish;;
-      2)
-        unifi_update_start
-        unifi_firmware_requirement
-        application_version="5.6.42"
-        application_upgrade_releases
-        unifi_update_finish;;
-      3)
-        unifi_update_start
-        unifi_firmware_requirement
-        application_version="6.5.55"
-        application_upgrade_releases
-        unifi_update_finish;;
-      4)
-        unifi_update_start
-        unifi_firmware_requirement
-        application_version="7.0.25"
-        application_upgrade_releases
-        unifi_update_finish;;
-      5)
-        unifi_update_start
-        unifi_firmware_requirement
-        application_version="7.1.68-124045abd4"
-        application_upgrade_releases
-        unifi_update_finish;;
-      6)
-        unifi_update_start
-        unifi_firmware_requirement
-        application_version="7.2.97-fa3c0ace6e"
-        application_upgrade_releases
-        unifi_update_finish;;
-      7)
-        unifi_update_start
-        unifi_firmware_requirement
-        application_version="7.3.83-4501ffd244"
-        application_upgrade_releases
-        unifi_update_finish;;
-      8)
-        unifi_update_start
-        unifi_firmware_requirement
-        application_version="7.4.162-3116043f9f"
-        application_upgrade_releases
-        unifi_update_finish;;
-      9)
-        unifi_update_start
-        unifi_firmware_requirement
-        application_version="7.5.187-f57f5bf7ab"
-        application_upgrade_releases
-        unifi_update_finish;;
-      10)
-        unifi_update_start
-        unifi_firmware_requirement
-        application_version="8.0.28-66495b8e3a"
-        application_upgrade_releases
-        unifi_update_finish;;
-      11)
-        unifi_update_start
-        unifi_firmware_requirement
-        application_version="8.1.127-810cd1e59a"
-        application_upgrade_releases
-        unifi_update_finish;;
-      12)
-        unifi_update_start
-        unifi_firmware_requirement
-        application_version="8.2.93-1c329ecd26"
-        application_upgrade_releases
-        unifi_update_finish;;
-      13)
-        unifi_update_start
-        unifi_firmware_requirement
-        application_version="8.3.32-896f48ed11"
-        application_upgrade_releases
-        unifi_update_finish;;
-      14)
-        unifi_update_start
-        unifi_firmware_requirement
-        application_version="8.4.62-i3q2j125cz"
-        application_upgrade_releases
-        unifi_update_finish;;
-      15)
-        unifi_update_start
-        unifi_firmware_requirement
-        application_version="8.5.6-1x29lm155t"
-        application_upgrade_releases
-        unifi_update_finish;;
-      16)
-        unifi_update_start
-        unifi_firmware_requirement
-        application_version="8.6.9-0f45j609pu"
-        application_upgrade_releases
-        unifi_update_finish;;
-      17)
-        unifi_update_start
-        unifi_firmware_requirement
-        application_version="9.0.114-k5dy363g65"
-        application_upgrade_releases
-        unifi_update_finish;;
-      18)
-        unifi_update_start
-        unifi_firmware_requirement
-        application_version="9.1.120-e1aep1zs38"
-        application_upgrade_releases
-        unifi_update_finish;;
-      19)
-        unifi_update_start
-        unifi_firmware_requirement
-        application_version="9.2.87-uf39xch68k"
-        application_upgrade_releases
-        unifi_update_finish;;
-      20)
-        unifi_update_start
-        unifi_firmware_requirement
-        application_version="9.3.45-9iw96x349g"
-        application_upgrade_releases
-        unifi_update_finish;;
-      21)
-        unifi_update_start
-        unifi_firmware_requirement
-        application_version="9.4.19-0f76duk082"
-        application_upgrade_releases
-        unifi_update_finish;;
-      22)
-        if [[ "${release_stage}" == 'RC' ]]; then
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="${rc_version_available_secret}"
-          application_upgrade_releases
-          unifi_update_finish
-        else
-          cancel_script
-        fi;;
-      23|*) cancel_script;;
+run_upgrade_menu_for() {
+  local app_key="$1" # "network" or "uosserver"
+  local app_pretty current api_name latest latest_rc
+  local fallback_versions=()
+  case "$app_key" in
+    network)
+      fallback_versions=("5.6.40" "5.6.42" "6.5.55" "7.0.25" "7.1.68-124045abd4" "7.2.97-fa3c0ace6e" \
+                         "7.3.83-4501ffd244" "7.4.162-3116043f9f" "7.5.187-f57f5bf7ab" "8.0.28-66495b8e3a" \
+                         "8.1.127-810cd1e59a" "8.2.93-1c329ecd26" "8.3.32-896f48ed11" "8.4.62-i3q2j125cz" \
+                         "8.5.6-1x29lm155t" "8.6.9-0f45j609pu" "9.0.114-k5dy363g65" "9.1.120-e1aep1zs38" \
+                         "9.2.87-uf39xch68k" "9.3.45-9iw96x349g" "9.4.19-0f76duk082")
+      app_pretty="UniFi Network Application"
+      current="${unifi}"
+      api_name="network"
+      latest="${latest_net_release}"
+      latest_rc="${latest_net_release_candidate}";;
+    uosserver)
+      fallback_versions=("4.2.23" "4.3.6")
+      app_pretty="UniFi OS Server"
+      get_uos_server_version
+      current="${uos_version}"
+      api_name="unifi-os-server"
+      latest="${latest_uos_server_release}"
+      latest_rc="${latest_uos_server_release_candidate}";;
+    *)
+      echo "Unknown app key: ${app_key}" >&2
+      return 1;;
   esac
-
-##########################################################################################################################################################################
-#                                                                                                                                                                        #
-#                                                                                       5.6.x                                                                            #
-#                                                                                                                                                                        #
-##########################################################################################################################################################################
-
-elif [[ "${first_digit_unifi}" == '5' && "${second_digit_unifi}" == '6' ]]; then
   release_wanted
-  header
-  echo "  To what UniFi Network Application version would you like to update?"
-  echo -e "  Currently your UniFi Network Application is on version ${GRAY_R}$unifi${RESET}"
-  echo -e "\\n  Release stage is set to | ${GRAY_R}${release_stage_friendly}${RESET}\\n\\n"
-  if [[ "${unifi}" == "5.6.40" || "${unifi}" == "5.6.41" ]]; then
-    unifi_version='5.6.40'
-    echo -e " [   ${WHITE_R}1${RESET}   ]  |  5.6.42 ( UAP-AC, UAP-AC v2, UAP-AC-OD )"
-    echo -e " [   ${WHITE_R}2${RESET}   ]  |  6.5.55"
-    echo -e " [   ${WHITE_R}3${RESET}   ]  |  7.0.25"
-    echo -e " [   ${WHITE_R}4${RESET}   ]  |  7.1.68"
-    echo -e " [   ${WHITE_R}5${RESET}   ]  |  7.2.97"
-    echo -e " [   ${WHITE_R}6${RESET}   ]  |  7.3.83"
-    echo -e " [   ${WHITE_R}7${RESET}   ]  |  7.4.162"
-    echo -e " [   ${WHITE_R}8${RESET}   ]  |  7.5.187"
-    echo -e " [   ${WHITE_R}9${RESET}   ]  |  8.0.28"
-    echo -e " [   ${WHITE_R}10${RESET}  ]  |  8.1.127"
-    echo -e " [   ${WHITE_R}11${RESET}  ]  |  8.2.93"
-    echo -e " [   ${WHITE_R}12${RESET}  ]  |  8.3.32"
-    echo -e " [   ${WHITE_R}13${RESET}  ]  |  8.4.62"
-    echo -e " [   ${WHITE_R}14${RESET}  ]  |  8.5.6"
-    echo -e " [   ${WHITE_R}15${RESET}  ]  |  8.6.9"
-    echo -e " [   ${WHITE_R}16${RESET}  ]  |  9.0.114"
-    echo -e " [   ${WHITE_R}17${RESET}  ]  |  9.1.120"
-    echo -e " [   ${WHITE_R}18${RESET}  ]  |  9.2.87"
-    echo -e " [   ${WHITE_R}19${RESET}  ]  |  9.3.45"
-    echo -e " [   ${WHITE_R}20${RESET}  ]  |  9.4.19"
-    if [[ "${release_stage}" == 'RC' ]]; then
-      echo -e " [   ${WHITE_R}21${RESET}  ]  |  ${rc_version_available}"
-      echo -e " [   ${WHITE_R}22${RESET}  ]  |  Cancel\\n\\n"
-    else
-      echo -e " [   ${WHITE_R}21${RESET}  ]  |  Cancel\\n\\n"
-    fi
-  elif [[ "${unifi}" == "5.6.42" ]]; then
-    unifi_version='5.6.42'
-    echo -e " [   ${WHITE_R}1${RESET}   ]  |  6.5.55"
-    echo -e " [   ${WHITE_R}2${RESET}   ]  |  7.0.25"
-    echo -e " [   ${WHITE_R}3${RESET}   ]  |  7.1.68"
-    echo -e " [   ${WHITE_R}4${RESET}   ]  |  7.2.97"
-    echo -e " [   ${WHITE_R}5${RESET}   ]  |  7.3.83"
-    echo -e " [   ${WHITE_R}6${RESET}   ]  |  7.4.162"
-    echo -e " [   ${WHITE_R}7${RESET}   ]  |  7.5.187"
-    echo -e " [   ${WHITE_R}8${RESET}   ]  |  8.0.28"
-    echo -e " [   ${WHITE_R}9${RESET}   ]  |  8.1.127"
-    echo -e " [   ${WHITE_R}10${RESET}  ]  |  8.2.93"
-    echo -e " [   ${WHITE_R}11${RESET}  ]  |  8.3.32"
-    echo -e " [   ${WHITE_R}12${RESET}  ]  |  8.4.62"
-    echo -e " [   ${WHITE_R}13${RESET}  ]  |  8.5.6"
-    echo -e " [   ${WHITE_R}14${RESET}  ]  |  8.6.9"
-    echo -e " [   ${WHITE_R}15${RESET}  ]  |  9.0.114"
-    echo -e " [   ${WHITE_R}16${RESET}  ]  |  9.1.120"
-    echo -e " [   ${WHITE_R}17${RESET}  ]  |  9.2.87"
-    echo -e " [   ${WHITE_R}18${RESET}  ]  |  9.3.45"
-    echo -e " [   ${WHITE_R}19${RESET}  ]  |  9.4.19"
-    if [[ "${release_stage}" == 'RC' ]]; then
-      echo -e " [   ${WHITE_R}20${RESET}  ]  |  ${rc_version_available}"
-      echo -e " [   ${WHITE_R}21${RESET}  ]  |  Cancel\\n\\n"
-    else
-      echo -e " [   ${WHITE_R}20${RESET}  ]  |  Cancel\\n\\n"
-    fi
+  local all_versions=("${fallback_versions[@]}")
+  local api_results http_code body
+  api_results="$(curl "${curl_argument[@]}" -w "\n%{http_code}" "https://api.glennr.nl/api/list-releases?application=${api_name}")"
+  http_code="$(echo "${api_results}" | tail -n1)"
+  body="$(echo "${api_results}" | head -n -1)"
+  if [[ "${http_code}" == "200" && "$(echo "${body}" | jq -e . >/dev/null 2>&1; echo $?)" == 0 ]]; then
+    mapfile -t all_versions < <(echo "${body}" | jq -r '.[]')
   else
-    echo -e " [   ${WHITE_R}1${RESET}   ]  |  5.6.40 ( UAP-AC, UAP-AC v2, UAP-AC-OD, PicoM2 )"
-    echo -e " [   ${WHITE_R}2${RESET}   ]  |  5.6.42 ( UAP-AC, UAP-AC v2, UAP-AC-OD )"
-    echo -e " [   ${WHITE_R}3${RESET}   ]  |  6.5.55"
-    echo -e " [   ${WHITE_R}4${RESET}   ]  |  7.0.25"
-    echo -e " [   ${WHITE_R}5${RESET}   ]  |  7.1.68"
-    echo -e " [   ${WHITE_R}6${RESET}   ]  |  7.2.97"
-    echo -e " [   ${WHITE_R}7${RESET}   ]  |  7.3.83"
-    echo -e " [   ${WHITE_R}8${RESET}   ]  |  7.4.162"
-    echo -e " [   ${WHITE_R}9${RESET}   ]  |  7.5.187"
-    echo -e " [   ${WHITE_R}10${RESET}  ]  |  8.0.28"
-    echo -e " [   ${WHITE_R}11${RESET}  ]  |  8.1.127"
-    echo -e " [   ${WHITE_R}12${RESET}  ]  |  8.2.93"
-    echo -e " [   ${WHITE_R}13${RESET}  ]  |  8.3.32"
-    echo -e " [   ${WHITE_R}14${RESET}  ]  |  8.4.62"
-    echo -e " [   ${WHITE_R}15${RESET}  ]  |  8.5.6"
-    echo -e " [   ${WHITE_R}16${RESET}  ]  |  8.6.9"
-    echo -e " [   ${WHITE_R}17${RESET}  ]  |  9.0.114"
-    echo -e " [   ${WHITE_R}18${RESET}  ]  |  9.1.120"
-    echo -e " [   ${WHITE_R}19${RESET}  ]  |  9.2.87"
-    echo -e " [   ${WHITE_R}20${RESET}  ]  |  9.3.45"
-    echo -e " [   ${WHITE_R}21${RESET}  ]  |  9.4.19"
-    if [[ "${release_stage}" == 'RC' ]]; then
-      echo -e " [   ${WHITE_R}22${RESET}  ]  |  ${rc_version_available}"
-      echo -e " [   ${WHITE_R}23${RESET}  ]  |  Cancel\\n\\n"
-    else
-      echo -e " [   ${WHITE_R}22${RESET}  ]  |  Cancel\\n\\n"
-    fi
+    echo -e "$(date +%F-%T.%6N) | API (/api/list-releases?application=${api_name}) request failed or invalid JSON, using fallback." &>> "${eus_dir}/logs/glennr-api.log"
   fi
-
-  if [[ "${unifi_version}" == "5.6.40" ]]; then
+  local options=()
+  for v in "${all_versions[@]}"; do
+    local base="${v%%-*}"
+    if [[ "${base}" != "${current%%-*}" && "$(printf '%s\n%s\n' "${current}" "${base}" | sort -V | head -n1)" != "${base}" ]]; then
+      options+=("${v}")
+    fi
+  done
+  if [[ "${release_stage}" == "RC" && -n "${latest_rc}" && ! " ${options[*]} " == *" ${latest_rc} "* ]]; then
+    options=("${latest_rc}" "${options[@]}")
+  fi
+  options+=("Cancel")
+  if [[ "${release_stage}" == 'S' && "${current}" == "${latest}" ]]; then
+    if [[ "${app_key}" == "network" ]]; then debug_check_no_upgrade; fi
+    upgrade_latest "${app_key}"
+  fi
+  if [[ "${release_stage}" == 'RC' && -n "${latest_rc}" && "${current}" == "${latest_rc}" ]]; then
+    if [[ "${app_key}" == "network" ]]; then debug_check_no_upgrade; fi
+    upgrade_latest "${app_key}"
+  fi
+  while true; do
+    header
+    echo "  To what ${app_pretty} version would you like to update?"
+    echo -e "  Currently your ${app_pretty} is on version ${GRAY_R}${current}${RESET}"
+    echo -e "\\n  Release stage is set to | ${GRAY_R}${release_stage_friendly}${RESET}\\n\\n"
+    print_menu "${options[@]}"
     read -rp $'Your choice | \033[39m' UPGRADE_VERSION
-    case "$UPGRADE_VERSION" in
-        1)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="5.6.42"
-          application_upgrade_releases
-          migration_check
-          application_version="6.5.55"
-          application_upgrade_releases
-          unifi_update_finish;;
-        2)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="5.6.42"
-          application_upgrade_releases
-          migration_check
-          application_version="7.0.25"
-          application_upgrade_releases
-          unifi_update_finish;;
-        3)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="5.6.42"
-          application_upgrade_releases
-          migration_check
-          application_version="7.1.68-124045abd4"
-          application_upgrade_releases
-          unifi_update_finish;;
-        4)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="5.6.42"
-          application_upgrade_releases
-          migration_check
-          application_version="7.2.97-fa3c0ace6e"
-          application_upgrade_releases
-          unifi_update_finish;;
-        5)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="5.6.42"
-          application_upgrade_releases
-          migration_check
-          application_version="7.3.83-4501ffd244"
-          application_upgrade_releases
-          unifi_update_finish;;
-        6)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="5.6.42"
-          application_upgrade_releases
-          migration_check
-          application_version="7.4.162-3116043f9f"
-          application_upgrade_releases
-          unifi_update_finish;;
-        7)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="5.6.42"
-          application_upgrade_releases
-          migration_check
-          application_version="7.5.187-f57f5bf7ab"
-          application_upgrade_releases
-          unifi_update_finish;;
-        8)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="5.6.42"
-          application_upgrade_releases
-          migration_check
-          application_version="8.0.28-66495b8e3a"
-          application_upgrade_releases
-          unifi_update_finish;;
-        10)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="5.6.42"
-          application_upgrade_releases
-          migration_check
-          application_version="8.1.127-810cd1e59a"
-          application_upgrade_releases
-          unifi_update_finish;;
-        11)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="5.6.42"
-          application_upgrade_releases
-          migration_check
-          application_version="8.2.93-1c329ecd26"
-          application_upgrade_releases
-          unifi_update_finish;;
-        12)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="5.6.42"
-          application_upgrade_releases
-          migration_check
-          application_version="8.3.32-896f48ed11"
-          application_upgrade_releases
-          unifi_update_finish;;
-        13)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="5.6.42"
-          application_upgrade_releases
-          migration_check
-          application_version="8.4.62-i3q2j125cz"
-          application_upgrade_releases
-          unifi_update_finish;;
-        14)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="5.6.42"
-          application_upgrade_releases
-          migration_check
-          application_version="8.5.6-1x29lm155t"
-          application_upgrade_releases
-          unifi_update_finish;;
-        15)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="5.6.42"
-          application_upgrade_releases
-          migration_check
-          application_version="8.6.9-0f45j609pu"
-          application_upgrade_releases
-          unifi_update_finish;;
-        16)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="5.6.42"
-          application_upgrade_releases
-          migration_check
-          application_version="9.0.114-k5dy363g65"
-          application_upgrade_releases
-          unifi_update_finish;;
-        17)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="5.6.42"
-          application_upgrade_releases
-          migration_check
-          application_version="9.1.120-e1aep1zs38"
-          application_upgrade_releases
-          unifi_update_finish;;
-        18)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="5.6.42"
-          application_upgrade_releases
-          migration_check
-          application_version="9.2.87-uf39xch68k"
-          application_upgrade_releases
-          unifi_update_finish;;
-        19)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="5.6.42"
-          application_upgrade_releases
-          migration_check
-          application_version="9.3.45-9iw96x349g"
-          application_upgrade_releases
-          unifi_update_finish;;
-        20)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="5.6.42"
-          application_upgrade_releases
-          migration_check
-          application_version="9.4.19-0f76duk082"
-          application_upgrade_releases
-          unifi_update_finish;;
-        21)
-          if [[ "${release_stage}" == 'RC' ]]; then
-            unifi_update_start
+    if ! [[ "${UPGRADE_VERSION}" =~ ^[0-9]+$ ]]; then
+      header_red; echo -e "${RED}# Invalid input. Please enter a number."; sleep 3; continue
+    fi
+    if (( UPGRADE_VERSION < 1 || UPGRADE_VERSION > ${#options[@]} )); then
+      header_red; echo -e "${RED}# Choice out of range. Please select a valid option."; sleep 3; continue
+    fi
+    local choice="${options[$((UPGRADE_VERSION-1))]}"
+    case "${choice}" in
+      "Cancel")
+        echo "Upgrade canceled."
+        exit 0;;
+      *)
+        case "${app_key}" in
+          network)
+            upgrade_start network
             unifi_firmware_requirement
-            application_version="5.6.42"
+            if [[ "${unifi}" == "5.6.40" ]]; then
+              application_version="5.6.42"
+              application_upgrade_releases
+              migration_check
+            fi
+            application_version="${choice}"
             application_upgrade_releases
-            migration_check
-            application_version="${rc_version_available_secret}"
-            application_upgrade_releases
-            unifi_update_finish
-          else
-            cancel_script
-          fi;;
-        22|*) cancel_script;;
+            upgrade_finished network;;
+          uosserver)
+            upgrade_start uosserver
+            uos_server_version="${choice}"
+            uos_server_upgrade_process
+            upgrade_finished uosserver;;
+        esac;;
     esac
-  elif [[ "${unifi_version}" == "5.6.42" ]]; then
-    read -rp $'Your choice | \033[39m' UPGRADE_VERSION
-    case "$UPGRADE_VERSION" in
-        1)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="6.5.55"
-          application_upgrade_releases
-          unifi_update_finish;;
-        2)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="7.0.25"
-          application_upgrade_releases
-          unifi_update_finish;;
-        3)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="7.1.68-124045abd4"
-          application_upgrade_releases
-          unifi_update_finish;;
-        4)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="7.2.97-fa3c0ace6e"
-          application_upgrade_releases
-          unifi_update_finish;;
-        5)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="7.3.83-4501ffd244"
-          application_upgrade_releases
-          unifi_update_finish;;
-        6)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="7.4.162-3116043f9f"
-          application_upgrade_releases
-          unifi_update_finish;;
-        7)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="7.5.187-f57f5bf7ab"
-          application_upgrade_releases
-          unifi_update_finish;;
-        8)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.0.28-66495b8e3a"
-          application_upgrade_releases
-          unifi_update_finish;;
-        9)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.1.127-810cd1e59a"
-          application_upgrade_releases
-          unifi_update_finish;;
-        10)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.2.93-1c329ecd26"
-          application_upgrade_releases
-          unifi_update_finish;;
-        11)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.3.32-896f48ed11"
-          application_upgrade_releases
-          unifi_update_finish;;
-        12)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.4.62-i3q2j125cz"
-          application_upgrade_releases
-          unifi_update_finish;;
-        13)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.5.6-1x29lm155t"
-          application_upgrade_releases
-          unifi_update_finish;;
-        14)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.6.9-0f45j609pu"
-          application_upgrade_releases
-          unifi_update_finish;;
-        15)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.0.114-k5dy363g65"
-          application_upgrade_releases
-          unifi_update_finish;;
-        16)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.1.120-e1aep1zs38"
-          application_upgrade_releases
-          unifi_update_finish;;
-        17)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.2.87-uf39xch68k"
-          application_upgrade_releases
-          unifi_update_finish;;
-        18)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.3.45-9iw96x349g"
-          application_upgrade_releases
-          unifi_update_finish;;
-        19)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.4.19-0f76duk082"
-          application_upgrade_releases
-          unifi_update_finish;;
-        20)
-          if [[ "${release_stage}" == 'RC' ]]; then
-            unifi_update_start
-            application_version="${rc_version_available_secret}"
-            application_upgrade_releases
-            unifi_update_finish
-          else
-            cancel_script
-          fi;;
-        21|*) cancel_script;;
-    esac
-  else
-    read -rp $'Your choice | \033[39m' UPGRADE_VERSION
-    case "$UPGRADE_VERSION" in
-        1)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="5.6.40"
-          application_upgrade_releases
-          unifi_update_finish;;
-        2)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="5.6.42"
-          application_upgrade_releases
-          unifi_update_finish;;
-        3)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="6.5.55"
-          application_upgrade_releases
-          unifi_update_finish;;
-        4)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="7.0.25"
-          application_upgrade_releases
-          unifi_update_finish;;
-        5)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="7.1.68-124045abd4"
-          application_upgrade_releases
-          unifi_update_finish;;
-        6)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="7.2.97-fa3c0ace6e"
-          application_upgrade_releases
-          unifi_update_finish;;
-        7)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="7.3.83-4501ffd244"
-          application_upgrade_releases
-          unifi_update_finish;;
-        8)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="7.4.162-3116043f9f"
-          application_upgrade_releases
-          unifi_update_finish;;
-        9)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="7.5.187-f57f5bf7ab"
-          application_upgrade_releases
-          unifi_update_finish;;
-        10)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.0.28-66495b8e3a"
-          application_upgrade_releases
-          unifi_update_finish;;
-        11)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.1.127-810cd1e59a"
-          application_upgrade_releases
-          unifi_update_finish;;
-        12)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.2.93-1c329ecd26"
-          application_upgrade_releases
-          unifi_update_finish;;
-        13)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.3.32-896f48ed11"
-          application_upgrade_releases
-          unifi_update_finish;;
-        14)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.4.62-i3q2j125cz"
-          application_upgrade_releases
-          unifi_update_finish;;
-        15)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.5.6-1x29lm155t"
-          application_upgrade_releases
-          unifi_update_finish;;
-        16)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.6.9-0f45j609pu"
-          application_upgrade_releases
-          unifi_update_finish;;
-        17)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.0.114-k5dy363g65"
-          application_upgrade_releases
-          unifi_update_finish;;
-        18)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.1.120-e1aep1zs38"
-          application_upgrade_releases
-          unifi_update_finish;;
-        19)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.2.87-uf39xch68k"
-          application_upgrade_releases
-          unifi_update_finish;;
-        20)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.3.45-9iw96x349g"
-          application_upgrade_releases
-          unifi_update_finish;;
-        21)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.4.19-0f76duk082"
-          application_upgrade_releases
-          unifi_update_finish;;
-        22)
-          if [[ "${release_stage}" == 'RC' ]]; then
-            unifi_update_start
-            unifi_firmware_requirement
-            application_version="${rc_version_available_secret}"
-            application_upgrade_releases
-            unifi_update_finish
-          else
-            cancel_script
-          fi;;
-        23|*) cancel_script;;
-    esac
-  fi
+    break
+  done
+}
 
-##########################################################################################################################################################################
-#                                                                                                                                                                        #
-#                                                     5.7.x | 5.8.x | 5.9.x | 6.0.x | 6.1.x | 6.2.x | 6.3.x | 6.4.x                                                      #
-#                                                                                                                                                                        #
-##########################################################################################################################################################################
+if [[ "${perform_application_upgrade}" == 'true' ]]; then
+  run_upgrade_menu_for network
+fi
 
-elif [[ "${first_digit_unifi}" == '5' && "${second_digit_unifi}" =~ ^(7|8|9|10|11|12|13|14)$ ]] || [[ "${first_digit_unifi}" == '6' && "${second_digit_unifi}" =~ ^(0|1|2|3|4)$ ]]; then
-  release_wanted
-  header
-  echo "  To what UniFi Network Application version would you like to update?"
-  echo -e "  Currently your UniFi Network Application is on version ${GRAY_R}$unifi${RESET}"
-  echo -e "\\n  Release stage is set to | ${GRAY_R}${release_stage_friendly}${RESET}\\n\\n"
-  echo -e " [   ${WHITE_R}1${RESET}   ]  |  6.5.55"
-  echo -e " [   ${WHITE_R}2${RESET}   ]  |  7.0.25"
-  echo -e " [   ${WHITE_R}3${RESET}   ]  |  7.1.68"
-  echo -e " [   ${WHITE_R}4${RESET}   ]  |  7.2.97"
-  echo -e " [   ${WHITE_R}5${RESET}   ]  |  7.3.83"
-  echo -e " [   ${WHITE_R}6${RESET}   ]  |  7.4.162"
-  echo -e " [   ${WHITE_R}7${RESET}   ]  |  7.5.187"
-  echo -e " [   ${WHITE_R}8${RESET}   ]  |  8.0.28"
-  echo -e " [   ${WHITE_R}9${RESET}   ]  |  8.1.127"
-  echo -e " [   ${WHITE_R}10${RESET}  ]  |  8.2.93"
-  echo -e " [   ${WHITE_R}11${RESET}  ]  |  8.3.32"
-  echo -e " [   ${WHITE_R}12${RESET}  ]  |  8.4.62"
-  echo -e " [   ${WHITE_R}13${RESET}  ]  |  8.5.6"
-  echo -e " [   ${WHITE_R}14${RESET}  ]  |  8.6.9"
-  echo -e " [   ${WHITE_R}15${RESET}  ]  |  9.0.114"
-  echo -e " [   ${WHITE_R}16${RESET}  ]  |  9.1.120"
-  echo -e " [   ${WHITE_R}17${RESET}  ]  |  9.2.87"
-  echo -e " [   ${WHITE_R}18${RESET}  ]  |  9.3.45"
-  echo -e " [   ${WHITE_R}19${RESET}  ]  |  9.4.19"
-  if [[ "${release_stage}" == 'RC' ]]; then
-    echo -e " [   ${WHITE_R}20${RESET}  ]  |  ${rc_version_available}"
-    echo -e " [   ${WHITE_R}21${RESET}  ]  |  Cancel\\n\\n"
-  else
-    echo -e " [   ${WHITE_R}20${RESET}  ]  |  Cancel\\n\\n"
-  fi
-
-  read -rp $'Your choice | \033[39m' UPGRADE_VERSION
-  case "$UPGRADE_VERSION" in
-      1)
-        unifi_update_start
-        unifi_firmware_requirement
-        application_version="6.5.55"
-        application_upgrade_releases
-        unifi_update_finish;;
-      2)
-        unifi_update_start
-        unifi_firmware_requirement
-        application_version="7.0.25"
-        application_upgrade_releases
-        unifi_update_finish;;
-      3)
-        unifi_update_start
-        unifi_firmware_requirement
-        application_version="7.1.68-124045abd4"
-        application_upgrade_releases
-        unifi_update_finish;;
-      4)
-        unifi_update_start
-        unifi_firmware_requirement
-        application_version="7.2.97-fa3c0ace6e"
-        application_upgrade_releases
-        unifi_update_finish;;
-      5)
-        unifi_update_start
-        unifi_firmware_requirement
-        application_version="7.3.83-4501ffd244"
-        application_upgrade_releases
-        unifi_update_finish;;
-      6)
-        unifi_update_start
-        unifi_firmware_requirement
-        application_version="7.4.162-3116043f9f"
-        application_upgrade_releases
-        unifi_update_finish;;
-      7)
-        unifi_update_start
-        unifi_firmware_requirement
-        application_version="7.5.187-f57f5bf7ab"
-        application_upgrade_releases
-        unifi_update_finish;;
-      8)
-        unifi_update_start
-        unifi_firmware_requirement
-        application_version="8.0.28-66495b8e3a"
-        application_upgrade_releases
-        unifi_update_finish;;
-      9)
-        unifi_update_start
-        unifi_firmware_requirement
-        application_version="8.1.127-810cd1e59a"
-        application_upgrade_releases
-        unifi_update_finish;;
-      10)
-        unifi_update_start
-        unifi_firmware_requirement
-        application_version="8.2.93-1c329ecd26"
-        application_upgrade_releases
-        unifi_update_finish;;
-      11)
-        unifi_update_start
-        unifi_firmware_requirement
-        application_version="8.2.93-1c329ecd26"
-        application_upgrade_releases
-        unifi_update_finish;;
-      12)
-        unifi_update_start
-        unifi_firmware_requirement
-        application_version="8.4.62-i3q2j125cz"
-        application_upgrade_releases
-        unifi_update_finish;;
-      13)
-        unifi_update_start
-        unifi_firmware_requirement
-        application_version="8.5.6-1x29lm155t"
-        application_upgrade_releases
-        unifi_update_finish;;
-      14)
-        unifi_update_start
-        unifi_firmware_requirement
-        application_version="8.6.9-0f45j609pu"
-         application_upgrade_releases
-        unifi_update_finish;;
-      15)
-        unifi_update_start
-        unifi_firmware_requirement
-        application_version="9.0.114-k5dy363g65"
-        application_upgrade_releases
-        unifi_update_finish;;
-      16)
-        unifi_update_start
-        unifi_firmware_requirement
-        application_version="9.1.120-e1aep1zs38"
-        application_upgrade_releases
-        unifi_update_finish;;
-      17)
-        unifi_update_start
-        unifi_firmware_requirement
-        application_version="9.2.87-uf39xch68k"
-        application_upgrade_releases
-        unifi_update_finish;;
-      18)
-        unifi_update_start
-        unifi_firmware_requirement
-        application_version="9.3.45-9iw96x349g"
-        application_upgrade_releases
-        unifi_update_finish;;
-      19)
-        unifi_update_start
-        unifi_firmware_requirement
-        application_version="9.4.19-0f76duk082"
-        application_upgrade_releases
-        unifi_update_finish;;
-      20)
-        if [[ "${release_stage}" == 'RC' ]]; then
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="${rc_version_available_secret}"
-          application_upgrade_releases
-          unifi_update_finish
-        else
-          cancel_script
-        fi;;
-      21|*) cancel_script;;
-  esac
-
-##########################################################################################################################################################################
-#                                                                                                                                                                        #
-#                                                                                  6.5.x                                                                                 #
-#                                                                                                                                                                        #
-##########################################################################################################################################################################
-
-elif [[ "${first_digit_unifi}" == '6' && "${second_digit_unifi}" == '5' ]]; then
-  release_wanted
-  header
-  echo "  To what UniFi Network Application version would you like to update?"
-  echo -e "  Currently your UniFi Network Application is on version ${GRAY_R}$unifi${RESET}"
-  echo -e "\\n  Release stage is set to | ${GRAY_R}${release_stage_friendly}${RESET}\\n\\n"
-  if [[ "${unifi}" == "6.5.55" ]]; then
-    unifi_version='6.5.55'
-    echo -e " [   ${WHITE_R}1${RESET}   ]  |  7.0.25"
-    echo -e " [   ${WHITE_R}2${RESET}   ]  |  7.1.68"
-    echo -e " [   ${WHITE_R}3${RESET}   ]  |  7.2.97"
-    echo -e " [   ${WHITE_R}4${RESET}   ]  |  7.3.83"
-    echo -e " [   ${WHITE_R}5${RESET}   ]  |  7.4.162"
-    echo -e " [   ${WHITE_R}6${RESET}   ]  |  7.5.187"
-    echo -e " [   ${WHITE_R}7${RESET}   ]  |  8.0.28"
-    echo -e " [   ${WHITE_R}8${RESET}   ]  |  8.1.127"
-    echo -e " [   ${WHITE_R}9${RESET}   ]  |  8.2.93"
-    echo -e " [   ${WHITE_R}10${RESET}  ]  |  8.3.32"
-    echo -e " [   ${WHITE_R}11${RESET}  ]  |  8.4.62"
-    echo -e " [   ${WHITE_R}12${RESET}  ]  |  8.5.6"
-    echo -e " [   ${WHITE_R}13${RESET}  ]  |  8.6.9"
-    echo -e " [   ${WHITE_R}14${RESET}  ]  |  9.0.114"
-    echo -e " [   ${WHITE_R}15${RESET}  ]  |  9.1.120"
-    echo -e " [   ${WHITE_R}16${RESET}  ]  |  9.2.87"
-    echo -e " [   ${WHITE_R}17${RESET}  ]  |  9.3.45"
-    echo -e " [   ${WHITE_R}18${RESET}  ]  |  9.4.19"
-    if [[ "${release_stage}" == 'RC' ]]; then
-      echo -e " [   ${WHITE_R}19${RESET}  ]  |  ${rc_version_available}"
-      echo -e " [   ${WHITE_R}20${RESET}  ]  |  Cancel\\n\\n"
-    else
-      echo -e " [   ${WHITE_R}19${RESET}  ]  |  Cancel\\n\\n"
-    fi
-  else
-    echo -e " [   ${WHITE_R}1${RESET}   ]  |  6.5.55"
-    echo -e " [   ${WHITE_R}2${RESET}   ]  |  7.0.25"
-    echo -e " [   ${WHITE_R}3${RESET}   ]  |  7.1.68"
-    echo -e " [   ${WHITE_R}4${RESET}   ]  |  7.2.97"
-    echo -e " [   ${WHITE_R}5${RESET}   ]  |  7.3.83"
-    echo -e " [   ${WHITE_R}6${RESET}   ]  |  7.4.162"
-    echo -e " [   ${WHITE_R}7${RESET}   ]  |  7.5.187"
-    echo -e " [   ${WHITE_R}8${RESET}   ]  |  8.0.28"
-    echo -e " [   ${WHITE_R}9${RESET}   ]  |  8.1.127"
-    echo -e " [   ${WHITE_R}10${RESET}  ]  |  8.2.93"
-    echo -e " [   ${WHITE_R}11${RESET}  ]  |  8.3.32"
-    echo -e " [   ${WHITE_R}12${RESET}  ]  |  8.4.62"
-    echo -e " [   ${WHITE_R}13${RESET}  ]  |  8.5.6"
-    echo -e " [   ${WHITE_R}14${RESET}  ]  |  8.6.9"
-    echo -e " [   ${WHITE_R}15${RESET}  ]  |  9.0.114"
-    echo -e " [   ${WHITE_R}16${RESET}  ]  |  9.1.120"
-    echo -e " [   ${WHITE_R}17${RESET}  ]  |  9.2.87"
-    echo -e " [   ${WHITE_R}18${RESET}  ]  |  9.3.45"
-    echo -e " [   ${WHITE_R}19${RESET}  ]  |  9.4.19"
-    if [[ "${release_stage}" == 'RC' ]]; then
-      echo -e " [   ${WHITE_R}20${RESET}  ]  |  ${rc_version_available}"
-      echo -e " [   ${WHITE_R}21${RESET}  ]  |  Cancel\\n\\n"
-    else
-      echo -e " [   ${WHITE_R}20${RESET}  ]  |  Cancel\\n\\n"
-    fi
-  fi
-
-  if [[ "${unifi_version}" == "6.5.55" ]]; then
-    read -rp $'Your choice | \033[39m' UPGRADE_VERSION
-    case "$UPGRADE_VERSION" in
-        1)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="7.0.25"
-          application_upgrade_releases
-          unifi_update_finish;;
-        2)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="7.1.68-124045abd4"
-          application_upgrade_releases
-          unifi_update_finish;;
-        3)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="7.2.97-fa3c0ace6e"
-          application_upgrade_releases
-          unifi_update_finish;;
-        4)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="7.3.83-4501ffd244"
-          application_upgrade_releases
-          unifi_update_finish;;
-        5)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="7.4.162-3116043f9f"
-          application_upgrade_releases
-          unifi_update_finish;;
-        6)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="7.5.187-f57f5bf7ab"
-          application_upgrade_releases
-          unifi_update_finish;;
-        7)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.0.28-66495b8e3a"
-          application_upgrade_releases
-          unifi_update_finish;;
-        8)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.1.127-810cd1e59a"
-          application_upgrade_releases
-          unifi_update_finish;;
-        9)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.2.93-1c329ecd26"
-          application_upgrade_releases
-          unifi_update_finish;;
-        10)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.3.32-896f48ed11"
-          application_upgrade_releases
-          unifi_update_finish;;
-        11)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.4.62-i3q2j125cz"
-          application_upgrade_releases
-          unifi_update_finish;;
-        12)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.5.6-1x29lm155t"
-          application_upgrade_releases
-          unifi_update_finish;;
-        13)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.6.9-0f45j609pu"
-          application_upgrade_releases
-          unifi_update_finish;;
-        14)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.0.114-k5dy363g65"
-          application_upgrade_releases
-          unifi_update_finish;;
-        15)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.1.120-e1aep1zs38"
-          application_upgrade_releases
-          unifi_update_finish;;
-        16)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.2.87-uf39xch68k"
-          application_upgrade_releases
-          unifi_update_finish;;
-        17)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.3.45-9iw96x349g"
-          application_upgrade_releases
-          unifi_update_finish;;
-        18)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.4.19-0f76duk082"
-          application_upgrade_releases
-          unifi_update_finish;;
-        19)
-          if [[ "${release_stage}" == 'RC' ]]; then
-            unifi_update_start
-            unifi_firmware_requirement
-            application_version="${rc_version_available_secret}"
-            application_upgrade_releases
-            unifi_update_finish
-          else
-            cancel_script
-          fi;;
-        20|*) cancel_script;;
-    esac
-  else
-    read -rp $'Your choice | \033[39m' UPGRADE_VERSION
-    case "$UPGRADE_VERSION" in
-        1)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="6.5.55"
-          application_upgrade_releases
-          unifi_update_finish;;
-        2)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="7.0.25"
-          application_upgrade_releases
-          unifi_update_finish;;
-        3)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="7.1.68-124045abd4"
-          application_upgrade_releases
-          unifi_update_finish;;
-        4)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="7.2.97-fa3c0ace6e"
-          application_upgrade_releases
-          unifi_update_finish;;
-        5)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="7.3.83-4501ffd244"
-          application_upgrade_releases
-          unifi_update_finish;;
-        6)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="7.4.162-3116043f9f"
-          application_upgrade_releases
-          unifi_update_finish;;
-        7)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="7.5.187-f57f5bf7ab"
-          application_upgrade_releases
-          unifi_update_finish;;
-        8)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.0.28-66495b8e3a"
-          application_upgrade_releases
-          unifi_update_finish;;
-        9)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.1.127-810cd1e59a"
-          application_upgrade_releases
-          unifi_update_finish;;
-        10)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.2.93-1c329ecd26"
-          application_upgrade_releases
-          unifi_update_finish;;
-        11)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.3.32-896f48ed11"
-          application_upgrade_releases
-          unifi_update_finish;;
-        12)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.4.62-i3q2j125cz"
-          application_upgrade_releases
-          unifi_update_finish;;
-        13)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.5.6-1x29lm155t"
-          application_upgrade_releases
-          unifi_update_finish;;
-        14)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.6.9-0f45j609pu"
-          application_upgrade_releases
-          unifi_update_finish;;
-        15)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.0.114-k5dy363g65"
-          application_upgrade_releases
-          unifi_update_finish;;
-        16)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.1.120-e1aep1zs38"
-          application_upgrade_releases
-          unifi_update_finish;;
-        17)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.2.87-uf39xch68k"
-          application_upgrade_releases
-          unifi_update_finish;;
-        18)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.3.45-9iw96x349g"
-          application_upgrade_releases
-          unifi_update_finish;;
-        19)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.4.19-0f76duk082"
-          application_upgrade_releases
-          unifi_update_finish;;
-        20)
-          if [[ "${release_stage}" == 'RC' ]]; then
-            unifi_update_start
-            unifi_firmware_requirement
-            application_version="${rc_version_available_secret}"
-            application_upgrade_releases
-            unifi_update_finish
-          else
-            cancel_script
-          fi;;
-        21|*) cancel_script;;
-    esac
-  fi
-
-##########################################################################################################################################################################
-#                                                                                                                                                                        #
-#                                                                                  7.0.x                                                                                 #
-#                                                                                                                                                                        #
-##########################################################################################################################################################################
-
-elif [[ "${first_digit_unifi}" == '7' && "${second_digit_unifi}" == '0' ]]; then
-  release_wanted
-  header
-  echo "  To what UniFi Network Application version would you like to update?"
-  echo -e "  Currently your UniFi Network Application is on version ${GRAY_R}$unifi${RESET}"
-  echo -e "\\n  Release stage is set to | ${GRAY_R}${release_stage_friendly}${RESET}\\n\\n"
-  if [[ "${unifi}" == "7.0.25" ]]; then
-    unifi_version='7.0.25'
-    echo -e " [   ${WHITE_R}1${RESET}   ]  |  7.1.68"
-    echo -e " [   ${WHITE_R}2${RESET}   ]  |  7.2.97"
-    echo -e " [   ${WHITE_R}3${RESET}   ]  |  7.3.83"
-    echo -e " [   ${WHITE_R}4${RESET}   ]  |  7.4.162"
-    echo -e " [   ${WHITE_R}5${RESET}   ]  |  7.5.187"
-    echo -e " [   ${WHITE_R}6${RESET}   ]  |  8.0.28"
-    echo -e " [   ${WHITE_R}7${RESET}   ]  |  8.1.127"
-    echo -e " [   ${WHITE_R}8${RESET}   ]  |  8.2.93"
-    echo -e " [   ${WHITE_R}9${RESET}   ]  |  8.3.32"
-    echo -e " [   ${WHITE_R}10${RESET}  ]  |  8.4.62"
-    echo -e " [   ${WHITE_R}11${RESET}  ]  |  8.5.6"
-    echo -e " [   ${WHITE_R}12${RESET}  ]  |  8.6.9"
-    echo -e " [   ${WHITE_R}13${RESET}  ]  |  9.0.114"
-    echo -e " [   ${WHITE_R}14${RESET}  ]  |  9.1.120"
-    echo -e " [   ${WHITE_R}15${RESET}  ]  |  9.2.87"
-    echo -e " [   ${WHITE_R}16${RESET}  ]  |  9.3.45"
-    echo -e " [   ${WHITE_R}17${RESET}  ]  |  9.4.19"
-    if [[ "${release_stage}" == 'RC' ]]; then
-      echo -e " [   ${WHITE_R}18${RESET}  ]  |  ${rc_version_available}"
-      echo -e " [   ${WHITE_R}19${RESET}  ]  |  Cancel\\n\\n"
-    else
-      echo -e " [   ${WHITE_R}18${RESET}  ]  |  Cancel\\n\\n"
-    fi
-  else
-    echo -e " [   ${WHITE_R}1${RESET}   ]  |  7.0.25"
-    echo -e " [   ${WHITE_R}2${RESET}   ]  |  7.1.68"
-    echo -e " [   ${WHITE_R}3${RESET}   ]  |  7.2.97"
-    echo -e " [   ${WHITE_R}4${RESET}   ]  |  7.3.83"
-    echo -e " [   ${WHITE_R}5${RESET}   ]  |  7.4.162"
-    echo -e " [   ${WHITE_R}6${RESET}   ]  |  7.5.187"
-    echo -e " [   ${WHITE_R}7${RESET}   ]  |  8.0.28"
-    echo -e " [   ${WHITE_R}8${RESET}   ]  |  8.1.127"
-    echo -e " [   ${WHITE_R}9${RESET}   ]  |  8.2.93"
-    echo -e " [   ${WHITE_R}10${RESET}  ]  |  8.3.32"
-    echo -e " [   ${WHITE_R}11${RESET}  ]  |  8.4.62"
-    echo -e " [   ${WHITE_R}12${RESET}  ]  |  8.5.6"
-    echo -e " [   ${WHITE_R}13${RESET}  ]  |  8.6.9"
-    echo -e " [   ${WHITE_R}14${RESET}  ]  |  9.0.114"
-    echo -e " [   ${WHITE_R}15${RESET}  ]  |  9.1.120"
-    echo -e " [   ${WHITE_R}16${RESET}  ]  |  9.2.87"
-    echo -e " [   ${WHITE_R}17${RESET}  ]  |  9.3.45"
-    echo -e " [   ${WHITE_R}18${RESET}  ]  |  9.4.19"
-    if [[ "${release_stage}" == 'RC' ]]; then
-      echo -e " [   ${WHITE_R}19${RESET}  ]  |  ${rc_version_available}"
-      echo -e " [   ${WHITE_R}20${RESET}  ]  |  Cancel\\n\\n"
-    else
-      echo -e " [   ${WHITE_R}19${RESET}  ]  |  Cancel\\n\\n"
-    fi
-  fi
-
-  if [[ "${unifi_version}" == "7.0.25" ]]; then
-    read -rp $'Your choice | \033[39m' UPGRADE_VERSION
-    case "$UPGRADE_VERSION" in
-        1)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="7.1.68-124045abd4"
-          application_upgrade_releases
-          unifi_update_finish;;
-        2)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="7.2.97-fa3c0ace6e"
-          application_upgrade_releases
-          unifi_update_finish;;
-        3)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="7.3.83-4501ffd244"
-          application_upgrade_releases
-          unifi_update_finish;;
-        4)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="7.4.162-3116043f9f"
-          application_upgrade_releases
-          unifi_update_finish;;
-        5)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="7.5.187-f57f5bf7ab"
-          application_upgrade_releases
-          unifi_update_finish;;
-        6)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.0.28-66495b8e3a"
-          application_upgrade_releases
-          unifi_update_finish;;
-        7)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.1.127-810cd1e59a"
-          application_upgrade_releases
-          unifi_update_finish;;
-        8)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.2.93-1c329ecd26"
-          application_upgrade_releases
-          unifi_update_finish;;
-        9)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.3.32-896f48ed11"
-          application_upgrade_releases
-          unifi_update_finish;;
-        10)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.4.62-i3q2j125cz"
-          application_upgrade_releases
-          unifi_update_finish;;
-        11)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.5.6-1x29lm155t"
-          application_upgrade_releases
-          unifi_update_finish;;
-        12)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.6.9-0f45j609pu"
-          application_upgrade_releases
-          unifi_update_finish;;
-        13)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.0.114-k5dy363g65"
-          application_upgrade_releases
-          unifi_update_finish;;
-        14)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.1.120-e1aep1zs38"
-          application_upgrade_releases
-          unifi_update_finish;;
-        15)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.2.87-uf39xch68k"
-          application_upgrade_releases
-          unifi_update_finish;;
-        16)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.3.45-9iw96x349g"
-          application_upgrade_releases
-          unifi_update_finish;;
-        17)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.4.19-0f76duk082"
-          application_upgrade_releases
-          unifi_update_finish;;
-        18)
-          if [[ "${release_stage}" == 'RC' ]]; then
-            unifi_update_start
-            unifi_firmware_requirement
-            application_version="${rc_version_available_secret}"
-            application_upgrade_releases
-            unifi_update_finish
-          else
-            cancel_script
-          fi;;
-        19|*) cancel_script;;
-    esac
-  else
-    read -rp $'Your choice | \033[39m' UPGRADE_VERSION
-    case "$UPGRADE_VERSION" in
-        1)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="7.0.25"
-          application_upgrade_releases
-          unifi_update_finish;;
-        2)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="7.1.68-124045abd4"
-          application_upgrade_releases
-          unifi_update_finish;;
-        3)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="7.2.97-fa3c0ace6e"
-          application_upgrade_releases
-          unifi_update_finish;;
-        4)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="7.3.83-4501ffd244"
-          application_upgrade_releases
-          unifi_update_finish;;
-        5)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="7.4.162-3116043f9f"
-          application_upgrade_releases
-          unifi_update_finish;;
-        6)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="7.5.187-f57f5bf7ab"
-          application_upgrade_releases
-          unifi_update_finish;;
-        7)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.0.28-66495b8e3a"
-          application_upgrade_releases
-          unifi_update_finish;;
-        8)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.1.127-810cd1e59a"
-          application_upgrade_releases
-          unifi_update_finish;;
-        9)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.2.93-1c329ecd26"
-          application_upgrade_releases
-          unifi_update_finish;;
-        10)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.3.32-896f48ed11"
-          application_upgrade_releases
-          unifi_update_finish;;
-        11)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.4.62-i3q2j125cz"
-          application_upgrade_releases
-          unifi_update_finish;;
-        12)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.5.6-1x29lm155t"
-          application_upgrade_releases
-          unifi_update_finish;;
-        13)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.6.9-0f45j609pu"
-          application_upgrade_releases
-          unifi_update_finish;;
-        14)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.0.114-k5dy363g65"
-          application_upgrade_releases
-          unifi_update_finish;;
-        15)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.1.120-e1aep1zs38"
-          application_upgrade_releases
-          unifi_update_finish;;
-        16)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.2.87-uf39xch68k"
-          application_upgrade_releases
-          unifi_update_finish;;
-        17)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.3.45-9iw96x349g"
-          application_upgrade_releases
-          unifi_update_finish;;
-        18)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.4.19-0f76duk082"
-          application_upgrade_releases
-          unifi_update_finish;;
-        19)
-          if [[ "${release_stage}" == 'RC' ]]; then
-            unifi_update_start
-            unifi_firmware_requirement
-            application_version="${rc_version_available_secret}"
-            application_upgrade_releases
-            unifi_update_finish
-          else
-            cancel_script
-          fi;;
-        20|*) cancel_script;;
-    esac
-  fi
-
-##########################################################################################################################################################################
-#                                                                                                                                                                        #
-#                                                                                  7.1.x                                                                                 #
-#                                                                                                                                                                        #
-##########################################################################################################################################################################
-
-elif [[ "${first_digit_unifi}" == '7' && "${second_digit_unifi}" == '1' ]]; then
-  release_wanted
-  header
-  echo "  To what UniFi Network Application version would you like to update?"
-  echo -e "  Currently your UniFi Network Application is on version ${GRAY_R}$unifi${RESET}"
-  echo -e "\\n  Release stage is set to | ${GRAY_R}${release_stage_friendly}${RESET}\\n\\n"
-  if [[ "${unifi}" == "7.1.68" ]]; then
-    unifi_version='7.1.68'
-    echo -e " [   ${WHITE_R}1${RESET}   ]  |  7.2.97"
-    echo -e " [   ${WHITE_R}2${RESET}   ]  |  7.3.83"
-    echo -e " [   ${WHITE_R}3${RESET}   ]  |  7.4.162"
-    echo -e " [   ${WHITE_R}4${RESET}   ]  |  7.5.187"
-    echo -e " [   ${WHITE_R}5${RESET}   ]  |  8.0.28"
-    echo -e " [   ${WHITE_R}6${RESET}   ]  |  8.1.127"
-    echo -e " [   ${WHITE_R}7${RESET}   ]  |  8.2.93"
-    echo -e " [   ${WHITE_R}8${RESET}   ]  |  8.3.32"
-    echo -e " [   ${WHITE_R}9${RESET}   ]  |  8.4.62"
-    echo -e " [   ${WHITE_R}10${RESET}  ]  |  8.5.6"
-    echo -e " [   ${WHITE_R}11${RESET}  ]  |  8.6.9"
-    echo -e " [   ${WHITE_R}12${RESET}  ]  |  9.0.114"
-    echo -e " [   ${WHITE_R}13${RESET}  ]  |  9.1.120"
-    echo -e " [   ${WHITE_R}14${RESET}  ]  |  9.2.87"
-    echo -e " [   ${WHITE_R}15${RESET}  ]  |  9.3.45"
-    echo -e " [   ${WHITE_R}16${RESET}  ]  |  9.4.19"
-    if [[ "${release_stage}" == 'RC' ]]; then
-      echo -e " [   ${WHITE_R}17${RESET}  ]  |  ${rc_version_available}"
-      echo -e " [   ${WHITE_R}18${RESET}  ]  |  Cancel\\n\\n"
-    else
-      echo -e " [   ${WHITE_R}17${RESET}  ]  |  Cancel\\n\\n"
-    fi
-  else
-    echo -e " [   ${WHITE_R}1${RESET}   ]  |  7.1.68"
-    echo -e " [   ${WHITE_R}2${RESET}   ]  |  7.2.97"
-    echo -e " [   ${WHITE_R}3${RESET}   ]  |  7.3.83"
-    echo -e " [   ${WHITE_R}4${RESET}   ]  |  7.4.162"
-    echo -e " [   ${WHITE_R}5${RESET}   ]  |  7.5.187"
-    echo -e " [   ${WHITE_R}6${RESET}   ]  |  8.0.28"
-    echo -e " [   ${WHITE_R}7${RESET}   ]  |  8.1.127"
-    echo -e " [   ${WHITE_R}8${RESET}   ]  |  8.2.93"
-    echo -e " [   ${WHITE_R}9${RESET}   ]  |  8.3.32"
-    echo -e " [   ${WHITE_R}10${RESET}  ]  |  8.4.62"
-    echo -e " [   ${WHITE_R}11${RESET}  ]  |  8.5.6"
-    echo -e " [   ${WHITE_R}12${RESET}  ]  |  8.6.9"
-    echo -e " [   ${WHITE_R}13${RESET}  ]  |  9.0.114"
-    echo -e " [   ${WHITE_R}14${RESET}  ]  |  9.1.120"
-    echo -e " [   ${WHITE_R}15${RESET}  ]  |  9.2.87"
-    echo -e " [   ${WHITE_R}16${RESET}  ]  |  9.3.45"
-    echo -e " [   ${WHITE_R}17${RESET}  ]  |  9.4.19"
-    if [[ "${release_stage}" == 'RC' ]]; then
-      echo -e " [   ${WHITE_R}18${RESET}  ]  |  ${rc_version_available}"
-      echo -e " [   ${WHITE_R}19${RESET}  ]  |  Cancel\\n\\n"
-    else
-      echo -e " [   ${WHITE_R}18${RESET}  ]  |  Cancel\\n\\n"
-    fi
-  fi
-
-  if [[ "${unifi_version}" == "7.1.68" ]]; then
-    read -rp $'Your choice | \033[39m' UPGRADE_VERSION
-    case "$UPGRADE_VERSION" in
-        1)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="7.2.97-fa3c0ace6e"
-          application_upgrade_releases
-          unifi_update_finish;;
-        2)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="7.3.83-4501ffd244"
-          application_upgrade_releases
-          unifi_update_finish;;
-        3)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="7.4.162-3116043f9f"
-          application_upgrade_releases
-          unifi_update_finish;;
-        4)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="7.5.187-f57f5bf7ab"
-          application_upgrade_releases
-          unifi_update_finish;;
-        5)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.0.28-66495b8e3a"
-          application_upgrade_releases
-          unifi_update_finish;;
-        6)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.1.127-810cd1e59a"
-          application_upgrade_releases
-          unifi_update_finish;;
-        7)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.2.93-1c329ecd26"
-          application_upgrade_releases
-          unifi_update_finish;;
-        8)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.3.32-896f48ed11"
-          application_upgrade_releases
-          unifi_update_finish;;
-        9)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.4.62-i3q2j125cz"
-          application_upgrade_releases
-          unifi_update_finish;;
-        10)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.5.6-1x29lm155t"
-          application_upgrade_releases
-          unifi_update_finish;;
-        11)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.6.9-0f45j609pu"
-          application_upgrade_releases
-          unifi_update_finish;;
-        12)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.0.114-k5dy363g65"
-          application_upgrade_releases
-          unifi_update_finish;;
-        13)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.1.120-e1aep1zs38"
-          application_upgrade_releases
-          unifi_update_finish;;
-        14)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.2.87-uf39xch68k"
-          application_upgrade_releases
-          unifi_update_finish;;
-        15)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.3.45-9iw96x349g"
-          application_upgrade_releases
-          unifi_update_finish;;
-        16)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.4.19-0f76duk082"
-          application_upgrade_releases
-          unifi_update_finish;;
-        17)
-          if [[ "${release_stage}" == 'RC' ]]; then
-            unifi_update_start
-            unifi_firmware_requirement
-            application_version="${rc_version_available_secret}"
-            application_upgrade_releases
-            unifi_update_finish
-          else
-            cancel_script
-          fi;;
-        18|*) cancel_script;;
-    esac
-  else
-    read -rp $'Your choice | \033[39m' UPGRADE_VERSION
-    case "$UPGRADE_VERSION" in
-        1)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="7.1.68-124045abd4"
-          application_upgrade_releases
-          unifi_update_finish;;
-        2)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="7.2.97-fa3c0ace6e"
-          application_upgrade_releases
-          unifi_update_finish;;
-        3)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="7.3.83-4501ffd244"
-          application_upgrade_releases
-          unifi_update_finish;;
-        4)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="7.4.162-3116043f9f"
-          application_upgrade_releases
-          unifi_update_finish;;
-        5)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="7.5.187-f57f5bf7ab"
-          application_upgrade_releases
-          unifi_update_finish;;
-        6)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.0.28-66495b8e3a"
-          application_upgrade_releases
-          unifi_update_finish;;
-        7)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.1.127-810cd1e59a"
-          application_upgrade_releases
-          unifi_update_finish;;
-        8)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.2.93-1c329ecd26"
-          application_upgrade_releases
-          unifi_update_finish;;
-        9)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.3.32-896f48ed11"
-          application_upgrade_releases
-          unifi_update_finish;;
-        10)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.4.62-i3q2j125cz"
-          application_upgrade_releases
-          unifi_update_finish;;
-        11)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.5.6-1x29lm155t"
-          application_upgrade_releases
-          unifi_update_finish;;
-        12)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.6.9-0f45j609pu"
-          application_upgrade_releases
-          unifi_update_finish;;
-        13)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.0.114-k5dy363g65"
-          application_upgrade_releases
-          unifi_update_finish;;
-        14)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.1.120-e1aep1zs38"
-          application_upgrade_releases
-          unifi_update_finish;;
-        15)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.2.87-uf39xch68k"
-          application_upgrade_releases
-          unifi_update_finish;;
-        16)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.3.45-9iw96x349g"
-          application_upgrade_releases
-          unifi_update_finish;;
-        17)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.4.19-0f76duk082"
-          application_upgrade_releases
-          unifi_update_finish;;
-        18)
-          if [[ "${release_stage}" == 'RC' ]]; then
-            unifi_update_start
-            unifi_firmware_requirement
-            application_version="${rc_version_available_secret}"
-            application_upgrade_releases
-            unifi_update_finish
-          else
-            cancel_script
-          fi;;
-        19|*) cancel_script;;
-    esac
-  fi
-
-##########################################################################################################################################################################
-#                                                                                                                                                                        #
-#                                                                                  7.2.x                                                                                 #
-#                                                                                                                                                                        #
-##########################################################################################################################################################################
-
-elif [[ "${first_digit_unifi}" == '7' && "${second_digit_unifi}" == '2' ]]; then
-  release_wanted
-  header
-  echo "  To what UniFi Network Application version would you like to update?"
-  echo -e "  Currently your UniFi Network Application is on version ${GRAY_R}$unifi${RESET}"
-  echo -e "\\n  Release stage is set to | ${GRAY_R}${release_stage_friendly}${RESET}\\n\\n"
-  if [[ "${unifi}" == "7.2.97" ]]; then
-    unifi_version='7.2.97'
-    echo -e " [   ${WHITE_R}1${RESET}   ]  |  7.3.83"
-    echo -e " [   ${WHITE_R}2${RESET}   ]  |  7.4.162"
-    echo -e " [   ${WHITE_R}3${RESET}   ]  |  7.5.187"
-    echo -e " [   ${WHITE_R}4${RESET}   ]  |  8.0.28"
-    echo -e " [   ${WHITE_R}5${RESET}   ]  |  8.1.127"
-    echo -e " [   ${WHITE_R}6${RESET}   ]  |  8.2.93"
-    echo -e " [   ${WHITE_R}7${RESET}   ]  |  8.3.32"
-    echo -e " [   ${WHITE_R}8${RESET}   ]  |  8.4.62"
-    echo -e " [   ${WHITE_R}9${RESET}   ]  |  8.5.6"
-    echo -e " [   ${WHITE_R}10${RESET}  ]  |  8.6.9"
-    echo -e " [   ${WHITE_R}11${RESET}  ]  |  9.0.114"
-    echo -e " [   ${WHITE_R}12${RESET}  ]  |  9.1.120"
-    echo -e " [   ${WHITE_R}13${RESET}  ]  |  9.2.87"
-    echo -e " [   ${WHITE_R}14${RESET}  ]  |  9.3.45"
-    echo -e " [   ${WHITE_R}15${RESET}  ]  |  9.4.19"
-    if [[ "${release_stage}" == 'RC' ]]; then
-      echo -e " [   ${WHITE_R}16${RESET}  ]  |  ${rc_version_available}"
-      echo -e " [   ${WHITE_R}17${RESET}  ]  |  Cancel\\n\\n"
-    else
-      echo -e " [   ${WHITE_R}16${RESET}  ]  |  Cancel\\n\\n"
-    fi
-  else
-    echo -e " [   ${WHITE_R}1${RESET}   ]  |  7.2.97"
-    echo -e " [   ${WHITE_R}2${RESET}   ]  |  7.3.83"
-    echo -e " [   ${WHITE_R}3${RESET}   ]  |  7.4.162"
-    echo -e " [   ${WHITE_R}4${RESET}   ]  |  7.5.187"
-    echo -e " [   ${WHITE_R}5${RESET}   ]  |  8.0.28"
-    echo -e " [   ${WHITE_R}6${RESET}   ]  |  8.1.127"
-    echo -e " [   ${WHITE_R}7${RESET}   ]  |  8.2.93"
-    echo -e " [   ${WHITE_R}8${RESET}   ]  |  8.3.32"
-    echo -e " [   ${WHITE_R}9${RESET}   ]  |  8.4.62"
-    echo -e " [   ${WHITE_R}10${RESET}  ]  |  8.5.6"
-    echo -e " [   ${WHITE_R}11${RESET}  ]  |  8.6.9"
-    echo -e " [   ${WHITE_R}12${RESET}  ]  |  9.0.114"
-    echo -e " [   ${WHITE_R}13${RESET}  ]  |  9.1.120"
-    echo -e " [   ${WHITE_R}14${RESET}  ]  |  9.2.87"
-    echo -e " [   ${WHITE_R}15${RESET}  ]  |  9.3.45"
-    echo -e " [   ${WHITE_R}16${RESET}  ]  |  9.4.19"
-    if [[ "${release_stage}" == 'RC' ]]; then
-      echo -e " [   ${WHITE_R}17${RESET}  ]  |  ${rc_version_available}"
-      echo -e " [   ${WHITE_R}18${RESET}  ]  |  Cancel\\n\\n"
-    else
-      echo -e " [   ${WHITE_R}17${RESET}  ]  |  Cancel\\n\\n"
-    fi
-  fi
-
-  if [[ "${unifi_version}" == "7.2.97" ]]; then
-    read -rp $'Your choice | \033[39m' UPGRADE_VERSION
-    case "$UPGRADE_VERSION" in
-        1)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="7.3.83-4501ffd244"
-          application_upgrade_releases
-          unifi_update_finish;;
-        2)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="7.4.162-3116043f9f"
-          application_upgrade_releases
-          unifi_update_finish;;
-        3)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="7.5.187-f57f5bf7ab"
-          application_upgrade_releases
-          unifi_update_finish;;
-        4)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.0.28-66495b8e3a"
-          application_upgrade_releases
-          unifi_update_finish;;
-        5)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.1.127-810cd1e59a"
-          application_upgrade_releases
-          unifi_update_finish;;
-        6)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.2.93-1c329ecd26"
-          application_upgrade_releases
-          unifi_update_finish;;
-        7)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.3.32-896f48ed11"
-          application_upgrade_releases
-          unifi_update_finish;;
-        8)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.4.62-i3q2j125cz"
-          application_upgrade_releases
-          unifi_update_finish;;
-        9)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.5.6-1x29lm155t"
-          application_upgrade_releases
-          unifi_update_finish;;
-        10)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.6.9-0f45j609pu"
-          application_upgrade_releases
-          unifi_update_finish;;
-        11)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.0.114-k5dy363g65"
-          application_upgrade_releases
-          unifi_update_finish;;
-        12)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.1.120-e1aep1zs38"
-          application_upgrade_releases
-          unifi_update_finish;;
-        13)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.2.87-uf39xch68k"
-          application_upgrade_releases
-          unifi_update_finish;;
-        14)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.3.45-9iw96x349g"
-          application_upgrade_releases
-          unifi_update_finish;;
-        15)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.4.19-0f76duk082"
-          application_upgrade_releases
-          unifi_update_finish;;
-        16)
-          if [[ "${release_stage}" == 'RC' ]]; then
-            unifi_update_start
-            unifi_firmware_requirement
-            application_version="${rc_version_available_secret}"
-            application_upgrade_releases
-            unifi_update_finish
-          else
-            cancel_script
-          fi;;
-        17|*) cancel_script;;
-    esac
-  else
-    read -rp $'Your choice | \033[39m' UPGRADE_VERSION
-    case "$UPGRADE_VERSION" in
-        1)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="7.2.97-fa3c0ace6e"
-          application_upgrade_releases
-          unifi_update_finish;;
-        2)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="7.3.83-4501ffd244"
-          application_upgrade_releases
-          unifi_update_finish;;
-        3)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="7.4.162-3116043f9f"
-          application_upgrade_releases
-          unifi_update_finish;;
-        4)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="7.5.187-f57f5bf7ab"
-          application_upgrade_releases
-          unifi_update_finish;;
-        5)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.0.28-66495b8e3a"
-          application_upgrade_releases
-          unifi_update_finish;;
-        6)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.1.127-810cd1e59a"
-          application_upgrade_releases
-          unifi_update_finish;;
-        7)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.2.93-1c329ecd26"
-          application_upgrade_releases
-          unifi_update_finish;;
-        8)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.3.32-896f48ed11"
-          application_upgrade_releases
-          unifi_update_finish;;
-        9)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.4.62-i3q2j125cz"
-          application_upgrade_releases
-          unifi_update_finish;;
-        10)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.5.6-1x29lm155t"
-          application_upgrade_releases
-          unifi_update_finish;;
-        11)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.6.9-0f45j609pu"
-          application_upgrade_releases
-          unifi_update_finish;;
-        12)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.0.114-k5dy363g65"
-          application_upgrade_releases
-          unifi_update_finish;;
-        13)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.1.120-e1aep1zs38"
-          application_upgrade_releases
-          unifi_update_finish;;
-        14)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.2.87-uf39xch68k"
-          application_upgrade_releases
-          unifi_update_finish;;
-        15)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.3.45-9iw96x349g"
-          application_upgrade_releases
-          unifi_update_finish;;
-        16)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.4.19-0f76duk082"
-          application_upgrade_releases
-          unifi_update_finish;;
-        17)
-          if [[ "${release_stage}" == 'RC' ]]; then
-            unifi_update_start
-            unifi_firmware_requirement
-            application_version="${rc_version_available_secret}"
-            application_upgrade_releases
-            unifi_update_finish
-          else
-            cancel_script
-          fi;;
-        18|*) cancel_script;;
-    esac
-  fi
-
-##########################################################################################################################################################################
-#                                                                                                                                                                        #
-#                                                                                  7.3.x                                                                                 #
-#                                                                                                                                                                        #
-##########################################################################################################################################################################
-
-elif [[ "${first_digit_unifi}" == '7' && "${second_digit_unifi}" == '3' ]]; then
-  release_wanted
-  header
-  echo "  To what UniFi Network Application version would you like to update?"
-  echo -e "  Currently your UniFi Network Application is on version ${GRAY_R}$unifi${RESET}"
-  echo -e "\\n  Release stage is set to | ${GRAY_R}${release_stage_friendly}${RESET}\\n\\n"
-  if [[ "${unifi}" == "7.3.83" ]]; then
-    unifi_version='7.3.83'
-    echo -e " [   ${WHITE_R}1${RESET}   ]  |  7.4.162"
-    echo -e " [   ${WHITE_R}2${RESET}   ]  |  7.5.187"
-    echo -e " [   ${WHITE_R}3${RESET}   ]  |  8.0.28"
-    echo -e " [   ${WHITE_R}4${RESET}   ]  |  8.1.127"
-    echo -e " [   ${WHITE_R}5${RESET}   ]  |  8.2.93"
-    echo -e " [   ${WHITE_R}6${RESET}   ]  |  8.3.32"
-    echo -e " [   ${WHITE_R}7${RESET}   ]  |  8.4.62"
-    echo -e " [   ${WHITE_R}8${RESET}   ]  |  8.5.6"
-    echo -e " [   ${WHITE_R}9${RESET}   ]  |  8.6.9"
-    echo -e " [   ${WHITE_R}10${RESET}  ]  |  9.0.114"
-    echo -e " [   ${WHITE_R}11${RESET}  ]  |  9.1.120"
-    echo -e " [   ${WHITE_R}12${RESET}  ]  |  9.2.87"
-    echo -e " [   ${WHITE_R}13${RESET}  ]  |  9.3.45"
-    echo -e " [   ${WHITE_R}14${RESET}  ]  |  9.4.19"
-    if [[ "${release_stage}" == 'RC' ]]; then
-      echo -e " [   ${WHITE_R}15${RESET}  ]  |  ${rc_version_available}"
-      echo -e " [   ${WHITE_R}16${RESET}  ]  |  Cancel\\n\\n"
-    else
-      echo -e " [   ${WHITE_R}15${RESET}  ]  |  Cancel\\n\\n"
-    fi
-  else
-    echo -e " [   ${WHITE_R}1${RESET}   ]  |  7.3.83"
-    echo -e " [   ${WHITE_R}2${RESET}   ]  |  7.4.162"
-    echo -e " [   ${WHITE_R}3${RESET}   ]  |  7.5.187"
-    echo -e " [   ${WHITE_R}4${RESET}   ]  |  8.0.28"
-    echo -e " [   ${WHITE_R}5${RESET}   ]  |  8.1.127"
-    echo -e " [   ${WHITE_R}6${RESET}   ]  |  8.2.93"
-    echo -e " [   ${WHITE_R}7${RESET}   ]  |  8.3.32"
-    echo -e " [   ${WHITE_R}8${RESET}   ]  |  8.4.62"
-    echo -e " [   ${WHITE_R}9${RESET}   ]  |  8.5.6"
-    echo -e " [   ${WHITE_R}10${RESET}  ]  |  8.6.9"
-    echo -e " [   ${WHITE_R}11${RESET}  ]  |  9.0.114"
-    echo -e " [   ${WHITE_R}12${RESET}  ]  |  9.1.120"
-    echo -e " [   ${WHITE_R}13${RESET}  ]  |  9.2.87"
-    echo -e " [   ${WHITE_R}14${RESET}  ]  |  9.3.45"
-    echo -e " [   ${WHITE_R}15${RESET}  ]  |  9.4.19"
-    if [[ "${release_stage}" == 'RC' ]]; then
-      echo -e " [   ${WHITE_R}16${RESET}  ]  |  ${rc_version_available}"
-      echo -e " [   ${WHITE_R}17${RESET}  ]  |  Cancel\\n\\n"
-    else
-      echo -e " [   ${WHITE_R}16${RESET}  ]  |  Cancel\\n\\n"
-    fi
-  fi
-
-  if [[ "${unifi_version}" == "7.3.83" ]]; then
-    read -rp $'Your choice | \033[39m' UPGRADE_VERSION
-    case "$UPGRADE_VERSION" in
-        1)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="7.4.162-3116043f9f"
-          application_upgrade_releases
-          unifi_update_finish;;
-        2)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="7.5.187-f57f5bf7ab"
-          application_upgrade_releases
-          unifi_update_finish;;
-        3)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.0.28-66495b8e3a"
-          application_upgrade_releases
-          unifi_update_finish;;
-        4)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.1.127-810cd1e59a"
-          application_upgrade_releases
-          unifi_update_finish;;
-        5)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.2.93-1c329ecd26"
-          application_upgrade_releases
-          unifi_update_finish;;
-        6)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.3.32-896f48ed11"
-          application_upgrade_releases
-          unifi_update_finish;;
-        7)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.4.62-i3q2j125cz"
-          application_upgrade_releases
-          unifi_update_finish;;
-        8)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.5.6-1x29lm155t"
-          application_upgrade_releases
-          unifi_update_finish;;
-        9)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.6.9-0f45j609pu"
-          application_upgrade_releases
-          unifi_update_finish;;
-        10)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.0.114-k5dy363g65"
-          application_upgrade_releases
-          unifi_update_finish;;
-        11)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.1.120-e1aep1zs38"
-          application_upgrade_releases
-          unifi_update_finish;;
-        12)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.2.87-uf39xch68k"
-          application_upgrade_releases
-          unifi_update_finish;;
-        13)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.3.45-9iw96x349g"
-          application_upgrade_releases
-          unifi_update_finish;;
-        14)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.4.19-0f76duk082"
-          application_upgrade_releases
-          unifi_update_finish;;
-        15)
-          if [[ "${release_stage}" == 'RC' ]]; then
-            unifi_update_start
-            unifi_firmware_requirement
-            application_version="${rc_version_available_secret}"
-            application_upgrade_releases
-            unifi_update_finish
-          else
-            cancel_script
-          fi;;
-        16|*) cancel_script;;
-    esac
-  else
-    read -rp $'Your choice | \033[39m' UPGRADE_VERSION
-    case "$UPGRADE_VERSION" in
-        1)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="7.3.83-4501ffd244"
-          application_upgrade_releases
-          unifi_update_finish;;
-        2)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="7.4.162-3116043f9f"
-          application_upgrade_releases
-          unifi_update_finish;;
-        3)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="7.5.187-f57f5bf7ab"
-          application_upgrade_releases
-          unifi_update_finish;;
-        4)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.0.28-66495b8e3a"
-          application_upgrade_releases
-          unifi_update_finish;;
-        5)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.1.127-810cd1e59a"
-          application_upgrade_releases
-          unifi_update_finish;;
-        6)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.2.93-1c329ecd26"
-          application_upgrade_releases
-          unifi_update_finish;;
-        7)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.3.32-896f48ed11"
-          application_upgrade_releases
-          unifi_update_finish;;
-        8)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.4.62-i3q2j125cz"
-          application_upgrade_releases
-          unifi_update_finish;;
-        9)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.5.6-1x29lm155t"
-          application_upgrade_releases
-          unifi_update_finish;;
-        10)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.6.9-0f45j609pu"
-          application_upgrade_releases
-          unifi_update_finish;;
-        11)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.0.114-k5dy363g65"
-          application_upgrade_releases
-          unifi_update_finish;;
-        12)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.1.120-e1aep1zs38"
-          application_upgrade_releases
-          unifi_update_finish;;
-        13)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.2.87-uf39xch68k"
-          application_upgrade_releases
-          unifi_update_finish;;
-        14)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.3.45-9iw96x349g"
-          application_upgrade_releases
-          unifi_update_finish;;
-        15)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.4.19-0f76duk082"
-          application_upgrade_releases
-          unifi_update_finish;;
-        16)
-          if [[ "${release_stage}" == 'RC' ]]; then
-            unifi_update_start
-            unifi_firmware_requirement
-            application_version="${rc_version_available_secret}"
-            application_upgrade_releases
-            unifi_update_finish
-          else
-            cancel_script
-          fi;;
-        17|*) cancel_script;;
-    esac
-  fi
-
-##########################################################################################################################################################################
-#                                                                                                                                                                        #
-#                                                                                  7.4.x                                                                                 #
-#                                                                                                                                                                        #
-##########################################################################################################################################################################
-
-elif [[ "${first_digit_unifi}" == '7' && "${second_digit_unifi}" == '4' ]]; then
-  release_wanted
-  header
-  echo "  To what UniFi Network Application version would you like to update?"
-  echo -e "  Currently your UniFi Network Application is on version ${GRAY_R}$unifi${RESET}"
-  echo -e "\\n  Release stage is set to | ${GRAY_R}${release_stage_friendly}${RESET}\\n\\n"
-  if [[ "${unifi}" == "7.4.162" ]]; then
-    unifi_version='7.4.162'
-    echo -e " [   ${WHITE_R}1${RESET}   ]  |  7.5.187"
-    echo -e " [   ${WHITE_R}2${RESET}   ]  |  8.0.28"
-    echo -e " [   ${WHITE_R}3${RESET}   ]  |  8.1.127"
-    echo -e " [   ${WHITE_R}4${RESET}   ]  |  8.2.93"
-    echo -e " [   ${WHITE_R}5${RESET}   ]  |  8.3.32"
-    echo -e " [   ${WHITE_R}6${RESET}   ]  |  8.4.62"
-    echo -e " [   ${WHITE_R}7${RESET}   ]  |  8.5.6"
-    echo -e " [   ${WHITE_R}8${RESET}   ]  |  8.6.9"
-    echo -e " [   ${WHITE_R}9${RESET}   ]  |  9.0.114"
-    echo -e " [   ${WHITE_R}10${RESET}  ]  |  9.1.120"
-    echo -e " [   ${WHITE_R}11${RESET}  ]  |  9.2.87"
-    echo -e " [   ${WHITE_R}12${RESET}  ]  |  9.3.45"
-    echo -e " [   ${WHITE_R}13${RESET}  ]  |  9.4.19"
-    if [[ "${release_stage}" == 'RC' ]]; then
-      echo -e " [   ${WHITE_R}14${RESET}  ]  |  ${rc_version_available}"
-      echo -e " [   ${WHITE_R}15${RESET}  ]  |  Cancel\\n\\n"
-    else
-      echo -e " [   ${WHITE_R}14${RESET}  ]  |  Cancel\\n\\n"
-    fi
-  else
-    echo -e " [   ${WHITE_R}1${RESET}   ]  |  7.4.162"
-    echo -e " [   ${WHITE_R}2${RESET}   ]  |  7.5.187"
-    echo -e " [   ${WHITE_R}3${RESET}   ]  |  8.0.28"
-    echo -e " [   ${WHITE_R}4${RESET}   ]  |  8.1.127"
-    echo -e " [   ${WHITE_R}5${RESET}   ]  |  8.2.93"
-    echo -e " [   ${WHITE_R}6${RESET}   ]  |  8.3.32"
-    echo -e " [   ${WHITE_R}7${RESET}   ]  |  8.4.62"
-    echo -e " [   ${WHITE_R}8${RESET}   ]  |  8.5.6"
-    echo -e " [   ${WHITE_R}9${RESET}   ]  |  8.6.9"
-    echo -e " [   ${WHITE_R}10${RESET}  ]  |  9.0.114"
-    echo -e " [   ${WHITE_R}11${RESET}  ]  |  9.1.120"
-    echo -e " [   ${WHITE_R}12${RESET}  ]  |  9.2.87"
-    echo -e " [   ${WHITE_R}13${RESET}  ]  |  9.3.45"
-    echo -e " [   ${WHITE_R}14${RESET}  ]  |  9.4.19"
-    if [[ "${release_stage}" == 'RC' ]]; then
-      echo -e " [   ${WHITE_R}15${RESET}  ]  |  ${rc_version_available}"
-      echo -e " [   ${WHITE_R}16${RESET}  ]  |  Cancel\\n\\n"
-    else
-      echo -e " [   ${WHITE_R}15${RESET}  ]  |  Cancel\\n\\n"
-    fi
-  fi
-
-  if [[ "${unifi_version}" == "7.4.162" ]]; then
-    read -rp $'Your choice | \033[39m' UPGRADE_VERSION
-    case "$UPGRADE_VERSION" in
-        1)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="7.5.187-f57f5bf7ab"
-          application_upgrade_releases
-          unifi_update_finish;;
-        2)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.0.28-66495b8e3a"
-          application_upgrade_releases
-          unifi_update_finish;;
-        3)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.1.127-810cd1e59a"
-          application_upgrade_releases
-          unifi_update_finish;;
-        4)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.2.93-1c329ecd26"
-          application_upgrade_releases
-          unifi_update_finish;;
-        5)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.3.32-896f48ed11"
-          application_upgrade_releases
-          unifi_update_finish;;
-        6)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.4.62-i3q2j125cz"
-          application_upgrade_releases
-          unifi_update_finish;;
-        7)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.5.6-1x29lm155t"
-          application_upgrade_releases
-          unifi_update_finish;;
-        8)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.6.9-0f45j609pu"
-          application_upgrade_releases
-          unifi_update_finish;;
-        9)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.0.114-k5dy363g65"
-          application_upgrade_releases
-          unifi_update_finish;;
-        10)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.1.120-e1aep1zs38"
-          application_upgrade_releases
-          unifi_update_finish;;
-        11)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.2.87-uf39xch68k"
-          application_upgrade_releases
-          unifi_update_finish;;
-        12)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.3.45-9iw96x349g"
-          application_upgrade_releases
-          unifi_update_finish;;
-        13)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.4.19-0f76duk082"
-          application_upgrade_releases
-          unifi_update_finish;;
-        14)
-          if [[ "${release_stage}" == 'RC' ]]; then
-            unifi_update_start
-            unifi_firmware_requirement
-            application_version="${rc_version_available_secret}"
-            application_upgrade_releases
-            unifi_update_finish
-          else
-            cancel_script
-          fi;;
-        15|*) cancel_script;;
-    esac
-  else
-    read -rp $'Your choice | \033[39m' UPGRADE_VERSION
-    case "$UPGRADE_VERSION" in
-        1)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="7.4.162-3116043f9f"
-          application_upgrade_releases
-          unifi_update_finish;;
-        2)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="7.5.187-f57f5bf7ab"
-          application_upgrade_releases
-          unifi_update_finish;;
-        3)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.0.28-66495b8e3a"
-          application_upgrade_releases
-          unifi_update_finish;;
-        4)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.1.127-810cd1e59a"
-          application_upgrade_releases
-          unifi_update_finish;;
-        5)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.2.93-1c329ecd26"
-          application_upgrade_releases
-          unifi_update_finish;;
-        6)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.3.32-896f48ed11"
-          application_upgrade_releases
-          unifi_update_finish;;
-        7)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.4.62-i3q2j125cz"
-          application_upgrade_releases
-          unifi_update_finish;;
-        8)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.5.6-1x29lm155t"
-          application_upgrade_releases
-          unifi_update_finish;;
-        9)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.6.9-0f45j609pu"
-          application_upgrade_releases
-          unifi_update_finish;;
-        10)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.0.114-k5dy363g65"
-          application_upgrade_releases
-          unifi_update_finish;;
-        11)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.1.120-e1aep1zs38"
-          application_upgrade_releases
-          unifi_update_finish;;
-        12)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.2.87-uf39xch68k"
-          application_upgrade_releases
-          unifi_update_finish;;
-        13)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.3.45-9iw96x349g"
-          application_upgrade_releases
-          unifi_update_finish;;
-        14)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.4.19-0f76duk082"
-          application_upgrade_releases
-          unifi_update_finish;;
-        15)
-          if [[ "${release_stage}" == 'RC' ]]; then
-            unifi_update_start
-            unifi_firmware_requirement
-            application_version="${rc_version_available_secret}"
-            application_upgrade_releases
-            unifi_update_finish
-          else
-            cancel_script
-          fi;;
-        16|*) cancel_script;;
-    esac
-  fi
-
-##########################################################################################################################################################################
-#                                                                                                                                                                        #
-#                                                                                  7.5.x                                                                                 #
-#                                                                                                                                                                        #
-##########################################################################################################################################################################
-
-elif [[ "${first_digit_unifi}" == '7' && "${second_digit_unifi}" == '5' ]]; then
-  release_wanted
-  header
-  echo "  To what UniFi Network Application version would you like to update?"
-  echo -e "  Currently your UniFi Network Application is on version ${GRAY_R}$unifi${RESET}"
-  echo -e "\\n  Release stage is set to | ${GRAY_R}${release_stage_friendly}${RESET}\\n\\n"
-  if [[ "${unifi}" == "7.5.187" ]]; then
-    unifi_version='7.5.187'
-    echo -e " [   ${WHITE_R}1${RESET}   ]  |  8.0.28"
-    echo -e " [   ${WHITE_R}2${RESET}   ]  |  8.1.127"
-    echo -e " [   ${WHITE_R}3${RESET}   ]  |  8.2.93"
-    echo -e " [   ${WHITE_R}4${RESET}   ]  |  8.3.32"
-    echo -e " [   ${WHITE_R}5${RESET}   ]  |  8.4.62"
-    echo -e " [   ${WHITE_R}6${RESET}   ]  |  8.5.6"
-    echo -e " [   ${WHITE_R}7${RESET}   ]  |  8.6.9"
-    echo -e " [   ${WHITE_R}8${RESET}   ]  |  9.0.114"
-    echo -e " [   ${WHITE_R}9${RESET}   ]  |  9.1.120"
-    echo -e " [   ${WHITE_R}10${RESET}  ]  |  9.2.87"
-    echo -e " [   ${WHITE_R}11${RESET}  ]  |  9.3.45"
-    echo -e " [   ${WHITE_R}12${RESET}  ]  |  9.4.19"
-    if [[ "${release_stage}" == 'RC' ]]; then
-      echo -e " [   ${WHITE_R}13${RESET}  ]  |  ${rc_version_available}"
-      echo -e " [   ${WHITE_R}14${RESET}  ]  |  Cancel\\n\\n"
-    else
-      echo -e " [   ${WHITE_R}13${RESET}  ]  |  Cancel\\n\\n"
-    fi
-  else
-    echo -e " [   ${WHITE_R}1${RESET}   ]  |  7.5.187"
-    echo -e " [   ${WHITE_R}2${RESET}   ]  |  8.0.28"
-    echo -e " [   ${WHITE_R}3${RESET}   ]  |  8.1.127"
-    echo -e " [   ${WHITE_R}4${RESET}   ]  |  8.2.93"
-    echo -e " [   ${WHITE_R}5${RESET}   ]  |  8.3.32"
-    echo -e " [   ${WHITE_R}6${RESET}   ]  |  8.4.62"
-    echo -e " [   ${WHITE_R}7${RESET}   ]  |  8.5.6"
-    echo -e " [   ${WHITE_R}8${RESET}   ]  |  8.6.9"
-    echo -e " [   ${WHITE_R}9${RESET}   ]  |  9.0.114"
-    echo -e " [   ${WHITE_R}10${RESET}  ]  |  9.1.120"
-    echo -e " [   ${WHITE_R}11${RESET}  ]  |  9.2.87"
-    echo -e " [   ${WHITE_R}12${RESET}  ]  |  9.3.45"
-    echo -e " [   ${WHITE_R}13${RESET}  ]  |  9.4.19"
-    if [[ "${release_stage}" == 'RC' ]]; then
-      echo -e " [   ${WHITE_R}14${RESET}  ]  |  ${rc_version_available}"
-      echo -e " [   ${WHITE_R}15${RESET}  ]  |  Cancel\\n\\n"
-    else
-      echo -e " [   ${WHITE_R}14${RESET}  ]  |  Cancel\\n\\n"
-    fi
-  fi
-
-  if [[ "${unifi_version}" == "7.5.187" ]]; then
-    read -rp $'Your choice | \033[39m' UPGRADE_VERSION
-    case "$UPGRADE_VERSION" in
-        1)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.0.28-66495b8e3a"
-          application_upgrade_releases
-          unifi_update_finish;;
-        2)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.1.127-810cd1e59a"
-          application_upgrade_releases
-          unifi_update_finish;;
-        3)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.2.93-1c329ecd26"
-          application_upgrade_releases
-          unifi_update_finish;;
-        4)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.3.32-896f48ed11"
-          application_upgrade_releases
-          unifi_update_finish;;
-        5)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.4.62-i3q2j125cz"
-          application_upgrade_releases
-          unifi_update_finish;;
-        6)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.5.6-1x29lm155t"
-          application_upgrade_releases
-          unifi_update_finish;;
-        7)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.6.9-0f45j609pu"
-          application_upgrade_releases
-          unifi_update_finish;;
-        8)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.0.114-k5dy363g65"
-          application_upgrade_releases
-          unifi_update_finish;;
-        9)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.1.120-e1aep1zs38"
-          application_upgrade_releases
-          unifi_update_finish;;
-        10)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.2.87-uf39xch68k"
-          application_upgrade_releases
-          unifi_update_finish;;
-        11)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.3.45-9iw96x349g"
-          application_upgrade_releases
-          unifi_update_finish;;
-        12)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.4.19-0f76duk082"
-          application_upgrade_releases
-          unifi_update_finish;;
-        13)
-          if [[ "${release_stage}" == 'RC' ]]; then
-            unifi_update_start
-            unifi_firmware_requirement
-            application_version="${rc_version_available_secret}"
-            application_upgrade_releases
-            unifi_update_finish
-          else
-            cancel_script
-          fi;;
-        14|*) cancel_script;;
-    esac
-  else
-    read -rp $'Your choice | \033[39m' UPGRADE_VERSION
-    case "$UPGRADE_VERSION" in
-        1)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="7.5.187-f57f5bf7ab"
-          application_upgrade_releases
-          unifi_update_finish;;
-        2)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.0.28-66495b8e3a"
-          application_upgrade_releases
-          unifi_update_finish;;
-        3)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.1.127-810cd1e59a"
-          application_upgrade_releases
-          unifi_update_finish;;
-        4)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.2.93-1c329ecd26"
-          application_upgrade_releases
-          unifi_update_finish;;
-        5)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.3.32-896f48ed11"
-          application_upgrade_releases
-          unifi_update_finish;;
-        6)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.4.62-i3q2j125cz"
-          application_upgrade_releases
-          unifi_update_finish;;
-        7)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.5.6-1x29lm155t"
-          application_upgrade_releases
-          unifi_update_finish;;
-        8)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.6.9-0f45j609pu"
-          application_upgrade_releases
-          unifi_update_finish;;
-        9)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.0.114-k5dy363g65"
-          application_upgrade_releases
-          unifi_update_finish;;
-        10)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.1.120-e1aep1zs38"
-          application_upgrade_releases
-          unifi_update_finish;;
-        11)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.2.87-uf39xch68k"
-          application_upgrade_releases
-          unifi_update_finish;;
-        12)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.3.45-9iw96x349g"
-          application_upgrade_releases
-          unifi_update_finish;;
-        13)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.4.19-0f76duk082"
-          application_upgrade_releases
-          unifi_update_finish;;
-        14)
-          if [[ "${release_stage}" == 'RC' ]]; then
-            unifi_update_start
-            unifi_firmware_requirement
-            application_version="${rc_version_available_secret}"
-            application_upgrade_releases
-            unifi_update_finish
-          else
-            cancel_script
-          fi;;
-        15|*) cancel_script;;
-    esac
-  fi
-
-##########################################################################################################################################################################
-#                                                                                                                                                                        #
-#                                                                                  8.0.x                                                                                 #
-#                                                                                                                                                                        #
-##########################################################################################################################################################################
-
-elif [[ "${first_digit_unifi}" == '8' && "${second_digit_unifi}" == '0' ]]; then
-  release_wanted
-  header
-  echo "  To what UniFi Network Application version would you like to update?"
-  echo -e "  Currently your UniFi Network Application is on version ${GRAY_R}$unifi${RESET}"
-  echo -e "\\n  Release stage is set to | ${GRAY_R}${release_stage_friendly}${RESET}\\n\\n"
-  if [[ "${unifi}" == "8.0.28" ]]; then
-    unifi_version='8.0.28'
-    echo -e " [   ${WHITE_R}1${RESET}   ]  |  8.1.127"
-    echo -e " [   ${WHITE_R}2${RESET}   ]  |  8.2.93"
-    echo -e " [   ${WHITE_R}3${RESET}   ]  |  8.3.32"
-    echo -e " [   ${WHITE_R}4${RESET}   ]  |  8.4.62"
-    echo -e " [   ${WHITE_R}5${RESET}   ]  |  8.5.6"
-    echo -e " [   ${WHITE_R}6${RESET}   ]  |  8.6.9"
-    echo -e " [   ${WHITE_R}7${RESET}   ]  |  9.0.114"
-    echo -e " [   ${WHITE_R}8${RESET}   ]  |  9.1.120"
-    echo -e " [   ${WHITE_R}9${RESET}   ]  |  9.2.87"
-    echo -e " [   ${WHITE_R}10${RESET}  ]  |  9.3.45"
-    echo -e " [   ${WHITE_R}11${RESET}  ]  |  9.4.19"
-    if [[ "${release_stage}" == 'RC' ]]; then
-      echo -e " [   ${WHITE_R}12${RESET}  ]  |  ${rc_version_available}"
-      echo -e " [   ${WHITE_R}13${RESET}  ]  |  Cancel\\n\\n"
-    else
-      echo -e " [   ${WHITE_R}12${RESET}  ]  |  Cancel\\n\\n"
-    fi
-  else
-    echo -e " [   ${WHITE_R}1${RESET}   ]  |  8.0.28"
-    echo -e " [   ${WHITE_R}2${RESET}   ]  |  8.1.127"
-    echo -e " [   ${WHITE_R}3${RESET}   ]  |  8.2.93"
-    echo -e " [   ${WHITE_R}4${RESET}   ]  |  8.3.32"
-    echo -e " [   ${WHITE_R}5${RESET}   ]  |  8.4.62"
-    echo -e " [   ${WHITE_R}6${RESET}   ]  |  8.5.6"
-    echo -e " [   ${WHITE_R}7${RESET}   ]  |  8.6.9"
-    echo -e " [   ${WHITE_R}8${RESET}   ]  |  9.0.114"
-    echo -e " [   ${WHITE_R}9${RESET}   ]  |  9.1.120"
-    echo -e " [   ${WHITE_R}10${RESET}  ]  |  9.2.87"
-    echo -e " [   ${WHITE_R}11${RESET}  ]  |  9.3.45"
-    echo -e " [   ${WHITE_R}12${RESET}  ]  |  9.4.19"
-    if [[ "${release_stage}" == 'RC' ]]; then
-      echo -e " [   ${WHITE_R}13${RESET}  ]  |  ${rc_version_available}"
-      echo -e " [   ${WHITE_R}14${RESET}  ]  |  Cancel\\n\\n"
-    else
-      echo -e " [   ${WHITE_R}13${RESET}  ]  |  Cancel\\n\\n"
-    fi
-  fi
-
-  if [[ "${unifi_version}" == "8.0.28" ]]; then
-    read -rp $'Your choice | \033[39m' UPGRADE_VERSION
-    case "$UPGRADE_VERSION" in
-        1)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.1.127-810cd1e59a"
-          application_upgrade_releases
-          unifi_update_finish;;
-        2)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.2.93-1c329ecd26"
-          application_upgrade_releases
-          unifi_update_finish;;
-        3)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.3.32-896f48ed11"
-          application_upgrade_releases
-          unifi_update_finish;;
-        4)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.4.62-i3q2j125cz"
-          application_upgrade_releases
-          unifi_update_finish;;
-        5)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.5.6-1x29lm155t"
-          application_upgrade_releases
-          unifi_update_finish;;
-        6)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.6.9-0f45j609pu"
-          application_upgrade_releases
-          unifi_update_finish;;
-        7)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.0.114-k5dy363g65"
-          application_upgrade_releases
-          unifi_update_finish;;
-        8)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.1.120-e1aep1zs38"
-          application_upgrade_releases
-          unifi_update_finish;;
-        9)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.2.87-uf39xch68k"
-          application_upgrade_releases
-          unifi_update_finish;;
-        10)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.3.45-9iw96x349g"
-          application_upgrade_releases
-          unifi_update_finish;;
-        11)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.4.19-0f76duk082"
-          application_upgrade_releases
-          unifi_update_finish;;
-        12)
-          if [[ "${release_stage}" == 'RC' ]]; then
-            unifi_update_start
-            unifi_firmware_requirement
-            application_version="${rc_version_available_secret}"
-            application_upgrade_releases
-            unifi_update_finish
-          else
-            cancel_script
-          fi;;
-        13|*) cancel_script;;
-    esac
-  else
-    read -rp $'Your choice | \033[39m' UPGRADE_VERSION
-    case "$UPGRADE_VERSION" in
-        1)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.0.28-66495b8e3a"
-          application_upgrade_releases
-          unifi_update_finish;;
-        2)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.1.127-810cd1e59a"
-          application_upgrade_releases
-          unifi_update_finish;;
-        3)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.2.93-1c329ecd26"
-          application_upgrade_releases
-          unifi_update_finish;;
-        4)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.3.32-896f48ed11"
-          application_upgrade_releases
-          unifi_update_finish;;
-        5)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.4.62-i3q2j125cz"
-          application_upgrade_releases
-          unifi_update_finish;;
-        6)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.5.6-1x29lm155t"
-          application_upgrade_releases
-          unifi_update_finish;;
-        7)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.6.9-0f45j609pu"
-          application_upgrade_releases
-          unifi_update_finish;;
-        8)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.0.114-k5dy363g65"
-          application_upgrade_releases
-          unifi_update_finish;;
-        9)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.1.120-e1aep1zs38"
-          application_upgrade_releases
-          unifi_update_finish;;
-        10)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.2.87-uf39xch68k"
-          application_upgrade_releases
-          unifi_update_finish;;
-        11)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.3.45-9iw96x349g"
-          application_upgrade_releases
-          unifi_update_finish;;
-        12)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.4.19-0f76duk082"
-          application_upgrade_releases
-          unifi_update_finish;;
-        13)
-          if [[ "${release_stage}" == 'RC' ]]; then
-            unifi_update_start
-            unifi_firmware_requirement
-            application_version="${rc_version_available_secret}"
-            application_upgrade_releases
-            unifi_update_finish
-          else
-            cancel_script
-          fi;;
-        14|*) cancel_script;;
-    esac
-  fi
-
-##########################################################################################################################################################################
-#                                                                                                                                                                        #
-#                                                                                  8.1.x                                                                                 #
-#                                                                                                                                                                        #
-##########################################################################################################################################################################
-
-elif [[ "${first_digit_unifi}" == '8' && "${second_digit_unifi}" == '1' ]]; then
-  release_wanted
-  header
-  echo "  To what UniFi Network Application version would you like to update?"
-  echo -e "  Currently your UniFi Network Application is on version ${GRAY_R}$unifi${RESET}"
-  echo -e "\\n  Release stage is set to | ${GRAY_R}${release_stage_friendly}${RESET}\\n\\n"
-  if [[ "${unifi}" == "8.1.127" ]]; then
-    unifi_version='8.1.127'
-    echo -e " [   ${WHITE_R}1${RESET}   ]  |  8.2.93"
-    echo -e " [   ${WHITE_R}2${RESET}   ]  |  8.3.32"
-    echo -e " [   ${WHITE_R}3${RESET}   ]  |  8.4.62"
-    echo -e " [   ${WHITE_R}4${RESET}   ]  |  8.5.6"
-    echo -e " [   ${WHITE_R}5${RESET}   ]  |  8.6.9"
-    echo -e " [   ${WHITE_R}6${RESET}   ]  |  9.0.114"
-    echo -e " [   ${WHITE_R}7${RESET}   ]  |  9.1.120"
-    echo -e " [   ${WHITE_R}8${RESET}   ]  |  9.2.87"
-    echo -e " [   ${WHITE_R}9${RESET}   ]  |  9.3.45"
-    echo -e " [   ${WHITE_R}10${RESET}  ]  |  9.4.19"
-    if [[ "${release_stage}" == 'RC' ]]; then
-      echo -e " [   ${WHITE_R}11${RESET}  ]  |  ${rc_version_available}"
-      echo -e " [   ${WHITE_R}12${RESET}  ]  |  Cancel\\n\\n"
-    else
-      echo -e " [   ${WHITE_R}11${RESET}  ]  |  Cancel\\n\\n"
-    fi
-  else
-    echo -e " [   ${WHITE_R}1${RESET}   ]  |  8.1.127"
-    echo -e " [   ${WHITE_R}2${RESET}   ]  |  8.2.93"
-    echo -e " [   ${WHITE_R}3${RESET}   ]  |  8.3.32"
-    echo -e " [   ${WHITE_R}4${RESET}   ]  |  8.4.62"
-    echo -e " [   ${WHITE_R}5${RESET}   ]  |  8.5.6"
-    echo -e " [   ${WHITE_R}6${RESET}   ]  |  8.6.9"
-    echo -e " [   ${WHITE_R}7${RESET}   ]  |  9.0.114"
-    echo -e " [   ${WHITE_R}8${RESET}   ]  |  9.1.120"
-    echo -e " [   ${WHITE_R}9${RESET}   ]  |  9.2.87"
-    echo -e " [   ${WHITE_R}10${RESET}  ]  |  9.3.45"
-    echo -e " [   ${WHITE_R}11${RESET}  ]  |  9.4.19"
-    if [[ "${release_stage}" == 'RC' ]]; then
-      echo -e " [   ${WHITE_R}12${RESET}  ]  |  ${rc_version_available}"
-      echo -e " [   ${WHITE_R}13${RESET}  ]  |  Cancel\\n\\n"
-    else
-      echo -e " [   ${WHITE_R}12${RESET}  ]  |  Cancel\\n\\n"
-    fi
-  fi
-
-  if [[ "${unifi_version}" == "8.1.127" ]]; then
-    read -rp $'Your choice | \033[39m' UPGRADE_VERSION
-    case "$UPGRADE_VERSION" in
-        1)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.2.93-1c329ecd26"
-          application_upgrade_releases
-          unifi_update_finish;;
-        2)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.3.32-896f48ed11"
-          application_upgrade_releases
-          unifi_update_finish;;
-        3)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.4.62-i3q2j125cz"
-          application_upgrade_releases
-          unifi_update_finish;;
-        4)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.5.6-1x29lm155t"
-          application_upgrade_releases
-          unifi_update_finish;;
-        5)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.6.9-0f45j609pu"
-          application_upgrade_releases
-          unifi_update_finish;;
-        6)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.0.114-k5dy363g65"
-          application_upgrade_releases
-          unifi_update_finish;;
-        7)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.1.120-e1aep1zs38"
-          application_upgrade_releases
-          unifi_update_finish;;
-        8)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.2.87-uf39xch68k"
-          application_upgrade_releases
-          unifi_update_finish;;
-        9)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.3.45-9iw96x349g"
-          application_upgrade_releases
-          unifi_update_finish;;
-        10)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.4.19-0f76duk082"
-          application_upgrade_releases
-          unifi_update_finish;;
-        11)
-          if [[ "${release_stage}" == 'RC' ]]; then
-            unifi_update_start
-            unifi_firmware_requirement
-            application_version="${rc_version_available_secret}"
-            application_upgrade_releases
-            unifi_update_finish
-          else
-            cancel_script
-          fi;;
-        12|*) cancel_script;;
-    esac
-  else
-    read -rp $'Your choice | \033[39m' UPGRADE_VERSION
-    case "$UPGRADE_VERSION" in
-        1)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.1.127-810cd1e59a"
-          application_upgrade_releases
-          unifi_update_finish;;
-        2)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.2.93-1c329ecd26"
-          application_upgrade_releases
-          unifi_update_finish;;
-        3)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.3.32-896f48ed11"
-          application_upgrade_releases
-          unifi_update_finish;;
-        4)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.4.62-i3q2j125cz"
-          application_upgrade_releases
-          unifi_update_finish;;
-        5)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.5.6-1x29lm155t"
-          application_upgrade_releases
-          unifi_update_finish;;
-        6)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.6.9-0f45j609pu"
-          application_upgrade_releases
-          unifi_update_finish;;
-        7)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.0.114-k5dy363g65"
-          application_upgrade_releases
-          unifi_update_finish;;
-        8)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.1.120-e1aep1zs38"
-          application_upgrade_releases
-          unifi_update_finish;;
-        9)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.2.87-uf39xch68k"
-          application_upgrade_releases
-          unifi_update_finish;;
-        10)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.3.45-9iw96x349g"
-          application_upgrade_releases
-          unifi_update_finish;;
-        11)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.4.19-0f76duk082"
-          application_upgrade_releases
-          unifi_update_finish;;
-        12)
-          if [[ "${release_stage}" == 'RC' ]]; then
-            unifi_update_start
-            unifi_firmware_requirement
-            application_version="${rc_version_available_secret}"
-            application_upgrade_releases
-            unifi_update_finish
-          else
-            cancel_script
-          fi;;
-        13|*) cancel_script;;
-    esac
-  fi
-
-##########################################################################################################################################################################
-#                                                                                                                                                                        #
-#                                                                                  8.2.x                                                                                 #
-#                                                                                                                                                                        #
-##########################################################################################################################################################################
-
-elif [[ "${first_digit_unifi}" == '8' && "${second_digit_unifi}" == '2' ]]; then
-  release_wanted
-  header
-  echo "  To what UniFi Network Application version would you like to update?"
-  echo -e "  Currently your UniFi Network Application is on version ${GRAY_R}$unifi${RESET}"
-  echo -e "\\n  Release stage is set to | ${GRAY_R}${release_stage_friendly}${RESET}\\n\\n"
-  if [[ "${unifi}" == "8.2.93" ]]; then
-    unifi_version='8.2.93'
-    echo -e " [   ${WHITE_R}1${RESET}   ]  |  8.3.32"
-    echo -e " [   ${WHITE_R}2${RESET}   ]  |  8.4.62"
-    echo -e " [   ${WHITE_R}3${RESET}   ]  |  8.5.6"
-    echo -e " [   ${WHITE_R}4${RESET}   ]  |  8.6.9"
-    echo -e " [   ${WHITE_R}5${RESET}   ]  |  9.0.114"
-    echo -e " [   ${WHITE_R}6${RESET}   ]  |  9.1.120"
-    echo -e " [   ${WHITE_R}7${RESET}   ]  |  9.2.87"
-    echo -e " [   ${WHITE_R}8${RESET}   ]  |  9.3.45"
-    echo -e " [   ${WHITE_R}9${RESET}   ]  |  9.4.19"
-    if [[ "${release_stage}" == 'RC' ]]; then
-      echo -e " [   ${WHITE_R}10${RESET}  ]  |  ${rc_version_available}"
-      echo -e " [   ${WHITE_R}11${RESET}  ]  |  Cancel\\n\\n"
-    else
-      echo -e " [   ${WHITE_R}10${RESET}  ]  |  Cancel\\n\\n"
-    fi
-  else
-    echo -e " [   ${WHITE_R}1${RESET}   ]  |  8.2.93"
-    echo -e " [   ${WHITE_R}2${RESET}   ]  |  8.3.32"
-    echo -e " [   ${WHITE_R}3${RESET}   ]  |  8.4.62"
-    echo -e " [   ${WHITE_R}4${RESET}   ]  |  8.5.6"
-    echo -e " [   ${WHITE_R}5${RESET}   ]  |  8.6.9"
-    echo -e " [   ${WHITE_R}6${RESET}   ]  |  9.0.114"
-    echo -e " [   ${WHITE_R}7${RESET}   ]  |  9.1.120"
-    echo -e " [   ${WHITE_R}8${RESET}   ]  |  9.2.87"
-    echo -e " [   ${WHITE_R}9${RESET}   ]  |  9.3.45"
-    echo -e " [   ${WHITE_R}10${RESET}  ]  |  9.4.19"
-    if [[ "${release_stage}" == 'RC' ]]; then
-      echo -e " [   ${WHITE_R}11${RESET}  ]  |  ${rc_version_available}"
-      echo -e " [   ${WHITE_R}12${RESET}  ]  |  Cancel\\n\\n"
-    else
-      echo -e " [   ${WHITE_R}11${RESET}  ]  |  Cancel\\n\\n"
-    fi
-  fi
-
-  if [[ "${unifi_version}" == "8.2.93" ]]; then
-    read -rp $'Your choice | \033[39m' UPGRADE_VERSION
-    case "$UPGRADE_VERSION" in
-        1)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.3.32-896f48ed11"
-          application_upgrade_releases
-          unifi_update_finish;;
-        2)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.4.62-i3q2j125cz"
-          application_upgrade_releases
-          unifi_update_finish;;
-        3)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.5.6-1x29lm155t"
-          application_upgrade_releases
-          unifi_update_finish;;
-        4)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.6.9-0f45j609pu"
-          application_upgrade_releases
-          unifi_update_finish;;
-        5)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.0.114-k5dy363g65"
-          application_upgrade_releases
-          unifi_update_finish;;
-        6)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.1.120-e1aep1zs38"
-          application_upgrade_releases
-          unifi_update_finish;;
-        7)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.2.87-uf39xch68k"
-          application_upgrade_releases
-          unifi_update_finish;;
-        8)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.3.45-9iw96x349g"
-          application_upgrade_releases
-          unifi_update_finish;;
-        9)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.4.19-0f76duk082"
-          application_upgrade_releases
-          unifi_update_finish;;
-        10)
-          if [[ "${release_stage}" == 'RC' ]]; then
-            unifi_update_start
-            unifi_firmware_requirement
-            application_version="${rc_version_available_secret}"
-            application_upgrade_releases
-            unifi_update_finish
-          else
-            cancel_script
-          fi;;
-        11|*) cancel_script;;
-    esac
-  else
-    read -rp $'Your choice | \033[39m' UPGRADE_VERSION
-    case "$UPGRADE_VERSION" in
-        1)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.2.93-1c329ecd26"
-          application_upgrade_releases
-          unifi_update_finish;;
-        2)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.3.32-896f48ed11"
-          application_upgrade_releases
-          unifi_update_finish;;
-        3)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.4.62-i3q2j125cz"
-          application_upgrade_releases
-          unifi_update_finish;;
-        4)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.5.6-1x29lm155t"
-          application_upgrade_releases
-          unifi_update_finish;;
-        5)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.6.9-0f45j609pu"
-          application_upgrade_releases
-          unifi_update_finish;;
-        6)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.0.114-k5dy363g65"
-          application_upgrade_releases
-          unifi_update_finish;;
-        7)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.1.120-e1aep1zs38"
-          application_upgrade_releases
-          unifi_update_finish;;
-        8)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.2.87-uf39xch68k"
-          application_upgrade_releases
-          unifi_update_finish;;
-        9)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.3.45-9iw96x349g"
-          application_upgrade_releases
-          unifi_update_finish;;
-        10)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.4.19-0f76duk082"
-          application_upgrade_releases
-          unifi_update_finish;;
-        11)
-          if [[ "${release_stage}" == 'RC' ]]; then
-            unifi_update_start
-            unifi_firmware_requirement
-            application_version="${rc_version_available_secret}"
-            application_upgrade_releases
-            unifi_update_finish
-          else
-            cancel_script
-          fi;;
-        12|*) cancel_script;;
-    esac
-  fi
-
-##########################################################################################################################################################################
-#                                                                                                                                                                        #
-#                                                                                  8.3.x                                                                                 #
-#                                                                                                                                                                        #
-##########################################################################################################################################################################
-
-elif [[ "${first_digit_unifi}" == '8' && "${second_digit_unifi}" == '3' ]]; then
-  release_wanted
-  header
-  echo "  To what UniFi Network Application version would you like to update?"
-  echo -e "  Currently your UniFi Network Application is on version ${GRAY_R}$unifi${RESET}"
-  echo -e "\\n  Release stage is set to | ${GRAY_R}${release_stage_friendly}${RESET}\\n\\n"
-  if [[ "${unifi}" == "8.3.32" ]]; then
-    unifi_version='8.3.32'
-    echo -e " [   ${WHITE_R}1${RESET}   ]  |  8.4.62"
-    echo -e " [   ${WHITE_R}2${RESET}   ]  |  8.5.6"
-    echo -e " [   ${WHITE_R}3${RESET}   ]  |  8.6.9"
-    echo -e " [   ${WHITE_R}4${RESET}   ]  |  9.0.114"
-    echo -e " [   ${WHITE_R}5${RESET}   ]  |  9.1.120"
-    echo -e " [   ${WHITE_R}6${RESET}   ]  |  9.2.87"
-    echo -e " [   ${WHITE_R}7${RESET}   ]  |  9.3.45"
-    echo -e " [   ${WHITE_R}8${RESET}   ]  |  9.4.19"
-    if [[ "${release_stage}" == 'RC' ]]; then
-      echo -e " [   ${WHITE_R}9${RESET}   ]  |  ${rc_version_available}"
-      echo -e " [   ${WHITE_R}10${RESET}  ]  |  Cancel\\n\\n"
-    else
-      echo -e " [   ${WHITE_R}9${RESET}   ]  |  Cancel\\n\\n"
-    fi
-  else
-    echo -e " [   ${WHITE_R}1${RESET}   ]  |  8.3.32"
-    echo -e " [   ${WHITE_R}2${RESET}   ]  |  8.4.62"
-    echo -e " [   ${WHITE_R}3${RESET}   ]  |  8.5.6"
-    echo -e " [   ${WHITE_R}4${RESET}   ]  |  8.6.9"
-    echo -e " [   ${WHITE_R}5${RESET}   ]  |  9.0.114"
-    echo -e " [   ${WHITE_R}6${RESET}   ]  |  9.1.120"
-    echo -e " [   ${WHITE_R}7${RESET}   ]  |  9.2.87"
-    echo -e " [   ${WHITE_R}8${RESET}   ]  |  9.3.45"
-    echo -e " [   ${WHITE_R}9${RESET}   ]  |  9.4.19"
-    if [[ "${release_stage}" == 'RC' ]]; then
-      echo -e " [   ${WHITE_R}10${RESET}  ]  |  ${rc_version_available}"
-      echo -e " [   ${WHITE_R}11${RESET}  ]  |  Cancel\\n\\n"
-    else
-      echo -e " [   ${WHITE_R}10${RESET}  ]  |  Cancel\\n\\n"
-    fi
-  fi
-
-  if [[ "${unifi_version}" == "8.3.32" ]]; then
-    read -rp $'Your choice | \033[39m' UPGRADE_VERSION
-    case "$UPGRADE_VERSION" in
-        1)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.4.62-i3q2j125cz"
-          application_upgrade_releases
-          unifi_update_finish;;
-        2)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.5.6-1x29lm155t"
-          application_upgrade_releases
-          unifi_update_finish;;
-        3)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.6.9-0f45j609pu"
-          application_upgrade_releases
-          unifi_update_finish;;
-        4)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.0.114-k5dy363g65"
-          application_upgrade_releases
-          unifi_update_finish;;
-        5)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.1.120-e1aep1zs38"
-          application_upgrade_releases
-          unifi_update_finish;;
-        6)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.2.87-uf39xch68k"
-          application_upgrade_releases
-          unifi_update_finish;;
-        7)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.3.45-9iw96x349g"
-          application_upgrade_releases
-          unifi_update_finish;;
-        8)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.4.19-0f76duk082"
-          application_upgrade_releases
-          unifi_update_finish;;
-        9)
-          if [[ "${release_stage}" == 'RC' ]]; then
-            unifi_update_start
-            unifi_firmware_requirement
-            application_version="${rc_version_available_secret}"
-            application_upgrade_releases
-            unifi_update_finish
-          else
-            cancel_script
-          fi;;
-        10|*) cancel_script;;
-    esac
-  else
-    read -rp $'Your choice | \033[39m' UPGRADE_VERSION
-    case "$UPGRADE_VERSION" in
-        1)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.3.32-896f48ed11"
-          application_upgrade_releases
-          unifi_update_finish;;
-        2)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.4.62-i3q2j125cz"
-          application_upgrade_releases
-          unifi_update_finish;;
-        3)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.5.6-1x29lm155t"
-          application_upgrade_releases
-          unifi_update_finish;;
-        4)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.6.9-0f45j609pu"
-          application_upgrade_releases
-          unifi_update_finish;;
-        5)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.0.114-k5dy363g65"
-          application_upgrade_releases
-          unifi_update_finish;;
-        6)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.1.120-e1aep1zs38"
-          application_upgrade_releases
-          unifi_update_finish;;
-        7)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.2.87-uf39xch68k"
-          application_upgrade_releases
-          unifi_update_finish;;
-        8)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.3.45-9iw96x349g"
-          application_upgrade_releases
-          unifi_update_finish;;
-        9)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.4.19-0f76duk082"
-          application_upgrade_releases
-          unifi_update_finish;;
-        10)
-          if [[ "${release_stage}" == 'RC' ]]; then
-            unifi_update_start
-            unifi_firmware_requirement
-            application_version="${rc_version_available_secret}"
-            application_upgrade_releases
-            unifi_update_finish
-          else
-            cancel_script
-          fi;;
-        11|*) cancel_script;;
-    esac
-  fi
-
-##########################################################################################################################################################################
-#                                                                                                                                                                        #
-#                                                                                  8.4.x                                                                                 #
-#                                                                                                                                                                        #
-##########################################################################################################################################################################
-
-elif [[ "${first_digit_unifi}" == '8' && "${second_digit_unifi}" == '4' ]]; then
-  release_wanted
-  header
-  echo "  To what UniFi Network Application version would you like to update?"
-  echo -e "  Currently your UniFi Network Application is on version ${GRAY_R}$unifi${RESET}"
-  echo -e "\\n  Release stage is set to | ${GRAY_R}${release_stage_friendly}${RESET}\\n\\n"
-  if [[ "${unifi}" == "8.4.62" ]]; then
-    unifi_version='8.4.62'
-    echo -e " [   ${WHITE_R}1${RESET}   ]  |  8.5.6"
-    echo -e " [   ${WHITE_R}2${RESET}   ]  |  8.6.9"
-    echo -e " [   ${WHITE_R}3${RESET}   ]  |  9.0.114"
-    echo -e " [   ${WHITE_R}4${RESET}   ]  |  9.1.120"
-    echo -e " [   ${WHITE_R}5${RESET}   ]  |  9.2.87"
-    echo -e " [   ${WHITE_R}6${RESET}   ]  |  9.3.45"
-    echo -e " [   ${WHITE_R}7${RESET}   ]  |  9.4.19"
-    if [[ "${release_stage}" == 'RC' ]]; then
-      echo -e " [   ${WHITE_R}8${RESET}   ]  |  ${rc_version_available}"
-      echo -e " [   ${WHITE_R}9${RESET}   ]  |  Cancel\\n\\n"
-    else
-      echo -e " [   ${WHITE_R}8${RESET}   ]  |  Cancel\\n\\n"
-    fi
-  else
-    echo -e " [   ${WHITE_R}1${RESET}   ]  |  8.4.62"
-    echo -e " [   ${WHITE_R}2${RESET}   ]  |  8.5.6"
-    echo -e " [   ${WHITE_R}3${RESET}   ]  |  8.6.9"
-    echo -e " [   ${WHITE_R}4${RESET}   ]  |  9.0.114"
-    echo -e " [   ${WHITE_R}5${RESET}   ]  |  9.1.120"
-    echo -e " [   ${WHITE_R}6${RESET}   ]  |  9.2.87"
-    echo -e " [   ${WHITE_R}7${RESET}   ]  |  9.3.45"
-    echo -e " [   ${WHITE_R}8${RESET}   ]  |  9.4.19"
-    if [[ "${release_stage}" == 'RC' ]]; then
-      echo -e " [   ${WHITE_R}9${RESET}   ]  |  ${rc_version_available}"
-      echo -e " [   ${WHITE_R}10${RESET}  ]  |  Cancel\\n\\n"
-    else
-      echo -e " [   ${WHITE_R}9${RESET}   ]  |  Cancel\\n\\n"
-    fi
-  fi
-
-  if [[ "${unifi_version}" == "8.4.62" ]]; then
-    read -rp $'Your choice | \033[39m' UPGRADE_VERSION
-    case "$UPGRADE_VERSION" in
-        1)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.5.6-1x29lm155t"
-          application_upgrade_releases
-          unifi_update_finish;;
-        2)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.6.9-0f45j609pu"
-          application_upgrade_releases
-          unifi_update_finish;;
-        3)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.0.114-k5dy363g65"
-          application_upgrade_releases
-          unifi_update_finish;;
-        4)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.1.120-e1aep1zs38"
-          application_upgrade_releases
-          unifi_update_finish;;
-        5)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.2.87-uf39xch68k"
-          application_upgrade_releases
-          unifi_update_finish;;
-        6)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.3.45-9iw96x349g"
-          application_upgrade_releases
-          unifi_update_finish;;
-        7)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.4.19-0f76duk082"
-          application_upgrade_releases
-          unifi_update_finish;;
-        8)
-          if [[ "${release_stage}" == 'RC' ]]; then
-            unifi_update_start
-            unifi_firmware_requirement
-            application_version="${rc_version_available_secret}"
-            application_upgrade_releases
-            unifi_update_finish
-          else
-            cancel_script
-          fi;;
-        9|*) cancel_script;;
-    esac
-  else
-    read -rp $'Your choice | \033[39m' UPGRADE_VERSION
-    case "$UPGRADE_VERSION" in
-        1)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.4.62-i3q2j125cz"
-          application_upgrade_releases
-          unifi_update_finish;;
-        2)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.5.6-1x29lm155t"
-          application_upgrade_releases
-          unifi_update_finish;;
-        3)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.6.9-0f45j609pu"
-          application_upgrade_releases
-          unifi_update_finish;;
-        4)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.0.114-k5dy363g65"
-          application_upgrade_releases
-          unifi_update_finish;;
-        5)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.1.120-e1aep1zs38"
-          application_upgrade_releases
-          unifi_update_finish;;
-        6)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.2.87-uf39xch68k"
-          application_upgrade_releases
-          unifi_update_finish;;
-        7)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.3.45-9iw96x349g"
-          application_upgrade_releases
-          unifi_update_finish;;
-        8)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.4.19-0f76duk082"
-          application_upgrade_releases
-          unifi_update_finish;;
-        9)
-          if [[ "${release_stage}" == 'RC' ]]; then
-            unifi_update_start
-            unifi_firmware_requirement
-            application_version="${rc_version_available_secret}"
-            application_upgrade_releases
-            unifi_update_finish
-          else
-            cancel_script
-          fi;;
-        10|*) cancel_script;;
-    esac
-  fi
-
-##########################################################################################################################################################################
-#                                                                                                                                                                        #
-#                                                                                  8.5.x                                                                                 #
-#                                                                                                                                                                        #
-##########################################################################################################################################################################
-
-elif [[ "${first_digit_unifi}" == '8' && "${second_digit_unifi}" == '5' ]]; then
-  release_wanted
-  header
-  echo "  To what UniFi Network Application version would you like to update?"
-  echo -e "  Currently your UniFi Network Application is on version ${GRAY_R}$unifi${RESET}"
-  echo -e "\\n  Release stage is set to | ${GRAY_R}${release_stage_friendly}${RESET}\\n\\n"
-  if [[ "${unifi}" == "8.5.6" ]]; then
-    unifi_version='8.5.6'
-    echo -e " [   ${WHITE_R}1${RESET}   ]  |  8.6.9"
-    echo -e " [   ${WHITE_R}2${RESET}   ]  |  9.0.114"
-    echo -e " [   ${WHITE_R}3${RESET}   ]  |  9.1.120"
-    echo -e " [   ${WHITE_R}4${RESET}   ]  |  9.2.87"
-    echo -e " [   ${WHITE_R}5${RESET}   ]  |  9.3.45"
-    echo -e " [   ${WHITE_R}6${RESET}   ]  |  9.4.19"
-    if [[ "${release_stage}" == 'RC' ]]; then
-      echo -e " [   ${WHITE_R}7${RESET}   ]  |  ${rc_version_available}"
-      echo -e " [   ${WHITE_R}8${RESET}   ]  |  Cancel\\n\\n"
-    else
-      echo -e " [   ${WHITE_R}7${RESET}   ]  |  Cancel\\n\\n"
-    fi
-  else
-    echo -e " [   ${WHITE_R}1${RESET}   ]  |  8.5.6"
-    echo -e " [   ${WHITE_R}2${RESET}   ]  |  8.6.9"
-    echo -e " [   ${WHITE_R}3${RESET}   ]  |  9.0.114"
-    echo -e " [   ${WHITE_R}4${RESET}   ]  |  9.1.120"
-    echo -e " [   ${WHITE_R}5${RESET}   ]  |  9.2.87"
-    echo -e " [   ${WHITE_R}6${RESET}   ]  |  9.3.45"
-    echo -e " [   ${WHITE_R}7${RESET}   ]  |  9.4.19"
-    if [[ "${release_stage}" == 'RC' ]]; then
-      echo -e " [   ${WHITE_R}8${RESET}   ]  |  ${rc_version_available}"
-      echo -e " [   ${WHITE_R}9${RESET}   ]  |  Cancel\\n\\n"
-    else
-      echo -e " [   ${WHITE_R}8${RESET}   ]  |  Cancel\\n\\n"
-    fi
-  fi
-
-  if [[ "${unifi_version}" == "8.5.6" ]]; then
-    read -rp $'Your choice | \033[39m' UPGRADE_VERSION
-    case "$UPGRADE_VERSION" in
-        1)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.6.9-0f45j609pu"
-          application_upgrade_releases
-          unifi_update_finish;;
-        2)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.0.114-k5dy363g65"
-          application_upgrade_releases
-          unifi_update_finish;;
-        3)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.1.120-e1aep1zs38"
-          application_upgrade_releases
-          unifi_update_finish;;
-        4)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.2.87-uf39xch68k"
-          application_upgrade_releases
-          unifi_update_finish;;
-        5)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.3.45-9iw96x349g"
-          application_upgrade_releases
-          unifi_update_finish;;
-        6)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.4.19-0f76duk082"
-          application_upgrade_releases
-          unifi_update_finish;;
-        7)
-          if [[ "${release_stage}" == 'RC' ]]; then
-            unifi_update_start
-            unifi_firmware_requirement
-            application_version="${rc_version_available_secret}"
-            application_upgrade_releases
-            unifi_update_finish
-          else
-            cancel_script
-          fi;;
-        8|*) cancel_script;;
-    esac
-  else
-    read -rp $'Your choice | \033[39m' UPGRADE_VERSION
-    case "$UPGRADE_VERSION" in
-        1)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.5.6-1x29lm155t"
-          application_upgrade_releases
-          unifi_update_finish;;
-        2)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.6.9-0f45j609pu"
-          application_upgrade_releases
-          unifi_update_finish;;
-        3)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.0.114-k5dy363g65"
-          application_upgrade_releases
-          unifi_update_finish;;
-        4)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.1.120-e1aep1zs38"
-          application_upgrade_releases
-          unifi_update_finish;;
-        5)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.2.87-uf39xch68k"
-          application_upgrade_releases
-          unifi_update_finish;;
-        6)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.3.45-9iw96x349g"
-          application_upgrade_releases
-          unifi_update_finish;;
-        7)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.4.19-0f76duk082"
-          application_upgrade_releases
-          unifi_update_finish;;
-        8)
-          if [[ "${release_stage}" == 'RC' ]]; then
-            unifi_update_start
-            unifi_firmware_requirement
-            application_version="${rc_version_available_secret}"
-            application_upgrade_releases
-            unifi_update_finish
-          else
-            cancel_script
-          fi;;
-        9|*) cancel_script;;
-    esac
-  fi
-
-##########################################################################################################################################################################
-#                                                                                                                                                                        #
-#                                                                                  8.6.x                                                                                 #
-#                                                                                                                                                                        #
-##########################################################################################################################################################################
-
-elif [[ "${first_digit_unifi}" == '8' && "${second_digit_unifi}" == '6' ]]; then
-  release_wanted
-  header
-  echo "  To what UniFi Network Application version would you like to update?"
-  echo -e "  Currently your UniFi Network Application is on version ${GRAY_R}$unifi${RESET}"
-  echo -e "\\n  Release stage is set to | ${GRAY_R}${release_stage_friendly}${RESET}\\n\\n"
-  if [[ "${unifi}" == "8.6.9" ]]; then
-    unifi_version='8.6.9'
-    echo -e " [   ${WHITE_R}1${RESET}   ]  |  9.0.114"
-    echo -e " [   ${WHITE_R}2${RESET}   ]  |  9.1.120"
-    echo -e " [   ${WHITE_R}3${RESET}   ]  |  9.2.87"
-    echo -e " [   ${WHITE_R}4${RESET}   ]  |  9.3.45"
-    echo -e " [   ${WHITE_R}5${RESET}   ]  |  9.4.19"
-    if [[ "${release_stage}" == 'RC' ]]; then
-      echo -e " [   ${WHITE_R}6${RESET}   ]  |  ${rc_version_available}"
-      echo -e " [   ${WHITE_R}7${RESET}   ]  |  Cancel\\n\\n"
-    else
-      echo -e " [   ${WHITE_R}6${RESET}   ]  |  Cancel\\n\\n"
-    fi
-  else
-    echo -e " [   ${WHITE_R}1${RESET}   ]  |  8.6.9"
-    echo -e " [   ${WHITE_R}2${RESET}   ]  |  9.0.114"
-    echo -e " [   ${WHITE_R}3${RESET}   ]  |  9.1.120"
-    echo -e " [   ${WHITE_R}4${RESET}   ]  |  9.2.87"
-    echo -e " [   ${WHITE_R}5${RESET}   ]  |  9.3.45"
-    echo -e " [   ${WHITE_R}6${RESET}   ]  |  9.4.19"
-    if [[ "${release_stage}" == 'RC' ]]; then
-      echo -e " [   ${WHITE_R}7${RESET}   ]  |  ${rc_version_available}"
-      echo -e " [   ${WHITE_R}8${RESET}   ]  |  Cancel\\n\\n"
-    else
-      echo -e " [   ${WHITE_R}7${RESET}   ]  |  Cancel\\n\\n"
-    fi
-  fi
-
-  if [[ "${unifi_version}" == "8.6.9" ]]; then
-    read -rp $'Your choice | \033[39m' UPGRADE_VERSION
-    case "$UPGRADE_VERSION" in
-        1)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.0.114-k5dy363g65"
-          application_upgrade_releases
-          unifi_update_finish;;
-        2)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.1.120-e1aep1zs38"
-          application_upgrade_releases
-          unifi_update_finish;;
-        3)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.2.87-uf39xch68k"
-          application_upgrade_releases
-          unifi_update_finish;;
-        4)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.3.45-9iw96x349g"
-          application_upgrade_releases
-          unifi_update_finish;;
-        5)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.4.19-0f76duk082"
-          application_upgrade_releases
-          unifi_update_finish;;
-        6)
-          if [[ "${release_stage}" == 'RC' ]]; then
-            unifi_update_start
-            unifi_firmware_requirement
-            application_version="${rc_version_available_secret}"
-            application_upgrade_releases
-            unifi_update_finish
-          else
-            cancel_script
-          fi;;
-        7|*) cancel_script;;
-    esac
-  else
-    read -rp $'Your choice | \033[39m' UPGRADE_VERSION
-    case "$UPGRADE_VERSION" in
-        1)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="8.6.9-0f45j609pu"
-          application_upgrade_releases
-          unifi_update_finish;;
-        2)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.0.114-k5dy363g65"
-          application_upgrade_releases
-          unifi_update_finish;;
-        3)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.1.120-e1aep1zs38"
-          application_upgrade_releases
-          unifi_update_finish;;
-        4)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.2.87-uf39xch68k"
-          application_upgrade_releases
-          unifi_update_finish;;
-        5)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.3.45-9iw96x349g"
-          application_upgrade_releases
-          unifi_update_finish;;
-        6)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.4.19-0f76duk082"
-          application_upgrade_releases
-          unifi_update_finish;;
-        7)
-          if [[ "${release_stage}" == 'RC' ]]; then
-            unifi_update_start
-            unifi_firmware_requirement
-            application_version="${rc_version_available_secret}"
-            application_upgrade_releases
-            unifi_update_finish
-          else
-            cancel_script
-          fi;;
-        8|*) cancel_script;;
-    esac
-  fi
-
-##########################################################################################################################################################################
-#                                                                                                                                                                        #
-#                                                                                  9.0.x                                                                                 #
-#                                                                                                                                                                        #
-##########################################################################################################################################################################
-
-elif [[ "${first_digit_unifi}" == '9' && "${second_digit_unifi}" == '0' ]]; then
-  release_wanted
-  header
-  echo "  To what UniFi Network Application version would you like to update?"
-  echo -e "  Currently your UniFi Network Application is on version ${GRAY_R}$unifi${RESET}"
-  echo -e "\\n  Release stage is set to | ${GRAY_R}${release_stage_friendly}${RESET}\\n\\n"
-  if [[ "${unifi}" == "9.0.114" ]]; then
-    unifi_version='9.0.114'
-    echo -e " [   ${WHITE_R}1${RESET}   ]  |  9.1.120"
-    echo -e " [   ${WHITE_R}2${RESET}   ]  |  9.2.87"
-    echo -e " [   ${WHITE_R}3${RESET}   ]  |  9.3.45"
-    echo -e " [   ${WHITE_R}4${RESET}   ]  |  9.4.19"
-    if [[ "${release_stage}" == 'RC' ]]; then
-      echo -e " [   ${WHITE_R}5${RESET}   ]  |  ${rc_version_available}"
-      echo -e " [   ${WHITE_R}6${RESET}   ]  |  Cancel\\n\\n"
-    else
-      echo -e " [   ${WHITE_R}5${RESET}   ]  |  Cancel\\n\\n"
-    fi
-  else
-    echo -e " [   ${WHITE_R}1${RESET}   ]  |  9.0.114"
-    echo -e " [   ${WHITE_R}2${RESET}   ]  |  9.1.120"
-    echo -e " [   ${WHITE_R}3${RESET}   ]  |  9.2.87"
-    echo -e " [   ${WHITE_R}4${RESET}   ]  |  9.3.45"
-    echo -e " [   ${WHITE_R}5${RESET}   ]  |  9.4.19"
-    if [[ "${release_stage}" == 'RC' ]]; then
-      echo -e " [   ${WHITE_R}6${RESET}   ]  |  ${rc_version_available}"
-      echo -e " [   ${WHITE_R}7${RESET}   ]  |  Cancel\\n\\n"
-    else
-      echo -e " [   ${WHITE_R}6${RESET}   ]  |  Cancel\\n\\n"
-    fi
-  fi
-
-  if [[ "${unifi_version}" == "9.0.114" ]]; then
-    read -rp $'Your choice | \033[39m' UPGRADE_VERSION
-    case "$UPGRADE_VERSION" in
-        1)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.1.120-e1aep1zs38"
-          application_upgrade_releases
-          unifi_update_finish;;
-        2)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.2.87-uf39xch68k"
-          application_upgrade_releases
-          unifi_update_finish;;
-        3)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.3.45-9iw96x349g"
-          application_upgrade_releases
-          unifi_update_finish;;
-        4)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.4.19-0f76duk082"
-          application_upgrade_releases
-          unifi_update_finish;;
-        5)
-          if [[ "${release_stage}" == 'RC' ]]; then
-            unifi_update_start
-            unifi_firmware_requirement
-            application_version="${rc_version_available_secret}"
-            application_upgrade_releases
-            unifi_update_finish
-          else
-            cancel_script
-          fi;;
-        6|*) cancel_script;;
-    esac
-  else
-    read -rp $'Your choice | \033[39m' UPGRADE_VERSION
-    case "$UPGRADE_VERSION" in
-        1)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.0.114-k5dy363g65"
-          application_upgrade_releases
-          unifi_update_finish;;
-        2)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.1.120-e1aep1zs38"
-          application_upgrade_releases
-          unifi_update_finish;;
-        3)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.2.87-uf39xch68k"
-          application_upgrade_releases
-          unifi_update_finish;;
-        4)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.3.45-9iw96x349g"
-          application_upgrade_releases
-          unifi_update_finish;;
-        5)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.4.19-0f76duk082"
-          application_upgrade_releases
-          unifi_update_finish;;
-        6)
-          if [[ "${release_stage}" == 'RC' ]]; then
-            unifi_update_start
-            unifi_firmware_requirement
-            application_version="${rc_version_available_secret}"
-            application_upgrade_releases
-            unifi_update_finish
-          else
-            cancel_script
-          fi;;
-        7|*) cancel_script;;
-    esac
-  fi
-
-##########################################################################################################################################################################
-#                                                                                                                                                                        #
-#                                                                                  9.1.x                                                                                 #
-#                                                                                                                                                                        #
-##########################################################################################################################################################################
-
-elif [[ "${first_digit_unifi}" == '9' && "${second_digit_unifi}" == '1' ]]; then
-  release_wanted
-  header
-  echo "  To what UniFi Network Application version would you like to update?"
-  echo -e "  Currently your UniFi Network Application is on version ${GRAY_R}$unifi${RESET}"
-  echo -e "\\n  Release stage is set to | ${GRAY_R}${release_stage_friendly}${RESET}\\n\\n"
-  if [[ "${unifi}" == "9.1.120" ]]; then
-    unifi_version='9.1.120'
-    echo -e " [   ${WHITE_R}1${RESET}   ]  |  9.2.87"
-    echo -e " [   ${WHITE_R}2${RESET}   ]  |  9.3.45"
-    echo -e " [   ${WHITE_R}3${RESET}   ]  |  9.4.19"
-    if [[ "${release_stage}" == 'RC' ]]; then
-      echo -e " [   ${WHITE_R}4${RESET}   ]  |  ${rc_version_available}"
-      echo -e " [   ${WHITE_R}5${RESET}   ]  |  Cancel\\n\\n"
-    else
-      echo -e " [   ${WHITE_R}4${RESET}   ]  |  Cancel\\n\\n"
-    fi
-  else
-    echo -e " [   ${WHITE_R}1${RESET}   ]  |  9.1.120"
-    echo -e " [   ${WHITE_R}2${RESET}   ]  |  9.2.87"
-    echo -e " [   ${WHITE_R}3${RESET}   ]  |  9.3.45"
-    echo -e " [   ${WHITE_R}4${RESET}   ]  |  9.4.19"
-    if [[ "${release_stage}" == 'RC' ]]; then
-      echo -e " [   ${WHITE_R}5${RESET}   ]  |  ${rc_version_available}"
-      echo -e " [   ${WHITE_R}6${RESET}   ]  |  Cancel\\n\\n"
-    else
-      echo -e " [   ${WHITE_R}5${RESET}   ]  |  Cancel\\n\\n"
-    fi
-  fi
-
-  if [[ "${unifi_version}" == "9.1.120" ]]; then
-    read -rp $'Your choice | \033[39m' UPGRADE_VERSION
-    case "$UPGRADE_VERSION" in
-        1)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.2.87-uf39xch68k"
-          application_upgrade_releases
-          unifi_update_finish;;
-        2)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.3.45-9iw96x349g"
-          application_upgrade_releases
-          unifi_update_finish;;
-        3)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.4.19-0f76duk082"
-          application_upgrade_releases
-          unifi_update_finish;;
-        4)
-          if [[ "${release_stage}" == 'RC' ]]; then
-            unifi_update_start
-            unifi_firmware_requirement
-            application_version="${rc_version_available_secret}"
-            application_upgrade_releases
-            unifi_update_finish
-          else
-            cancel_script
-          fi;;
-        5|*) cancel_script;;
-    esac
-  else
-    read -rp $'Your choice | \033[39m' UPGRADE_VERSION
-    case "$UPGRADE_VERSION" in
-        1)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.1.120-e1aep1zs38"
-          application_upgrade_releases
-          unifi_update_finish;;
-        2)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.2.87-uf39xch68k"
-          application_upgrade_releases
-          unifi_update_finish;;
-        3)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.3.45-9iw96x349g"
-          application_upgrade_releases
-          unifi_update_finish;;
-        4)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.4.19-0f76duk082"
-          application_upgrade_releases
-          unifi_update_finish;;
-        5)
-          if [[ "${release_stage}" == 'RC' ]]; then
-            unifi_update_start
-            unifi_firmware_requirement
-            application_version="${rc_version_available_secret}"
-            application_upgrade_releases
-            unifi_update_finish
-          else
-            cancel_script
-          fi;;
-        6|*) cancel_script;;
-    esac
-  fi
-
-##########################################################################################################################################################################
-#                                                                                                                                                                        #
-#                                                                                  9.2.x                                                                                 #
-#                                                                                                                                                                        #
-##########################################################################################################################################################################
-
-elif [[ "${first_digit_unifi}" == '9' && "${second_digit_unifi}" == '2' ]]; then
-  release_wanted
-  header
-  echo "  To what UniFi Network Application version would you like to update?"
-  echo -e "  Currently your UniFi Network Application is on version ${GRAY_R}$unifi${RESET}"
-  echo -e "\\n  Release stage is set to | ${GRAY_R}${release_stage_friendly}${RESET}\\n\\n"
-  if [[ "${unifi}" == "9.2.87" ]]; then
-    unifi_version='9.2.87'
-    echo -e " [   ${WHITE_R}1${RESET}   ]  |  9.3.45"
-    echo -e " [   ${WHITE_R}2${RESET}   ]  |  9.4.19"
-    if [[ "${release_stage}" == 'RC' ]]; then
-      echo -e " [   ${WHITE_R}3${RESET}   ]  |  ${rc_version_available}"
-      echo -e " [   ${WHITE_R}4${RESET}   ]  |  Cancel\\n\\n"
-    else
-      echo -e " [   ${WHITE_R}3${RESET}   ]  |  Cancel\\n\\n"
-    fi
-  else
-    echo -e " [   ${WHITE_R}1${RESET}   ]  |  9.2.87"
-    echo -e " [   ${WHITE_R}2${RESET}   ]  |  9.3.45"
-    echo -e " [   ${WHITE_R}3${RESET}   ]  |  9.4.19"
-    if [[ "${release_stage}" == 'RC' ]]; then
-      echo -e " [   ${WHITE_R}4${RESET}   ]  |  ${rc_version_available}"
-      echo -e " [   ${WHITE_R}5${RESET}   ]  |  Cancel\\n\\n"
-    else
-      echo -e " [   ${WHITE_R}4${RESET}   ]  |  Cancel\\n\\n"
-    fi
-  fi
-
-  if [[ "${unifi_version}" == "9.2.87" ]]; then
-    read -rp $'Your choice | \033[39m' UPGRADE_VERSION
-    case "$UPGRADE_VERSION" in
-        1)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.3.45-9iw96x349g"
-          application_upgrade_releases
-          unifi_update_finish;;
-        2)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.4.19-0f76duk082"
-          application_upgrade_releases
-          unifi_update_finish;;
-        3)
-          if [[ "${release_stage}" == 'RC' ]]; then
-            unifi_update_start
-            unifi_firmware_requirement
-            application_version="${rc_version_available_secret}"
-            application_upgrade_releases
-            unifi_update_finish
-          else
-            cancel_script
-          fi;;
-        4|*) cancel_script;;
-    esac
-  else
-    read -rp $'Your choice | \033[39m' UPGRADE_VERSION
-    case "$UPGRADE_VERSION" in
-        1)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.2.87-uf39xch68k"
-          application_upgrade_releases
-          unifi_update_finish;;
-        2)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.3.45-9iw96x349g"
-          application_upgrade_releases
-          unifi_update_finish;;
-        3)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.4.19-0f76duk082"
-          application_upgrade_releases
-          unifi_update_finish;;
-        4)
-          if [[ "${release_stage}" == 'RC' ]]; then
-            unifi_update_start
-            unifi_firmware_requirement
-            application_version="${rc_version_available_secret}"
-            application_upgrade_releases
-            unifi_update_finish
-          else
-            cancel_script
-          fi;;
-        5|*) cancel_script;;
-    esac
-  fi
-
-##########################################################################################################################################################################
-#                                                                                                                                                                        #
-#                                                                                  9.3.x                                                                                 #
-#                                                                                                                                                                        #
-##########################################################################################################################################################################
-
-elif [[ "${first_digit_unifi}" == '9' && "${second_digit_unifi}" == '3' ]]; then
-  release_wanted
-  header
-  echo "  To what UniFi Network Application version would you like to update?"
-  echo -e "  Currently your UniFi Network Application is on version ${GRAY_R}$unifi${RESET}"
-  echo -e "\\n  Release stage is set to | ${GRAY_R}${release_stage_friendly}${RESET}\\n\\n"
-  if [[ "${unifi}" == "9.3.45" ]]; then
-    unifi_version='9.3.45'
-    echo -e " [   ${WHITE_R}1${RESET}   ]  |  9.4.19"
-    if [[ "${release_stage}" == 'RC' ]]; then
-      echo -e " [   ${WHITE_R}2${RESET}   ]  |  ${rc_version_available}"
-      echo -e " [   ${WHITE_R}3${RESET}   ]  |  Cancel\\n\\n"
-    else
-      echo -e " [   ${WHITE_R}2${RESET}   ]  |  Cancel\\n\\n"
-    fi
-  else
-    echo -e " [   ${WHITE_R}1${RESET}   ]  |  9.3.45"
-    echo -e " [   ${WHITE_R}2${RESET}   ]  |  9.4.19"
-    if [[ "${release_stage}" == 'RC' ]]; then
-      echo -e " [   ${WHITE_R}3${RESET}   ]  |  ${rc_version_available}"
-      echo -e " [   ${WHITE_R}4${RESET}   ]  |  Cancel\\n\\n"
-    else
-      echo -e " [   ${WHITE_R}3${RESET}   ]  |  Cancel\\n\\n"
-    fi
-  fi
-
-  if [[ "${unifi_version}" == "9.3.45" ]]; then
-    read -rp $'Your choice | \033[39m' UPGRADE_VERSION
-    case "$UPGRADE_VERSION" in
-        1)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.4.19-0f76duk082"
-          application_upgrade_releases
-          unifi_update_finish;;
-        2)
-          if [[ "${release_stage}" == 'RC' ]]; then
-            unifi_update_start
-            unifi_firmware_requirement
-            application_version="${rc_version_available_secret}"
-            application_upgrade_releases
-            unifi_update_finish
-          else
-            cancel_script
-          fi;;
-        3|*) cancel_script;;
-    esac
-  else
-    read -rp $'Your choice | \033[39m' UPGRADE_VERSION
-    case "$UPGRADE_VERSION" in
-        1)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.3.45-9iw96x349g"
-          application_upgrade_releases
-          unifi_update_finish;;
-        2)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.4.19-0f76duk082"
-          application_upgrade_releases
-          unifi_update_finish;;
-        3)
-          if [[ "${release_stage}" == 'RC' ]]; then
-            unifi_update_start
-            unifi_firmware_requirement
-            application_version="${rc_version_available_secret}"
-            application_upgrade_releases
-            unifi_update_finish
-          else
-            cancel_script
-          fi;;
-        4|*) cancel_script;;
-    esac
-  fi
-
-##########################################################################################################################################################################
-#                                                                                                                                                                        #
-#                                                                                  9.4.x                                                                                 #
-#                                                                                                                                                                        #
-##########################################################################################################################################################################
-
-elif [[ "${first_digit_unifi}" == '9' && "${second_digit_unifi}" == '4' ]]; then
-  if [[ "${third_digit_unifi}" -gt '19' ]]; then not_supported_version; fi
-  release_wanted
-  if [[ "${release_stage}" == 'S' ]]; then if [[ "${unifi}" == "${latest_release}" ]]; then debug_check_no_upgrade; unifi_update_latest; fi; fi
-  if [[ "${release_stage}" == 'RC' ]]; then if [[ "${unifi}" == "${rc_version_available}" ]]; then debug_check_no_upgrade; unifi_update_latest; fi; fi
-  header
-  echo "  To what UniFi Network Application version would you like to update?"
-  echo -e "  Currently your UniFi Network Application is on version ${GRAY_R}$unifi${RESET}"
-  echo -e "\\n  Release stage is set to | ${GRAY_R}${release_stage_friendly}${RESET}\\n\\n"
-  if [[ "${unifi}" == "9.4.19" ]]; then
-    unifi_version='9.4.19'
-    #echo -e " [   ${WHITE_R}1${RESET}   ]  |  9.4.19"
-    if [[ "${release_stage}" == 'RC' ]]; then
-      echo -e " [   ${WHITE_R}1${RESET}   ]  |  ${rc_version_available}"
-      echo -e " [   ${WHITE_R}2${RESET}   ]  |  Cancel\\n\\n"
-    else
-      echo -e " [   ${WHITE_R}1${RESET}   ]  |  Cancel\\n\\n"
-    fi
-  else
-    echo -e " [   ${WHITE_R}1${RESET}   ]  |  9.4.19"
-    if [[ "${release_stage}" == 'RC' ]]; then
-      echo -e " [   ${WHITE_R}2${RESET}   ]  |  ${rc_version_available}"
-      echo -e " [   ${WHITE_R}3${RESET}   ]  |  Cancel\\n\\n"
-    else
-      echo -e " [   ${WHITE_R}2${RESET}   ]  |  Cancel\\n\\n"
-    fi
-  fi
-
-  if [[ "${unifi_version}" == "9.4.19" ]]; then
-    read -rp $'Your choice | \033[39m' UPGRADE_VERSION
-    case "$UPGRADE_VERSION" in
-        1)
-          if [[ "${release_stage}" == 'RC' ]]; then
-            unifi_update_start
-            unifi_firmware_requirement
-            application_version="${rc_version_available_secret}"
-            application_upgrade_releases
-            unifi_update_finish
-          else
-            cancel_script
-          fi;;
-        2|*) cancel_script;;
-    esac
-  else
-    read -rp $'Your choice | \033[39m' UPGRADE_VERSION
-    case "$UPGRADE_VERSION" in
-        1)
-          unifi_update_start
-          unifi_firmware_requirement
-          application_version="9.4.19-0f76duk082"
-          application_upgrade_releases
-          unifi_update_finish;;
-        2)
-          if [[ "${release_stage}" == 'RC' ]]; then
-            unifi_update_start
-            unifi_firmware_requirement
-            application_version="${rc_version_available_secret}"
-            application_upgrade_releases
-            unifi_update_finish
-          else
-            cancel_script
-          fi;;
-        3|*) cancel_script;;
-    esac
-  fi
-else
-  not_supported_version
+if [[ "${perform_uos_upgrade}" == 'true' ]]; then
+  run_upgrade_menu_for uosserver
 fi

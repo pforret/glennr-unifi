@@ -11,6 +11,15 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 10.4.3
+  
+ - Added support for Linux Mint 22.2 Zara.
+ - Added support for updating UniFi OS Servers.
+ - Improved the UniFi Network Application update process.
+ - Reduced overall script maintenance, it now uses an API (with fallback to an hardcoded list) for loading a list of upgrade-to versions.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 10.4.2
   
  - Fixed numbering for those on 9.3.45.
