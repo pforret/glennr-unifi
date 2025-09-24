@@ -70,7 +70,7 @@
 ###################################################################################################################################################################################################
 
 # Script                | UniFi Network/OS Easy Installation Script
-# Version               | 8.8.6
+# Version               | 8.9.1
 # Application version   | 5.11.45
 # Debian Repo version   | 5.11.45-12722-1
 # UOS Server version    | 4.3.6
@@ -548,7 +548,8 @@ support_file() {
     } >> "/tmp/EUS/support/timedatectl"
   fi
   ps axjf &> "/tmp/EUS/support/process-tree"
-  if [[ "$(command -v netstat)" ]]; then netstat -tulp &> "/tmp/EUS/support/netstat-results"; fi
+  if [[ "$(command -v netstat)" ]]; then netstat -tulp &> "/tmp/EUS/support/netstat-results.log"; fi
+  if [[ "$(command -v ss)" ]]; then ss -ltnp &> "/tmp/EUS/support/ss-results.log"; fi
   #
   lsblk -iJ -fs &> "/tmp/EUS/support/disk-layout.json"
   if [[ -n "$(command -v jq)" ]]; then
@@ -737,7 +738,7 @@ support_file() {
       jq --arg script_name "$script_name" --arg support_file_name "$support_file_name" --arg abort_reason "$abort_reason" '.scripts[$script_name] |= (. + {support: ((.support // {}) + {($support_file_name): {"abort-reason": $abort_reason,"upload-results": ""}})})' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
     fi
     eus_database_move
-    tar cJvfh "${support_file}" --exclude="${eus_dir}/go.tar.gz" --exclude="${eus_dir}/unifi_db" --exclude="${eus_dir}/tmp" --exclude="/usr/lib/unifi/logs/remote" "/tmp/EUS" "${eus_dir}" "/usr/lib/unifi/logs" "/etc/apt/sources.list" "/etc/apt/sources.list.d/" "/etc/apt/preferences" "/etc/apt/keyrings" "/etc/apt/trusted.gpg.d/" "/etc/apt/preferences.d/" "/etc/default/unifi" "/etc/environment" "/var/log/dpkg.log"* "/etc/systemd/system/unifi.service.d/" "/lib/systemd/system/unifi.service" "/usr/lib/unifi/data/db/version" &> /dev/null
+    tar cJvfh "${support_file}" --exclude="${eus_dir}/go.tar.gz" --exclude="${eus_dir}/unifi_db" --exclude="${eus_dir}/tmp" --exclude="/usr/lib/unifi/logs/remote" "/tmp/EUS" "${eus_dir}" "/usr/lib/unifi/logs" "/etc/apt/sources.list" "/etc/apt/sources.list.d/" "/etc/apt/preferences" "/etc/apt/keyrings" "/etc/apt/trusted.gpg.d/" "/etc/apt/preferences.d/" "/etc/default/unifi" "/etc/environment" "/var/log/dpkg.log"* "/etc/systemd/system/unifi.service.d/" "/lib/systemd/system/unifi.service" "/usr/lib/unifi/data/db/version" "/var/lib/uosserver/" &> /dev/null
   elif "$(which dpkg)" -l zstd 2> /dev/null | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
     support_file="/tmp/eus-support-${support_file_uuid}${support_file_time}.tar.zst"
     support_file_name="$(basename "${support_file}")"
@@ -747,7 +748,7 @@ support_file() {
       jq --arg script_name "$script_name" --arg support_file_name "$support_file_name" --arg abort_reason "$abort_reason" '.scripts[$script_name] |= (. + {support: ((.support // {}) + {($support_file_name): {"abort-reason": $abort_reason,"upload-results": ""}})})' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
     fi
     eus_database_move
-    tar --use-compress-program=zstd -cvf "${support_file}" --exclude="${eus_dir}/go.tar.gz" --exclude="${eus_dir}/unifi_db" --exclude="${eus_dir}/tmp" --exclude="/usr/lib/unifi/logs/remote" "/tmp/EUS" "${eus_dir}" "/usr/lib/unifi/logs" "/etc/apt/sources.list" "/etc/apt/sources.list.d/" "/etc/apt/preferences" "/etc/apt/keyrings" "/etc/apt/trusted.gpg.d/" "/etc/apt/preferences.d/" "/etc/default/unifi" "/etc/environment" "/var/log/dpkg.log"* "/etc/systemd/system/unifi.service.d/" "/lib/systemd/system/unifi.service" "/usr/lib/unifi/data/db/version" &> /dev/null
+    tar --use-compress-program=zstd -cvf "${support_file}" --exclude="${eus_dir}/go.tar.gz" --exclude="${eus_dir}/unifi_db" --exclude="${eus_dir}/tmp" --exclude="/usr/lib/unifi/logs/remote" "/tmp/EUS" "${eus_dir}" "/usr/lib/unifi/logs" "/etc/apt/sources.list" "/etc/apt/sources.list.d/" "/etc/apt/preferences" "/etc/apt/keyrings" "/etc/apt/trusted.gpg.d/" "/etc/apt/preferences.d/" "/etc/default/unifi" "/etc/environment" "/var/log/dpkg.log"* "/etc/systemd/system/unifi.service.d/" "/lib/systemd/system/unifi.service" "/usr/lib/unifi/data/db/version" "/var/lib/uosserver/" &> /dev/null
   elif "$(which dpkg)" -l tar 2> /dev/null | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
     support_file="/tmp/eus-support-${support_file_uuid}${support_file_time}.tar.gz"
     support_file_name="$(basename "${support_file}")"
@@ -757,7 +758,7 @@ support_file() {
       jq --arg script_name "$script_name" --arg support_file_name "$support_file_name" --arg abort_reason "$abort_reason" '.scripts[$script_name] |= (. + {support: ((.support // {}) + {($support_file_name): {"abort-reason": $abort_reason,"upload-results": ""}})})' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
     fi
     eus_database_move
-    tar czvfh "${support_file}" --exclude="${eus_dir}/go.tar.gz" --exclude="${eus_dir}/unifi_db" --exclude="${eus_dir}/tmp" --exclude="/usr/lib/unifi/logs/remote" "/tmp/EUS" "${eus_dir}" "/usr/lib/unifi/logs" "/etc/apt/sources.list" "/etc/apt/sources.list.d/" "/etc/apt/preferences" "/etc/apt/keyrings" "/etc/apt/trusted.gpg.d/" "/etc/apt/preferences.d/" "/etc/default/unifi" "/etc/environment" "/var/log/dpkg.log"* "/etc/systemd/system/unifi.service.d/" "/lib/systemd/system/unifi.service" "/usr/lib/unifi/data/db/version" &> /dev/null
+    tar czvfh "${support_file}" --exclude="${eus_dir}/go.tar.gz" --exclude="${eus_dir}/unifi_db" --exclude="${eus_dir}/tmp" --exclude="/usr/lib/unifi/logs/remote" "/tmp/EUS" "${eus_dir}" "/usr/lib/unifi/logs" "/etc/apt/sources.list" "/etc/apt/sources.list.d/" "/etc/apt/preferences" "/etc/apt/keyrings" "/etc/apt/trusted.gpg.d/" "/etc/apt/preferences.d/" "/etc/default/unifi" "/etc/environment" "/var/log/dpkg.log"* "/etc/systemd/system/unifi.service.d/" "/lib/systemd/system/unifi.service" "/usr/lib/unifi/data/db/version" "/var/lib/uosserver/" &> /dev/null
   elif "$(which dpkg)" -l zip 2> /dev/null | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
     support_file="/tmp/eus-support-${support_file_uuid}${support_file_time}.zip"
     support_file_name="$(basename "${support_file}")"
@@ -767,7 +768,7 @@ support_file() {
       jq --arg script_name "$script_name" --arg support_file_name "$support_file_name" --arg abort_reason "$abort_reason" '.scripts[$script_name] |= (. + {support: ((.support // {}) + {($support_file_name): {"abort-reason": $abort_reason,"upload-results": ""}})})' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
     fi
     eus_database_move
-    zip -r "${support_file}" "/tmp/EUS/" "${eus_dir}/" "/usr/lib/unifi/logs/" "/etc/apt/sources.list" "/etc/apt/sources.list.d/" "/etc/apt/preferences" "/etc/apt/keyrings" "/etc/apt/trusted.gpg.d/" "/etc/apt/preferences.d/" "/etc/default/unifi" "/etc/environment" "/var/log/dpkg.log"* "/etc/systemd/system/unifi.service.d/" "/lib/systemd/system/unifi.service" "/usr/lib/unifi/data/db/version" -x "${eus_dir}/go.tar.gz" -x "${eus_dir}/unifi_db/*" -x "${eus_dir}/tmp" -x "/usr/lib/unifi/logs/remote" &> /dev/null
+    zip -r "${support_file}" "/tmp/EUS/" "${eus_dir}/" "/usr/lib/unifi/logs/" "/etc/apt/sources.list" "/etc/apt/sources.list.d/" "/etc/apt/preferences" "/etc/apt/keyrings" "/etc/apt/trusted.gpg.d/" "/etc/apt/preferences.d/" "/etc/default/unifi" "/etc/environment" "/var/log/dpkg.log"* "/etc/systemd/system/unifi.service.d/" "/lib/systemd/system/unifi.service" "/usr/lib/unifi/data/db/version" "/var/lib/uosserver/" -x "${eus_dir}/go.tar.gz" -x "${eus_dir}/unifi_db/*" -x "${eus_dir}/tmp" -x "/usr/lib/unifi/logs/remote" &> /dev/null
   fi
   if [[ -n "${support_file}" ]]; then
     echo -e "${GRAY_R}#${RESET} Support file has been created here: ${support_file} \\n"
@@ -4016,8 +4017,8 @@ free_disk_space_check() {
   free_gb="$(df -BG --output=avail "${path}" | tail -n 1 | sed 's/[[:space:]]//g; s/G//')"
   if (( free_gb < min_gb )); then
     echo -e "$(date +%F-%T.%6N) | ${path} has only $(df -B1 "${path}" | awk 'NR==2{print $4}' | awk '{ split( "B KB MB GB TB PB EB ZB YB" , v ); s=1; while( $1>1024 && s<9 ){ $1/=1024; s++ } printf "%.1f %s", $1, v[s] }') free (needs at least ${min_gb}GB)" &>> "${eus_dir}/logs/free-disk-space-check.log"
-    abort_reason="${path} has only $(df -B1 "${path}" | awk 'NR==2{print $4}' | awk '{ split( "B KB MB GB TB PB EB ZB YB" , v ); s=1; while( $1>1024 && s<9 ){ $1/=1024; s++ } printf "%.1f %s", $1, v[s] }') free (needs at least ${min_gb} GB)"
-    return 1
+    echo -e "${YELLOW}#${RESET} ${path} has only $(df -B1 "${path}" | awk 'NR==2{print $4}' | awk '{ split( "B KB MB GB TB PB EB ZB YB" , v ); s=1; while( $1>1024 && s<9 ){ $1/=1024; s++ } printf "%.1f %s", $1, v[s] }') free (needs at least ${min_gb} GB)"
+    cancel_script
   else
     echo -e "$(date +%F-%T.%6N) | ${path} has $(df -B1 "${path}" | awk 'NR==2{print $4}' | awk '{ split( "B KB MB GB TB PB EB ZB YB" , v ); s=1; while( $1>1024 && s<9 ){ $1/=1024; s++ } printf "%.1f %s", $1, v[s] }') free (≥ ${min_gb} GB)" &>> "${eus_dir}/logs/free-disk-space-check.log"
     return 0
@@ -4427,6 +4428,24 @@ uos_server_install_required_packages_check() {
       apt_get_install_package
     else
       echo -e "${GREEN}#${RESET} Successfully installed slirp4netns! \\n" && sleep 2
+    fi
+  fi
+  if ! "$(which dpkg)" -l uidmap 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+    if [[ "${installing_required_package}" != 'yes' ]]; then install_required_packages; fi
+    check_dpkg_lock
+    echo -e "${GRAY_R}#${RESET} Installing uidmap..."
+    if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install uidmap &>> "${eus_dir}/logs/required.log"; then
+      echo -e "${RED}#${RESET} Failed to install uidmap in the first run...\\n"
+      if [[ "${repo_codename}" =~ (noble|oracular|plucky|questing) ]]; then
+        repo_component="universe"
+      elif [[ "${repo_codename}" =~ (bookworm|trixie|forky|unstable) ]]; then
+        repo_component="main"
+      fi
+      add_repositories
+      required_package="uidmap"
+      apt_get_install_package
+    else
+      echo -e "${GREEN}#${RESET} Successfully installed uidmap! \\n" && sleep 2
     fi
   fi
 }
@@ -5598,17 +5617,36 @@ uos_server_install_ports_check() {
               unit="$(systemctl status "${pid}" --no-pager 2>/dev/null | awk '/Loaded:/ {print $2}' | sed -n 's/\.service$//p')"
               if [[ -n "${unit}" ]]; then
                 echo -e "\\n${WHITE_R}#${RESET} Attempting to stop service unit ${unit}.service..."
+                echo -e "$(date +%F-%T.%6N) | Attempting to stop service unit ${unit}.service..." &>> "${eus_dir}/logs/uos-server-ports-check.log"
                 if systemctl stop "${unit}.service" &>> "${eus_dir}/logs/uos-server-ports-check.log"; then
+                  echo -e "$(date +%F-%T.%6N) | Successfully stopped ${unit}.service!" &>> "${eus_dir}/logs/uos-server-ports-check.log"
                   echo -e "${GREEN}#${RESET} Successfully stopped ${unit}.service!\\n"
                 else
+                  echo -e "$(date +%F-%T.%6N) | Failed to stop ${unit}.service (PID ${pid})" &>> "${eus_dir}/logs/uos-server-ports-check.log"
                   abort_reason="Failed to stop ${unit}.service (PID ${pid}) during the UniFi OS Server ports check process"
                   abort
                 fi
+              elif [[ -n "${svc}" ]]; then
+                echo -e "\n${WHITE_R}#${RESET} Attempting to stop service ${svc}.service..."
+               if systemctl stop "${svc}.service" &>> "${eus_dir}/logs/uos-server-ports-check.log"; then
+                  echo -e "${GREEN}#${RESET} Successfully stopped ${svc}.service!\\n"
+                else
+                  echo -e "\n${WHITE_R}#${RESET} Attempting to kill PID ${pid} (${svc})..."
+                  if kill "$pid" &>> "${eus_dir}/logs/uos-server-ports-check.log"; then
+                    echo -e "${GREEN}#${RESET} Successfully killed PID ${pid}!\\n"
+                  else
+                    abort_reason="Failed to kill PID ${pid} (${svc}) during the UniFi OS Server ports check process"
+                    abort
+                  fi
+                fi
               else
+                echo -e "$(date +%F-%T.%6N) | Attempting to kill PID ${pid} (${svc})..." &>> "${eus_dir}/logs/uos-server-ports-check.log"
                 echo -e "\\n${WHITE_R}#${RESET} Attempting to kill PID ${pid} (${svc})..."
                 if kill "$pid" &>> "${eus_dir}/logs/uos-server-ports-check.log"; then
+                  echo -e "$(date +%F-%T.%6N) | Successfully killed PID ${pid}!" &>> "${eus_dir}/logs/uos-server-ports-check.log"
                   echo -e "${GREEN}#${RESET} Successfully killed PID ${pid}!\\n"
                 else
+                  echo -e "$(date +%F-%T.%6N) | Failed to kill PID ${pid} (${svc})..." &>> "${eus_dir}/logs/uos-server-ports-check.log"
                   abort_reason="Failed to kill PID ${pid} (${svc}) during the UniFi OS Server ports check process"
                   abort
                 fi
@@ -8053,7 +8091,7 @@ uos_server_install_process() {
   done
   free_disk_space_check "${uos_server_tmp_dir}" "2"
   free_disk_space_check "/var/lib" "1"
-  free_disk_space_check "/home" "16"
+  free_disk_space_check "/home" "18"
   if [[ -z "${uos_version}" ]]; then
     if [[ "$(command -v jq)" ]]; then latest_uos_release_api_status="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/uos-server-latest?status" 2> /dev/null | jq -r '.availability' 2> /dev/null)"; else latest_uos_release_api_status="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/uos-server-latest?status" 2> /dev/null | grep -oP '(?<="availability":")[^"]+')"; fi
     if [[ "${latest_uos_release_api_status}" == "OK" ]]; then
@@ -8146,6 +8184,8 @@ fi
 
 # UOS Server not supported within LXC/Docker Container
 if [[ -n "$(command -v jq)" && -e "${eus_dir}/db/db.json" ]]; then
+  check_lxc_setup
+  check_docker_setup
   if [[ "$(jq -r '.database["lxc-container"]' "${eus_dir}/db/db.json" | sed '/null/d')" == 'true' ]]; then
     choice="2"
     unifi_os_server_unsupported="true"

@@ -11,6 +11,39 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 8.9.1
+  
+ - Improved logging for the free ports check.
+ - Fixed an issue where the free ports check could fail to stop the UniFi Network Application.
+ 
+ ####
+
+ |  UniFi Network Application Installation Script  |  Version 8.9.0
+  
+ - Exit the script on insufficient space rather than abort.
+ 
+ ####
+
+ |  UniFi Network Application Installation Script  |  Version 8.8.9
+  
+ - Improved the UniFi OS Server installation process.
+ - Improved support files.
+ - Fixed an issue where the UniFi OS Server installation process proceed with insufficient disk space.
+ 
+ ####
+
+ |  UniFi Network Application Installation Script  |  Version 8.8.8
+  
+ - Fixed an issue where UniFi OS Server was showing up as available on unsupported platforms.
+ 
+ ####
+
+ |  UniFi Network Application Installation Script  |  Version 8.8.7
+  
+ - Updated the free disk space check.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 8.8.6
   
  - Fixed an issue where UniFi OS Server was showing up as available on unsupported platforms.
