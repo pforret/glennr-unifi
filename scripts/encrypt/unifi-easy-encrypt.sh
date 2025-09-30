@@ -2,7 +2,7 @@
 
 # UniFi Easy Encrypt script.
 # Script   | UniFi Network Easy Encrypt Script
-# Version  | 3.6.5
+# Version  | 3.6.6
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -313,7 +313,15 @@ support_file() {
     } >> "/tmp/EUS/support/timedatectl"
   fi
   ps axjf &> "/tmp/EUS/support/process-tree"
-  if [[ "$(command -v netstat)" ]]; then netstat -tulp &> "/tmp/EUS/support/netstat-results"; fi
+  if [[ "$(command -v netstat)" ]]; then netstat -tulp &> "/tmp/EUS/support/netstat-results.log"; fi
+  if [[ "$(command -v ss)" ]]; then ss -ltnp &> "/tmp/EUS/support/ss-results.log"; fi
+  {
+    echo -e "-----( Is systemd PID 1? )----- \n"; ps -p1 -o comm= 2> /dev/null
+    echo -e "-----( Can we talk to systemd? )----- \n"; systemctl is-system-running 2> /dev/null
+    echo -e "-----( Is logind up? )----- \n"; systemctl status systemd-logind 2> /dev/null
+    echo -e "-----( Does loginctl work at all? )----- \n"; loginctl seat-status 2>/dev/null || loginctl 2>/dev/null || echo "loginctl not working" 2> /dev/null
+    echo -e "-----( Is dbus running? )----- \n"; systemctl status dbus --no-pager 2>/dev/null || pgrep -x dbus-daemon >/dev/null
+  } >> "/tmp/EUS/support/systemd-status.log"
   #
   lsblk -iJ -fs &> "/tmp/EUS/support/disk-layout.json"
   if [[ -n "$(command -v jq)" ]]; then
@@ -539,6 +547,14 @@ support_file() {
       fi
       if [[ "$(jq -r '.database["support-file-upload"]' "${eus_dir}/db/db.json")" == 'true' ]] || [[ "${eus_support_one_time_upload}" == 'true' ]]; then
         upload_result="$(curl "${curl_argument[@]}" -X POST -F "file=@${support_file}" "https://api.glennr.nl/api/eus-support" 2> /dev/null | jq -r '.[]' 2> /dev/null)"
+        if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
+          jq '.scripts."'"${script_name}"'".support."'"${support_file_name}"'"."upload-results" = "'"${upload_result}"'"' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+        else
+          jq --arg script_name "$script_name" --arg support_file_name "$support_file_name" --arg upload_result "$upload_result" '.scripts[$script_name].support[$support_file_name]["upload-results"] = $upload_result' "${eus_dir}/db/db.json"
+        fi
+        eus_database_move
+      else
+        upload_result="skipped"
         if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
           jq '.scripts."'"${script_name}"'".support."'"${support_file_name}"'"."upload-results" = "'"${upload_result}"'"' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
         else
@@ -2316,35 +2332,20 @@ if dpkg -l unifi-talk 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi"; th
 if dpkg -l unifi-led 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi"; then required_service="true"; fi
 if dpkg -l uas-led 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi"; then required_service="true"; fi
 if dpkg -l unifi-core 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi"; then required_service="true"; fi
+if systemctl list-unit-files uosserver.service 2>/dev/null | grep -q 'enabled\|disabled'; then required_service="true"; fi
 if dpkg -l | grep -iq "\\bUAS\\b\\|UniFi Application Server"; then required_service="true"; fi
 if dpkg -l | awk '{print $2}' | grep -iq "^docker.io\\|^docker-ce"; then if docker ps -a | grep -iq 'ubnt/eot'; then required_service="true"; fi; fi
 if [[ "${required_service}" != 'true' && "${skip_required_service_check}" != "true" ]]; then
   echo -e "${RED}#${RESET} Please install one of the following controllers/applications first, then retry this script again!"
+  echo -e "${RED}-${RESET} UniFi OS Server"
   echo -e "${RED}-${RESET} UniFi Network Application"
   echo -e "${RED}-${RESET} UniFi Video NVR"
   echo -e "${RED}-${RESET} UniFi LED Controller\\n\\n"
   exit 1
 fi
 
-# Check if UniFi is already installed.
 unifi_status="$(systemctl status unifi | grep -i 'Active:' | awk '{print $2}')"
-if dpkg -l unifi 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi"; then
-  if [[ "${unifi_status}" == 'inactive' ]]; then
-    header
-    echo -e "${GRAY_R}#${RESET} UniFi is not active ( running ), starting the application now."
-    systemctl start unifi
-    unifi_status="$(systemctl status unifi | grep -i 'Active:' | awk '{print $2}')"
-    if [[ "${unifi_status}" == 'active' ]]; then
-      echo -e "${GREEN}#${RESET} Successfully started the UniFi Network Application!"
-      sleep 2
-    else
-      echo -e "${RED}#${RESET} Failed to start the UniFi Network Application!"
-      echo -e "${RED}#${RESET} Please check the logs in '/usr/lib/unifi/logs/'"
-      sleep 2
-    fi
-  fi
-fi
-
+uosserver_status="$(systemctl status uosserver | grep -i 'Active:' | awk '{print $2}')"
 check_dig_curl
 
 certbot_auto_permission_check() {
@@ -2945,7 +2946,8 @@ else
 fi
 
 # Use RSA key for UniFi Core devices
-if [[ "${unifi_core_system}" == 'true' ]]; then
+if [[ "${unifi_core_system}" == 'true' ]] || [[ "${uosserver_status}" == 'active' ]]; then
+  uos_rsa_required="true"
   certbot_version="$(certbot --version | awk '{print $2}')"
   if [[ "$(echo "${certbot_version}" | cut -d'.' -f1)" -ge '2' ]]; then
     key_type_option="--key-type rsa"
@@ -3050,7 +3052,7 @@ timezone() {
 
 domain_name() {
   if [[ "${manual_fqdn}" == 'no' ]]; then
-    if dpkg -l unifi 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi"; then
+    if [[ "${unifi_status}" == 'active' ]]; then
       server_fqdn="$("${mongocommand}" --quiet --port 27117 ace --eval "${mongoprefix}db.getCollection('setting').find({key:'super_identity'})${mongosuffix}" | sed 's/\(ObjectId(\|)\|NumberLong(\)//g' | jq -r '.[]."hostname"')"
     else
       if [[ -f "${eus_dir}/server_fqdn" ]]; then
@@ -3241,7 +3243,7 @@ le_resolve() {
 }
 
 change_application_hostname() {
-  if [[ "${manual_fqdn}" == 'true' && "${run_ipv6}" != 'true' ]] && dpkg -l unifi 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi"; then
+  if [[ "${manual_fqdn}" == 'true' && "${run_ipv6}" != 'true' && "${unifi_status}" == 'active' ]]; then
     header
     echo -e "${GRAY_R}#${RESET} Your current UniFi Network Application FQDN is set to '${current_server_fqdn}' in the settings..."
     echo -e "${GRAY_R}#${RESET} Would you like to change it to '${server_fqdn}'?"
@@ -3491,6 +3493,8 @@ if [[ -f "/etc/letsencrypt/live/${server_fqdn}\${le_var}/privkey.pem" && -f "/et
     echo -e "\\n------- \$(date +%F-%T.%6N) -------\\n" &>> "${eus_dir}/logs/lets_encrypt_import.log"
     sha256sum "/etc/letsencrypt/live/${server_fqdn}\${le_var}/fullchain.pem" 2> /dev/null | awk '{print \$1}' &> "${eus_dir}/checksum/fullchain.sha256sum" && echo "Successfully updated sha256sum" &>> "${eus_dir}/logs/lets_encrypt_import.log"
     md5sum "/etc/letsencrypt/live/${server_fqdn}\${le_var}/fullchain.pem" 2> /dev/null | awk '{print \$1}' &> "${eus_dir}/checksum/fullchain.md5sum" && echo "Successfully updated md5sum" &>> "${eus_dir}/logs/lets_encrypt_import.log"
+    unifi_status="\$(systemctl status unifi | grep -i 'Active:' | awk '{print \$2}')"
+    uosserver_status="\$(systemctl status uosserver | grep -i 'Active:' | awk '{print \$2}')"
     if dpkg -l unifi-core 2> /dev/null | awk '{print \$1}' | grep -iq "^ii\\|^hi"; then
       if grep -sq unifi-native /mnt/.rofs/var/lib/dpkg/status; then unifi_native_system="true"; fi
       if grep -ioq "udm" /usr/lib/version; then udm_device="true"; fi
@@ -3588,7 +3592,69 @@ SSL
         fi
       fi
     fi
-    if dpkg -l unifi 2> /dev/null | awk '{print \$1}' | grep -iq "^ii\\|^hi" && [[ "\${skip_network_application}" != 'true' ]] || [[ -e "/usr/lib/unifi/data/keystore" && "\${skip_network_application}" != 'true' ]]; then
+    if [[ "\${uosserver_status}" == "active" ]]; then
+      uosserver stop &>> "${eus_dir}/logs/uos-server-certificates.log"
+      if [[ ! -d /home/uosserver/.local/share/containers/storage/volumes/uosserver_data/_data/eus_certificates/ ]]; then
+        mkdir -p /home/uosserver/.local/share/containers/storage/volumes/uosserver_data/_data/eus_certificates/
+        chown -R uosserver:uosserver /home/uosserver/.local/share/containers/storage/volumes/uosserver_data/_data/eus_certificates/
+      fi
+      if [[ ! -d /home/uosserver/.local/share/containers/storage/volumes/uosserver_data/_data/unifi-core/config/overrides/ ]]; then
+        mkdir -p /home/uosserver/.local/share/containers/storage/volumes/uosserver_data/_data/unifi-core/config/overrides/
+        chown -R uosserver:uosserver /home/uosserver/.local/share/containers/storage/volumes/uosserver_data/_data/unifi-core/config/overrides/
+      fi
+      if [[ "${paid_cert}" == "true" ]]; then
+        if [[ -f "${eus_dir}/paid-certificates/eus_crt_file.crt" ]]; then
+          cp "${eus_dir}/paid-certificates/eus_crt_file.crt" /home/uosserver/.local/share/containers/storage/volumes/uosserver_data/_data/eus_certificates/unifi-os.crt
+        fi
+        if [[ -f "${eus_dir}/paid-certificates/eus_key_file.key" ]]; then
+          cp "${eus_dir}/paid-certificates/eus_key_file.key" /home/uosserver/.local/share/containers/storage/volumes/uosserver_data/_data/eus_certificates/unifi-os.key
+        fi
+      else
+        if [[ -f "/etc/letsencrypt/live/${server_fqdn}\${le_var}/fullchain.pem" ]]; then
+          cp "/etc/letsencrypt/live/${server_fqdn}\${le_var}/fullchain.pem" /home/uosserver/.local/share/containers/storage/volumes/uosserver_data/_data/eus_certificates/unifi-os.crt
+        elif [[ -f "/etc/letsencrypt/live/${server_fqdn}\${le_var}/fullchain.pem" ]]; then
+          cp "/etc/letsencrypt/live/${server_fqdn}\${le_var}/fullchain.pem" /home/uosserver/.local/share/containers/storage/volumes/uosserver_data/_data/eus_certificates/unifi-os.crt
+        fi
+        if [[ -f "/etc/letsencrypt/live/${server_fqdn}\${le_var}/privkey.pem" ]]; then
+          cp "/etc/letsencrypt/live/${server_fqdn}\${le_var}/privkey.pem" /home/uosserver/.local/share/containers/storage/volumes/uosserver_data/_data/eus_certificates/unifi-os.key
+        elif [[ -f "/etc/letsencrypt/live/${server_fqdn}\${le_var}/privkey.pem" ]]; then
+          cp "/etc/letsencrypt/live/${server_fqdn}\${le_var}/privkey.pem" /home/uosserver/.local/share/containers/storage/volumes/uosserver_data/_data/eus_certificates/unifi-os.key
+        fi
+      fi
+      if [[ "\${unifi_core_certificate_copy}" == 'true' ]]; then
+        cp /home/uosserver/.local/share/containers/storage/volumes/uosserver_data/_data/eus_certificates/unifi-os.key /home/uosserver/.local/share/containers/storage/volumes/uosserver_data/_data/unifi-core/config/unifi-core.key
+        cp /home/uosserver/.local/share/containers/storage/volumes/uosserver_data/_data/eus_certificates/unifi-os.crt /home/uosserver/.local/share/containers/storage/volumes/uosserver_data/_data/unifi-core/config/unifi-core.crt
+      else
+        if [[ ! -f "/home/uosserver/.local/share/containers/storage/volumes/uosserver_data/_data/unifi-core/config/overrides/local.yml" ]]; then
+          tee "/home/uosserver/.local/share/containers/storage/volumes/uosserver_data/_data/unifi-core/config/overrides/local.yml" &>/dev/null << SSL
+# File created by EUS ( Easy UniFi Scripts ).
+ssl:
+  crt: '/data/eus_certificates/unifi-os.crt'
+  key: '/data/eus_certificates/unifi-os.key'
+SSL
+        else
+          if ! [[ -d "${eus_dir}/unifi-os/config_backups" ]]; then mkdir -p "${eus_dir}/unifi-os/config_backups"; fi
+          cp "/home/uosserver/.local/share/containers/storage/volumes/uosserver_data/_data/unifi-core/config/overrides/local.yml" "${eus_dir}/unifi-os/config_backups/config.yaml_\$(date +%Y%m%d_%H%M)"
+          if ! grep -iq "ssl:" "/home/uosserver/.local/share/containers/storage/volumes/uosserver_data/_data/unifi-core/config/overrides/local.yml"; then
+            tee -a "/home/uosserver/.local/share/containers/storage/volumes/uosserver_data/_data/unifi-core/config/overrides/local.yml" &>/dev/null << SSL
+# File created by EUS ( Easy UniFi Scripts ).
+ssl:
+  crt: '/data/eus_certificates/unifi-os.crt'
+  key: '/data/eus_certificates/unifi-os.key'
+SSL
+          else
+            unifi_os_crt_file=\$(grep -i "crt:" "/home/uosserver/.local/share/containers/storage/volumes/uosserver_data/_data/unifi-core/config/overrides/local.yml" | awk '{print\$2}' | sed "s/'//g")
+            unifi_os_key_file=\$(grep -i "key:" "/home/uosserver/.local/share/containers/storage/volumes/uosserver_data/_data/unifi-core/config/overrides/local.yml" | awk '{print\$2}' | sed "s/'//g")
+            sed -i "s#\${unifi_os_crt_file}#/data/eus_certificates/unifi-os.crt#g" "/home/uosserver/.local/share/containers/storage/volumes/uosserver_data/_data/unifi-core/config/overrides/local.yml"
+            sed -i "s#\${unifi_os_key_file}#/data/eus_certificates/unifi-os.key#g" "/home/uosserver/.local/share/containers/storage/volumes/uosserver_data/_data/unifi-core/config/overrides/local.yml"
+          fi
+        fi
+      fi
+      chown -R uosserver:uosserver /home/uosserver/.local/share/containers/storage/volumes/uosserver_data/_data/eus_certificates/
+      chown -R uosserver:uosserver /home/uosserver/.local/share/containers/storage/volumes/uosserver_data/_data/unifi-core/config/overrides/
+      uosserver start &>> "${eus_dir}/logs/uos-server-certificates.log"
+    fi
+    if [[ "\${unifi_status}" == "active" ]] && [[ "\${skip_network_application}" != 'true' ]] || [[ -e "/usr/lib/unifi/data/keystore" && "\${skip_network_application}" != 'true' ]]; then
       if [[ "\${unifi_native_system}" == 'true' ]]; then
         openjdk_native_installed_package="\$(apt-cache search "jre-headless" | grep -Eio "openjdk-[0-9]{1,2}-jre-headless" | sort -V | tail -n1)"
         openjdk_native_installed="true"
@@ -3841,6 +3907,80 @@ cloudkey_unifi_talk() {
     cat "/etc/letsencrypt/live/${server_fqdn}${le_var}/privkey.pem" "/etc/letsencrypt/live/${server_fqdn}${le_var}/fullchain.pem" > /usr/share/unifi-talk/app/certs/server.pem
   fi
   if systemctl restart unifi-talk; then echo -e "${GREEN}#${RESET} Successfully imported the SSL certificates into UniFi-Talk!"; else echo -e "${RED}#${RESET} Failed to import the SSL certificates into UniFi-Talk... \\n"; sleep 2; fi
+}
+
+uosserver_certificates() {
+  if uosserver stop &>> "${eus_dir}/logs/uos-server-certificates.log"; then
+    echo -e "${GREEN}#${RESET} Successfully stopped the UniFi OS Server!"
+  else
+    abort_reason="Failed to stop the UniFi OS Server"
+    abort
+  fi
+  echo -e "\\n${GRAY_R}#${RESET} Importing the SSL certificates into the UniFi OS Server..."
+  if [[ ! -d /home/uosserver/.local/share/containers/storage/volumes/uosserver_data/_data/eus_certificates/ ]]; then
+    mkdir -p /home/uosserver/.local/share/containers/storage/volumes/uosserver_data/_data/eus_certificates/
+    chown -R uosserver:uosserver /home/uosserver/.local/share/containers/storage/volumes/uosserver_data/_data/eus_certificates/
+  fi
+  if [[ ! -d /home/uosserver/.local/share/containers/storage/volumes/uosserver_data/_data/unifi-core/config/overrides/ ]]; then
+    mkdir -p /home/uosserver/.local/share/containers/storage/volumes/uosserver_data/_data/unifi-core/config/overrides/
+    chown -R uosserver:uosserver /home/uosserver/.local/share/containers/storage/volumes/uosserver_data/_data/unifi-core/config/overrides/
+  fi
+  if [[ "${paid_cert}" == "true" ]]; then
+    if [[ -f "${eus_dir}/paid-certificates/eus_crt_file.crt" ]]; then
+      cp "${eus_dir}/paid-certificates/eus_crt_file.crt" /home/uosserver/.local/share/containers/storage/volumes/uosserver_data/_data/eus_certificates/unifi-os.crt
+    fi
+    if [[ -f "${eus_dir}/paid-certificates/eus_key_file.key" ]]; then
+      cp "${eus_dir}/paid-certificates/eus_key_file.key" /home/uosserver/.local/share/containers/storage/volumes/uosserver_data/_data/eus_certificates/unifi-os.key
+    fi
+  else
+    if [[ -f "${fullchain_pem}.pem" ]]; then
+      cp "${fullchain_pem}.pem" /home/uosserver/.local/share/containers/storage/volumes/uosserver_data/_data/eus_certificates/unifi-os.crt
+    elif [[ -f "/etc/letsencrypt/live/${server_fqdn}${le_var}/fullchain.pem" ]]; then
+      cp "/etc/letsencrypt/live/${server_fqdn}${le_var}/fullchain.pem" /home/uosserver/.local/share/containers/storage/volumes/uosserver_data/_data/eus_certificates/unifi-os.crt
+    fi
+    if [[ -f "${priv_key_pem}.pem" ]]; then
+      cp "${priv_key_pem}.pem" /home/uosserver/.local/share/containers/storage/volumes/uosserver_data/_data/eus_certificates/unifi-os.key
+    elif [[ -f "/etc/letsencrypt/live/${server_fqdn}${le_var}/privkey.pem" ]]; then
+      cp "/etc/letsencrypt/live/${server_fqdn}${le_var}/privkey.pem" /home/uosserver/.local/share/containers/storage/volumes/uosserver_data/_data/eus_certificates/unifi-os.key
+    fi
+  fi
+  if [[ "${unifi_core_certificate_copy}" == 'true' ]]; then
+    cp /home/uosserver/.local/share/containers/storage/volumes/uosserver_data/_data/eus_certificates/unifi-os.key /home/uosserver/.local/share/containers/storage/volumes/uosserver_data/_data/unifi-core/config/unifi-core.key
+    cp /home/uosserver/.local/share/containers/storage/volumes/uosserver_data/_data/eus_certificates/unifi-os.crt /home/uosserver/.local/share/containers/storage/volumes/uosserver_data/_data/unifi-core/config/unifi-core.crt
+  else
+    if [[ ! -f "/home/uosserver/.local/share/containers/storage/volumes/uosserver_data/_data/unifi-core/config/overrides/local.yml" ]]; then
+      tee "/home/uosserver/.local/share/containers/storage/volumes/uosserver_data/_data/unifi-core/config/overrides/local.yml" &>/dev/null << SSL
+# File created by EUS ( Easy UniFi Scripts ).
+ssl:
+  crt: '/data/eus_certificates/unifi-os.crt'
+  key: '/data/eus_certificates/unifi-os.key'
+SSL
+    else
+      if ! [[ -d "${eus_dir}/unifi-os/config_backups" ]]; then mkdir -p "${eus_dir}/unifi-os/config_backups"; fi
+      cp "/home/uosserver/.local/share/containers/storage/volumes/uosserver_data/_data/unifi-core/config/overrides/local.yml" "${eus_dir}/unifi-os/config_backups/config.yaml_$(date +%Y%m%d_%H%M)"
+      if ! grep -iq "ssl:" "/home/uosserver/.local/share/containers/storage/volumes/uosserver_data/_data/unifi-core/config/overrides/local.yml"; then
+        tee -a "/home/uosserver/.local/share/containers/storage/volumes/uosserver_data/_data/unifi-core/config/overrides/local.yml" &>/dev/null << SSL
+# File created by EUS ( Easy UniFi Scripts ).
+ssl:
+  crt: '/data/eus_certificates/unifi-os.crt'
+  key: '/data/eus_certificates/unifi-os.key'
+SSL
+      else
+        unifi_os_crt_file=$(grep -i "crt:" "/home/uosserver/.local/share/containers/storage/volumes/uosserver_data/_data/unifi-core/config/overrides/local.yml" | awk '{print$2}' | sed "s/'//g")
+        unifi_os_key_file=$(grep -i "key:" "/home/uosserver/.local/share/containers/storage/volumes/uosserver_data/_data/unifi-core/config/overrides/local.yml" | awk '{print$2}' | sed "s/'//g")
+        sed -i "s#${unifi_os_crt_file}#/data/eus_certificates/unifi-os.crt#g" "/home/uosserver/.local/share/containers/storage/volumes/uosserver_data/_data/unifi-core/config/overrides/local.yml"
+        sed -i "s#${unifi_os_key_file}#/data/eus_certificates/unifi-os.key#g" "/home/uosserver/.local/share/containers/storage/volumes/uosserver_data/_data/unifi-core/config/overrides/local.yml"
+      fi
+    fi
+  fi
+  chown -R uosserver:uosserver /home/uosserver/.local/share/containers/storage/volumes/uosserver_data/_data/eus_certificates/
+  chown -R uosserver:uosserver /home/uosserver/.local/share/containers/storage/volumes/uosserver_data/_data/unifi-core/config/overrides/
+  if uosserver start &>> "${eus_dir}/logs/uos-server-certificates.log"; then
+    echo -e "${GREEN}#${RESET} Successfully started the UniFi OS Server!"
+  else
+    abort_reason="Failed to start the UniFi OS Server"
+    abort
+  fi
 }
 
 unifi_core() {
@@ -4162,6 +4302,12 @@ import_ssl_certificates() {
       else
         echo -e "${GRAY_R}#${RESET} Importing the SSL certificates into UniFi OS running on your ${unifi_core_device}..."
       fi
+    elif systemctl list-unit-files uosserver.service 2>/dev/null | grep -q 'enabled\|disabled'; then
+      if [[ "${renewal_option}" == "--force-renewal" ]]; then
+        echo -e "${GRAY_R}#${RESET} Force renewing the SSL certificates and importing them into the UniFi OS Server..."
+      else
+        echo -e "${GRAY_R}#${RESET} Importing the SSL certificates into the UniFi OS Server..."
+      fi
     elif dpkg -l unifi 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi" || [[ -e "/usr/lib/unifi/data/keystore" ]]; then
       if [[ "${renewal_option}" == "--force-renewal" ]]; then
         echo -e "${GRAY_R}#${RESET} Force renewing the SSL certificates and importing them into the UniFi Network Application..."
@@ -4233,7 +4379,15 @@ import_ssl_certificates() {
         abort_reason="Unknown error"
         abort
       else
-        if [[ "${auto_certbot_success_check}" == 'true' ]]; then if dpkg -l unifi-core 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi"; then echo -e "${GREEN}#${RESET} Successfully imported the SSL certificates into UniFi OS! \\n"; sleep 5; else echo -e "${GREEN}#${RESET} Successfully imported the SSL certificates into the UniFi Network Application! \\n"; sleep 2; fi; fi
+        if [[ "${auto_certbot_success_check}" == 'true' ]]; then
+          if dpkg -l unifi-core 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi"; then
+            echo -e "${GREEN}#${RESET} Successfully imported the SSL certificates into UniFi OS! \\n"; sleep 2
+          elif systemctl list-unit-files uosserver.service 2>/dev/null | grep -q 'enabled\|disabled'; then
+            echo -e "${GREEN}#${RESET} Successfully imported the SSL certificates into the UniFi OS Server! \\n"; sleep 2
+          else
+            echo -e "${GREEN}#${RESET} Successfully imported the SSL certificates into the UniFi Network Application! \\n"; sleep 2
+          fi
+        fi
         if [[ "${is_cloudkey}" == 'true' ]]; then run_uck_scripts="true"; fi
       fi
       if ls "${eus_dir}/logs/lets_encrypt_[0-9]*.log" &>/dev/null; then
@@ -4267,7 +4421,7 @@ import_ssl_certificates() {
              *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
           esac
         done
-      elif dpkg -l unifi 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi" && [[ "${unifi_core_system}" != 'true' ]] || [[ -e "/usr/lib/unifi/data/keystore" && "${unifi_core_system}" != 'true' ]]; then
+      elif [[ "${unifi_status}" == 'active' ]] && [[ "${unifi_core_system}" != 'true' ]] || [[ -e "/usr/lib/unifi/data/keystore" && "${unifi_status}" == 'active' && "${unifi_core_system}" != 'true' ]]; then
         echo -e "\\n${GRAY_R}----${RESET}\\n"
         echo -e "${GRAY_R}#${RESET} UniFi Network Application has been detected!"
         while true; do
@@ -4277,6 +4431,18 @@ import_ssl_certificates() {
                 unifi_network_application
                 if [[ "${is_cloudkey}" == 'true' ]]; then run_uck_scripts="true"; fi
                 break;;
+             [Nn]*) break;;
+             *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
+          esac
+        done
+      fi
+      if [[ "${uosserver_status}" == 'active' ]]; then
+        echo -e "\\n${GRAY_R}----${RESET}\\n"
+        echo -e "${GRAY_R}#${RESET} UniFi OS Server has been detected!"
+        while true; do
+          if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Would you like to apply the certificates to your UniFi OS Server? (Y/n) ' yes_no; fi
+          case "$yes_no" in
+             [Yy]*|"") uosserver_certificates; break;;
              [Nn]*) break;;
              *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
           esac
@@ -4420,7 +4586,7 @@ import_existing_ssl_certificates() {
              [Nn]*) ;;
           esac
         fi
-        if dpkg -l unifi 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi" && [[ "${unifi_core_system}" != 'true' ]] || [[ -e "/usr/lib/unifi/data/keystore" && "${unifi_core_system}" != 'true' ]]; then
+        if [[ "${unifi_status}" == "active" ]] && [[ "${unifi_core_system}" != 'true' ]] || [[ -e "/usr/lib/unifi/data/keystore" && "${unifi_status}" == "active" && "${unifi_core_system}" != 'true' ]]; then
           echo -e "\\n${GRAY_R}----${RESET}\\n"
           echo -e "${GRAY_R}#${RESET} UniFi Network Application has been detected!"
           if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Would you like to apply the certificates to the UniFi Network Application? (Y/n) ' yes_no; fi
@@ -4430,6 +4596,18 @@ import_existing_ssl_certificates() {
                 if [[ "${is_cloudkey}" == 'true' ]]; then run_uck_scripts="true"; fi;;
              [Nn]*) ;;
           esac
+        fi
+        if [[ "${uosserver_status}" == "active" ]]; then
+          echo -e "\\n${GRAY_R}----${RESET}\\n"
+          echo -e "${GRAY_R}#${RESET} UniFi OS Server has been detected!"
+          while true; do
+            if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Would you like to apply the certificates to your UniFi OS Server? (Y/n) ' yes_no; fi
+            case "$yes_no" in
+               [Yy]*|"") uosserver_certificates; break;;
+               [Nn]*) break;;
+               *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
+            esac
+          done
         fi
         if [[ "${is_cloudkey}" == 'true' ]] && [[ "${unifi_core_system}" != 'true' ]]; then
           echo -e "\\n${GRAY_R}----${RESET}\\n"
@@ -5263,11 +5441,42 @@ lets_encrypt() {
     fullchain_pem=$(grep -i "Certificate Path" "${eus_dir}/certificates" | grep -i "${le_fqdn}" | awk '{print $3}' | sed 's/.pem//g' | tail -n1)
     priv_key_pem=$(grep -i "Private Key Path" "${eus_dir}/certificates" | grep -i "${le_fqdn}" | awk '{print $4}' | sed 's/.pem//g' | tail -n1)
     expire_date=$(grep -i "Expiry Date:" "${eus_dir}/certificates" | grep -i "${le_fqdn}" | awk '{print $3}' | tail -n1)
-    if [[ "${run_force_renew}" == 'true' ]] || [[ "${valid_days}" == 'EXPIRED' ]] || [[ "${valid_days}" -lt '30' ]]; then
+    if [[ "${uos_rsa_required}" == 'true' && -f "${fullchain_pem}.pem" ]]; then
+      if ! openssl x509 -in "${fullchain_pem}.pem" -noout -text | grep -q "Public Key Algorithm: rsaEncryption"; then
+        echo -e "\\n${GREEN}----${RESET}\\n"
+        echo -e "${YELLOW}#${RESET} UniFi OS doesn't support non-RSA certificates..."
+        while true; do
+          if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Do you want to force renew the certficiates to be RSA? (Y/n) ' yes_no; elif [[ "${script_option_renew}" != 'true' ]]; then echo -e "${GRAY_R}#${RESET} No... I don't want to force renew my certificates"; else echo -e "${GRAY_R}#${RESET} Yes, I want to force renew the certificates!"; fi
+          case "$yes_no" in
+              [Yy]*|"")
+                  uos_rsa_renewal="true"
+                  key_type_option+=" --cert-name ${le_fqdn}"
+                  break;;
+              [Nn]*) break;;
+              *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
+          esac
+        done
+      fi
+    fi
+    if [[ "${uos_rsa_renewal}" == 'true' ]] || [[ "${run_force_renew}" == 'true' ]] || [[ "${valid_days}" == 'EXPIRED' ]] || [[ "${valid_days}" -lt '30' ]]; then
       echo -e "\\n${GREEN}----${RESET}\\n"
-      if [[ "${valid_days}" == 'EXPIRED' ]]; then echo -e "${GRAY_R}#${RESET} Your certificates for '${server_fqdn}' are already EXPIRED!"; else echo -e "${GRAY_R}#${RESET} Your certificates for '${server_fqdn}' expire in ${valid_days} days..."; fi
+      if [[ "${valid_days}" == 'EXPIRED' ]]; then
+        echo -e "${GRAY_R}#${RESET} Your certificates for '${server_fqdn}' are already EXPIRED!"
+      elif [[ "${uos_rsa_renewal}" == 'true' ]]; then
+        :
+      else
+        echo -e "${GRAY_R}#${RESET} Your certificates for '${server_fqdn}' expire in ${valid_days} days..."
+      fi
       while true; do
-        if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Do you want to force renew the certficiates? (Y/n) ' yes_no; elif [[ "${script_option_renew}" != 'true' ]]; then echo -e "${GRAY_R}#${RESET} No... I don't want to force renew my certificates"; else echo -e "${GRAY_R}#${RESET} Yes, I want to force renew the certificates!"; fi
+        if [[ "${script_option_skip}" != 'true' && "${uos_rsa_renewal}" != 'true' ]]; then
+          read -rp $'\033[39m#\033[0m Do you want to force renew the certficiates? (Y/n) ' yes_no
+        elif [[ "${uos_rsa_renewal}" == 'true' ]]; then
+          echo -e "${GRAY_R}#${RESET} Renewing the certificates for ${server_fqdn} to be RSA..."
+        elif [[ "${script_option_renew}" != 'true' ]]; then
+          echo -e "${GRAY_R}#${RESET} No... I don't want to force renew my certificates"
+        else
+          echo -e "${GRAY_R}#${RESET} Yes, I want to force renew the certificates!"
+        fi
         case "$yes_no" in
             [Yy]*|"")
                 renewal_option="--force-renewal"

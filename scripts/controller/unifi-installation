@@ -11,6 +11,12 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 8.9.2
+  
+ - Improved support files.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 8.9.1
   
  - Improved logging for the free ports check.

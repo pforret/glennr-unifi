@@ -11,6 +11,12 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 10.4.7
+  
+ - Improved support files.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 10.4.6
   
  - Exit the script on insufficient space rather than abort.

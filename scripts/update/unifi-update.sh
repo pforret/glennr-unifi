@@ -2,7 +2,7 @@
 
 # UniFi Network Application Easy Update Script.
 # Script   | UniFi Network Easy Update Script
-# Version  | 10.4.7
+# Version  | 10.4.8
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -494,6 +494,13 @@ support_file() {
   ps axjf &> "/tmp/EUS/support/process-tree"
   if [[ "$(command -v netstat)" ]]; then netstat -tulp &> "/tmp/EUS/support/netstat-results.log"; fi
   if [[ "$(command -v ss)" ]]; then ss -ltnp &> "/tmp/EUS/support/ss-results.log"; fi
+  {
+    echo -e "-----( Is systemd PID 1? )----- \n"; ps -p1 -o comm= 2> /dev/null
+    echo -e "-----( Can we talk to systemd? )----- \n"; systemctl is-system-running 2> /dev/null
+    echo -e "-----( Is logind up? )----- \n"; systemctl status systemd-logind 2> /dev/null
+    echo -e "-----( Does loginctl work at all? )----- \n"; loginctl seat-status 2>/dev/null || loginctl 2>/dev/null || echo "loginctl not working" 2> /dev/null
+    echo -e "-----( Is dbus running? )----- \n"; systemctl status dbus --no-pager 2>/dev/null || pgrep -x dbus-daemon >/dev/null
+  } >> "/tmp/EUS/support/systemd-status.log"
   #
   lsblk -iJ -fs &> "/tmp/EUS/support/disk-layout.json"
   if [[ -n "$(command -v jq)" ]]; then
@@ -763,6 +770,14 @@ support_file() {
             eus_database_move
           fi
         fi
+      else
+        upload_result="skipped"
+        if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
+          jq '.scripts."'"${script_name}"'".support."'"${support_file_name}"'"."upload-results" = "'"${upload_result}"'"' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+        else
+          jq --arg script_name "$script_name" --arg support_file_name "$support_file_name" --arg upload_result "$upload_result" '.scripts[$script_name].support[$support_file_name]["upload-results"] = $upload_result' "${eus_dir}/db/db.json"
+        fi
+        eus_database_move
       fi
     fi
   fi
