@@ -11,6 +11,24 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 10.5.0
+  
+ - Fixed an issue where the script would show cancelling script message without time to show cancelling reason.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 10.4.9
+  
+ - Improved support files.
+
+ ####
+
+ |  UniFi Easy Update Script  |  Version 10.4.8
+  
+ - Added WSL check.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 10.4.7
   
  - Improved support files.

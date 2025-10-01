@@ -70,7 +70,7 @@
 ###################################################################################################################################################################################################
 
 # Script                | UniFi Network/OS Easy Installation Script
-# Version               | 8.9.2
+# Version               | 8.9.4
 # Application version   | 7.5.172
 # Debian Repo version   | 7.5.172-22697-1
 # UOS Server version    | 4.3.6
@@ -397,6 +397,18 @@ check_lxc_setup() {
   fi
 }
 
+check_wsl_setup() {
+  if grep -qi microsoft /proc/version; then wsl_setup="true"; container_system="true"; else wsl_setup="false"; fi
+  if [[ -n "$(command -v jq)" && -e "${eus_dir}/db/db.json" ]]; then
+    if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
+      jq '."database" += {"wsl-container": "'"${wsl_setup}"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+    else
+      jq --arg wsl_setup "$wsl_setup" '.database = (.database + {"wsl-container": $wsl_setup})' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+    fi
+    eus_database_move
+  fi
+}
+
 update_eus_db() {
   if [[ -n "$(command -v jq)" && -e "${eus_dir}/db/db.json" ]]; then
     if [[ -n "${script_local_version_dots}" ]]; then
@@ -455,6 +467,7 @@ update_eus_db() {
   fi
   check_docker_setup
   check_lxc_setup
+  check_wsl_setup
   locate_http_proxy
 }
 
@@ -1087,7 +1100,7 @@ help_script() {
 
 rm --force /tmp/EUS/script_options &> /dev/null
 rm --force /tmp/EUS/le_script_options &> /dev/null
-script_option_list=(-skip --skip --skip-swap --add-repository --local --local-controller --local-install --custom-url --help --v6 --ipv6 --email --mail --fqdn --domain-name --server-ip --server-address --retry --external-dns --force-renew --renew --dns --dns-challenge --dns-provider --dns-provider-credentials --debug --run-easy-encrypt --support-file)
+script_option_list=(-skip --skip --install-unifi-os-server --install-uos --install-network-application --install-net --skip-swap --add-repository --local --local-controller --local-install --check-ssh-port --custom-url --help --v6 --ipv6 --email --mail --fqdn --domain-name --server-ip --server-address --retry --external-dns --force-renew --renew --dns --dns-challenge --dns-provider --dns-provider-credentials --debug --run-easy-encrypt --support-file)
 dns_provider_list=(cloudflare digitalocean dnsimple dnsmadeeasy gehirn google linode luadns nsone ovh rfc2136 route53 sakuracloud)
 dns_multi_provider_list=(akamaiedgedns alibabaclouddns allinkl amazonlightsail arvancloud auroradns autodns azuredns bindman bluecat brandit bunny checkdomain civo cloudru clouddns cloudns cloudxns conoha constellix derakcloud desecio designatednsaasforopenstack dnshomede domainoffensive domeneshop dreamhost duckdns dyn dynu easydns efficientip epik exoscale externalprogram freemyip gcore gandi gandilivedns glesys godaddy hetzner hostingde hosttech httprequest httpnet hurricaneelectricdns hyperone ibmcloud iijdnsplatformservice infoblox infomaniak internetinitiativejapan internetbs inwx ionos ipv64 iwantmyname joker joohoisacmedns liara liquidweb loopia metaname mydnsjp mythicbeasts namecom namecheap namesilo nearlyfreespeechnet netcup netlify nicmanager nifcloud njalla nodion opentelekomcloud oraclecloud pleskcom porkbun powerdns rackspace rcodezero regru rimuhosting scaleway selectel servercow simplycom sonic stackpath tencentclouddns transip ukfastsafedns ultradns variomedia vegadns vercel versionl versioeu versiouk vinyldns vkcloud vscale vultr webnames websupport wedos yandex360 yandexcloud yandexpdd zoneee zonomi)
 
@@ -2452,6 +2465,8 @@ cancel_script() {
   if [[ "${stopped_unattended_upgrade}" == 'true' ]]; then systemctl start unattended-upgrades &>> "${eus_dir}/logs/unattended-upgrades.log"; unset stopped_unattended_upgrade; fi
   if [[ "${script_option_skip}" == 'true' ]]; then
     echo -e "\\n${GRAY_R}#########################################################################${RESET}\\n"
+  elif [[ "${cancel_script_without_clearing_error}" == 'true' ]]; then
+    echo -e "\\n${GRAY_R}#########################################################################${RESET}\\n"
   else
     header
   fi
@@ -2514,8 +2529,8 @@ author() {
   cleanup_codename_mismatch_repos
   christmass_new_year
   if [[ "${new_year_message}" == 'true' || "${christmas_message}" == 'true' ]]; then echo -e "\\n${GRAY_R}----${RESET}\\n"; fi
-  if [[ "${archived_repo}" == 'true' && "${unifi_core_system}" != 'true' ]]; then echo -e "\\n${WHITE_R}----${RESET}\\n\\n${RED}# ${RESET}System Notice: ${WHITE_R}Unsupported OS Version Detected${RESET}! \\n${RED}# ${RESET}Your operating system release (${WHITE_R}${os_codename}${RESET}) has reached End of Life (EOL) and is no longer supported by its creators.\\n${RED}# ${RESET}To ensure security and compatibility, please update to a more current release...\\n"; fi
-  if [[ "${archived_repo}" == 'true' && "${unifi_core_system}" == 'true' ]]; then echo -e "\\n${GRAY_R}----${RESET}\\n\\n${RED}# ${RESET}Please update to the latest UniFi OS Release!\\n"; fi
+  if [[ "${archived_repo}" == 'true' && "${unifi_core_system}" != 'true' ]]; then echo -e "\\n${WHITE_R}----${RESET}\\n\\n${RED}#${RESET} ${RESET}System Notice: ${WHITE_R}Unsupported OS Version Detected${RESET}! \\n${RED}#${RESET} ${RESET}Your operating system release (${WHITE_R}${os_codename}${RESET}) has reached End of Life (EOL) and is no longer supported by its creators.\\n${RED}#${RESET} ${RESET}To ensure security and compatibility, please update to a more current release...\\n"; fi
+  if [[ "${archived_repo}" == 'true' && "${unifi_core_system}" == 'true' ]]; then echo -e "\\n${GRAY_R}----${RESET}\\n\\n${RED}#${RESET} ${RESET}Please update to the latest UniFi OS Release!\\n"; fi
   if [[ "${stopped_unattended_upgrade}" == 'true' ]]; then systemctl start unattended-upgrades &>> "${eus_dir}/logs/unattended-upgrades.log"; unset stopped_unattended_upgrade; fi
   echo -e "${GRAY_R}#${RESET} ${GRAY_R}Author   |  ${WHITE_R}Glenn R.${RESET}"
   echo -e "${GRAY_R}#${RESET} ${GRAY_R}Email    |  ${WHITE_R}glennrietveld8@hotmail.nl${RESET}"
@@ -3915,6 +3930,7 @@ free_space_check() {
             free_space_check_response="Cancel script"
             free_space_check_date="$(date +%s)"
             echo -e "${YELLOW}#${RESET} OK... Please free up disk space before running the script again..."
+            cancel_script_without_clearing_error="true"
             cancel_script
             break;;
          [Yy]*)
@@ -3953,6 +3969,7 @@ free_boot_space_check() {
                 free_boot_space_check_response="Cancel script"
                 free_boot_space_check_date="$(date +%s)"
                 echo -e "${YELLOW}#${RESET} OK... Please free up disk space before running the script again..."
+                cancel_script_without_clearing_error="true"
                 cancel_script
                 break;;
              [Yy]*)
@@ -4016,7 +4033,7 @@ free_var_log_space_check() {
             sleep 3
             free_var_log_space_check;;
          2) echo -e "${YELLOW}#${RESET} OK... Proceeding with the script.. please note that failures may occur due to not enough disk space... \\n"; sleep 10;;
-         3) echo -e "${YELLOW}#${RESET} OK... Please free up disk space before running the script again..."; cancel_script;;
+         3) echo -e "${YELLOW}#${RESET} OK... Please free up disk space before running the script again..."; cancel_script_without_clearing_error="true"; cancel_script;;
 	     *) header_red; echo -e "${GRAY_R}#${RESET} Option ${choice} is not a valid..."; sleep 3; free_var_log_space_check;;
       esac
     fi
@@ -4033,6 +4050,7 @@ free_disk_space_check() {
   if (( free_gb < min_gb )); then
     echo -e "$(date +%F-%T.%6N) | ${path} has only $(df -B1 "${path}" | awk 'NR==2{print $4}' | awk '{ split( "B KB MB GB TB PB EB ZB YB" , v ); s=1; while( $1>1024 && s<9 ){ $1/=1024; s++ } printf "%.1f %s", $1, v[s] }') free (needs at least ${min_gb}GB)" &>> "${eus_dir}/logs/free-disk-space-check.log"
     echo -e "${YELLOW}#${RESET} ${path} has only $(df -B1 "${path}" | awk 'NR==2{print $4}' | awk '{ split( "B KB MB GB TB PB EB ZB YB" , v ); s=1; while( $1>1024 && s<9 ){ $1/=1024; s++ } printf "%.1f %s", $1, v[s] }') free (needs at least ${min_gb} GB)"
+    cancel_script_without_clearing_error="true"
     cancel_script
   else
     echo -e "$(date +%F-%T.%6N) | ${path} has $(df -B1 "${path}" | awk 'NR==2{print $4}' | awk '{ split( "B KB MB GB TB PB EB ZB YB" , v ); s=1; while( $1>1024 && s<9 ){ $1/=1024; s++ } printf "%.1f %s", $1, v[s] }') free (≥ ${min_gb} GB)" &>> "${eus_dir}/logs/free-disk-space-check.log"
@@ -4244,7 +4262,7 @@ if ! "$(which dpkg)" -l netcat netcat-traditional 2> /dev/null | awk '{print $1}
   if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${required_package}" &>> "${eus_dir}/logs/required.log"; then
     echo -e "${RED}#${RESET} Failed to install ${required_package} in the first run...\\n"
     if [[ "${repo_codename}" =~ (precise|trusty|utopic|vivid|wily|yakkety|zesty|artful|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky|questing) ]]; then
-      repo_component="universe"
+      repo_component="main universe"
     elif [[ "${repo_codename}" =~ (wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky|unstable) ]]; then
       repo_component="main"
     fi
@@ -8094,6 +8112,60 @@ uos_server_install_installation_check() {
   remove_yourself
 }
 
+uos_server_logind_dbus_check() {
+  if systemctl status dbus.service &>/dev/null; then
+    if ! systemctl is-active --quiet dbus; then
+      state="$(systemctl is-enabled dbus 2>/dev/null || echo "unknown")"
+      echo -e "$(date +%F-%T.%6N) | dbus not running (state: ${state}). Attempting recovery..." &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"
+      if [[ "${state}" == "masked" ]]; then
+        echo -e "$(date +%F-%T.%6N) | dbus is masked. Attempting to unmask..." &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"
+        if systemctl unmask dbus.service &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"; then
+          echo -e "$(date +%F-%T.%6N) | Successfully unmasked dbus!" &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"
+        else
+          echo -e "$(date +%F-%T.%6N) | Failed to unmask dbus..." &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"
+        fi
+        echo -e "$(date +%F-%T.%6N) | Attempting to enable dbus..." &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"
+        if systemctl enable dbus.service &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"; then
+          echo -e "$(date +%F-%T.%6N) | Successfully enabled dbus!" &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"
+        else
+          echo -e "$(date +%F-%T.%6N) | Failed to enable dbus..." &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"
+        fi
+      fi
+      echo -e "$(date +%F-%T.%6N) | Attempting to restart dbus..." &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"
+      if systemctl restart dbus.service &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"; then
+        echo -e "$(date +%F-%T.%6N) | Successfully restarted dbus!" &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"
+      else
+        echo -e "$(date +%F-%T.%6N) | Failed to restart dbus..." &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"
+      fi
+    fi
+  fi
+  if systemctl status systemd-logind.service &>/dev/null; then
+    if ! systemctl is-active --quiet systemd-logind; then
+      state="$(systemctl is-enabled systemd-logind 2>/dev/null || echo "unknown")"
+      if [[ "${state}" == "masked" ]]; then
+        echo -e "$(date +%F-%T.%6N) | systemd-logind is masked. Attempting to unmask..." &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"
+        if systemctl unmask systemd-logind.service &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"; then
+          echo -e "$(date +%F-%T.%6N) | Successfully unmasked systemd-logind!" &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"
+        else
+          echo -e "$(date +%F-%T.%6N) | Failed to unmask systemd-logind..." &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"
+        fi
+        echo -e "$(date +%F-%T.%6N) | Attempting to enable systemd-logind..." &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"
+        if systemctl enable systemd-logind.service &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"; then
+          echo -e "$(date +%F-%T.%6N) | Successfully enabled systemd-logind!" &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"
+        else
+          echo -e "$(date +%F-%T.%6N) | Failed to enable systemd-logind..." &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"
+        fi
+      fi
+      echo -e "$(date +%F-%T.%6N) | Attempting to restart systemd-logind..." &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"
+      if systemctl restart systemd-logind.service &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"; then
+        echo -e "$(date +%F-%T.%6N) | Successfully restarted systemd-logind!" &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"
+      else
+        echo -e "$(date +%F-%T.%6N) | Failed to restart systemd-logind..." &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"
+      fi
+    fi
+  fi
+}
+
 uos_server_install_process() {
   header
   tmp_dir_candidates=("/tmp" "/var/tmp")
@@ -8201,6 +8273,7 @@ fi
 if [[ -n "$(command -v jq)" && -e "${eus_dir}/db/db.json" ]]; then
   check_lxc_setup
   check_docker_setup
+  check_wsl_setup
   if [[ "$(jq -r '.database["lxc-container"]' "${eus_dir}/db/db.json" | sed '/null/d')" == 'true' ]]; then
     choice="2"
     unifi_os_server_unsupported="true"
@@ -8237,6 +8310,7 @@ while true; do
       swap_file_check
       uos_server_install_ports_check
       uos_server_install_get_variables
+      uos_server_logind_dbus_check
       uos_server_install_process
       ufw_ports_check uosserver
       public_install_check uosserver

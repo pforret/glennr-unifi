@@ -2,7 +2,7 @@
 
 # UniFi Easy Encrypt script.
 # Script   | UniFi Network Easy Encrypt Script
-# Version  | 3.6.6
+# Version  | 3.6.7
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -133,6 +133,18 @@ check_lxc_setup() {
   fi
 }
 
+check_wsl_setup() {
+  if grep -qi microsoft /proc/version; then wsl_setup="true"; else wsl_setup="false"; fi
+  if [[ -n "$(command -v jq)" && -e "${eus_dir}/db/db.json" ]]; then
+    if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
+      jq '."database" += {"wsl-container": "'"${wsl_setup}"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+    else
+      jq --arg wsl_setup "$wsl_setup" '.database = (.database + {"wsl-container": $wsl_setup})' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+    fi
+    eus_database_move
+  fi
+}
+
 update_eus_db() {
   if [[ -n "$(command -v jq)" && -e "${eus_dir}/db/db.json" ]]; then
     if [[ -n "${script_local_version_dots}" ]]; then
@@ -191,6 +203,7 @@ update_eus_db() {
   fi
   check_docker_setup
   check_lxc_setup
+  check_wsl_setup
   locate_http_proxy
 }
 
@@ -2774,9 +2787,17 @@ if [[ -n "${auto_dns_challenge_provider}" ]]; then
     if ! /opt/certbot/bin/pip install certbot certbot &>> "${eus_dir}/logs/python-certbot.log"; then
       abort_reason="Failed to install certbot."; abort
     fi
-    if ! [[ -s /usr/bin/certbot ]]; then 
+    if [[ ! -e /usr/bin/certbot ]]; then
+      # File/symlink doesn't exist at all → safe to create
       if ! ln -s /opt/certbot/bin/certbot /usr/bin/certbot &>> "${eus_dir}/logs/python-certbot.log"; then
         abort_reason="Failed to create a symlink for certbot."; abort
+      fi
+    else
+      # Exists → check if it's already the correct symlink
+      if [[ -L /usr/bin/certbot && "$(readlink -f /usr/bin/certbot)" == "/opt/certbot/bin/certbot" ]]; then
+        echo "Symlink already exists and is correct."
+      else
+        abort_reason="/usr/bin/certbot already exists and is not the expected symlink."; abort
       fi
     fi
     # Install go

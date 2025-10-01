@@ -2,7 +2,7 @@
 
 # UniFi Network Application Easy Update Script.
 # Script   | UniFi Network Easy Update Script
-# Version  | 10.4.8
+# Version  | 10.5.0
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -343,6 +343,18 @@ check_lxc_setup() {
   fi
 }
 
+check_wsl_setup() {
+  if grep -qi microsoft /proc/version; then wsl_setup="true"; else wsl_setup="false"; fi
+  if [[ -n "$(command -v jq)" && -e "${eus_dir}/db/db.json" ]]; then
+    if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
+      jq '."database" += {"wsl-container": "'"${wsl_setup}"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+    else
+      jq --arg wsl_setup "$wsl_setup" '.database = (.database + {"wsl-container": $wsl_setup})' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+    fi
+    eus_database_move
+  fi
+}
+
 update_eus_db() {
   if [[ -n "$(command -v jq)" && -e "${eus_dir}/db/db.json" ]]; then
     if [[ -n "${script_local_version_dots}" ]]; then
@@ -401,6 +413,7 @@ update_eus_db() {
   fi
   check_docker_setup
   check_lxc_setup
+  check_wsl_setup
   locate_http_proxy
 }
 
@@ -6244,8 +6257,8 @@ author() {
   if [[ "${perform_application_upgrade}" == 'true' ]]; then prevent_unifi_upgrade; fi
   christmass_new_year
   if [[ "${new_year_message}" == 'true' || "${christmas_message}" == 'true' || "${script_option_archive_alerts}" == 'true' || "${script_option_delete_events}" == 'true' ]]; then echo -e "\\n${GRAY_R}----${RESET}\\n"; fi
-  if [[ "${archived_repo}" == 'true' && "${unifi_core_system}" != 'true' ]]; then echo -e "\\n${WHITE_R}----${RESET}\\n\\n${RED}# ${RESET}System Notice: ${WHITE_R}Unsupported OS Version Detected${RESET}! \\n${RED}# ${RESET}Your operating system release (${WHITE_R}${os_codename}${RESET}) has reached End of Life (EOL) and is no longer supported by its creators.\\n${RED}# ${RESET}To ensure security and compatibility, please update to a more current release...\\n"; fi
-  if [[ "${archived_repo}" == 'true' && "${unifi_core_system}" == 'true' && "${unifi_core_upgrade_message}" != 'true' ]]; then echo -e "\\n${GRAY_R}----${RESET}\\n\\n${RED}# ${RESET}Please update to the latest UniFi OS Release!\\n"; fi
+  if [[ "${archived_repo}" == 'true' && "${unifi_core_system}" != 'true' ]]; then echo -e "\\n${WHITE_R}----${RESET}\\n\\n${RED}#${RESET} ${RESET}System Notice: ${WHITE_R}Unsupported OS Version Detected${RESET}! \\n${RED}#${RESET} ${RESET}Your operating system release (${WHITE_R}${os_codename}${RESET}) has reached End of Life (EOL) and is no longer supported by its creators.\\n${RED}#${RESET} ${RESET}To ensure security and compatibility, please update to a more current release...\\n"; fi
+  if [[ "${archived_repo}" == 'true' && "${unifi_core_system}" == 'true' && "${unifi_core_upgrade_message}" != 'true' ]]; then echo -e "\\n${GRAY_R}----${RESET}\\n\\n${RED}#${RESET} ${RESET}Please update to the latest UniFi OS Release!\\n"; fi
   if [[ "${stopped_unattended_upgrade}" == 'true' ]]; then systemctl start unattended-upgrades &>> "${eus_dir}/logs/unattended-upgrades.log"; unset stopped_unattended_upgrade; fi
   echo -e "${GRAY_R}#${RESET} ${GRAY_R}Author   |  ${WHITE_R}Glenn R.${RESET}"
   echo -e "${GRAY_R}#${RESET} ${GRAY_R}Email    |  ${WHITE_R}glennrietveld8@hotmail.nl${RESET}"
@@ -6476,6 +6489,8 @@ cancel_script() {
   if [[ "${set_lc_all}" == 'true' ]]; then if [[ -n "${original_lang}" ]]; then export LANG="${original_lang}"; else unset LANG; fi; if [[ -n "${original_lcall}" ]]; then export LC_ALL="${original_lcall}"; else unset LC_ALL; fi; fi
   if [[ "${stopped_unattended_upgrade}" == 'true' ]]; then systemctl start unattended-upgrades &>> "${eus_dir}/logs/unattended-upgrades.log"; unset stopped_unattended_upgrade; fi
   if [[ "${script_option_skip}" == 'true' ]]; then
+    echo -e "\\n${GRAY_R}#########################################################################${RESET}\\n"
+  elif [[ "${cancel_script_without_clearing_error}" == 'true' ]]; then
     echo -e "\\n${GRAY_R}#########################################################################${RESET}\\n"
   else
     header
@@ -8814,7 +8829,7 @@ custom_url_upgrade_check() {
       elif [[ "${net_update_supported}" == 'false' ]]; then
         echo -e "\\n${GRAY_R}----${RESET}\\n"
         echo -e "${GRAY_R}#${RESET} You're about to perform a unsupported UniFi Network Application update from \"${current_application_version}\" to \"${custom_application_version}\"..."
-        echo -e "${GRAY_R}#${RESET} Canceling the script..."; cancel_script
+        echo -e "${GRAY_R}#${RESET} Canceling the script..."; sleep 3; cancel_script
       fi
     else
       echo -e "\\n${GRAY_R}----${RESET}\\n"
@@ -8823,7 +8838,7 @@ custom_url_upgrade_check() {
         read -rp $'\033[39m#\033[0m Did you confirm that this upgrade is supported? (y/N) ' yes_no
         case "$yes_no" in
             [Yy]*) custom_url_install; break;;
-            [Nn]*|"") echo -e "${GRAY_R}#${RESET} Canceling the script.."; cancel_script; break;;
+            [Nn]*|"") echo -e "${GRAY_R}#${RESET} Canceling the script.."; sleep 3; cancel_script; break;;
             *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
         esac
       done
@@ -10247,6 +10262,7 @@ free_space_check() {
             free_space_check_response="Cancel script"
             free_space_check_date="$(date +%s)"
             echo -e "${YELLOW}#${RESET} OK... Please free up disk space before running the script again..."
+            cancel_script_without_clearing_error="true"
             cancel_script
             break;;
          [Yy]*)
@@ -10285,6 +10301,7 @@ free_boot_space_check() {
                 free_boot_space_check_response="Cancel script"
                 free_boot_space_check_date="$(date +%s)"
                 echo -e "${YELLOW}#${RESET} OK... Please free up disk space before running the script again..."
+                cancel_script_without_clearing_error="true"
                 cancel_script
                 break;;
              [Yy]*)
@@ -10348,7 +10365,7 @@ free_var_log_space_check() {
             sleep 3
             free_var_log_space_check;;
          2) echo -e "${YELLOW}#${RESET} OK... Proceeding with the script.. please note that failures may occur due to not enough disk space... \\n"; sleep 10;;
-         3) echo -e "${YELLOW}#${RESET} OK... Please free up disk space before running the script again..."; cancel_script;;
+         3) echo -e "${YELLOW}#${RESET} OK... Please free up disk space before running the script again...";  cancel_script_without_clearing_error="true"; cancel_script;;
 	     *) header_red; echo -e "${GRAY_R}#${RESET} Option ${choice} is not a valid..."; sleep 3; free_var_log_space_check;;
       esac
     fi
@@ -10365,6 +10382,7 @@ free_disk_space_check() {
   if (( free_gb < min_gb )); then
     echo -e "$(date +%F-%T.%6N) | ${path} has only $(df -B1 "${path}" | awk 'NR==2{print $4}' | awk '{ split( "B KB MB GB TB PB EB ZB YB" , v ); s=1; while( $1>1024 && s<9 ){ $1/=1024; s++ } printf "%.1f %s", $1, v[s] }') free (needs at least ${min_gb}GB)" &>> "${eus_dir}/logs/free-disk-space-check.log"
     echo -e "${YELLOW}#${RESET} ${path} has only $(df -B1 "${path}" | awk 'NR==2{print $4}' | awk '{ split( "B KB MB GB TB PB EB ZB YB" , v ); s=1; while( $1>1024 && s<9 ){ $1/=1024; s++ } printf "%.1f %s", $1, v[s] }') free (needs at least ${min_gb} GB)"
+    cancel_script_without_clearing_error="true"
     cancel_script
   else
     echo -e "$(date +%F-%T.%6N) | ${path} has $(df -B1 "${path}" | awk 'NR==2{print $4}' | awk '{ split( "B KB MB GB TB PB EB ZB YB" , v ); s=1; while( $1>1024 && s<9 ){ $1/=1024; s++ } printf "%.1f %s", $1, v[s] }') free (≥ ${min_gb} GB)" &>> "${eus_dir}/logs/free-disk-space-check.log"
@@ -10634,6 +10652,7 @@ invalid_choice() {
 
 script_option_run_question() {
   header
+  echo -e "  What would you like to perform?\\n\\n"
   if [[ "${script_option_skip}" == 'true' && "${script_option_unifi_version}" == 'true' ]]; then
     non_interactive_application_upgrade="true"
     return
@@ -11069,6 +11088,7 @@ uos_server_upgrade_process() {
     fi
     if "${uos_server_file_temp_file}" install --non-interactive &>> "${eus_dir}/logs/uos-server-install.log"; then
       echo -e "${GREEN}#${RESET} Successfully updated UniFi OS Server version ${uos_version} to ${uos_server_version}! \\n"
+      sleep 3
     else
       abort_reason="Failed to upgrade UniFi OS Server ${uos_version} to ${uos_server_version}."
       abort
@@ -11164,10 +11184,10 @@ run_upgrade_menu_for() {
     print_menu "${options[@]}"
     read -rp $'Your choice | \033[39m' UPGRADE_VERSION
     if ! [[ "${UPGRADE_VERSION}" =~ ^[0-9]+$ ]]; then
-      header_red; echo -e "${RED}# Invalid input. Please enter a number."; sleep 3; continue
+      header_red; echo -e "${RED}#${RESET} Invalid input. Please enter a number."; sleep 3; continue
     fi
     if (( UPGRADE_VERSION < 1 || UPGRADE_VERSION > ${#options[@]} )); then
-      header_red; echo -e "${RED}# Choice out of range. Please select a valid option."; sleep 3; continue
+      header_red; echo -e "${RED}#${RESET} Choice out of range. Please select a valid option."; sleep 3; continue
     fi
     local choice="${options[$((UPGRADE_VERSION-1))]}"
     case "${choice}" in
