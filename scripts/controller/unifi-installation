@@ -11,6 +11,13 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 8.9.5
+  
+ - Fixed UniFi OS Server installation failures on DietPi like systems.
+ - Fixed UniFi OS Server installation failures when the uosserver username/group already existed from previous install attempts.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 8.9.4
   
  - Fixed an issue where the script would show cancelling script message without time to show cancelling reason.

@@ -70,7 +70,7 @@
 ###################################################################################################################################################################################################
 
 # Script                | UniFi Network/OS Easy Installation Script
-# Version               | 8.9.4
+# Version               | 8.9.5
 # Application version   | 6.0.43
 # Debian Repo version   | 6.0.43-14348-1
 # UOS Server version    | 4.3.6
@@ -3007,7 +3007,7 @@ update_script() {
             mv "${script_location}.tmp" "${script_location}" && bash "${script_location}" ${script_options[@]}
             exit 0
           else
-            echo -e "$(date +%F-%T.%6N) | Local script file SHA256 is \"${local_checksum}\" while it should be \"${online_sha256sum_latest}\" (attempt ${attempt}/5)..." &>> "${eus_dir}/logs/script-update.log"
+            echo -e "$(date +%F-%T.%6N) | Local script file SHA256 is \"${local_checksum}\" while it should be \"${online_sha256sum}\" (attempt ${attempt}/5)..." &>> "${eus_dir}/logs/script-update.log"
             echo -e "${RED}#${RESET} Checksum mismatch (attempt ${attempt}/5), retrying download..."
             sleep 5
             curl "${curl_argument[@]}" -o "${script_location}.tmp" "https://get.glennr.nl/unifi/install/${install_script_name}.sh"
@@ -4481,6 +4481,60 @@ uos_server_install_required_packages_check() {
       echo -e "${GREEN}#${RESET} Successfully installed uidmap! \\n" && sleep 2
     fi
   fi
+  if ! "$(which dpkg)" -l dbus 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+    if [[ "${installing_required_package}" != 'yes' ]]; then install_required_packages; fi
+    check_dpkg_lock
+    echo -e "${GRAY_R}#${RESET} Installing dbus..."
+    if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install dbus &>> "${eus_dir}/logs/required.log"; then
+      echo -e "${RED}#${RESET} Failed to install dbus in the first run...\\n"
+      if [[ "${repo_codename}" =~ (noble|oracular|plucky|questing) ]]; then
+        repo_component="main"
+      elif [[ "${repo_codename}" =~ (bookworm|trixie|forky|unstable) ]]; then
+        repo_component="main"
+      fi
+      add_repositories
+      required_package="dbus"
+      apt_get_install_package
+    else
+      echo -e "${GREEN}#${RESET} Successfully installed dbus! \\n" && sleep 2
+    fi
+  fi
+  if ! "$(which dpkg)" -l libpam-systemd 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+    if [[ "${installing_required_package}" != 'yes' ]]; then install_required_packages; fi
+    check_dpkg_lock
+    echo -e "${GRAY_R}#${RESET} Installing libpam-systemd..."
+    if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install libpam-systemd &>> "${eus_dir}/logs/required.log"; then
+      echo -e "${RED}#${RESET} Failed to install libpam-systemd in the first run...\\n"
+      if [[ "${repo_codename}" =~ (noble|oracular|plucky|questing) ]]; then
+        repo_component="main"
+      elif [[ "${repo_codename}" =~ (bookworm|trixie|forky|unstable) ]]; then
+        repo_component="main"
+      fi
+      add_repositories
+      required_package="libpam-systemd"
+      apt_get_install_package
+    else
+      echo -e "${GREEN}#${RESET} Successfully installed libpam-systemd! \\n" && sleep 2
+    fi
+  fi
+  if ! "$(which dpkg)" -l dbus-user-session 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+    if [[ "${installing_required_package}" != 'yes' ]]; then install_required_packages; fi
+    check_dpkg_lock
+    echo -e "${GRAY_R}#${RESET} Installing dbus-user-session..."
+    if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install dbus-user-session &>> "${eus_dir}/logs/required.log"; then
+      echo -e "${RED}#${RESET} Failed to install dbus-user-session in the first run...\\n"
+      if [[ "${repo_codename}" =~ (noble|oracular|plucky|questing) ]]; then
+        repo_component="main"
+      elif [[ "${repo_codename}" =~ (bookworm|trixie|forky|unstable) ]]; then
+        repo_component="main"
+      fi
+      add_repositories
+      required_package="dbus-user-session"
+      apt_get_install_package
+    else
+      echo -e "${GREEN}#${RESET} Successfully installed dbus-user-session! \\n" && sleep 2
+    fi
+  fi
 }
 
 repackage_deb_file() {
@@ -5507,7 +5561,7 @@ swap_file_check() {
     local size="${1}"
     local msg="${2}"
     echo -e "${GRAY_R}---${RESET} \\n"
-    echo -e "${GRAY_R}#${RESET} ${msg} \\n"
+    echo -e "${GRAY_R}#${RESET} ${msg}"
     if dd if=/dev/zero of=/swapfile bs=1M count="${size}" &>/dev/null; then
       echo -e "${GREEN}#${RESET} Successfully created a swap file! \\n"
       chmod 600 /swapfile &>/dev/null
@@ -8113,54 +8167,114 @@ uos_server_install_installation_check() {
 }
 
 uos_server_logind_dbus_check() {
-  if systemctl status dbus.service &>/dev/null; then
-    if ! systemctl is-active --quiet dbus; then
-      state="$(systemctl is-enabled dbus 2>/dev/null || echo "unknown")"
-      echo -e "$(date +%F-%T.%6N) | dbus not running (state: ${state}). Attempting recovery..." &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"
-      if [[ "${state}" == "masked" ]]; then
-        echo -e "$(date +%F-%T.%6N) | dbus is masked. Attempting to unmask..." &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"
-        if systemctl unmask dbus.service &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"; then
-          echo -e "$(date +%F-%T.%6N) | Successfully unmasked dbus!" &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"
-        else
-          echo -e "$(date +%F-%T.%6N) | Failed to unmask dbus..." &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"
-        fi
-        echo -e "$(date +%F-%T.%6N) | Attempting to enable dbus..." &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"
-        if systemctl enable dbus.service &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"; then
-          echo -e "$(date +%F-%T.%6N) | Successfully enabled dbus!" &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"
-        else
-          echo -e "$(date +%F-%T.%6N) | Failed to enable dbus..." &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"
-        fi
-      fi
-      echo -e "$(date +%F-%T.%6N) | Attempting to restart dbus..." &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"
-      if systemctl restart dbus.service &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"; then
-        echo -e "$(date +%F-%T.%6N) | Successfully restarted dbus!" &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"
+  if ! systemctl is-active --quiet dbus; then
+    state="$(systemctl is-enabled dbus 2>/dev/null)"
+    echo -e "$(date +%F-%T.%6N) | dbus not running (state: ${state}). Attempting recovery..." &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"
+    if [[ "${state}" == "masked" ]]; then
+      echo -e "$(date +%F-%T.%6N) | dbus is masked. Attempting to unmask..." &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"
+      if systemctl unmask dbus &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"; then
+        echo -e "$(date +%F-%T.%6N) | Successfully unmasked dbus!" &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"
       else
-        echo -e "$(date +%F-%T.%6N) | Failed to restart dbus..." &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"
+        echo -e "$(date +%F-%T.%6N) | Failed to unmask dbus..." &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"
       fi
     fi
+    echo -e "$(date +%F-%T.%6N) | Attempting to enable dbus..." &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"
+    if systemctl enable --now dbus &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"; then
+      echo -e "$(date +%F-%T.%6N) | Successfully enabled dbus!" &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"
+    else
+      echo -e "$(date +%F-%T.%6N) | Failed to enable dbus..." &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"
+    fi
+    echo -e "$(date +%F-%T.%6N) | Attempting to restart dbus..." &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"
+    if systemctl restart dbus &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"; then
+      echo -e "$(date +%F-%T.%6N) | Successfully restarted dbus!" &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"
+    else
+      echo -e "$(date +%F-%T.%6N) | Failed to restart dbus..." &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"
+    fi
+    sleep 1
   fi
-  if systemctl status systemd-logind.service &>/dev/null; then
-    if ! systemctl is-active --quiet systemd-logind; then
-      state="$(systemctl is-enabled systemd-logind 2>/dev/null || echo "unknown")"
-      if [[ "${state}" == "masked" ]]; then
-        echo -e "$(date +%F-%T.%6N) | systemd-logind is masked. Attempting to unmask..." &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"
-        if systemctl unmask systemd-logind.service &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"; then
-          echo -e "$(date +%F-%T.%6N) | Successfully unmasked systemd-logind!" &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"
+  if ! systemctl is-active --quiet systemd-logind; then
+    state="$(systemctl is-enabled systemd-logind 2>/dev/null)"
+    if [[ "${state}" == "masked" ]]; then
+      echo -e "$(date +%F-%T.%6N) | systemd-logind is masked. Attempting to unmask..." &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"
+      if systemctl unmask systemd-logind &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"; then
+        echo -e "$(date +%F-%T.%6N) | Successfully unmasked systemd-logind!" &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"
+      else
+        echo -e "$(date +%F-%T.%6N) | Failed to unmask systemd-logind..." &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"
+      fi
+    fi
+    echo -e "$(date +%F-%T.%6N) | Attempting to enable systemd-logind..." &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"
+    if systemctl enable --now systemd-logind &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"; then
+      echo -e "$(date +%F-%T.%6N) | Successfully enabled systemd-logind!" &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"
+    else
+      echo -e "$(date +%F-%T.%6N) | Failed to enable systemd-logind..." &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"
+    fi
+    echo -e "$(date +%F-%T.%6N) | Attempting to restart systemd-logind..." &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"
+    if systemctl restart systemd-logind &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"; then
+      echo -e "$(date +%F-%T.%6N) | Successfully restarted systemd-logind!" &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"
+    else
+      echo -e "$(date +%F-%T.%6N) | Failed to restart systemd-logind..." &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"
+    fi
+    sleep 1
+  fi
+  echo -e "$(date +%F-%T.%6N) | Checking login1 ping..." &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"
+  if busctl --system call org.freedesktop.login1 /org/freedesktop/login1 org.freedesktop.DBus.Peer Ping >/dev/null 2>&1; then
+    echo -e "$(date +%F-%T.%6N) | login1 responded to Ping" &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"
+  else
+    echo -e "$(date +%F-%T.%6N) | login1 not responding, restarting dbus + systemd-logind..." &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"
+    systemctl restart dbus systemd-logind
+    sleep 1
+    if busctl --system call org.freedesktop.login1 /org/freedesktop/login1 org.freedesktop.DBus.Peer Ping >/dev/null 2>&1; then
+      echo -e "$(date +%F-%T.%6N) | login1 responsive after restart" &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"
+    else
+      echo -e "$(date +%F-%T.%6N) | login1 still not responsive after restart" &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"
+    fi
+  fi
+}
+
+uos_server_user_group_check() {
+  if id -u "uosserver" >/dev/null 2>&1 || getent group "uosserver" >/dev/null 2>&1; then
+    if [[ ! -f "/var/lib/uosserver/bin/uosserver-service" ]]; then
+      echo -e "$(date +%F-%T.%6N) | User or group 'uosserver' exists but '/var/lib/uosserver/bin/uosserver-service' does not..." &>> "${eus_dir}/logs/uos-server-user-group-check.log"
+      if [[ "${script_option_skip}" != 'true' ]]; then
+        while true; do
+          header
+          echo -e "${WHITE_R}#${RESET} The uosserver user/group is already present on the system, most likely from a broken installation..."
+          echo -e "${WHITE_R}#${RESET} Removing the user/group may cause data loss if this is an existing install \\n"
+          read -rp $'\033[39m#\033[0m Do you want to remove the "uosserver" user/group? (y/N) ' confirm
+          case "$confirm" in
+            [Yy]*)
+              echo ""
+              break;;
+            [Nn]*|"")
+              echo -e "$(date +%F-%T.%6N) | Removal canceled by user..." &>> "${eus_dir}/logs/uos-server-user-group-check.log"
+              return 0;;
+            *)
+              echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"
+              sleep 3;;
+          esac
+        done
+      fi
+      if id -u "uosserver" >/dev/null 2>&1; then
+        echo -e "${WHITE_R}#${RESET} Removing user 'uosserver'..."
+        echo -e "$(date +%F-%T.%6N) | Removing user 'uosserver'..." &>> "${eus_dir}/logs/uos-server-user-group-check.log"
+        if userdel -r "uosserver" &>> "${eus_dir}/logs/uos-server-user-group-check.log"; then
+          echo -e "${GREEN}#${RESET} Successfully removed user 'uosserver'...  \\n"
+          echo -e "$(date +%F-%T.%6N) | Successfully removed user 'uosserver'!" &>> "${eus_dir}/logs/uos-server-user-group-check.log"
         else
-          echo -e "$(date +%F-%T.%6N) | Failed to unmask systemd-logind..." &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"
-        fi
-        echo -e "$(date +%F-%T.%6N) | Attempting to enable systemd-logind..." &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"
-        if systemctl enable systemd-logind.service &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"; then
-          echo -e "$(date +%F-%T.%6N) | Successfully enabled systemd-logind!" &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"
-        else
-          echo -e "$(date +%F-%T.%6N) | Failed to enable systemd-logind..." &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"
+          echo -e "${RED}#${RESET} Failed to remove user 'uosserver'...  \\n"
+          echo -e "$(date +%F-%T.%6N) | Failed to remove user 'uosserver'..." &>> "${eus_dir}/logs/uos-server-user-group-check.log"
         fi
       fi
-      echo -e "$(date +%F-%T.%6N) | Attempting to restart systemd-logind..." &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"
-      if systemctl restart systemd-logind.service &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"; then
-        echo -e "$(date +%F-%T.%6N) | Successfully restarted systemd-logind!" &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"
-      else
-        echo -e "$(date +%F-%T.%6N) | Failed to restart systemd-logind..." &>> "${eus_dir}/logs/uos-server-logind-dbus-check.log"
+      if getent group "uosserver" >/dev/null 2>&1; then
+        echo -e "${WHITE_R}#${RESET} Removing group 'uosserver'..."
+        echo -e "$(date +%F-%T.%6N) | Removing group 'uosserver'..." &>> "${eus_dir}/logs/uos-server-user-group-check.log"
+        if groupdel "uosserver" &>> "${eus_dir}/logs/uos-server-user-group-check.log"; then
+          echo -e "${GREEN}#${RESET} Successfully removed group 'uosserver'! \\n"
+          echo -e "$(date +%F-%T.%6N) | Successfully removed group 'uosserver'!" &>> "${eus_dir}/logs/uos-server-user-group-check.log"
+        else
+          echo -e "${RED}#${RESET} Failed to remove group 'uosserver'...  \\n"
+          echo -e "$(date +%F-%T.%6N) | Failed to remove group 'uosserver'..." &>> "${eus_dir}/logs/uos-server-user-group-check.log"
+        fi
       fi
     fi
   fi
@@ -8311,6 +8425,7 @@ while true; do
       uos_server_install_ports_check
       uos_server_install_get_variables
       uos_server_logind_dbus_check
+      uos_server_user_group_check
       uos_server_install_process
       ufw_ports_check uosserver
       public_install_check uosserver
