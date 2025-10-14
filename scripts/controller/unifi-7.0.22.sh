@@ -52,6 +52,7 @@
 #                       | Linux Mint 4 ( Debbie )
 #                       | Linux Mint 5 ( Elsie )
 #                       | Linux Mint 6 ( Faye )
+#                       | Linux Mint 7 ( Gigi )
 #                       | MX Linux 18 ( Continuum )
 #                       | BunsenLabs Linux ( Boron | Beryllium | Lithium | Helium )
 #                       | Devuan ( ASCII | Beowulf | Chimaera | Daedalus | Excalibur | Freia )
@@ -66,11 +67,12 @@
 #                       | PureOS ( Crimson | Byzantium | Amber )
 #                       | UnionTech OS Desktop 20
 #                       | Kali Linux ( rolling )
+#                       | Trisquel ( Toutatis | Belenos | Flidas | Etiona | Nabia | Aramo | Ecne )
 
 ###################################################################################################################################################################################################
 
 # Script                | UniFi Network/OS Easy Installation Script
-# Version               | 8.9.5
+# Version               | 8.9.6
 # Application version   | 7.0.22
 # Debian Repo version   | 7.0.22-17284-1
 # UOS Server version    | 4.3.6
@@ -734,14 +736,14 @@ support_file() {
   fi
   find "${eus_dir}" -type d -print -o -type f -print &> "/tmp/EUS/support/dirs_and_files"
   # Create a copy of the system.properties file and remove any mongodb PII
-  if [[ -e "/usr/lib/unifi/data/system.properties" ]]; then
+  if [[ -d "/usr/lib/unifi/data/" ]]; then
     while read -r system_properties_files; do
       {
         echo -e "\n-----( ${system_properties_files} )----- \n"
         cat "${system_properties_files}"
       } >> "/tmp/EUS/support/unifi.system.properties"
     done < <(find /usr/lib/unifi/data/ -name "system.properties*" -type f)
-    if grep -qE 'mongo\.password|mongo\.uri' "/tmp/EUS/support/unifi.system.properties"; then sed -i -e '/mongo.password/d' -e '/mongo.uri/d' "/tmp/EUS/support/unifi.system.properties"; echo "# Removed mongo.password and mongo.uri for privacy reasons" >> "/tmp/EUS/support/unifi.system.properties"; fi
+    if grep -sqE 'mongo\.password|mongo\.uri' "/tmp/EUS/support/unifi.system.properties"; then sed -i -e '/mongo.password/d' -e '/mongo.uri/d' "/tmp/EUS/support/unifi.system.properties"; echo "# Removed mongo.password and mongo.uri for privacy reasons" >> "/tmp/EUS/support/unifi.system.properties"; fi
   fi
   if [[ "${unifi_core_system}" != 'true' && -n "$(apt-cache search debsums | awk '/debsums/{print$1}')" ]]; then
     if ! [[ "$(command -v debsums)" ]]; then DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install debsums &>> "${eus_dir}/logs/apt.log"; fi
@@ -2590,13 +2592,13 @@ get_distro() {
   fi
   if [[ "${unsupported_no_modify}" != 'true' ]]; then
     if [[ ! "${os_id}" =~ (ubuntu|debian) ]] && [[ -e "/etc/os-release" ]]; then os_id="$(grep -io "debian\\|ubuntu" /etc/os-release | tr '[:upper:]' '[:lower:]' | head -n1)"; fi
-    if [[ "${os_codename}" =~ ^(precise|maya|luna)$ ]]; then repo_codename="precise"; os_codename="precise"; os_id="ubuntu"
-    elif [[ "${os_codename}" =~ ^(trusty|qiana|rebecca|rafaela|rosa|freya)$ ]]; then repo_codename="trusty"; os_codename="trusty"; os_id="ubuntu"
-    elif [[ "${os_codename}" =~ ^(xenial|sarah|serena|sonya|sylvia|loki)$ ]]; then repo_codename="xenial"; os_codename="xenial"; os_id="ubuntu"
-    elif [[ "${os_codename}" =~ ^(bionic|tara|tessa|tina|tricia|hera|juno)$ ]]; then repo_codename="bionic"; os_codename="bionic"; os_id="ubuntu"
-    elif [[ "${os_codename}" =~ ^(focal|ulyana|ulyssa|uma|una|odin|jolnir)$ ]]; then repo_codename="focal"; os_codename="focal"; os_id="ubuntu"
-    elif [[ "${os_codename}" =~ ^(jammy|vanessa|vera|victoria|virginia|horus|cade)$ ]]; then repo_codename="jammy"; os_codename="jammy"; os_id="ubuntu"
-    elif [[ "${os_codename}" =~ ^(noble|wilma|xia|zara|scootski|circe)$ ]]; then repo_codename="noble"; os_codename="noble"; os_id="ubuntu"
+    if [[ "${os_codename}" =~ ^(precise|maya|luna|toutatis)$ ]]; then repo_codename="precise"; os_codename="precise"; os_id="ubuntu"
+    elif [[ "${os_codename}" =~ ^(trusty|qiana|rebecca|rafaela|rosa|freya|belenos)$ ]]; then repo_codename="trusty"; os_codename="trusty"; os_id="ubuntu"
+    elif [[ "${os_codename}" =~ ^(xenial|sarah|serena|sonya|sylvia|loki|flidas)$ ]]; then repo_codename="xenial"; os_codename="xenial"; os_id="ubuntu"
+    elif [[ "${os_codename}" =~ ^(bionic|tara|tessa|tina|tricia|hera|juno|etiona)$ ]]; then repo_codename="bionic"; os_codename="bionic"; os_id="ubuntu"
+    elif [[ "${os_codename}" =~ ^(focal|ulyana|ulyssa|uma|una|odin|jolnir|nabia)$ ]]; then repo_codename="focal"; os_codename="focal"; os_id="ubuntu"
+    elif [[ "${os_codename}" =~ ^(jammy|vanessa|vera|victoria|virginia|horus|cade|aramo)$ ]]; then repo_codename="jammy"; os_codename="jammy"; os_id="ubuntu"
+    elif [[ "${os_codename}" =~ ^(noble|wilma|xia|zara|scootski|circe|ecne)$ ]]; then repo_codename="noble"; os_codename="noble"; os_id="ubuntu"
     elif [[ "${os_codename}" =~ ^(oracular)$ ]]; then repo_codename="oracular"; os_codename="oracular"; os_id="ubuntu"
     elif [[ "${os_codename}" =~ ^(plucky)$ ]]; then repo_codename="plucky"; os_codename="plucky"; os_id="ubuntu"
     elif [[ "${os_codename}" =~ ^(questing)$ ]]; then repo_codename="questing"; os_codename="questing"; os_id="ubuntu"
@@ -2605,7 +2607,7 @@ get_distro() {
     elif [[ "${os_codename}" =~ ^(buster|debbie|parrot|engywuck-backports|engywuck|deepin|lithium|beowulf|po-tolo|nibiru|amber|eagle)$ ]]; then repo_codename="buster"; os_codename="buster"; os_id="debian"
     elif [[ "${os_codename}" =~ ^(bullseye|kali-rolling|elsie|ara|beryllium|chimaera|orion-belt|byzantium)$ ]]; then repo_codename="bullseye"; os_codename="bullseye"; os_id="debian"
     elif [[ "${os_codename}" =~ ^(bookworm|lory|faye|boron|beige|preslee|daedalus|crimson)$ ]]; then repo_codename="bookworm"; os_codename="bookworm"; os_id="debian"
-    elif [[ "${os_codename}" =~ ^(trixie|excalibur|the-seven-sisters)$ ]]; then repo_codename="trixie"; os_codename="trixie"; os_id="debian"
+    elif [[ "${os_codename}" =~ ^(trixie|excalibur|the-seven-sisters|gigi)$ ]]; then repo_codename="trixie"; os_codename="trixie"; os_id="debian"
     elif [[ "${os_codename}" =~ ^(forky|freia)$ ]]; then repo_codename="forky"; os_codename="forky"; os_id="debian"
     elif [[ "${os_codename}" =~ ^(unstable|rolling|nest)$ ]]; then repo_codename="unstable"; os_codename="unstable"; os_id="debian"
     else
@@ -8233,8 +8235,8 @@ uos_server_logind_dbus_check() {
 
 uos_server_user_group_check() {
   if id -u "uosserver" >/dev/null 2>&1 || getent group "uosserver" >/dev/null 2>&1; then
-    if [[ ! -f "/var/lib/uosserver/bin/uosserver-service" ]]; then
-      echo -e "$(date +%F-%T.%6N) | User or group 'uosserver' exists but '/var/lib/uosserver/bin/uosserver-service' does not..." &>> "${eus_dir}/logs/uos-server-user-group-check.log"
+    if [[ ! -f "/var/lib/uosserver/server.conf" ]]; then
+      echo -e "$(date +%F-%T.%6N) | User or group 'uosserver' exists but '/var/lib/uosserver/server.conf' does not..." &>> "${eus_dir}/logs/uos-server-user-group-check.log"
       if [[ "${script_option_skip}" != 'true' ]]; then
         while true; do
           header
@@ -8280,8 +8282,19 @@ uos_server_user_group_check() {
   fi
 }
 
+show_spinner() {
+  local pid="${1}"
+  local spinstr="|/-\\"
+  local i="0"
+  while ps -p "${pid}" > /dev/null 2>&1; do
+    i=$(( (i + 1) % 4 ))
+    printf "\r# [%c]" "${spinstr:$i:1}"
+    sleep "0.1"
+  done
+  printf "\r\033[K"
+}
+
 uos_server_install_process() {
-  header
   tmp_dir_candidates=("/tmp" "/var/tmp")
   uos_server_tmp_dir=""
   for directory in "${tmp_dir_candidates[@]}"; do
@@ -8321,24 +8334,42 @@ uos_server_install_process() {
     if [[ -n "${fw_update_dl_link}" ]]; then fw_update_dl_links+=("${fw_update_dl_link}"); fi
     if [[ -n "${fw_update_gr_dl_link}" ]]; then fw_update_dl_links+=("${fw_update_gr_dl_link}"); fi
   fi
+  header
   for fw_update_dl_link in "${fw_update_dl_links[@]}"; do
-    eus_tmp_directory_check
-    uos_server_file_temp_file="$(mktemp "uos-server-${uos_version}_XXXXX" --tmpdir="${eus_tmp_directory_location}")"
-    echo -e "$(date +%F-%T.%6N) | Downloading ${fw_update_dl_link} to ${uos_server_file_temp_file}" &>> "${eus_dir}/logs/uos-server-download.log"
-    if [[ "${uos_server_download_message_printed}" != 'true' ]]; then echo -e "${GRAY_R}#${RESET} Downloading UniFi OS Server version ${uos_version}..."; uos_server_download_message_printed="true"; fi
-    if curl "${nos_curl_argument[@]}" --output "${uos_server_file_temp_file}" "${fw_update_dl_link}" &>> "${eus_dir}/logs/uos-server-download.log"; then
-      if command -v sha256sum &> /dev/null; then
-        if [[ "$(sha256sum "${uos_server_file_temp_file}" | awk '{print $1}')" != "${fw_update_dl_link_sha256sum}" ]]; then
-          if curl "${nos_curl_argument[@]}" --output "${uos_server_file_temp_file}" "${fw_update_dl_link}" &>> "${eus_dir}/logs/uos-server-download.log"; then
-            if [[ "$(sha256sum "${uos_server_file_temp_file}" | awk '{print $1}')" != "${fw_update_dl_link_sha256sum}" ]]; then
-              continue
-            fi
+    local retry_count="0"
+    local max_retries="2"
+    while (( retry_count < max_retries )); do
+      ((retry_count++))
+      eus_tmp_directory_check
+      uos_server_file_temp_file="$(mktemp "uos-server-${uos_version}_XXXXX" --tmpdir="${eus_tmp_directory_location}")"
+      echo -e "$(date +%F-%T.%6N) | Downloading ${fw_update_dl_link} to ${uos_server_file_temp_file}" &>> "${eus_dir}/logs/uos-server-download.log"
+      if [[ "${uos_server_download_message_printed}" != 'true' ]]; then 
+        echo -e "${GRAY_R}#${RESET} Downloading UniFi OS Server version ${uos_version}... "
+        uos_server_download_message_printed="true"
+      fi
+      curl "${nos_curl_argument[@]}" --output "${uos_server_file_temp_file}" "${fw_update_dl_link}" &>> "${eus_dir}/logs/uos-server-download.log" &
+      curl_pid="$!"
+      show_spinner "${curl_pid}"
+      wait "${curl_pid}"
+      curl_exit_code="$?"
+      if [[ "${curl_exit_code}" -eq "0" ]]; then
+        if command -v sha256sum &> /dev/null; then
+          if [[ "$(sha256sum "${uos_server_file_temp_file}" | awk '{print $1}')" != "${fw_update_dl_link_sha256sum}" ]]; then
+            printf "\r%s#%s Checksum mismatch, retrying (%s/%s)...\n" "${YELLOW}" "${RESET}" "${retry_count}" "${max_retries}"
+            continue
           fi
         fi
+        printf "\r"
+        echo -e "${GREEN}#${RESET} Successfully downloaded UniFi OS Server version ${uos_version}! \n"
+        uos_server_downloaded="true"
+        break 2
+      else
+        printf "\r%s#%s Download failed, trying next link...\n" "${RED}" "${RESET}"
+        break
       fi
-      echo -e "${GREEN}#${RESET} Successfully downloaded UniFi OS Server version ${uos_version}! \\n"; uos_server_downloaded="true"; break
-    else
-      continue
+    done
+    if (( retry_count == max_retries )); then
+      printf "%s#%s Max retries reached, trying different download links...\n" "${RED}" "${RESET}"
     fi
   done
   if [[ "${uos_server_downloaded}" == 'true' ]]; then
@@ -8350,7 +8381,7 @@ uos_server_install_process() {
       abort
     fi
     if "${uos_server_file_temp_file}" install --non-interactive "${uos_server_install_flags[@]}" &>> "${eus_dir}/logs/uos-server-install.log"; then
-      echo -e "${GREEN}#${RESET} Successfully installed UniFi OS Server version ${uos_version}! \\n"
+      echo -e "${GREEN}#${RESET} Successfully installed UniFi OS Server version ${uos_version}! \n"
     else
       abort_reason="Failed to install UniFi OS Server ${uos_version}."
       abort

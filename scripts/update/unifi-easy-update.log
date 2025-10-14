@@ -11,6 +11,16 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 10.5.1
+  
+ - Added support for Linux Mint 7 Gigi.
+ - Added support for Linux Trisquel Toutatis, Belenos, Flidas, Etiona, Nabia, Aramo, Ecne.
+ - Added spinner when downloading UniFi OS Server releases.
+ - Fixed errors during support file creation for UniFi OS Server installs.
+ - Fixed an issue where versions could be listed twice while using the dynamic update menu.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 10.5.0
   
  - Fixed an issue where the script would show cancelling script message without time to show cancelling reason.

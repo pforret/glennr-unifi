@@ -11,6 +11,16 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 8.9.6
+  
+ - Added support for Linux Mint 7 Gigi.
+ - Added support for Linux Trisquel Toutatis, Belenos, Flidas, Etiona, Nabia, Aramo, Ecne.
+ - Added spinner when downloading UniFi OS Server releases.
+ - Improved the UniFi OS Server installation process.
+ - Fixed errors during support file creation for UniFi OS Server installs.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 8.9.5
   
  - Fixed UniFi OS Server installation failures on DietPi like systems.

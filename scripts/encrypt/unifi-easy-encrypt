@@ -11,6 +11,13 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Encrypt Script  |  Version 3.6.8
+  
+ - Added support for Linux Mint 7 Gigi.
+ - Added support for Linux Trisquel Toutatis, Belenos, Flidas, Etiona, Nabia, Aramo, Ecne.
+ 
+ ####
+
  |  UniFi Easy Encrypt Script  |  Version 3.6.7
   
  - Added WSL check.
