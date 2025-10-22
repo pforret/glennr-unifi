@@ -2,7 +2,7 @@
 
 # UniFi Easy Encrypt script.
 # Script   | UniFi Network Easy Encrypt Script
-# Version  | 3.6.8
+# Version  | 3.6.9
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -5547,6 +5547,7 @@ PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 EOF
   fi
   if [[ "${unifi_core_system}" == 'true' ]] || [[ "${is_cloudkey}" == 'true' ]]; then
+    eus_create_directories "cronjob"
     tee /etc/cron.d/eus_script &>/dev/null << EOF
 SHELL=/bin/sh
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
@@ -5605,6 +5606,7 @@ EOF
   fi
   if [[ "${run_uck_scripts}" == 'true' ]]; then
     if [[ "${is_cloudkey}" == 'true' ]]; then
+      eus_create_directories "cronjob"
       echo -e "\\n${GRAY_R}----${RESET}\\n"
       echo -e "${GRAY_R}#${RESET} Creating required scripts and adding them as cronjobs!"
       mkdir -p "${eus_dir}/cronjob"
@@ -5728,7 +5730,7 @@ EOF
 paid_certificate_uc_ck() {
   echo -e "\\n${GRAY_R}----${RESET}\\n"
   echo -e "${GRAY_R}#${RESET} Creating required scripts and adding them as cronjobs!"
-  if ! [[ -d "${eus_dir}/cronjob" ]]; then mkdir -p "${eus_dir}/cronjob"; fi
+  eus_create_directories "cronjob"
   if ! [[ -f "/usr/lib/eus" ]]; then touch /usr/lib/eus &>/dev/null; fi
   cat /usr/lib/version &> "${eus_dir}/cloudkey/version"
   tee /etc/cron.d/eus_script_uc_ck &>/dev/null << EOF
