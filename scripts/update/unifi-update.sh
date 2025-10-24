@@ -2,7 +2,7 @@
 
 # UniFi Network Application Easy Update Script.
 # Script   | UniFi Network Easy Update Script
-# Version  | 10.5.1
+# Version  | 10.5.2
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -197,6 +197,41 @@ check_dns() {
     done
   fi
   return 0
+}
+
+check_for_block_page() {
+  local code loc domain=""
+  if command -v curl >/dev/null 2>&1; then
+    read -r code loc < <(curl -ksS -o /dev/null --max-redirs 0 -w '%{http_code} %{redirect_url}\n' "https://api.glennr.nl/api/ssl-check")
+  elif command -v wget >/dev/null 2>&1; then
+    local headers
+    headers="$(wget --no-check-certificate --max-redirect=0 --server-response -qO- "https://api.glennr.nl/api/ssl-check" 2>&1)"
+    code="$(grep -m1 'HTTP/' <<< "$headers" | awk '{print $2}')"
+    loc="$(grep -i '^  Location:' <<< "$headers" | head -n1 | awk '{print $2}' | tr -d '\r')"
+  else
+    echo -e "$(date +%F-%T.%6N) | Neither curl nor wget is available..." &>> "${eus_dir}/logs/block-page-check.log"
+    return 1
+  fi
+  loc="${loc%$'\r'}"
+  if [[ "${loc}" == http*://* ]]; then
+    domain="${loc#*://}"
+    domain="${domain%%/*}"
+  fi
+  if [[ "${code}" =~ ^30(1|2|7|8)$ && -n "${domain}" && ! "${domain}" =~ (^|\.)glennr\.nl$ ]]; then
+    echo -e "$(date +%F-%T.%6N) | Traffic is being redirected/forwarded to \"${loc}\" with HTTP code ${code}..." &>> "${eus_dir}/logs/block-page-check.log"
+    if [[ "${script_option_skip}" != "true" ]]; then
+      header_red
+      printf '%b#%b Your setup/firewall appears to be blocking or redirecting calls to "*.glennr.nl"...\n' "${RED}" "${RESET}"
+      printf '%b#%b Traffic is being redirected/forwarded to the location below via HTTP code %s...\n' "${RED}" "${RESET}" "${code}"
+      printf '%b#%b destination: %s\n\n' "${RED}" "${RESET}" "${loc}"
+      read -rp '# Did you add "*.glennr.nl" to the allow/exclusion list? (Y/n) ' yes_no
+      case "$yes_no" in
+        [Nn]*) header_red; printf '# The script will continue, but you may experience unexpected results due to blocked calls...\n'; sleep 5;;
+        *) return;;
+      esac
+      start_script_header
+    fi
+  fi
 }
 
 check_repository_key_permissions() {
@@ -1109,23 +1144,28 @@ script_logo() {
 EOF
 }
 
+start_script_header() {
+  header
+  script_logo
+  echo -e "    UniFi Easy Update Script!"
+  echo -e "\\n${GRAY_R}#${RESET} Starting the Easy Update Script.."
+  echo -e "${GRAY_R}#${RESET} Thank you for using my Easy Update Script :-)\\n\\n"
+}
+
 start_script() {
   script_location="${BASH_SOURCE[0]}"
   script_file_name="$(basename "${BASH_SOURCE[0]}")"
   if ! [[ -f "${script_location}" ]]; then header_red; echo -e "${YELLOW}#${RESET} The script needs to be saved on the disk in order to work properly, please follow the instructions...\\n${YELLOW}#${RESET} Usage: curl -sO https://get.glennr.nl/unifi/update/unifi-update.sh && bash unifi-update.sh\\n\\n"; exit 1; fi
   script_name="$(grep -i "# Script" "${script_location}" | head -n 1 | cut -d'|' -f2 | sed -e 's/^ //g')"
   eus_directories
-  header
-  script_logo
-  echo -e "    UniFi Easy Update Script!"
-  echo -e "\\n${GRAY_R}#${RESET} Starting the Easy Update Script.."
-  echo -e "${GRAY_R}#${RESET} Thank you for using my Easy Update Script :-)\\n\\n"
+  start_script_header
   if [[ "${update_at_start_script}" != 'true' ]]; then update_at_start_script="true"; update_eus_db; fi
   if pgrep -f unattended-upgrade &> /dev/null; then if systemctl stop unattended-upgrades &>> "${eus_dir}/logs/unattended-upgrades.log"; then stopped_unattended_upgrade="true"; fi; fi
 }
 start_script
 check_dns
 check_apt_listbugs
+check_for_block_page
 
 help_script() {
   check_apt_listbugs
@@ -1936,7 +1976,7 @@ if [[ "${latest_application_release_api_status}" == "OK" ]]; then
   if [[ -n "$(command -v jq)" ]]; then latest_uos_server_release_candidate="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-application-release?app=unifi-os-server&version=latest-release-candidate" 2> /dev/null | jq -r '.latest_release_candidate' 2> /dev/null)"; else latest_uos_server_release_candidate="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-application-release?app=unifi-os-server&version=latest-release-candidate" 2> /dev/null | sed -n 's/.*"latest_release_candidate":"\([^"]*\)".*/\1/p')"; fi
   if [[ -n "$(command -v jq)" ]]; then latest_uos_server_release="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-application-release?app=unifi-os-server&version=latest" 2> /dev/null | jq -r '.latest_release' 2> /dev/null)"; else latest_uos_server_release="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-application-release?app=unifi-os-server&version=latest" 2> /dev/null | sed -n 's/.*"latest_release":"\([^"]*\)".*/\1/p')"; fi
 else
-  latest_net_release="9.4.19"
+  latest_net_release="9.5.21"
   latest_uos_server_release="4.3.4"
 fi
 
@@ -11158,7 +11198,7 @@ run_upgrade_menu_for() {
                          "7.3.83-4501ffd244" "7.4.162-3116043f9f" "7.5.187-f57f5bf7ab" "8.0.28-66495b8e3a" \
                          "8.1.127-810cd1e59a" "8.2.93-1c329ecd26" "8.3.32-896f48ed11" "8.4.62-i3q2j125cz" \
                          "8.5.6-1x29lm155t" "8.6.9-0f45j609pu" "9.0.114-k5dy363g65" "9.1.120-e1aep1zs38" \
-                         "9.2.87-uf39xch68k" "9.3.45-9iw96x349g" "9.4.19-0f76duk082")
+                         "9.2.87-uf39xch68k" "9.3.45-9iw96x349g" "9.4.19-0f76duk082" "9.5.21-6nxxr6v29z")
       app_pretty="UniFi Network Application"
       current="${unifi}"
       api_name="network"

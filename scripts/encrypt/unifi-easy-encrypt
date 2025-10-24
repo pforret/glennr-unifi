@@ -11,6 +11,12 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Encrypt Script  |  Version 3.7.0
+  
+ - Added a check that checks if api.glennr.nl is being intercepted or blocked.
+ 
+ ####
+
  |  UniFi Easy Encrypt Script  |  Version 3.6.9
   
  - Fixed an issue where directories could be missing.

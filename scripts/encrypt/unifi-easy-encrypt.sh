@@ -2,7 +2,7 @@
 
 # UniFi Easy Encrypt script.
 # Script   | UniFi Network Easy Encrypt Script
-# Version  | 3.6.9
+# Version  | 3.7.0
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -686,6 +686,41 @@ check_dns() {
   return 0
 }
 
+check_for_block_page() {
+  local code loc domain=""
+  if command -v curl >/dev/null 2>&1; then
+    read -r code loc < <(curl -ksS -o /dev/null --max-redirs 0 -w '%{http_code} %{redirect_url}\n' "https://api.glennr.nl/api/ssl-check")
+  elif command -v wget >/dev/null 2>&1; then
+    local headers
+    headers="$(wget --no-check-certificate --max-redirect=0 --server-response -qO- "https://api.glennr.nl/api/ssl-check" 2>&1)"
+    code="$(grep -m1 'HTTP/' <<< "$headers" | awk '{print $2}')"
+    loc="$(grep -i '^  Location:' <<< "$headers" | head -n1 | awk '{print $2}' | tr -d '\r')"
+  else
+    echo -e "$(date +%F-%T.%6N) | Neither curl nor wget is available..." &>> "${eus_dir}/logs/block-page-check.log"
+    return 1
+  fi
+  loc="${loc%$'\r'}"
+  if [[ "${loc}" == http*://* ]]; then
+    domain="${loc#*://}"
+    domain="${domain%%/*}"
+  fi
+  if [[ "${code}" =~ ^30(1|2|7|8)$ && -n "${domain}" && ! "${domain}" =~ (^|\.)glennr\.nl$ ]]; then
+    echo -e "$(date +%F-%T.%6N) | Traffic is being redirected/forwarded to \"${loc}\" with HTTP code ${code}..." &>> "${eus_dir}/logs/block-page-check.log"
+    if [[ "${script_option_skip}" != "true" ]]; then
+      header_red
+      printf '%b#%b Your setup/firewall appears to be blocking or redirecting calls to "*.glennr.nl"...\n' "${RED}" "${RESET}"
+      printf '%b#%b Traffic is being redirected/forwarded to the location below via HTTP code %s...\n' "${RED}" "${RESET}" "${code}"
+      printf '%b#%b destination: %s\n\n' "${RED}" "${RESET}" "${loc}"
+      read -rp '# Did you add "*.glennr.nl" to the allow/exclusion list? (Y/n) ' yes_no
+      case "$yes_no" in
+        [Nn]*) header_red; printf '# The script will continue, but you may experience unexpected results due to blocked calls...\n'; sleep 5;;
+        *) return;;
+      esac
+      start_script_header
+    fi
+  fi
+}
+
 check_repository_key_permissions() {
   if [[ "$(stat -c %a "${repository_key_location}")" != "644" ]]; then
     if chmod 644 "${repository_key_location}" &>> "${eus_dir}/logs/update-repository-key-permissions.log"; then
@@ -846,18 +881,23 @@ script_logo() {
 EOF
 }
 
-start_script() {
+start_script_header() {
   header
   script_logo
   echo -e "    UniFi Easy Encrypt Script!"
   echo -e "\\n${GRAY_R}#${RESET} Starting the UniFi Easy Encrypt Script..."
   echo -e "${GRAY_R}#${RESET} Thank you for using my UniFi Easy Encrypt Script :-)\\n\\n"
+}
+
+start_script() {
+  start_script_header
   if [[ "${update_at_start_script}" != 'true' ]]; then update_at_start_script="true"; update_eus_db; fi
   if pgrep -f unattended-upgrade &> /dev/null; then if systemctl stop unattended-upgrades &>> "${eus_dir}/logs/unattended-upgrades.log"; then stopped_unattended_upgrade="true"; fi; fi
 }
 start_script
 check_dns
 check_apt_listbugs
+check_for_block_page
 
 help_script() {
   check_apt_listbugs

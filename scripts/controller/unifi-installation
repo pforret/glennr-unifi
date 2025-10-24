@@ -11,6 +11,12 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 8.9.7
+  
+ - Added a check that checks if api.glennr.nl is being intercepted or blocked.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 8.9.6
   
  - Added support for Linux Mint 7 Gigi.

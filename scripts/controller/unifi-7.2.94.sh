@@ -72,7 +72,7 @@
 ###################################################################################################################################################################################################
 
 # Script                | UniFi Network/OS Easy Installation Script
-# Version               | 8.9.6
+# Version               | 8.9.7
 # Application version   | 7.2.94
 # Debian Repo version   | 7.2.94-18697-1
 # UOS Server version    | 4.3.6
@@ -255,6 +255,41 @@ check_dns() {
     done
   fi
   return 0
+}
+
+check_for_block_page() {
+  local code loc domain=""
+  if command -v curl >/dev/null 2>&1; then
+    read -r code loc < <(curl -ksS -o /dev/null --max-redirs 0 -w '%{http_code} %{redirect_url}\n' "https://api.glennr.nl/api/ssl-check")
+  elif command -v wget >/dev/null 2>&1; then
+    local headers
+    headers="$(wget --no-check-certificate --max-redirect=0 --server-response -qO- "https://api.glennr.nl/api/ssl-check" 2>&1)"
+    code="$(grep -m1 'HTTP/' <<< "$headers" | awk '{print $2}')"
+    loc="$(grep -i '^  Location:' <<< "$headers" | head -n1 | awk '{print $2}' | tr -d '\r')"
+  else
+    echo -e "$(date +%F-%T.%6N) | Neither curl nor wget is available..." &>> "${eus_dir}/logs/block-page-check.log"
+    return 1
+  fi
+  loc="${loc%$'\r'}"
+  if [[ "${loc}" == http*://* ]]; then
+    domain="${loc#*://}"
+    domain="${domain%%/*}"
+  fi
+  if [[ "${code}" =~ ^30(1|2|7|8)$ && -n "${domain}" && ! "${domain}" =~ (^|\.)glennr\.nl$ ]]; then
+    echo -e "$(date +%F-%T.%6N) | Traffic is being redirected/forwarded to \"${loc}\" with HTTP code ${code}..." &>> "${eus_dir}/logs/block-page-check.log"
+    if [[ "${script_option_skip}" != "true" ]]; then
+      header_red
+      printf '%b#%b Your setup/firewall appears to be blocking or redirecting calls to "*.glennr.nl"...\n' "${RED}" "${RESET}"
+      printf '%b#%b Traffic is being redirected/forwarded to the location below via HTTP code %s...\n' "${RED}" "${RESET}" "${code}"
+      printf '%b#%b destination: %s\n\n' "${RED}" "${RESET}" "${loc}"
+      read -rp '# Did you add "*.glennr.nl" to the allow/exclusion list? (Y/n) ' yes_no
+      case "$yes_no" in
+        [Nn]*) header_red; printf '# The script will continue, but you may experience unexpected results due to blocked calls...\n'; sleep 5;;
+        *) return;;
+      esac
+      start_script_header
+    fi
+  fi
 }
 
 check_repository_key_permissions() {
@@ -1016,23 +1051,28 @@ script_logo() {
 EOF
 }
 
+start_script_header() {
+  header
+  script_logo
+  echo -e "    Easy UniFi Network Application/OS Server Install Script"
+  echo -e "\\n${GRAY_R}#${RESET} Starting the Easy UniFi Install Script.."
+  echo -e "${GRAY_R}#${RESET} Thank you for using my Easy UniFi Install Script :-)\\n\\n"
+}
+
 start_script() {
   script_location="${BASH_SOURCE[0]}"
   if ! [[ -f "${script_location}" ]]; then header_red; echo -e "${YELLOW}#${RESET} The script needs to be saved on the disk in order to work properly, please follow the instructions...\\n${YELLOW}#${RESET} Usage: curl -sO https://get.glennr.nl/unifi/install/install_latest/unifi-latest.sh && bash unifi-latest.sh\\n\\n"; exit 1; fi
   script_file_name="$(basename "${BASH_SOURCE[0]}")"
   script_name="$(grep -i "# Script" "${script_location}" | head -n 1 | cut -d'|' -f2 | sed -e 's/^ //g')"
   eus_directories
-  header
-  script_logo
-  echo -e "    Easy UniFi Network Application/OS Server Install Script"
-  echo -e "\\n${GRAY_R}#${RESET} Starting the Easy UniFi Install Script.."
-  echo -e "${GRAY_R}#${RESET} Thank you for using my Easy UniFi Install Script :-)\\n\\n"
+  start_script_header
   if [[ "${update_at_start_script}" != 'true' ]]; then update_at_start_script="true"; update_eus_db; fi
   if pgrep -f unattended-upgrade &> /dev/null; then if systemctl stop unattended-upgrades &>> "${eus_dir}/logs/unattended-upgrades.log"; then stopped_unattended_upgrade="true"; fi; fi
 }
 start_script
 check_dns
 check_apt_listbugs
+check_for_block_page
 
 help_script() {
   check_apt_listbugs

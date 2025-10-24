@@ -14,6 +14,7 @@
  |  UniFi Easy Update Script  |  Version 10.5.2
   
  - Added 9.5.21 to the fallback list.
+ - Added a check that checks if api.glennr.nl is being intercepted or blocked.
 
  ####
 
