@@ -2,7 +2,7 @@
 
 # UniFi Network Application Easy Update Script.
 # Script   | UniFi Network Easy Update Script
-# Version  | 10.5.2
+# Version  | 10.5.3
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -11268,8 +11268,8 @@ run_upgrade_menu_for() {
     if (( UPGRADE_VERSION < 1 || UPGRADE_VERSION > ${#options[@]} )); then
       header_red; echo -e "${RED}#${RESET} Choice out of range. Please select a valid option."; sleep 3; continue
     fi
-    local choice="${options[$((UPGRADE_VERSION-1))]}"
-    case "${choice}" in
+    local upgrade_menu_choice="${options[$((UPGRADE_VERSION-1))]}"
+    case "${upgrade_menu_choice}" in
       "Cancel")
         echo "Upgrade canceled."
         exit 0;;
@@ -11283,12 +11283,12 @@ run_upgrade_menu_for() {
               application_upgrade_releases
               migration_check
             fi
-            application_version="${choice}"
+            application_version="${upgrade_menu_choice}"
             application_upgrade_releases
             upgrade_finished network;;
           uosserver)
             upgrade_start uosserver
-            uos_server_version="${choice}"
+            uos_server_version="${upgrade_menu_choice}"
             uos_server_upgrade_process
             upgrade_finished uosserver;;
         esac;;

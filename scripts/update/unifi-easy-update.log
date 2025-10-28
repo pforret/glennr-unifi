@@ -11,6 +11,12 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 10.5.3
+  
+ - Fixed an issue where you could get unexpected version to upgrade prompts.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 10.5.2
   
  - Added 9.5.21 to the fallback list.

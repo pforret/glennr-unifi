@@ -2,7 +2,7 @@
 
 # UniFi Easy Encrypt script.
 # Script   | UniFi Network Easy Encrypt Script
-# Version  | 3.7.0
+# Version  | 3.7.1
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -2817,7 +2817,7 @@ if [[ -n "${auto_dns_challenge_provider}" ]]; then
       fi
     done < <(printf '%s\n' "${certbot_required_packages[@]}")
     # Setup virtual environment for certbot
-    echo -e "${GRAY_R}#${RESET} Installing certbot and it's required packages..."
+    echo -e "${GRAY_R}#${RESET} Installing certbot and its required packages..."
     if ! python3 -m venv /opt/certbot/ &>> "${eus_dir}/logs/python-certbot.log"; then
       abort_reason="Failed to setup a virtual environment for certbot."; abort
     fi
@@ -2861,7 +2861,7 @@ if [[ -n "${auto_dns_challenge_provider}" ]]; then
     if ! /opt/certbot/bin/pip install certbot-dns-multi &>> "${eus_dir}/logs/python-certbot.log"; then
       abort_reason="Failed to install certbot-dns-multi."; abort
     fi
-    echo -e "${GREEN}#${RESET} Successfully installed certbot and it's required packages! \\n"
+    echo -e "${GREEN}#${RESET} Successfully installed certbot and its required packages! \\n"
   fi
 fi
 
