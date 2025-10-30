@@ -2,7 +2,7 @@
 
 # UniFi Easy Encrypt script.
 # Script   | UniFi Network Easy Encrypt Script
-# Version  | 3.7.1
+# Version  | 3.7.2
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -2397,8 +2397,8 @@ if [[ "${required_service}" != 'true' && "${skip_required_service_check}" != "tr
   exit 1
 fi
 
-unifi_status="$(systemctl status unifi | grep -i 'Active:' | awk '{print $2}')"
-uosserver_status="$(systemctl status uosserver | grep -i 'Active:' | awk '{print $2}')"
+unifi_status="$(systemctl status unifi 2>/dev/null | grep -i 'Active:' | awk '{print $2}')"
+uosserver_status="$(systemctl status uosserver 2>/dev/null | grep -i 'Active:' | awk '{print $2}')"
 check_dig_curl
 
 certbot_auto_permission_check() {
@@ -3541,19 +3541,19 @@ else
   # shellcheck disable=SC2012,SC2010
   if [[ -d /etc/letsencrypt/live/ ]]; then le_var=\$(ls -lc /etc/letsencrypt/live/ | grep -io "${server_fqdn}.*" | tail -n1 | sed "s/${server_fqdn}//g"); fi
 fi
-if ! [[ -f "${eus_dir}/checksum/fullchain.sha256sum" && -s "${eus_dir}/checksum/fullchain.sha256sum" && -f "${eus_dir}/checksum/fullchain.md5sum" && -s "${eus_dir}/checksum/fullchain.md5sum" ]]; then
+if ! [[ -f "${eus_dir}/checksum/${server_fqdn}\${le_var}-fullchain.sha256sum" && -s "${eus_dir}/checksum/${server_fqdn}\${le_var}-fullchain.sha256sum" && -f "${eus_dir}/checksum/${server_fqdn}\${le_var}-fullchain.md5sum" && -s "${eus_dir}/checksum/${server_fqdn}\${le_var}-fullchain.md5sum" ]]; then
   touch "${eus_dir}/temp_file"
-  sha256sum "${eus_dir}/temp_file" 2> /dev/null | awk '{print \$1}' &> "${eus_dir}/checksum/fullchain.sha256sum"
-  md5sum "${eus_dir}/temp_file" 2> /dev/null | awk '{print \$1}' &> "${eus_dir}/checksum/fullchain.md5sum"
+  sha256sum "${eus_dir}/temp_file" 2> /dev/null | awk '{print \$1}' &> "${eus_dir}/checksum/${server_fqdn}\${le_var}-fullchain.sha256sum"
+  md5sum "${eus_dir}/temp_file" 2> /dev/null | awk '{print \$1}' &> "${eus_dir}/checksum/${server_fqdn}\${le_var}-fullchain.md5sum"
   rm --force "${eus_dir}/temp_file"
 fi
 if [[ -f "/etc/letsencrypt/live/${server_fqdn}\${le_var}/privkey.pem" && -f "/etc/letsencrypt/live/${server_fqdn}\${le_var}/fullchain.pem" ]]; then
   current_sha256sum=\$(sha256sum "/etc/letsencrypt/live/${server_fqdn}\${le_var}/fullchain.pem" | awk '{print \$1}')
   current_md5sum=\$(md5sum "/etc/letsencrypt/live/${server_fqdn}\${le_var}/fullchain.pem" 2> /dev/null | awk '{print \$1}')
-  if [[ "\${current_sha256sum}" != "\$(cat "${eus_dir}/checksum/fullchain.sha256sum")" && "\${current_md5sum}" != "\$(cat "${eus_dir}/checksum/fullchain.md5sum")" ]]; then
+  if [[ "\${current_sha256sum}" != "\$(cat "${eus_dir}/checksum/${server_fqdn}\${le_var}-fullchain.sha256sum")" && "\${current_md5sum}" != "\$(cat "${eus_dir}/checksum/${server_fqdn}\${le_var}-fullchain.md5sum")" ]]; then
     echo -e "\\n------- \$(date +%F-%T.%6N) -------\\n" &>> "${eus_dir}/logs/lets_encrypt_import.log"
-    sha256sum "/etc/letsencrypt/live/${server_fqdn}\${le_var}/fullchain.pem" 2> /dev/null | awk '{print \$1}' &> "${eus_dir}/checksum/fullchain.sha256sum" && echo "Successfully updated sha256sum" &>> "${eus_dir}/logs/lets_encrypt_import.log"
-    md5sum "/etc/letsencrypt/live/${server_fqdn}\${le_var}/fullchain.pem" 2> /dev/null | awk '{print \$1}' &> "${eus_dir}/checksum/fullchain.md5sum" && echo "Successfully updated md5sum" &>> "${eus_dir}/logs/lets_encrypt_import.log"
+    sha256sum "/etc/letsencrypt/live/${server_fqdn}\${le_var}/fullchain.pem" 2> /dev/null | awk '{print \$1}' &> "${eus_dir}/checksum/${server_fqdn}\${le_var}-fullchain.sha256sum" && echo "Successfully updated sha256sum" &>> "${eus_dir}/logs/lets_encrypt_import.log"
+    md5sum "/etc/letsencrypt/live/${server_fqdn}\${le_var}/fullchain.pem" 2> /dev/null | awk '{print \$1}' &> "${eus_dir}/checksum/${server_fqdn}\${le_var}-fullchain.md5sum" && echo "Successfully updated md5sum" &>> "${eus_dir}/logs/lets_encrypt_import.log"
     unifi_status="\$(systemctl status unifi | grep -i 'Active:' | awk '{print \$2}')"
     uosserver_status="\$(systemctl status uosserver | grep -i 'Active:' | awk '{print \$2}')"
     if dpkg -l unifi-core 2> /dev/null | awk '{print \$1}' | grep -iq "^ii\\|^hi"; then
@@ -4261,8 +4261,8 @@ unifi_network_application() {
   fi
   if [[ "${unifi_core_system}" == 'true' ]]; then echo -e "\\n${GRAY_R}#${RESET} Importing the SSL certificates into the UniFi Network Application running on your ${unifi_core_device}..."; else echo -e "\\n${GRAY_R}#${RESET} Importing the SSL certificates into the UniFi Network Application..."; fi
   echo -e "\\n------- $(date +%F-%T.%6N) -------\\n" &>> "${eus_dir}/logs/lets_encrypt_import.log"
-  if sha256sum "/etc/letsencrypt/live/${server_fqdn}${le_var}/fullchain.pem" 2> /dev/null | awk '{print $1}' &> "${eus_dir}/checksum/fullchain.sha256sum"; then echo "Successfully updated sha256sum" &>> "${eus_dir}/logs/lets_encrypt_import.log"; fi
-  if md5sum "/etc/letsencrypt/live/${server_fqdn}${le_var}/fullchain.pem" 2> /dev/null | awk '{print $1}' &> "${eus_dir}/checksum/fullchain.md5sum"; then echo "Successfully updated md5sum" &>> "${eus_dir}/logs/lets_encrypt_import.log"; fi
+  if sha256sum "/etc/letsencrypt/live/${server_fqdn}${le_var}/fullchain.pem" 2> /dev/null | awk '{print $1}' &> "${eus_dir}/checksum/${server_fqdn}${le_var}-fullchain.sha256sum"; then echo "Successfully updated sha256sum" &>> "${eus_dir}/logs/lets_encrypt_import.log"; fi
+  if md5sum "/etc/letsencrypt/live/${server_fqdn}${le_var}/fullchain.pem" 2> /dev/null | awk '{print $1}' &> "${eus_dir}/checksum/${server_fqdn}${le_var}-fullchain.md5sum"; then echo "Successfully updated md5sum" &>> "${eus_dir}/logs/lets_encrypt_import.log"; fi
   # shellcheck disable=SC2012
   if [[ "${old_certificates}" == 'last_three' ]]; then ls -t "${eus_dir}/network/keystore_backups/keystore_*" 2> /dev/null | awk 'NR>3' | xargs rm -f 2> /dev/null; fi
   mkdir -p "${eus_dir}/network/keystore_backups" && cp /usr/lib/unifi/data/keystore "${eus_dir}/network/keystore_backups/keystore_$(date +%Y%m%d_%H%M)"

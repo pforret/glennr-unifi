@@ -11,6 +11,12 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Encrypt Script  |  Version 3.7.2
+  
+ - Fixed an issue where you could experience unexpected application/service restarts when multiple domains are configured.
+ 
+ ####
+
  |  UniFi Easy Encrypt Script  |  Version 3.7.1
   
  - Fixed some small typos.
