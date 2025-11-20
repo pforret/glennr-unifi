@@ -11,6 +11,12 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 10.5.4
+  
+ - Improved the UniFi OS Server update process.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 10.5.3
   
  - Fixed an issue where you could get unexpected version to upgrade prompts.

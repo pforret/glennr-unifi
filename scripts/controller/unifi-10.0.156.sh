@@ -73,8 +73,8 @@
 
 # Script                | UniFi Network/OS Easy Installation Script
 # Version               | 8.9.9
-# Application version   | 5.11.48
-# Debian Repo version   | 5.11.48-12740-1
+# Application version   | 10.0.156
+# Debian Repo version   | 10.0.156-32034-1
 # UOS Server version    | 4.3.6
 # Author                | Glenn Rietveld
 # Email                 | glennrietveld8@hotmail.nl
