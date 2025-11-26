@@ -11,6 +11,12 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 8.9.9
+  
+ - Added support for Ubuntu Resolute Raccoon 26.04.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 8.9.8
   
  - Improved the UniFi OS Server installation process.

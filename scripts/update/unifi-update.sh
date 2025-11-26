@@ -2,7 +2,7 @@
 
 # UniFi Network Application Easy Update Script.
 # Script   | UniFi Network Easy Update Script
-# Version  | 10.5.5
+# Version  | 10.5.6
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -9149,9 +9149,14 @@ mongodb_upgrade() {
   else
     echo -e "${GREEN}#${RESET} You've already created a backup using the script! \\n"
   fi
+  if "$(which dpkg)" -l "${gr_mongod_name}" 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+    mongodb_server_package_name="${gr_mongod_name}"
+  else
+    mongodb_server_package_name="mongodb-org-server"
+  fi
   header
-  if "$(which dpkg)" -l mongodb-org-server 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
-    mongodb_org_version="$(dpkg-query --showformat='${version}' --show mongodb-org-server 2> /dev/null | sed 's/.*://' | sed 's/-.*//g')"
+  if "$(which dpkg)" -l "${mongodb_server_package_name}" 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+    mongodb_org_version="$(dpkg-query --showformat='${version}' --show "${mongodb_server_package_name}" 2> /dev/null | sed 's/.*://' | sed 's/-.*//g')"
     mongodb_package_requirement_check="true"
     mongodb_package_libssl="mongodb-org-tools"
     mongodb_package_version_libssl="${mongodb_org_version}"
