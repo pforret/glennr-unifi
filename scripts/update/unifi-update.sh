@@ -2,7 +2,7 @@
 
 # UniFi Network Application Easy Update Script.
 # Script   | UniFi Network Easy Update Script
-# Version  | 10.5.6
+# Version  | 10.5.7
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -1611,8 +1611,8 @@ unset_section_variables() {
 
 add_repositories() {
   # Check if repository is already added
-  if grep -sq "^deb .*http\?s\?://$(echo "${repo_url}" | sed -e 's/https\:\/\///g' -e 's/http\:\/\///g')${repo_url_arguments}\?/\? ${repo_codename}${repo_codename_argument} ${repo_component}" /etc/apt/sources.list /etc/apt/sources.list.d/*; then
-    echo -e "$(date +%F-%T.%6N) | \"${repo_url}${repo_url_arguments} ${repo_codename}${repo_codename_argument} ${repo_component}\" was found, not adding to repository lists. $(grep -srIl "^deb .*http\?s\?://$(echo "${repo_url}" | sed -e 's/https\:\/\///g' -e 's/http\:\/\///g')${repo_url_arguments}\?/\? ${repo_codename}${repo_codename_argument} ${repo_component}" /etc/apt/sources.list /etc/apt/sources.list.d/*)..." &>> "${eus_dir}/logs/already-found-repository.log"
+  if grep -sq "^deb .*http\?s\?://$(echo "${repo_url}" | sed -e 's/https\:\/\///g' -e 's/http\:\/\///g')${repo_url_arguments}\?/\? ${repo_codename}${repo_codename_argument} ${repo_component}" /etc/apt/sources.list /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; then
+    echo -e "$(date +%F-%T.%6N) | \"${repo_url}${repo_url_arguments} ${repo_codename}${repo_codename_argument} ${repo_component}\" was found, not adding to repository lists. $(grep -srIl "^deb .*http\?s\?://$(echo "${repo_url}" | sed -e 's/https\:\/\///g' -e 's/http\:\/\///g')${repo_url_arguments}\?/\? ${repo_codename}${repo_codename_argument} ${repo_component}" /etc/apt/sources.list /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources)..." &>> "${eus_dir}/logs/already-found-repository.log"
     unset_add_repositories_variables
     return  # Repository already added, exit function
   elif find /etc/apt/sources.list.d/ -name "*.sources" | grep -ioq /etc/apt; then
@@ -1966,7 +1966,7 @@ if ! "$(which dpkg)" -l unifi 2>/dev/null | awk '{print $1}' | grep -iqE "^ii|^h
   if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Do you want to run the Easy Installation Script? (Y/n) ' yes_no; fi
   case "$yes_no" in
       [Nn]*) check_apt_listbugs; exit 0;;
-      *) check_apt_listbugs; curl "${curl_argument[@]}" --remote-name https://get.glennr.nl/unifi/install/install_latest/unifi-latest.sh && bash unifi-latest.sh --skip; exit 0;;
+      *) check_apt_listbugs; curl "${curl_argument[@]}" --remote-name https://get.glennr.nl/unifi/install/install_latest/unifi-latest.sh && bash unifi-latest.sh; exit 0;;
   esac
 fi
 
@@ -2806,6 +2806,12 @@ cleanup_malformed_repositories() {
       cleanup_malformed_repositories_file_path="$(echo "${line}" | sed -n 's/.*\(in sources file \|in source file \|in source list \|in list file \)\([^ ]*\).*/\2/p')"
       cleanup_malformed_repositories_line_number="$(echo "${line}" | cut -d':' -f2 | cut -d' ' -f1)"
       if [[ -f "${cleanup_malformed_repositories_file_path}" ]]; then
+        echo -e "$(date +%F-%T.%6N) | Backing up file before modification: ${cleanup_malformed_repositories_file_path}" &>> "${eus_dir}/logs/cleanup-malformed-repository-lists.log"
+        {
+          echo "----- BEGIN ORIGINAL FILE: ${cleanup_malformed_repositories_file_path} -----"
+          cat "${cleanup_malformed_repositories_file_path}"
+          echo "----- END ORIGINAL FILE: ${cleanup_malformed_repositories_file_path} -----"
+        } &>> "${eus_dir}/logs/cleanup-malformed-repository-lists.log"
         if [[ "${cleanup_malformed_repositories_file_path}" == *".sources" ]]; then
           # Handle deb822 format
           entry_block_start_line="$(awk -v cleanup_line="${cleanup_malformed_repositories_line_number}" 'BEGIN { block = 0; in_block = 0; start_line = 0 } /^[^#]/ { if (!in_block) { start_line = NR; in_block = 1; } } /^$/ { if (in_block) { block++; in_block = 0; if (block == cleanup_line) { print start_line; } } } END { if (in_block) { block++; if (block == cleanup_line) { print start_line; } } }' "${cleanup_malformed_repositories_file_path}")"
@@ -2816,7 +2822,7 @@ cleanup_malformed_repositories() {
           # Handle regular format
           sed -i "${cleanup_malformed_repositories_line_number}s/^/#/" "${cleanup_malformed_repositories_file_path}" &>> "${eus_dir}/logs/cleanup-malformed-repository-lists.log"
         else
-          mv "${cleanup_malformed_repositories_file_path}" "{eus_dir}/repository/$(basename "${cleanup_malformed_repositories_file_path}").corrupted" &>> "${eus_dir}/logs/cleanup-malformed-repository-lists.log"
+          mv "${cleanup_malformed_repositories_file_path}" "${eus_dir}/repository/$(basename "${cleanup_malformed_repositories_file_path}").corrupted" &>> "${eus_dir}/logs/cleanup-malformed-repository-lists.log"
         fi
         cleanup_malformed_repositories_changes_made="true"
         echo -e "$(date +%F-%T.%6N) | Malformed repository commented out in '${cleanup_malformed_repositories_file_path}' at line $cleanup_malformed_repositories_line_number" &>> "${eus_dir}/logs/cleanup-malformed-repository-lists.log"
@@ -2843,6 +2849,12 @@ cleanup_duplicated_repositories() {
       cleanup_duplicated_repositories_file_path="$(echo "${line}" | cut -d':' -f1)"
       cleanup_duplicated_repositories_line_number="$(echo "${line}" | cut -d':' -f2 | cut -d' ' -f1)"
       if [[ -f "${cleanup_duplicated_repositories_file_path}" ]]; then
+        echo -e "$(date +%F-%T.%6N) | Backing up file before modification: ${cleanup_duplicated_repositories_file_path}" &>> "${eus_dir}/logs/cleanup-duplicate-repository-lists.log"
+        {
+          echo "----- BEGIN ORIGINAL FILE: ${cleanup_duplicated_repositories_file_path} -----"
+          cat "${cleanup_duplicated_repositories_file_path}"
+          echo "----- END ORIGINAL FILE: ${cleanup_duplicated_repositories_file_path} -----"
+        } &>> "${eus_dir}/logs/cleanup-duplicate-repository-lists.log"
         if [[ "${cleanup_duplicated_repositories_file_path}" == *".sources" ]]; then
           # Handle deb822 format
           entry_block_start_line="$(awk 'BEGIN { block = 0 } { if ($0 ~ /^Types:/) { block++ } if (block == '"$cleanup_duplicated_repositories_line_number"') { print NR; exit } }' "${cleanup_duplicated_repositories_file_path}")"
@@ -4480,7 +4492,7 @@ unifi_deb_package_modification() {
     fi
     if [[ "${pre_build_download_failure}" != 'false' ]] || [[ -z "${pre_build_fw_update_dl_link}" ]]; then
       if [[ "${pre_build_download_failure}" != 'false' ]]; then echo -e "${RED}#${RESET} Failed to download UniFi Network Application version ${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi} built for ${unifi_deb_package_modification_message_1}! \\n${RED}#${RESET} The script will attempt to built it locally... \\n"; fi
-      eus_temp_dir="$(mktemp -d --tmpdir="${eus_dir}" unifi.deb.XXX)"
+      eus_temp_dir="$(mktemp -d --tmpdir="${eus_tmp_directory_location}" unifi.deb.XXX)"
       echo -e "${GRAY_R}#${RESET} This setup is using ${unifi_deb_package_modification_message_1}... Editing the UniFi Network Application dependencies..."
       echo -e "\\n------- $(date +%F-%T.%6N) -------\\n" &>> "${eus_dir}/logs/unifi-custom-deb-file.log"
       if dpkg-deb -x "${unifi_temp}" "${eus_temp_dir}" &>> "${eus_dir}/logs/unifi-custom-deb-file.log"; then
@@ -10467,6 +10479,47 @@ not_running_java_21_check() {
   fi
 }
 
+version_ge() {
+  [[ "$(printf '%s\n' "$1" "$2" | sort -V | head -n1)" == "$2" ]]
+}
+
+version_gt() {
+  [[ "$1" != "$2" ]] && version_ge "$1" "$2"
+}
+
+uos_server_conf_check() {
+  uos_server_conf_file_path="/var/lib/uosserver/server.conf"
+  podman_version="$(dpkg-query -W -f='${Version}\n' podman 2> /dev/null | sed -E 's/^([0-9]+\.[0-9]+\.[0-9]+).*/\1/')"
+  pasta_podman_version_required="4.9.3"
+  # NETWORK_MODE check
+  if version_gt "${uos_server_version}" "5.0"; then
+    if version_ge "${podman_version}" "${pasta_podman_version_required}"; then
+      uos_server_network_mode_supported="pasta"
+    else
+      uos_server_network_mode_supported="slirp4netns"
+    fi
+    if grep -q '^NETWORK_MODE=' "${uos_server_conf_file_path}" 2>/dev/null; then
+      uos_server_network_mode_current="$(grep '^NETWORK_MODE=' "${uos_server_conf_file_path}" | head -n1 | sed 's/^NETWORK_MODE=//')"
+      if [[ "${uos_server_network_mode_current}" != "${uos_server_network_mode_supported}" ]]; then
+        echo -e "$(date +%F-%T.%6N) | Changing NETWORK_MODE from \"${uos_server_network_mode_current}\" to \"${uos_server_network_mode_supported}\"..." &>> "${eus_dir}/logs/uos-server-conf-check.log"
+        if sed -i "s/^NETWORK_MODE=.*/NETWORK_MODE=${uos_server_network_mode_supported}/" "${uos_server_conf_file_path}"; then
+          echo -e "$(date +%F-%T.%6N) | Successfully changed NETWORK_MODE from \"${uos_server_network_mode_current}\" to \"${uos_server_network_mode_supported}\"!" &>> "${eus_dir}/logs/uos-server-conf-check.log"
+        else
+          echo -e "$(date +%F-%T.%6N) | Failed to change NETWORK_MODE from \"${uos_server_network_mode_current}\" to \"${uos_server_network_mode_supported}\"..." &>> "${eus_dir}/logs/uos-server-conf-check.log"
+        fi
+      fi
+    else
+      echo -e "$(date +%F-%T.%6N) | NETWORK_MODE appears to be missing from ${uos_server_conf_file_path}, appending..." &>> "${eus_dir}/logs/uos-server-conf-check.log"
+      if [[ -s "${uos_server_conf_file_path}" && -n "$(tail -c1 "${uos_server_conf_file_path}" 2>/dev/null)" ]]; then echo "" >> "${uos_server_conf_file_path}"; fi
+      if echo "NETWORK_MODE=${uos_server_network_mode_supported}" >> "${uos_server_conf_file_path}"; then
+        echo -e "$(date +%F-%T.%6N) | Successfully appended \"NETWORK_MODE=${uos_server_network_mode_supported}\" to ${uos_server_conf_file_path}!" &>> "${eus_dir}/logs/uos-server-conf-check.log"
+      else
+        echo -e "$(date +%F-%T.%6N) | Failed to append \"NETWORK_MODE=${uos_server_network_mode_supported}\" to ${uos_server_conf_file_path}..." &>> "${eus_dir}/logs/uos-server-conf-check.log"
+      fi
+    fi
+  fi
+}
+
 if [[ "${limited_functionality}" == 'true' ]]; then
   if ! [[ "$(pgrep -f "/usr/lib/unifi" | grep -cv grep)" -ge "2" ]]; then
     if [[ "${installing_required_package}" != 'yes' ]]; then echo -e "\\n${GREEN}---${RESET}\\n"; else header; fi
@@ -11154,15 +11207,26 @@ uos_server_upgrade_process() {
       printf "%s#%s Max retries reached, trying different download links...\n" "${RED}" "${RESET}"
     fi
   done
+  uos_server_conf_check
+  if dpkg -s unifi >/dev/null 2>&1; then
+    if systemctl is-active --quiet unifi.service; then
+      echo -e "$(date +%F-%T.%6N) | Stopping the unifi.service process..." &>> "${eus_dir}/logs/uos-server-service-conflict.log"
+      if systemctl stop unifi.service >/dev/null 2>&1; then
+        echo -e "$(date +%F-%T.%6N) | Successfully stopped the unifi.service process!" &>> "${eus_dir}/logs/uos-server-service-conflict.log"
+      else
+        echo -e "$(date +%F-%T.%6N) | Failed to stop the unifi.service process..." &>> "${eus_dir}/logs/uos-server-service-conflict.log"
+      fi
+    fi
+  fi
   if [[ "${uos_server_downloaded}" == 'true' ]]; then
     unset uos_server_downloaded
     echo -e "${GRAY_R}#${RESET} Upgrading UniFi OS Server version ${uos_version} to ${uos_server_version}..."
     check_dpkg_lock
-    if ! chmod +x "${uos_server_file_temp_file}" &>> "${eus_dir}/logs/uos-server-install.log"; then
+    if ! chmod +x "${uos_server_file_temp_file}" &>> "${eus_dir}/logs/uos-server-update.log"; then
       abort_reason="Failed to change the permissions on ${uos_server_file_temp_file}."
       abort
     fi
-    if "${uos_server_file_temp_file}" --non-interactive &>> "${eus_dir}/logs/uos-server-install.log"; then
+    if "${uos_server_file_temp_file}" --non-interactive &>> "${eus_dir}/logs/uos-server-update.log"; then
       echo -e "${GREEN}#${RESET} Successfully updated UniFi OS Server version ${uos_version} to ${uos_server_version}! \\n"
       sleep 3
     else
@@ -11204,7 +11268,8 @@ run_upgrade_menu_for() {
                          "7.3.83-4501ffd244" "7.4.162-3116043f9f" "7.5.187-f57f5bf7ab" "8.0.28-66495b8e3a" \
                          "8.1.127-810cd1e59a" "8.2.93-1c329ecd26" "8.3.32-896f48ed11" "8.4.62-i3q2j125cz" \
                          "8.5.6-1x29lm155t" "8.6.9-0f45j609pu" "9.0.114-k5dy363g65" "9.1.120-e1aep1zs38" \
-                         "9.2.87-uf39xch68k" "9.3.45-9iw96x349g" "9.4.19-0f76duk082" "9.5.21-6nxxr6v29z")
+                         "9.2.87-uf39xch68k" "9.3.45-9iw96x349g" "9.4.19-0f76duk082" "9.5.21-6nxxr6v29z" \
+                         "10.0.162-07s9p09k3a" )
       app_pretty="UniFi Network Application"
       current="${unifi}"
       api_name="network"

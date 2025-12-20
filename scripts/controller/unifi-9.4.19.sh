@@ -33,6 +33,7 @@
 #                       | Ubuntu Oracular Oriole ( 24.10 )
 #                       | Ubuntu Plucky Puffin ( 25.04 )
 #                       | Ubuntu Questing Quokka ( 25.10 )
+#                       | Ubuntu Resolute Raccoon ( 26.04 )
 #                       | Debian Jessie ( 8 )
 #                       | Debian Stretch ( 9 )
 #                       | Debian Buster ( 10 )
@@ -72,10 +73,10 @@
 ###################################################################################################################################################################################################
 
 # Script                | UniFi Network/OS Easy Installation Script
-# Version               | 8.9.9
+# Version               | 9.0.0
 # Application version   | 9.4.19
 # Debian Repo version   | 9.4.19-31042-1
-# UOS Server version    | 4.3.6
+# UOS Server version    | 5.0.6
 # Author                | Glenn Rietveld
 # Email                 | glennrietveld8@hotmail.nl
 # Website               | https://GlennR.nl
@@ -136,7 +137,7 @@ if [[ -n "${LESS}" ]]; then unset LESS; fi
 if [[ "$(ps -p 1 -o comm=)" != 'systemd' ]]; then
   header_red
   echo -e "${YELLOW}#${RESET} This setup appears to be using \"$(ps -p 1 -o comm=)\" instead of \"systemd\"..."
-  echo -e "${YELLOW}#${RESET} The script has limited functionality on \"$(ps -p 1 -o comm=)\" systems..."
+  echo -e "${YELLOW}#${RESET} The script has limited functionality on \"$(ps -p 1 -o comm=)\" systems and UniFi OS Server is not supported..."
   limited_functionality="true"
   sleep 10
 fi
@@ -1518,6 +1519,12 @@ cleanup_malformed_repositories() {
       cleanup_malformed_repositories_file_path="$(echo "${line}" | sed -n 's/.*\(in sources file \|in source file \|in source list \|in list file \)\([^ ]*\).*/\2/p')"
       cleanup_malformed_repositories_line_number="$(echo "${line}" | cut -d':' -f2 | cut -d' ' -f1)"
       if [[ -f "${cleanup_malformed_repositories_file_path}" ]]; then
+        echo -e "$(date +%F-%T.%6N) | Backing up file before modification: ${cleanup_malformed_repositories_file_path}" &>> "${eus_dir}/logs/cleanup-malformed-repository-lists.log"
+        {
+          echo "----- BEGIN ORIGINAL FILE: ${cleanup_malformed_repositories_file_path} -----"
+          cat "${cleanup_malformed_repositories_file_path}"
+          echo "----- END ORIGINAL FILE: ${cleanup_malformed_repositories_file_path} -----"
+        } &>> "${eus_dir}/logs/cleanup-malformed-repository-lists.log"
         if [[ "${cleanup_malformed_repositories_file_path}" == *".sources" ]]; then
           # Handle deb822 format
           entry_block_start_line="$(awk -v cleanup_line="${cleanup_malformed_repositories_line_number}" 'BEGIN { block = 0; in_block = 0; start_line = 0 } /^[^#]/ { if (!in_block) { start_line = NR; in_block = 1; } } /^$/ { if (in_block) { block++; in_block = 0; if (block == cleanup_line) { print start_line; } } } END { if (in_block) { block++; if (block == cleanup_line) { print start_line; } } }' "${cleanup_malformed_repositories_file_path}")"
@@ -1528,7 +1535,7 @@ cleanup_malformed_repositories() {
           # Handle regular format
           sed -i "${cleanup_malformed_repositories_line_number}s/^/#/" "${cleanup_malformed_repositories_file_path}" &>> "${eus_dir}/logs/cleanup-malformed-repository-lists.log"
         else
-          mv "${cleanup_malformed_repositories_file_path}" "{eus_dir}/repository/$(basename "${cleanup_malformed_repositories_file_path}").corrupted" &>> "${eus_dir}/logs/cleanup-malformed-repository-lists.log"
+          mv "${cleanup_malformed_repositories_file_path}" "${eus_dir}/repository/$(basename "${cleanup_malformed_repositories_file_path}").corrupted" &>> "${eus_dir}/logs/cleanup-malformed-repository-lists.log"
         fi
         cleanup_malformed_repositories_changes_made="true"
         echo -e "$(date +%F-%T.%6N) | Malformed repository commented out in '${cleanup_malformed_repositories_file_path}' at line $cleanup_malformed_repositories_line_number" &>> "${eus_dir}/logs/cleanup-malformed-repository-lists.log"
@@ -1555,6 +1562,12 @@ cleanup_duplicated_repositories() {
       cleanup_duplicated_repositories_file_path="$(echo "${line}" | cut -d':' -f1)"
       cleanup_duplicated_repositories_line_number="$(echo "${line}" | cut -d':' -f2 | cut -d' ' -f1)"
       if [[ -f "${cleanup_duplicated_repositories_file_path}" ]]; then
+        echo -e "$(date +%F-%T.%6N) | Backing up file before modification: ${cleanup_duplicated_repositories_file_path}" &>> "${eus_dir}/logs/cleanup-duplicate-repository-lists.log"
+        {
+          echo "----- BEGIN ORIGINAL FILE: ${cleanup_duplicated_repositories_file_path} -----"
+          cat "${cleanup_duplicated_repositories_file_path}"
+          echo "----- END ORIGINAL FILE: ${cleanup_duplicated_repositories_file_path} -----"
+        } &>> "${eus_dir}/logs/cleanup-duplicate-repository-lists.log"
         if [[ "${cleanup_duplicated_repositories_file_path}" == *".sources" ]]; then
           # Handle deb822 format
           entry_block_start_line="$(awk 'BEGIN { block = 0 } { if ($0 ~ /^Types:/) { block++ } if (block == '"$cleanup_duplicated_repositories_line_number"') { print NR; exit } }' "${cleanup_duplicated_repositories_file_path}")"
@@ -2786,8 +2799,8 @@ unset_section_variables() {
 
 add_repositories() {
   # Check if repository is already added
-  if grep -sq "^deb .*http\?s\?://$(echo "${repo_url}" | sed -e 's/https\:\/\///g' -e 's/http\:\/\///g')${repo_url_arguments}\?/\? ${repo_codename}${repo_codename_argument} ${repo_component}" /etc/apt/sources.list /etc/apt/sources.list.d/*; then
-    echo -e "$(date +%F-%T.%6N) | \"${repo_url}${repo_url_arguments} ${repo_codename}${repo_codename_argument} ${repo_component}\" was found, not adding to repository lists. $(grep -srIl "^deb .*http\?s\?://$(echo "${repo_url}" | sed -e 's/https\:\/\///g' -e 's/http\:\/\///g')${repo_url_arguments}\?/\? ${repo_codename}${repo_codename_argument} ${repo_component}" /etc/apt/sources.list /etc/apt/sources.list.d/*)..." &>> "${eus_dir}/logs/already-found-repository.log"
+  if grep -sq "^deb .*http\?s\?://$(echo "${repo_url}" | sed -e 's/https\:\/\///g' -e 's/http\:\/\///g')${repo_url_arguments}\?/\? ${repo_codename}${repo_codename_argument} ${repo_component}" /etc/apt/sources.list /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; then
+    echo -e "$(date +%F-%T.%6N) | \"${repo_url}${repo_url_arguments} ${repo_codename}${repo_codename_argument} ${repo_component}\" was found, not adding to repository lists. $(grep -srIl "^deb .*http\?s\?://$(echo "${repo_url}" | sed -e 's/https\:\/\///g' -e 's/http\:\/\///g')${repo_url_arguments}\?/\? ${repo_codename}${repo_codename_argument} ${repo_component}" /etc/apt/sources.list /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources)..." &>> "${eus_dir}/logs/already-found-repository.log"
     unset_add_repositories_variables
     return  # Repository already added, exit function
   elif find /etc/apt/sources.list.d/ -name "*.sources" | grep -ioq /etc/apt; then
@@ -6428,7 +6441,7 @@ unifi_deb_package_modification() {
     fi
     if [[ "${pre_build_download_failure}" != 'false' ]] || [[ -z "${pre_build_fw_update_dl_link}" ]]; then
       if [[ "${pre_build_download_failure}" != 'false' && -n "${pre_build_fw_update_dl_link}" ]]; then echo -e "${RED}#${RESET} Failed to download UniFi Network Application version ${first_digit_unifi}.${second_digit_unifi}.${third_digit_unifi} built for ${unifi_deb_package_modification_message_1}! \\n${RED}#${RESET} The script will attempt to built it locally... \\n"; fi
-      eus_temp_dir="$(mktemp -d --tmpdir="${eus_dir}" unifi.deb.XXX)"
+      eus_temp_dir="$(mktemp -d --tmpdir="${eus_tmp_directory_location}" unifi.deb.XXX)"
       echo -e "${GRAY_R}#${RESET} This setup is using ${unifi_deb_package_modification_message_1}... Editing the UniFi Network Application dependencies..."
       echo -e "\\n------- $(date +%F-%T.%6N) -------\\n" &>> "${eus_dir}/logs/unifi-custom-deb-file.log"
       if dpkg-deb -x "${unifi_temp}" "${eus_temp_dir}" &>> "${eus_dir}/logs/unifi-custom-deb-file.log"; then
@@ -8388,6 +8401,9 @@ uos_server_install_process() {
     if [[ -n "${fw_update_dl_link}" ]]; then fw_update_dl_links+=("${fw_update_dl_link}"); fi
     if [[ -n "${fw_update_gr_dl_link}" ]]; then fw_update_dl_links+=("${fw_update_gr_dl_link}"); fi
   fi
+  if version_ge "${uos_version}" "5.0.5"; then
+    uos_server_install_flags+=( "--force-install" )
+  fi
   header
   for fw_update_dl_link in "${fw_update_dl_links[@]}"; do
     local retry_count="0"
@@ -8464,6 +8480,11 @@ fi
 
 # UOS Server not supported on anything other than arm64/amd64.
 if ! [[ "${architecture}" =~ (amd64|arm64) ]]; then
+  choice="2"
+  unifi_os_server_unsupported="true"
+fi
+
+if [[ "${limited_functionality}" == 'true' ]]; then
   choice="2"
   unifi_os_server_unsupported="true"
 fi

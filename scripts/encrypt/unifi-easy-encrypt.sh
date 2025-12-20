@@ -2,7 +2,7 @@
 
 # UniFi Easy Encrypt script.
 # Script   | UniFi Network Easy Encrypt Script
-# Version  | 3.7.3
+# Version  | 3.7.4
 # Author   | Glenn Rietveld
 # Email    | glennrietveld8@hotmail.nl
 # Website  | https://GlennR.nl
@@ -1523,8 +1523,8 @@ unset_section_variables() {
 
 add_repositories() {
   # Check if repository is already added
-  if grep -sq "^deb .*http\?s\?://$(echo "${repo_url}" | sed -e 's/https\:\/\///g' -e 's/http\:\/\///g')${repo_url_arguments}\?/\? ${repo_codename}${repo_codename_argument} ${repo_component}" /etc/apt/sources.list /etc/apt/sources.list.d/*; then
-    echo -e "$(date +%F-%T.%6N) | \"${repo_url}${repo_url_arguments} ${repo_codename}${repo_codename_argument} ${repo_component}\" was found, not adding to repository lists. $(grep -srIl "^deb .*http\?s\?://$(echo "${repo_url}" | sed -e 's/https\:\/\///g' -e 's/http\:\/\///g')${repo_url_arguments}\?/\? ${repo_codename}${repo_codename_argument} ${repo_component}" /etc/apt/sources.list /etc/apt/sources.list.d/*)..." &>> "${eus_dir}/logs/already-found-repository.log"
+  if grep -sq "^deb .*http\?s\?://$(echo "${repo_url}" | sed -e 's/https\:\/\///g' -e 's/http\:\/\///g')${repo_url_arguments}\?/\? ${repo_codename}${repo_codename_argument} ${repo_component}" /etc/apt/sources.list /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; then
+    echo -e "$(date +%F-%T.%6N) | \"${repo_url}${repo_url_arguments} ${repo_codename}${repo_codename_argument} ${repo_component}\" was found, not adding to repository lists. $(grep -srIl "^deb .*http\?s\?://$(echo "${repo_url}" | sed -e 's/https\:\/\///g' -e 's/http\:\/\///g')${repo_url_arguments}\?/\? ${repo_codename}${repo_codename_argument} ${repo_component}" /etc/apt/sources.list /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources)..." &>> "${eus_dir}/logs/already-found-repository.log"
     unset_add_repositories_variables
     return  # Repository already added, exit function
   elif find /etc/apt/sources.list.d/ -name "*.sources" | grep -ioq /etc/apt; then
@@ -2098,6 +2098,12 @@ cleanup_malformed_repositories() {
       cleanup_malformed_repositories_file_path="$(echo "${line}" | sed -n 's/.*\(in sources file \|in source file \|in source list \|in list file \)\([^ ]*\).*/\2/p')"
       cleanup_malformed_repositories_line_number="$(echo "${line}" | cut -d':' -f2 | cut -d' ' -f1)"
       if [[ -f "${cleanup_malformed_repositories_file_path}" ]]; then
+        echo -e "$(date +%F-%T.%6N) | Backing up file before modification: ${cleanup_malformed_repositories_file_path}" &>> "${eus_dir}/logs/cleanup-malformed-repository-lists.log"
+        {
+          echo "----- BEGIN ORIGINAL FILE: ${cleanup_malformed_repositories_file_path} -----"
+          cat "${cleanup_malformed_repositories_file_path}"
+          echo "----- END ORIGINAL FILE: ${cleanup_malformed_repositories_file_path} -----"
+        } &>> "${eus_dir}/logs/cleanup-malformed-repository-lists.log"
         if [[ "${cleanup_malformed_repositories_file_path}" == *".sources" ]]; then
           # Handle deb822 format
           entry_block_start_line="$(awk -v cleanup_line="${cleanup_malformed_repositories_line_number}" 'BEGIN { block = 0; in_block = 0; start_line = 0 } /^[^#]/ { if (!in_block) { start_line = NR; in_block = 1; } } /^$/ { if (in_block) { block++; in_block = 0; if (block == cleanup_line) { print start_line; } } } END { if (in_block) { block++; if (block == cleanup_line) { print start_line; } } }' "${cleanup_malformed_repositories_file_path}")"
@@ -2108,7 +2114,7 @@ cleanup_malformed_repositories() {
           # Handle regular format
           sed -i "${cleanup_malformed_repositories_line_number}s/^/#/" "${cleanup_malformed_repositories_file_path}" &>> "${eus_dir}/logs/cleanup-malformed-repository-lists.log"
         else
-          mv "${cleanup_malformed_repositories_file_path}" "{eus_dir}/repository/$(basename "${cleanup_malformed_repositories_file_path}").corrupted" &>> "${eus_dir}/logs/cleanup-malformed-repository-lists.log"
+          mv "${cleanup_malformed_repositories_file_path}" "${eus_dir}/repository/$(basename "${cleanup_malformed_repositories_file_path}").corrupted" &>> "${eus_dir}/logs/cleanup-malformed-repository-lists.log"
         fi
         cleanup_malformed_repositories_changes_made="true"
         echo -e "$(date +%F-%T.%6N) | Malformed repository commented out in '${cleanup_malformed_repositories_file_path}' at line $cleanup_malformed_repositories_line_number" &>> "${eus_dir}/logs/cleanup-malformed-repository-lists.log"
@@ -2135,6 +2141,12 @@ cleanup_duplicated_repositories() {
       cleanup_duplicated_repositories_file_path="$(echo "${line}" | cut -d':' -f1)"
       cleanup_duplicated_repositories_line_number="$(echo "${line}" | cut -d':' -f2 | cut -d' ' -f1)"
       if [[ -f "${cleanup_duplicated_repositories_file_path}" ]]; then
+        echo -e "$(date +%F-%T.%6N) | Backing up file before modification: ${cleanup_duplicated_repositories_file_path}" &>> "${eus_dir}/logs/cleanup-duplicate-repository-lists.log"
+        {
+          echo "----- BEGIN ORIGINAL FILE: ${cleanup_duplicated_repositories_file_path} -----"
+          cat "${cleanup_duplicated_repositories_file_path}"
+          echo "----- END ORIGINAL FILE: ${cleanup_duplicated_repositories_file_path} -----"
+        } &>> "${eus_dir}/logs/cleanup-duplicate-repository-lists.log"
         if [[ "${cleanup_duplicated_repositories_file_path}" == *".sources" ]]; then
           # Handle deb822 format
           entry_block_start_line="$(awk 'BEGIN { block = 0 } { if ($0 ~ /^Types:/) { block++ } if (block == '"$cleanup_duplicated_repositories_line_number"') { print NR; exit } }' "${cleanup_duplicated_repositories_file_path}")"
