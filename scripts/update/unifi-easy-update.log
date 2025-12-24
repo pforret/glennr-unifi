@@ -11,6 +11,16 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 10.5.7
+  
+ - Added 10.0.162 to the fallback list.
+ - Improved logging of malformed and duplicated repositories.
+ - Improved the UniFi OS Server upgrade process.
+ - Improved adding repositories.
+ - Removed the skip option from the Installation script when required UniFi applications aren't present.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 10.5.6
   
  - Improved the MongoDB upgrade process for setups that are using Glenn R. compiled MongoDB without mongodb-org-tools installed.

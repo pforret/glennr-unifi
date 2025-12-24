@@ -11,6 +11,13 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Encrypt Script  |  Version 3.7.4
+  
+ - Improved logging of malformed and duplicated repositories.
+ - Improved adding repositories.
+ 
+ ####
+
  |  UniFi Easy Encrypt Script  |  Version 3.7.3
   
  - Added support for Ubuntu Resolute Raccoon 26.04.
