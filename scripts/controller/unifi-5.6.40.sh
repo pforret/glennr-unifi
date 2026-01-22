@@ -47,7 +47,7 @@
 #                       | Linux Mint 19 ( Tara | Tessa | Tina | Tricia )
 #                       | Linux Mint 20 ( Ulyana | Ulyssa | Uma | Una )
 #                       | Linux Mint 21 ( Vanessa | Vera | Victoria | Virginia )
-#                       | Linux Mint 22 ( Wilma | Xia | Zara )
+#                       | Linux Mint 22 ( Wilma | Xia | Zara | Zena )
 #                       | Linux Mint 2 ( Betsy )
 #                       | Linux Mint 3 ( Cindy )
 #                       | Linux Mint 4 ( Debbie )
@@ -69,11 +69,12 @@
 #                       | UnionTech OS Desktop 20
 #                       | Kali Linux ( rolling )
 #                       | Trisquel ( Toutatis | Belenos | Flidas | Etiona | Nabia | Aramo | Ecne )
+#                       | Netrunner ( Shockworm | Vapour | Tiger | Xenon )
 
 ###################################################################################################################################################################################################
 
 # Script                | UniFi Network/OS Easy Installation Script
-# Version               | 9.0.0
+# Version               | 9.0.1
 # Application version   | 5.6.40
 # Debian Repo version   | 5.6.40-10370-1
 # UOS Server version    | 5.0.6
@@ -2651,7 +2652,7 @@ get_distro() {
     elif [[ "${os_codename}" =~ ^(bionic|tara|tessa|tina|tricia|hera|juno|etiona)$ ]]; then repo_codename="bionic"; os_codename="bionic"; os_id="ubuntu"
     elif [[ "${os_codename}" =~ ^(focal|ulyana|ulyssa|uma|una|odin|jolnir|nabia)$ ]]; then repo_codename="focal"; os_codename="focal"; os_id="ubuntu"
     elif [[ "${os_codename}" =~ ^(jammy|vanessa|vera|victoria|virginia|horus|cade|aramo)$ ]]; then repo_codename="jammy"; os_codename="jammy"; os_id="ubuntu"
-    elif [[ "${os_codename}" =~ ^(noble|wilma|xia|zara|scootski|circe|ecne)$ ]]; then repo_codename="noble"; os_codename="noble"; os_id="ubuntu"
+    elif [[ "${os_codename}" =~ ^(noble|wilma|xia|zara|zena|scootski|circe|ecne)$ ]]; then repo_codename="noble"; os_codename="noble"; os_id="ubuntu"
     elif [[ "${os_codename}" =~ ^(oracular)$ ]]; then repo_codename="oracular"; os_codename="oracular"; os_id="ubuntu"
     elif [[ "${os_codename}" =~ ^(plucky)$ ]]; then repo_codename="plucky"; os_codename="plucky"; os_id="ubuntu"
     elif [[ "${os_codename}" =~ ^(questing)$ ]]; then repo_codename="questing"; os_codename="questing"; os_id="ubuntu"
@@ -2659,10 +2660,10 @@ get_distro() {
     elif [[ "${os_codename}" =~ ^(jessie|betsy)$ ]]; then repo_codename="jessie"; os_codename="jessie"; os_id="debian"
     elif [[ "${os_codename}" =~ ^(stretch|continuum|helium|cindy|tyche|ascii)$ ]]; then repo_codename="stretch"; os_codename="stretch"; os_id="debian"
     elif [[ "${os_codename}" =~ ^(buster|debbie|parrot|engywuck-backports|engywuck|deepin|lithium|beowulf|po-tolo|nibiru|amber|eagle)$ ]]; then repo_codename="buster"; os_codename="buster"; os_id="debian"
-    elif [[ "${os_codename}" =~ ^(bullseye|kali-rolling|elsie|ara|beryllium|chimaera|orion-belt|byzantium)$ ]]; then repo_codename="bullseye"; os_codename="bullseye"; os_id="debian"
-    elif [[ "${os_codename}" =~ ^(bookworm|lory|faye|boron|beige|preslee|daedalus|crimson)$ ]]; then repo_codename="bookworm"; os_codename="bookworm"; os_id="debian"
-    elif [[ "${os_codename}" =~ ^(trixie|excalibur|the-seven-sisters|gigi)$ ]]; then repo_codename="trixie"; os_codename="trixie"; os_id="debian"
-    elif [[ "${os_codename}" =~ ^(forky|freia)$ ]]; then repo_codename="forky"; os_codename="forky"; os_id="debian"
+    elif [[ "${os_codename}" =~ ^(bullseye|kali-rolling|elsie|ara|beryllium|chimaera|orion-belt|byzantium|xenon|tiger)$ ]]; then repo_codename="bullseye"; os_codename="bullseye"; os_id="debian"
+    elif [[ "${os_codename}" =~ ^(bookworm|lory|faye|boron|beige|preslee|daedalus|crimson|vapour|shockworm)$ ]]; then repo_codename="bookworm"; os_codename="bookworm"; os_id="debian"
+    elif [[ "${os_codename}" =~ ^(trixie|excalibur|seven-sisters|gigi)$ ]]; then repo_codename="trixie"; os_codename="trixie"; os_id="debian"
+    elif [[ "${os_codename}" =~ ^(forky|freia|tiamat)$ ]]; then repo_codename="forky"; os_codename="forky"; os_id="debian"
     elif [[ "${os_codename}" =~ ^(unstable|rolling|nest)$ ]]; then repo_codename="unstable"; os_codename="unstable"; os_id="debian"
     else
       repo_codename="${os_codename}"
@@ -4943,7 +4944,10 @@ network_install_set_required_package_versions() {
 }
 
 java_required_variables() {
-  if [[ "${first_digit_unifi}" -gt '9' ]] || [[ "${first_digit_unifi}" == '9' && "${second_digit_unifi}" -ge "0" ]]; then
+  if [[ "${first_digit_unifi}" -gt '10' ]] || [[ "${first_digit_unifi}" == '10' && "${second_digit_unifi}" -ge "1" ]]; then
+    required_java_version="openjdk-25"
+    required_java_version_short="25"
+  elif [[ "${first_digit_unifi}" -gt '9' ]] || [[ "${first_digit_unifi}" == '9' && "${second_digit_unifi}" -ge "0" ]]; then
     if apt-cache search --names-only "openjdk-21-jre-headless|temurin-21-jre" | awk '{print $1}' | grep -ioq "openjdk-21-jre-headless\\|temurin-21-jre"; then
       required_java_version="openjdk-21"
       required_java_version_short="21"
@@ -7951,7 +7955,6 @@ ufw_ports_check() {
   # Build port list depending on app type
   case "${app_type}" in
     net)
-      # Pull values from system.properties or defaults
       if grep -sioq "^unifi.https.port" "/usr/lib/unifi/data/system.properties"; then dmport="$(awk '/^unifi.https.port/' /usr/lib/unifi/data/system.properties | cut -d'=' -f2)"; else dmport="8443"; fi
       if grep -sioq "^unifi.http.port" "/usr/lib/unifi/data/system.properties"; then diport="$(awk '/^unifi.http.port/' /usr/lib/unifi/data/system.properties | cut -d'=' -f2)"; else diport="8080"; fi
       if grep -sioq "^unifi.stun.port" "/usr/lib/unifi/data/system.properties"; then stport="$(awk '/^unifi.stun.port/' /usr/lib/unifi/data/system.properties | cut -d'=' -f2)"; else stport="6789"; fi
@@ -7966,12 +7969,12 @@ ufw_ports_check() {
         "${stport}/tcp"
       );;
     uosserver)
-      # Example ports for UniFi OS
       base_ports=(
         "${uos_server_web_port}/tcp"
         "${uos_server_mobile_speedtest_port}/tcp"
         "${uos_server_device_inform_port}/tcp"
         "${uos_server_remote_logger_port}/tcp"
+        "${uos_server_rabbitmq_port}/tcp"
         "${uos_server_stun_port}/udp"
       );;
     *)

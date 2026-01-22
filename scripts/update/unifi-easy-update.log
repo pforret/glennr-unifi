@@ -11,6 +11,15 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 10.5.8
+  
+ - Added support for SparkyLinux 9.0.
+ - Added support for Netrunner 25, 23, 22, and 21.
+ - Added support for Linux Mint 22.3 Zena.
+ - Fixed an issue where SparkyLinux 8.0 wasn't supported.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 10.5.7
   
  - Added 10.0.162 to the fallback list.

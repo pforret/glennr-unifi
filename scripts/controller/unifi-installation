@@ -11,6 +11,16 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 9.0.1
+  
+ - Added support for SparkyLinux 9.0.
+ - Added support for Netrunner 25, 23, 22, and 21.
+ - Added support for Linux Mint 22.3 Zena.
+ - Fixed an issue where SparkyLinux 8.0 wasn't supported.
+ - Improved the UniFi OS Server installation process.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 9.0.0
   
  - Improved logging of malformed and duplicated repositories.
