@@ -1,11 +1,12 @@
 #!/bin/bash
 
 # UniFi Easy Encrypt script.
-# Script   | UniFi Network Easy Encrypt Script
-# Version  | 3.7.5
-# Author   | Glenn Rietveld
-# Email    | glennrietveld8@hotmail.nl
-# Website  | https://GlennR.nl
+# Script          | UniFi Network Easy Encrypt Script
+# Version         | 3.7.6
+# Script Version  | 3.7.6
+# Author          | Glenn Rietveld
+# Email           | glennrietveld8@hotmail.nl
+# Website         | https://GlennR.nl
 
 ###################################################################################################################################################################################################
 #                                                                                                                                                                                                 #
@@ -1168,7 +1169,7 @@ create_eus_database() {
             "success": "0",
             "total-runs": "0",
             "last-run": "'"$(date +%s)"'",
-            "versions-ran": ["'"$(grep -i "# Version" "${script_location}" | head -n 1 | cut -d'|' -f2 | sed 's/ //g')"'"],
+            "versions-ran": ["'"$(grep -im1 "# Script Version" "${script_location}" | awk -F'|' '{gsub(/[[:space:]]/, "", $2); print $2}')"'"],
             "support": {}
           }
         }
@@ -1200,7 +1201,7 @@ create_eus_database() {
           "success": "0",
           "total-runs": "0",
           "last-run": "'"$(date +%s)"'",
-          "versions-ran": ["'"$(grep -i "# Version" "${script_location}" | head -n 1 | cut -d'|' -f2 | sed 's/ //g')"'"],
+          "versions-ran": ["'"$(grep -im1 "# Script Version" "${script_location}" | awk -F'|' '{gsub(/[[:space:]]/, "", $2); print $2}')"'"],
           "support": {}
         } +
         (
@@ -1960,8 +1961,7 @@ update_script() {
 script_version_check() {
   local local_version
   local online_version
-  version="$(grep -i "# Application version" "${script_location}" | head -n 1 | cut -d'|' -f2 | sed 's/ //g' | cut -d'-' -f1)"
-  local_version="$(grep -i "# Version" "${script_location}" | head -n 1 | cut -d'|' -f2 | sed 's/ //g')"
+  local_version="$(grep -im1 "# Script Version" "${script_location}" | awk -F'|' '{gsub(/[[:space:]]/, "", $2); print $2}')"
   if [[ -n "$(command -v jq)" ]]; then
     online_version="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-script-version?script=unifi-easy-encrypt" 2> /dev/null | jq -r '."latest-script-version"' 2> /dev/null)"
   else

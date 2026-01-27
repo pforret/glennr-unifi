@@ -64,7 +64,7 @@
 #                       | Deepin Linux ( Beige )
 #                       | Pearl Linux ( Scootski | Cade | Preslee )
 #                       | PikaOS ( Nest )
-#                       | SparkyLinux ( Tyche | Nibiru | Po Tolo | Orion Belt | The Seven Sisters )
+#                       | SparkyLinux ( Tyche | Nibiru | Po Tolo | Orion Belt | The Seven Sisters | Tiamat )
 #                       | PureOS ( Crimson | Byzantium | Amber )
 #                       | UnionTech OS Desktop 20
 #                       | Kali Linux ( rolling )
@@ -74,7 +74,8 @@
 ###################################################################################################################################################################################################
 
 # Script                | UniFi Network/OS Easy Installation Script
-# Version               | 9.0.1
+# Version               | 9.0.2
+# Script Version        | 9.0.2
 # Application version   | 5.12.16
 # Debian Repo version   | 5.12.16-12961-1
 # UOS Server version    | 5.0.6
@@ -1295,7 +1296,7 @@ create_eus_database() {
             "success": "0",
             "total-runs": "0",
             "last-run": "'"$(date +%s)"'",
-            "versions-ran": ["'"$(grep -i "# Version" "${script_location}" | head -n 1 | cut -d'|' -f2 | sed 's/ //g')"'"],
+            "versions-ran": ["'"$(grep -im1 "# Script Version" "${script_location}" | awk -F'|' '{gsub(/[[:space:]]/, "", $2); print $2}')"'"],
             "support": {}
           }
         }
@@ -1327,7 +1328,7 @@ create_eus_database() {
           "success": "0",
           "total-runs": "0",
           "last-run": "'"$(date +%s)"'",
-          "versions-ran": ["'"$(grep -i "# Version" "${script_location}" | head -n 1 | cut -d'|' -f2 | sed 's/ //g')"'"],
+          "versions-ran": ["'"$(grep -im1 "# Script Version" "${script_location}" | awk -F'|' '{gsub(/[[:space:]]/, "", $2); print $2}')"'"],
           "support": {}
         } +
         (
@@ -3113,10 +3114,10 @@ script_type_check() {
 script_version_check() {
   local local_version
   local online_version
-  net_version="$(grep -i "# Application version" "${script_location}" | head -n 1 | cut -d'|' -f2 | sed 's/ //g' | cut -d'-' -f1)"
-  uos_version="$(grep -i "# UOS Server version" "${script_location}" | head -n 1 | cut -d'|' -f2 | sed 's/ //g' | cut -d'-' -f1)"
+  net_version="$(grep -im1 '# Application version' "$script_location" | awk -F'[|-]' '{gsub(/[[:space:]]/, "", $2); print $2}')"
+  uos_version="$(grep -im1 '# UOS Server version' "$script_location" | awk -F'[|-]' '{gsub(/[[:space:]]/, "", $2); print $2}')"
   script_type_check
-  local_version="$(grep -i "# Version" "${script_location}" | head -n 1 | cut -d'|' -f2 | sed 's/ //g')"
+  local_version="$(grep -im1 "# Script Version" "${script_location}" | awk -F'|' '{gsub(/[[:space:]]/, "", $2); print $2}')"
   if [[ -n "$(command -v jq)" ]]; then
     online_version="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-script-version?script=unifi-install" 2> /dev/null | jq -r '."latest-script-version"' 2> /dev/null)"
   else
@@ -3172,9 +3173,9 @@ cmp_symbol() {
 
 eus_database_update_broken_install() {
   if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
-    jq '.scripts."'"$script_name"'" += {"recovery": {"broken-install": {"script-version": "'"$(grep -i "# Version" "${script_location}" | head -n 1 | cut -d'|' -f2 | sed 's/ //g' | cut -d'-' -f1)"'", "status": "'"$("$(which dpkg)" -l | grep "unifi " | awk '{print $1}')"'", "unifi-version": "'"${broken_unifi_install_version}"'", "previous-mongodb-version": "'"${last_known_good_mongodb_version}"'", "previous-installed-mongodb-version": "'"${last_known_installed_mongodb_version}"'", "detected-date": "'"$(date +%s)"'"}}}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+    jq '.scripts."'"$script_name"'" += {"recovery": {"broken-install": {"script-version": "'"$(grep -im1 "# Script Version" "${script_location}" | awk -F'|' '{gsub(/[[:space:]]/, "", $2); print $2}' | cut -d'-' -f1)"'", "status": "'"$("$(which dpkg)" -l | grep "unifi " | awk '{print $1}')"'", "unifi-version": "'"${broken_unifi_install_version}"'", "previous-mongodb-version": "'"${last_known_good_mongodb_version}"'", "previous-installed-mongodb-version": "'"${last_known_installed_mongodb_version}"'", "detected-date": "'"$(date +%s)"'"}}}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
   else
-    jq --arg script_name "$script_name" --arg script_version "$(grep -i "# Version" "${script_location}" | head -n 1 | cut -d'|' -f2 | sed 's/ //g' | cut -d'-' -f1)" --arg status "$($(which dpkg) -l | grep 'unifi ' | awk '{print $1}')" --arg unifi_version "$broken_unifi_install_version" --arg previous_mongodb_version "$last_known_good_mongodb_version" --arg previous_installed_mongodb_version "$last_known_installed_mongodb_version" --arg detected_date "$(date +%s)" '.scripts[$script_name] += {"recovery": {"broken-install": {"script-version": $script_version,"status": $status,"unifi-version": $unifi_version,"previous-mongodb-version": $previous_mongodb_version,"previous-installed-mongodb-version": $previous_installed_mongodb_version,"detected-date": $detected_date}}}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+    jq --arg script_name "$script_name" --arg script_version "$(grep -im1 "# Script Version" "${script_location}" | awk -F'|' '{gsub(/[[:space:]]/, "", $2); print $2}' | cut -d'-' -f1)" --arg status "$($(which dpkg) -l | grep 'unifi ' | awk '{print $1}')" --arg unifi_version "$broken_unifi_install_version" --arg previous_mongodb_version "$last_known_good_mongodb_version" --arg previous_installed_mongodb_version "$last_known_installed_mongodb_version" --arg detected_date "$(date +%s)" '.scripts[$script_name] += {"recovery": {"broken-install": {"script-version": $script_version,"status": $status,"unifi-version": $unifi_version,"previous-mongodb-version": $previous_mongodb_version,"previous-installed-mongodb-version": $previous_installed_mongodb_version,"detected-date": $detected_date}}}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
   fi
   eus_database_move
 }
