@@ -70,6 +70,7 @@
 #                       | Kali Linux ( rolling )
 #                       | Trisquel ( Toutatis | Belenos | Flidas | Etiona | Nabia | Aramo | Ecne )
 #                       | Netrunner ( Shockworm | Vapour | Tiger | Xenon )
+#                       | Pardus ( Yirmibes | Yirmiuc )
 
 ###################################################################################################################################################################################################
 
@@ -2662,8 +2663,8 @@ get_distro() {
     elif [[ "${os_codename}" =~ ^(stretch|continuum|helium|cindy|tyche|ascii)$ ]]; then repo_codename="stretch"; os_codename="stretch"; os_id="debian"
     elif [[ "${os_codename}" =~ ^(buster|debbie|parrot|engywuck-backports|engywuck|deepin|lithium|beowulf|po-tolo|nibiru|amber|eagle)$ ]]; then repo_codename="buster"; os_codename="buster"; os_id="debian"
     elif [[ "${os_codename}" =~ ^(bullseye|kali-rolling|elsie|ara|beryllium|chimaera|orion-belt|byzantium|xenon|tiger)$ ]]; then repo_codename="bullseye"; os_codename="bullseye"; os_id="debian"
-    elif [[ "${os_codename}" =~ ^(bookworm|lory|faye|boron|beige|preslee|daedalus|crimson|vapour|shockworm)$ ]]; then repo_codename="bookworm"; os_codename="bookworm"; os_id="debian"
-    elif [[ "${os_codename}" =~ ^(trixie|excalibur|seven-sisters|gigi)$ ]]; then repo_codename="trixie"; os_codename="trixie"; os_id="debian"
+    elif [[ "${os_codename}" =~ ^(bookworm|lory|faye|boron|beige|preslee|daedalus|crimson|vapour|shockworm|yirmiuc)$ ]]; then repo_codename="bookworm"; os_codename="bookworm"; os_id="debian"
+    elif [[ "${os_codename}" =~ ^(trixie|excalibur|seven-sisters|gigi|yirmibes)$ ]]; then repo_codename="trixie"; os_codename="trixie"; os_id="debian"
     elif [[ "${os_codename}" =~ ^(forky|freia|tiamat)$ ]]; then repo_codename="forky"; os_codename="forky"; os_id="debian"
     elif [[ "${os_codename}" =~ ^(unstable|rolling|nest)$ ]]; then repo_codename="unstable"; os_codename="unstable"; os_id="debian"
     else

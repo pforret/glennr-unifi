@@ -11,6 +11,12 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Encrypt Script  |  Version 3.7.6
+  
+ - Fixed an issue where old scripts did not update itself anymore.
+ 
+ ####
+
  |  UniFi Easy Encrypt Script  |  Version 3.7.5
   
  - Added support for SparkyLinux 9.0.

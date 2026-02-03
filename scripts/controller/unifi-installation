@@ -11,6 +11,12 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 9.0.2
+  
+ - Fixed an issue where old scripts did not update itself anymore.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 9.0.1
   
  - Added support for SparkyLinux 9.0.
