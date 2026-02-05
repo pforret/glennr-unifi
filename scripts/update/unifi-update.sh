@@ -3,7 +3,7 @@
 # UniFi Network Application Easy Update Script.
 # Script          | UniFi Network Easy Update Script
 # Version         | 9.9.9
-# Script Version  | 10.5.9
+# Script Version  | 10.6.0
 # Author          | Glenn Rietveld
 # Email           | glennrietveld8@hotmail.nl
 # Website         | https://GlennR.nl
@@ -95,6 +95,11 @@ get_unifi_version() {
   second_digit_unifi="$(echo "${unifi}" | cut -d'.' -f2)"
   third_digit_unifi="$(echo "${unifi}" | cut -d'.' -f3)"
   unifi_release="$("$(which dpkg)" -l | awk '$2 == "unifi" {print $3}' | sed 's/-.*//' | sed 's/\.//g')"
+}
+
+get_uos_server_variables() {
+  uos_server_web_port="$(grep -sE '^WEB_PORT=' /var/lib/uosserver/server.conf 2> /dev/null | cut -d= -f2)"
+  uos_server_web_port="${uos_server_web_port:-11443}"
 }
 
 get_uos_server_version() {
@@ -1473,8 +1478,8 @@ get_distro() {
     elif [[ "${os_codename}" =~ ^(stretch|continuum|helium|cindy|tyche|ascii)$ ]]; then repo_codename="stretch"; os_codename="stretch"; os_id="debian"
     elif [[ "${os_codename}" =~ ^(buster|debbie|parrot|engywuck-backports|engywuck|deepin|lithium|beowulf|po-tolo|nibiru|amber|eagle)$ ]]; then repo_codename="buster"; os_codename="buster"; os_id="debian"
     elif [[ "${os_codename}" =~ ^(bullseye|kali-rolling|elsie|ara|beryllium|chimaera|orion-belt|byzantium|xenon|tiger)$ ]]; then repo_codename="bullseye"; os_codename="bullseye"; os_id="debian"
-    elif [[ "${os_codename}" =~ ^(bookworm|lory|faye|boron|beige|preslee|daedalus|crimson|vapour|shockworm)$ ]]; then repo_codename="bookworm"; os_codename="bookworm"; os_id="debian"
-    elif [[ "${os_codename}" =~ ^(trixie|excalibur|seven-sisters|gigi)$ ]]; then repo_codename="trixie"; os_codename="trixie"; os_id="debian"
+    elif [[ "${os_codename}" =~ ^(bookworm|lory|faye|boron|beige|preslee|daedalus|crimson|vapour|shockworm|yirmiuc)$ ]]; then repo_codename="bookworm"; os_codename="bookworm"; os_id="debian"
+    elif [[ "${os_codename}" =~ ^(trixie|excalibur|seven-sisters|gigi|yirmibes)$ ]]; then repo_codename="trixie"; os_codename="trixie"; os_id="debian"
     elif [[ "${os_codename}" =~ ^(forky|freia|tiamat)$ ]]; then repo_codename="forky"; os_codename="forky"; os_id="debian"
     elif [[ "${os_codename}" =~ ^(unstable|rolling|nest)$ ]]; then repo_codename="unstable"; os_codename="unstable"; os_id="debian"
     else
@@ -1772,6 +1777,19 @@ get_unifi_application_status() {
       if [[ -z "${application_up}" ]]; then application_up="$(curl "${noproxy_curl_argument[@]}" --silent --insecure --connect-timeout 1 "${status_api_protocol}://localhost:${dmport}/status" | grep -o '"up":[^,]*' | awk -F ':' '{print $2}')"; noproxy_curl_argument_used="true"; fi
     fi
   fi
+}
+
+get_uos_server_status() {
+  local host="${1:-localhost}"  # default to localhost if no arg is passed
+  local url="https://${host}:${uos_server_web_port}/api/system"
+  if [[ -n "$(command -v jq)" ]]; then
+    application_up="$(curl --silent --insecure "${url}" | jq -r ''.deviceState // .isSetup'' 2> /dev/null)"
+    if [[ -z "${application_up}" ]]; then application_up="$(curl "${noproxy_curl_argument[@]}" --silent --insecure --connect-timeout 1 "${url}" | jq -r ''.deviceState // .isSetup'' 2> /dev/null)"; fi
+  else
+    application_up="$(curl --silent --insecure --connect-timeout 1 "${url}" | grep -oE '"(deviceState|isSetup)":[^,]*' | awk -F ':' '{print $2}')"
+    if [[ -z "${application_up}" ]]; then application_up="$(curl "${noproxy_curl_argument[@]}" --silent --insecure --connect-timeout 1 "${url}" | grep -oE '"(deviceState|isSetup)":[^,]*' | awk -F ':' '{print $2}')"; fi
+  fi
+  if [[ -n "${application_up}" ]]; then application_up="true"; fi
 }
 
 get_unifi_api_ports() {
@@ -5610,6 +5628,8 @@ if [[ -d "${unifi_logs_location}/" ]]; then
   if [[ "$(command -v zgrep)" ]]; then grep_command="zgrep"; else grep_command="grep"; fi
   get_unifi_api_ports
   get_unifi_application_status
+  get_uos_server_variables
+  get_uos_server_status
   if [[ "${application_up}" == 'true' ]]; then
     if [[ "$(du -b "${unifi_logs_location}/mongod.log" 2> /dev/null | awk '{print$1}')" -gt "5368709120 " ]]; then grep_matches="-m 2"; fi
   else
@@ -5672,7 +5692,7 @@ fi
 # downgrade arm64 to 4.4.18 if 4.4 MongoDB is installed.
 if "$(which dpkg)" -l mongodb-org-server 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
   installed_mongodb_org_version_check="$(dpkg-query --showformat='${version}' --show mongodb-org-server 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/\.//g')"
-  if [[ "${installed_mongodb_org_version_check::2}" == '44' && "$(dpkg-query --showformat='${version}' --show mongodb-org-server 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' | awk -F. '{print $3}')" -ge "19" ]]; then if [[ "${glennr_mongod_compatible}" == "true" ]]; then unsupported_database_version_change="true"; fi; fi
+  if [[ "${installed_mongodb_org_version_check::2}" == '44' && "$(dpkg-query --showformat='${version}' --show mongodb-org-server 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' | awk -F. '{print $3}')" -ge "19" ]]; then if [[ "${glennr_mongod_compatible}" == "true" && "${avx_compatible}" != 'true' ]]; then unsupported_database_version_change="true"; fi; fi
   if [[ "${installed_mongodb_org_version_check::2}" -gt '44' ]]; then if [[ "${glennr_mongod_compatible}" == "true" && "${official_mongodb_compatible}" != 'true' ]]; then unsupported_database_version_change="true"; fi; fi
   if [[ -n "${previous_mongodb_version}" ]]; then if [[ "${installed_mongodb_org_version_check::2}" != "${previous_mongodb_version::2}" ]] && [[ "${previous_mongodb_version::2}" != "$((${installed_mongodb_org_version_check::2} - 2))" ]]; then unsupported_database_version_change="true"; fi; fi
   if [[ -n "${dpkg_log_mongodb_server}" ]]; then if [[ "${installed_mongodb_org_version_check::2}" != "${previous_mongodb_version::2}" ]]; then unsupported_database_version_change="true"; fi; fi
@@ -5688,6 +5708,8 @@ fi
 if [[ "${unsupported_database_version_change}" == 'true' ]]; then
   get_unifi_api_ports
   get_unifi_application_status
+  get_uos_server_variables
+  get_uos_server_status "localhost"
   if [[ "${application_up}" == 'true' ]]; then
     echo -e "$(date +%F-%T.%6N) | The Network Application appears to be functioning, cancelling any unsupported MongoDB version change fix attempts..." &>> "${eus_dir}/logs/mongodb-unsupported-version-change-override.log"
     echo -e "$(date +%F-%T.%6N) | previous_mongodb_version: ${previous_mongodb_version}, previous_mongodb_version_with_dot: ${previous_mongodb_version_with_dot}, unsupported_database_version_change: ${unsupported_database_version_change}" &>> "${eus_dir}/logs/mongodb-unsupported-version-change-override.log"
@@ -9051,19 +9073,22 @@ mongodb_upgrade() {
   get_unifi_api_ports
   get_unifi_application_status
   if [[ "${application_up}" != "true" ]]; then
+    start_time=$(date +%s); max_wait=300
     header_red
-    echo -e "${YELLOW}#${RESET} The UniFi Network Application is not up and running yet...\\n"
+    echo -e "${YELLOW}#${RESET} The UniFi Network Application is not up and running yet...\n"
     echo -e "${GRAY_R}#${RESET} $(curl -sk --connect-timeout 1 "${status_api_protocol}://localhost:${dmport}/status" | jq -r '.meta."app_context_status"' 2> /dev/null | sed '/null/d')"
     if [[ "${noproxy_curl_argument_used}" == 'true' ]]; then
       until [[ "$(curl "${noproxy_curl_argument[@]}" --silent --insecure --connect-timeout 1 "${status_api_protocol}://localhost:${dmport}/status" | jq '.meta.up' 2> /dev/null)" == "true" ]]; do
-        if [[ "${net_not_started_message}" != 'true' ]]; then echo -e "\\n${GRAY_R}#${RESET} It's performing the following actions..."; net_not_started_message="true"; fi
-        echo -ne "\033[K${GRAY_R}#${RESET} $(curl "${noproxy_curl_argument[@]}" --silent --insecure --connect-timeout 1 "${status_api_protocol}://localhost:${dmport}/status" | jq -r '.meta."app_context_message"' 2> /dev/null | sed '/null/d')...\\r"
+        if (( $(date +%s) - start_time >= max_wait )); then header_red; echo -e "\n${RED}#${RESET} Timed out after 5 minutes waiting for UniFi Network Application to start."; return 1; fi
+        if [[ "${net_not_started_message}" != 'true' ]]; then echo -e "\n${GRAY_R}#${RESET} It's performing the following actions..."; net_not_started_message="true"; fi
+        echo -ne "\033[K${GRAY_R}#${RESET} $(curl "${noproxy_curl_argument[@]}" --silent --insecure --connect-timeout 1 "${status_api_protocol}://localhost:${dmport}/status" | jq -r '.meta."app_context_message"' 2> /dev/null | sed '/null/d')...\r"
         sleep 5
       done
     else
       until [[ "$(curl --silent --insecure --connect-timeout 1 "${status_api_protocol}://localhost:${dmport}/status" | jq '.meta.up' 2> /dev/null)" == "true" ]]; do
-        if [[ "${net_not_started_message}" != 'true' ]]; then echo -e "\\n${GRAY_R}#${RESET} It's performing the following actions..."; net_not_started_message="true"; fi
-        echo -ne "\033[K${GRAY_R}#${RESET} $(curl --silent --insecure --connect-timeout 1 "${status_api_protocol}://localhost:${dmport}/status" | jq -r '.meta."app_context_message"' 2> /dev/null | sed '/null/d')...\\r"
+        if (( $(date +%s) - start_time >= max_wait )); then header_red; echo -e "\n${RED}#${RESET} Timed out after 5 minutes waiting for UniFi Network Application to start."; return 1; fi
+        if [[ "${net_not_started_message}" != 'true' ]]; then echo -e "\n${GRAY_R}#${RESET} It's performing the following actions..."; net_not_started_message="true"; fi
+        echo -ne "\033[K${GRAY_R}#${RESET} $(curl --silent --insecure --connect-timeout 1 "${status_api_protocol}://localhost:${dmport}/status" | jq -r '.meta."app_context_message"' 2> /dev/null | sed '/null/d')...\r"
         sleep 5
       done
     fi

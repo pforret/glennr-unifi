@@ -11,6 +11,14 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 10.6.0
+  
+ - Improved MongoDB downgrade check.
+ - Improved the MongoDB upgrade process check.
+ - Improved script resiliency when the UniFi package is still installed along with UniFi OS Server.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 10.5.9
   
  - Fixed an issue where old scripts did not update itself anymore.

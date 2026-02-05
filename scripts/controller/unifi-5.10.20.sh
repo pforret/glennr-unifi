@@ -76,7 +76,7 @@
 
 # Script                | UniFi Network/OS Easy Installation Script
 # Version               | 9.0.2
-# Script Version        | 9.0.2
+# Script Version        | 9.0.3
 # Application version   | 5.10.20
 # Debian Repo version   | 5.10.20-11657-1
 # UOS Server version    | 5.0.6
@@ -2958,11 +2958,11 @@ get_uos_server_status() {
   local host="${1:-localhost}"  # default to localhost if no arg is passed
   local url="https://${host}:${uos_server_web_port}/api/system"
   if [[ -n "$(command -v jq)" ]]; then
-    application_up="$(curl --silent --insecure "${url}" | jq -r '.isSetup' 2> /dev/null)"
-    if [[ -z "${application_up}" ]]; then application_up="$(curl "${noproxy_curl_argument[@]}" --silent --insecure --connect-timeout 1 "${url}" | jq -r '.isSetup' 2> /dev/null)"; fi
+    application_up="$(curl --silent --insecure "${url}" | jq -r ''.deviceState // .isSetup'' 2> /dev/null)"
+    if [[ -z "${application_up}" ]]; then application_up="$(curl "${noproxy_curl_argument[@]}" --silent --insecure --connect-timeout 1 "${url}" | jq -r ''.deviceState // .isSetup'' 2> /dev/null)"; fi
   else
-    application_up="$(curl --silent --insecure --connect-timeout 1 "${url}" | grep -o '"isSetup":[^,]*' | awk -F ':' '{print $2}')"
-    if [[ -z "${application_up}" ]]; then application_up="$(curl "${noproxy_curl_argument[@]}" --silent --insecure --connect-timeout 1 "${url}" | grep -o '"isSetup":[^,]*' | awk -F ':' '{print $2}')"; fi
+    application_up="$(curl --silent --insecure --connect-timeout 1 "${url}" | grep -oE '"(deviceState|isSetup)":[^,]*' | awk -F ':' '{print $2}')"
+    if [[ -z "${application_up}" ]]; then application_up="$(curl "${noproxy_curl_argument[@]}" --silent --insecure --connect-timeout 1 "${url}" | grep -oE '"(deviceState|isSetup)":[^,]*' | awk -F ':' '{print $2}')"; fi
   fi
   if [[ -n "${application_up}" ]]; then application_up="true"; fi
 }
