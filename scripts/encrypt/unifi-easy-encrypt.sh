@@ -3,7 +3,7 @@
 # UniFi Easy Encrypt script.
 # Script          | UniFi Network Easy Encrypt Script
 # Version         | 3.7.6
-# Script Version  | 3.7.6
+# Script Version  | 3.7.7
 # Author          | Glenn Rietveld
 # Email           | glennrietveld8@hotmail.nl
 # Website         | https://GlennR.nl
@@ -503,7 +503,7 @@ support_file() {
   echo "${server_ip}" &>> "/tmp/EUS/support/ip"
   #
   if [[ "${unifi_core_system}" != 'true' && -n "$(apt-cache search debsums | awk '/debsums/{print$1}')" ]]; then
-    if ! [[ "$(command -v debsums)" ]]; then DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install debsums &>> "${eus_dir}/logs/apt.log"; fi
+    if ! [[ "$(command -v debsums)" ]]; then "${EUS_APT_ENV[@]}" env DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install debsums &>> "${eus_dir}/logs/apt.log"; fi
     if [[ "$(command -v debsums)" ]]; then debsums -c &> "/tmp/EUS/support/debsums-check-results"; fi
   fi
   support_file_time="$(date +%Y%m%d-%H%M-%S%N)"
@@ -610,6 +610,8 @@ abort() {
 }
 
 cancel_script() {
+  silent_run_apt_get_update="true"
+  eus_apt_sha1_disable
   if [[ "${set_lc_all}" == 'true' ]]; then if [[ -n "${original_lang}" ]]; then export LANG="${original_lang}"; else unset LANG; fi; if [[ -n "${original_lcall}" ]]; then export LC_ALL="${original_lcall}"; else unset LC_ALL; fi; fi
   if [[ "${stopped_unattended_upgrade}" == 'true' ]]; then systemctl start unattended-upgrades &>> "${eus_dir}/logs/unattended-upgrades.log"; unset stopped_unattended_upgrade; fi
   if [[ "${script_option_skip}" == 'true' ]]; then
@@ -1334,7 +1336,7 @@ cleanup_unifi_native_system() {
     check_dpkg_lock
     echo -e "${GRAY_R}#${RESET} The script installed ${openjdk_native_installed_package}, we do not need this anymore.\\n"
     echo -e "${GRAY_R}#${RESET} Purging package ${openjdk_native_installed_package}..."
-    if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' purge "${openjdk_native_installed_package}" &>> "${eus_dir}/logs/uninstall-${openjdk_native_installed_package}.log"; then
+    if "${EUS_APT_ENV[@]}" env DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' purge "${openjdk_native_installed_package}" &>> "${eus_dir}/logs/uninstall-${openjdk_native_installed_package}.log"; then
       echo -e "${GREEN}#${RESET} Successfully purged ${openjdk_native_installed_package}! \\n"
     else
       echo -e "${RED}#${RESET} Failed to purge ${openjdk_native_installed_package}... \\n"
@@ -1344,6 +1346,8 @@ cleanup_unifi_native_system() {
 }
 
 author() {
+  silent_run_apt_get_update="true"
+  eus_apt_sha1_disable
   eus_tmp_directories_cleanup
   check_apt_listbugs
   update_eus_db
@@ -1408,8 +1412,8 @@ get_distro() {
     elif [[ "${os_codename}" =~ ^(stretch|continuum|helium|cindy|tyche|ascii)$ ]]; then repo_codename="stretch"; os_codename="stretch"; os_id="debian"
     elif [[ "${os_codename}" =~ ^(buster|debbie|parrot|engywuck-backports|engywuck|deepin|lithium|beowulf|po-tolo|nibiru|amber|eagle)$ ]]; then repo_codename="buster"; os_codename="buster"; os_id="debian"
     elif [[ "${os_codename}" =~ ^(bullseye|kali-rolling|elsie|ara|beryllium|chimaera|orion-belt|byzantium|xenon|tiger)$ ]]; then repo_codename="bullseye"; os_codename="bullseye"; os_id="debian"
-    elif [[ "${os_codename}" =~ ^(bookworm|lory|faye|boron|beige|preslee|daedalus|crimson|vapour|shockworm)$ ]]; then repo_codename="bookworm"; os_codename="bookworm"; os_id="debian"
-    elif [[ "${os_codename}" =~ ^(trixie|excalibur|seven-sisters|gigi)$ ]]; then repo_codename="trixie"; os_codename="trixie"; os_id="debian"
+    elif [[ "${os_codename}" =~ ^(bookworm|lory|faye|boron|beige|preslee|daedalus|crimson|vapour|shockworm|yirmiuc)$ ]]; then repo_codename="bookworm"; os_codename="bookworm"; os_id="debian"
+    elif [[ "${os_codename}" =~ ^(trixie|excalibur|seven-sisters|gigi|yirmibes)$ ]]; then repo_codename="trixie"; os_codename="trixie"; os_id="debian"
     elif [[ "${os_codename}" =~ ^(forky|freia|tiamat)$ ]]; then repo_codename="forky"; os_codename="forky"; os_id="debian"
     elif [[ "${os_codename}" =~ ^(unstable|rolling|nest)$ ]]; then repo_codename="unstable"; os_codename="unstable"; os_id="debian"
     else
@@ -1699,7 +1703,7 @@ broken_packages_check() {
   broken_packages="$(apt-get check 2>&1 | grep -iV "you might" | grep -i "Broken" | awk '{print $2}')"
   if [[ -n "${broken_packages}" ]] || tail -n5 "${eus_dir}/logs/"* | grep -iq "Try 'sudo apt --fix-broken install' with no packages\\|Try 'apt --fix-broken install' with no packages"; then
     echo -e "${GRAY_R}#${RESET} Broken packages found: ${broken_packages}. Attempting to fix..." | tee -a "${eus_dir}/logs/broken-packages.log"
-    if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install --fix-broken &>> "${eus_dir}/logs/broken-packages.log"; then
+    if "${EUS_APT_ENV[@]}" env DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install --fix-broken &>> "${eus_dir}/logs/broken-packages.log"; then
       echo -e "${GREEN}#${RESET} Successfully fixed the broken packages! \\n" | tee -a "${eus_dir}/logs/broken-packages.log"
     else
       echo -e "${RED}#${RESET} Failed to fix the broken packages! \\n" | tee -a "${eus_dir}/logs/broken-packages.log"
@@ -1718,7 +1722,7 @@ attempt_recover_broken_packages() {
       if ! dpkg -l | awk '{print $2}' | grep -iq "${broken_package}"; then echo -e "Failed to locate ${broken_package} in dpkg list..." &>> "${eus_dir}/logs/attempt-recover-broken-packages.log"; continue; fi
       echo -e "${GRAY_R}#${RESET} Attempting to recover broken packages..."
       check_dpkg_lock
-      if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_downgrade_option[@]}" "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install -f &>> "${eus_dir}/logs/attempt-recover-broken-packages.log"; then
+      if "${EUS_APT_ENV[@]}" env DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_downgrade_option[@]}" "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install -f &>> "${eus_dir}/logs/attempt-recover-broken-packages.log"; then
         echo -e "${GREEN}#${RESET} Successfully attempted to recover broken packages! \\n"
       else
         echo -e "${RED}#${RESET} Failed to attempt to recover broken packages...\\n"
@@ -1773,7 +1777,7 @@ check_unmet_dependencies() {
         if echo "${dependency}" | grep -ioq ">="; then dependency_to_install="${dependency_no_version}"; else dependency_to_install="${dependency}"; fi
         if [[ -n "${dependency_to_install}" ]]; then
           echo -e "Attempting to install unmet dependency: ${dependency_to_install} \\n" &>> "${eus_dir}/logs/unmet-dependency.log"
-          if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${dependency_to_install}" &>> "${eus_dir}/logs/unmet-dependency.log"; then
+          if "${EUS_APT_ENV[@]}" env DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${dependency_to_install}" &>> "${eus_dir}/logs/unmet-dependency.log"; then
             sed -i "s/Depends: ${dependency_no_version}/Depends (completed): ${dependency_no_version}/g" "${log_file}" 2>> "${eus_dir}/logs/unmet-dependency-sed.log"
           else
             if [[ -n "$(command -v jq)" ]]; then
@@ -1800,8 +1804,8 @@ check_unmet_dependencies() {
                 add_repositories
               fi
               silent_run_apt_get_update="true"
-              run_apt_get_update
-              if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${dependency_to_install}" &>> "${eus_dir}/logs/unmet-dependency.log"; then
+              run_apt_get_update_with_sha1_fallback
+              if "${EUS_APT_ENV[@]}" env DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${dependency_to_install}" &>> "${eus_dir}/logs/unmet-dependency.log"; then
                 echo -e "\\nSuccessfully installed ${dependency} after adding the repositories for ${version} \\n" &>> "${eus_dir}/logs/unmet-dependency.log"
                 sed -i "s/Depends: ${dependency_no_version}/Depends (completed): ${dependency_no_version}/g" "${log_file}" 2>> "${eus_dir}/logs/unmet-dependency-sed.log"
                 rm --force "/etc/apt/sources.list.d/glennr-install-script-unmet.${source_file_format}" &> /dev/null
@@ -2296,13 +2300,83 @@ cleanup_conflicting_repositories() {
   fi
 }
 
+eus_apt_sha1_needed() {
+  grep -qsiE 'SHA1 is not considered secure|Policy rejected|second pre-image resistance|sqv returned an error code' /tmp/EUS/apt/apt-update.log
+}
+
+eus_apt_sha1_enable() {
+  [[ -n "$EUS_APT_SHA1_POLICY_FILE" ]] && return 0
+  echo -e "$(date +%F-%T.%6N) | Enabling SHA-1 workaround for apt." &>> "${eus_dir}/logs/apt-sha1-workaround.log"
+  if [[ "${silent_run_apt_get_update}" != "true" ]]; then
+    echo -e "${GRAY_R}#${RESET} Enabling SHA-1 workaround for apt..."
+  fi
+  EUS_APT_SHA1_POLICY_FILE="$(mktemp)" || {
+    echo -e "$(date +%F-%T.%6N) | Failed to enable the SHA-1 workaround (mktemp)." &>> "${eus_dir}/logs/apt-sha1-workaround.log"
+    return 1
+  }
+  printf '%s\n' '[hash_algorithms]' 'sha1 = "always"' > "$EUS_APT_SHA1_POLICY_FILE" || {
+    echo -e "$(date +%F-%T.%6N) | Failed to enable the SHA-1 workaround (write policy)." &>> "${eus_dir}/logs/apt-sha1-workaround.log"
+    return 1
+  }
+  chmod 0644 "$EUS_APT_SHA1_POLICY_FILE" 2>/dev/null || true
+  if [[ -r "$EUS_APT_SHA1_POLICY_FILE" ]]; then
+    EUS_APT_ENV=( env APT_SEQUOIA_CRYPTO_POLICY="$EUS_APT_SHA1_POLICY_FILE" )
+    echo -e "$(date +%F-%T.%6N) | Successfully enabled the SHA-1 workaround." &>> "${eus_dir}/logs/apt-sha1-workaround.log"
+    if [[ "${silent_run_apt_get_update}" != "true" ]]; then
+      echo -e "${GREEN}#${RESET} Successfully enabled the SHA-1 workaround! \\n"
+    fi
+    return 0
+  fi
+  echo -e "$(date +%F-%T.%6N) | Failed to enable the SHA-1 workaround (policy not readable)." &>> "${eus_dir}/logs/apt-sha1-workaround.log"
+  if [[ "${silent_run_apt_get_update}" != "true" ]]; then
+    echo -e "${RED}#${RESET} Failed to enable the SHA-1 workaround... \\n"
+  fi
+  return 1
+}
+
+eus_apt_sha1_disable() {
+  [[ -z "$EUS_APT_SHA1_POLICY_FILE" ]] && return 0
+  echo -e "$(date +%F-%T.%6N) | Disabling the SHA-1 workaround for apt." &>> "${eus_dir}/logs/apt-sha1-workaround.log"
+  if [[ "${silent_run_apt_get_update}" != "true" ]]; then
+    echo -e "${GRAY_R}#${RESET} Disabling the SHA-1 workaround for apt..."
+  fi
+  if rm -f "$EUS_APT_SHA1_POLICY_FILE"; then
+    EUS_APT_SHA1_POLICY_FILE=""
+    EUS_APT_ENV=()
+    echo -e "$(date +%F-%T.%6N) | Successfully disabled the SHA-1 workaround." &>> "${eus_dir}/logs/apt-sha1-workaround.log"
+    if [[ "${silent_run_apt_get_update}" != "true" ]]; then
+      echo -e "${GREEN}#${RESET} Successfully disabled the SHA-1 workaround! \\n"
+    fi
+    return 0
+  fi
+  echo -e "$(date +%F-%T.%6N) | Failed to disable the SHA-1 workaround." &>> "${eus_dir}/logs/apt-sha1-workaround.log"
+  if [[ "${silent_run_apt_get_update}" != "true" ]]; then
+    echo -e "${RED}#${RESET} Failed to disable the SHA-1 workaround... \\n"
+  fi
+  return 1
+}
+
+trap eus_apt_sha1_disable EXIT
+
+run_apt_get_update_with_sha1_fallback() {
+  eus_apt_sha1_disable
+  run_apt_get_update
+  if eus_apt_sha1_needed; then
+    echo -e "$(date +%F-%T.%6N) | SHA-1 signature rejection detected; retrying apt-get update with workaround." &>> "${eus_dir}/logs/apt-sha1-workaround.log"
+    if eus_apt_sha1_enable; then
+      run_apt_get_update
+      eus_apt_sha1_disable
+    fi
+  fi
+}
+
 run_apt_get_update() {
   eus_directory_location="/tmp/EUS"
   eus_create_directories "apt"
   if [[ "${run_with_apt_fix_missing}" == 'true' ]] || [[ -z "${afm_first_run}" ]]; then apt_fix_missing_option="--fix-missing"; afm_first_run="1"; unset run_with_apt_fix_missing; IFS=' ' read -r -a apt_fix_missing <<< "${apt_fix_missing_option}"; fi
   if [[ "${silent_run_apt_get_update}" != "true" ]]; then echo -e "${GRAY_R}#${RESET} Running apt-get update..."; fi
   echo -e "\\n------- $(date +%F-%T.%6N) -------\\n" &>> "${eus_dir}/logs/apt-update.log"
-  if apt-get update "${apt_fix_missing[@]}" 2>&1 | tee -a "${eus_dir}/logs/apt-update.log" > /tmp/EUS/apt/apt-update.log; then
+  if "${EUS_APT_ENV[@]}" apt-get update "${apt_fix_missing[@]}" 2>&1 | tee -a "${eus_dir}/logs/apt-update.log" > /tmp/EUS/apt/apt-update.log; then
     if [[ "${PIPESTATUS[0]}" -eq "0" ]]; then
       if [[ "${silent_run_apt_get_update}" != "true" ]]; then echo -e "${GREEN}#${RESET} Successfully ran apt-get update! \\n"; fi
     else
@@ -2371,7 +2445,7 @@ run_apt_get_update() {
       if [[ "${silent_run_apt_get_update}" != "true" ]]; then echo -e "${GRAY_R}#${RESET} Keys appear to be missing..."; fi; sleep 1
       if [[ "${silent_run_apt_get_update}" != "true" ]]; then echo -e "${YELLOW}#${RESET} Required package dirmngr is missing... cannot recover keys... \\n"; fi
     fi
-    apt-get update &> /tmp/EUS/apt/apt-update.log
+    "${EUS_APT_ENV[@]}" apt-get update &> /tmp/EUS/apt/apt-update.log
     if "$(which dpkg)" -l dirmngr 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then if grep -qo 'NO_PUBKEY.*' /tmp/EUS/apt/apt-update.log; then run_apt_get_update; fi; fi
   fi
   check_package_cache_file_corruption
@@ -2382,7 +2456,7 @@ run_apt_get_update() {
   cleanup_duplicated_repositories
   cleanup_unavailable_repositories
   cleanup_conflicting_repositories
-  if [[ "${repository_changes_applied}" == 'true' ]]; then unset repository_changes_applied; run_apt_get_update; fi
+  if [[ "${repository_changes_applied}" == 'true' ]]; then unset repository_changes_applied; run_apt_get_update_with_sha1_fallback; fi
   unset silent_run_apt_get_update
 }
 
@@ -2441,7 +2515,7 @@ download_certbot_auto() {
 
 remove_certbot() {
   if dpkg -l certbot 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi"; then
-    DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' remove certbot
+    "${EUS_APT_ENV[@]}" env DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' remove certbot
     apt-get autoremove -y
     apt-get autoclean -y
   fi
@@ -2499,16 +2573,16 @@ install_required_packages() {
   installing_required_package="yes"
   header
   echo -e "${GRAY_R}#${RESET} Installing required packages for the script..\\n"
-  run_apt_get_update
+  run_apt_get_update_with_sha1_fallback
   sleep 2
 }
 apt_get_install_package() {
   apt_get_install_package_variable="install"; apt_get_install_package_variable_2="installed"
-  run_apt_get_update
+  run_apt_get_update_with_sha1_fallback
   check_dpkg_lock
   echo -e "\\n------- ${required_package} installation ------- $(date +%F-%T.%6N) -------\\n" &>> "${eus_dir}/logs/apt.log"
   echo -e "${GRAY_R}#${RESET} Trying to ${apt_get_install_package_variable} ${required_package%%:*}..."
-  if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${required_package}" 2>&1 | tee -a "${eus_dir}/logs/apt.log" > /tmp/EUS/apt/apt.log; then
+  if "${EUS_APT_ENV[@]}" env DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${required_package}" 2>&1 | tee -a "${eus_dir}/logs/apt.log" > /tmp/EUS/apt/apt.log; then
     if [[ "${PIPESTATUS[0]}" -eq "0" ]]; then
       echo -e "${GREEN}#${RESET} Successfully ${apt_get_install_package_variable_2} ${required_package%%:*}! \\n"; sleep 2
     else
@@ -2518,7 +2592,7 @@ apt_get_install_package() {
       attempt_recover_broken_packages
       add_apt_option_no_install_recommends="true"; get_apt_options
       echo -e "${GRAY_R}#${RESET} Trying to ${apt_get_install_package_variable} ${required_package%%:*}..."
-      if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" "${apt_downgrade_option[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${required_package}" 2>&1 | tee -a "${eus_dir}/logs/apt.log" > /tmp/EUS/apt/apt.log; then
+      if "${EUS_APT_ENV[@]}" env DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" "${apt_downgrade_option[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${required_package}" 2>&1 | tee -a "${eus_dir}/logs/apt.log" > /tmp/EUS/apt/apt.log; then
         if [[ "${PIPESTATUS[0]}" -eq "0" ]]; then
           echo -e "${GREEN}#${RESET} Successfully ${apt_get_install_package_variable_2} ${required_package%%:*}! \\n"; sleep 2
         else
@@ -2582,7 +2656,7 @@ certbot_install_function() {
           if [[ "${installing_required_package}" != 'yes' ]]; then install_required_packages; fi
           echo -e "\\n------- certbot installation ------- $(date +%F-%T.%6N) -------\\n" &>> "${eus_dir}/logs/required.log"
           echo -e "${GRAY_R}#${RESET} Installing certbot..."
-          if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install certbot &>> "${eus_dir}/logs/required.log"; then
+          if "${EUS_APT_ENV[@]}" env DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install certbot &>> "${eus_dir}/logs/required.log"; then
             echo -e "${GREEN}#${RESET} Successfully installed certbot! \\n" && sleep 2
             certbot_type="certbot"
 	      else
@@ -2610,7 +2684,7 @@ certbot_repositories() {
   add_repositories
   get_distro
   get_repo_url
-  run_apt_get_update
+  run_apt_get_update_with_sha1_fallback
   if [[ -n "$(apt-cache policy certbot | grep -i Candidate | sed -e 's/ //g' -e 's/*//g' | cut -d':' -f2)" ]]; then
     required_package="certbot"
     apt_get_install_package
@@ -2644,7 +2718,7 @@ if ! dpkg -l dnsutils 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi"; th
     install_required_packages
   fi
   echo -e "${GRAY_R}#${RESET} Installing dnsutils..."
-  if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install dnsutils &>> "${eus_dir}/logs/required.log"; then
+  if ! "${EUS_APT_ENV[@]}" env DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install dnsutils &>> "${eus_dir}/logs/required.log"; then
     echo -e "${RED}#${RESET} Failed to install dnsutils in the first run...\\n"
     if [[ "${repo_codename}" =~ (precise|trusty|utopic|vivid|wily|yakkety|zesty|artful|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic) ]]; then
       if [[ "${repo_codename}" =~ (xenial) ]]; then repo_codename_argument="-security"; repo_component="main"; fi
@@ -2665,7 +2739,7 @@ if ! "$(which dpkg)" -l gnupg 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|
   if [[ "${installing_required_package}" != 'yes' ]]; then install_required_packages; fi
   check_dpkg_lock
   echo -e "${GRAY_R}#${RESET} Installing gnupg..."
-  if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install gnupg &>> "${eus_dir}/logs/required.log"; then
+  if ! "${EUS_APT_ENV[@]}" env DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install gnupg &>> "${eus_dir}/logs/required.log"; then
     echo -e "${RED}#${RESET} Failed to install gnupg in the first run...\\n"
     if [[ "${repo_codename}" =~ (precise|trusty|utopic|vivid|wily|yakkety|zesty|artful|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky|questing|resolute) ]]; then
       if [[ "${repo_codename}" =~ (precise|trusty|utopic|vivid|wily|yakkety|zesty|artful|xenial) ]]; then repo_codename_argument="-security"; repo_component="main"; fi
@@ -2685,7 +2759,7 @@ else
     gnupg_segfault_packages=("gnupg" "gnupg2" "libc6" "libreadline8" "libreadline-dev" "libslang2" "zlib1g" "libbz2-1.0" "libgcrypt20" "libsqlite3-0" "libassuan0" "libgpg-error0" "libm6" "libpthread-stubs0-dev" "libtinfo6")
     reinstall_gnupg_segfault_packages=()
     for gnupg_segfault_package in "${gnupg_segfault_packages[@]}"; do if "$(which dpkg)" -l "${gnupg_segfault_package}" &> /dev/null; then reinstall_gnupg_segfault_packages+=("${gnupg_segfault_package}"); fi; done
-    if [[ "${#reinstall_gnupg_segfault_packages[@]}" -gt '0' ]]; then echo -e "\\n------- $(date +%F-%T.%6N) -------\\n" &>> "${eus_dir}/logs/gnupg-segfault-reinstall.log"; DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install --reinstall "${reinstall_gnupg_segfault_packages[@]}" &>> "${eus_dir}/logs/gnupg-segfault-reinstall.log"; fi
+    if [[ "${#reinstall_gnupg_segfault_packages[@]}" -gt '0' ]]; then echo -e "\\n------- $(date +%F-%T.%6N) -------\\n" &>> "${eus_dir}/logs/gnupg-segfault-reinstall.log"; "${EUS_APT_ENV[@]}" env DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install --reinstall "${reinstall_gnupg_segfault_packages[@]}" &>> "${eus_dir}/logs/gnupg-segfault-reinstall.log"; fi
   fi
 fi
 if ! "$(which dpkg)" -l jq 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
@@ -2694,7 +2768,7 @@ if ! "$(which dpkg)" -l jq 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi
   fi
   check_dpkg_lock
   echo -e "${GRAY_R}#${RESET} Installing jq..."
-  if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install jq &>> "${eus_dir}/logs/required.log"; then
+  if ! "${EUS_APT_ENV[@]}" env DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install jq &>> "${eus_dir}/logs/required.log"; then
     echo -e "${RED}#${RESET} Failed to install jq in the first run...\\n"
     if [[ "${repo_codename}" =~ (precise|trusty|utopic|vivid|wily|yakkety|zesty|artful|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky|questing|resolute) ]]; then
       if [[ "${repo_codename}" =~ (bionic|cosmic|disco|eoan|focal|focal|groovy|hirsute|impish) ]]; then repo_component="main universe"; add_repositories; fi
@@ -2719,7 +2793,7 @@ if ! dpkg -l net-tools 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi"; t
     install_required_packages
   fi
   echo -e "${GRAY_R}#${RESET} Installing net-tools..."
-  if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install net-tools &>> "${eus_dir}/logs/required.log"; then
+  if ! "${EUS_APT_ENV[@]}" env DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install net-tools &>> "${eus_dir}/logs/required.log"; then
     echo -e "${RED}#${RESET} Failed to install net-tools in the first run...\\n"
     repo_component="main"
     add_repositories
@@ -2735,7 +2809,7 @@ if ! dpkg -l curl 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi"; then
     install_required_packages
   fi
   echo -e "${GRAY_R}#${RESET} Installing curl..."
-  if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install curl &>> "${eus_dir}/logs/required.log"; then
+  if ! "${EUS_APT_ENV[@]}" env DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install curl &>> "${eus_dir}/logs/required.log"; then
     echo -e "${RED}#${RESET} Failed to install curl in the first run...\\n"
     if [[ "${repo_codename}" =~ (precise|trusty|utopic|vivid|wily|yakkety|zesty|artful|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic) ]]; then
       if [[ "${repo_codename}" =~ (precise|trusty|utopic|vivid|wily|yakkety|zesty|artful|xenial|bionic|cosmic) ]]; then repo_codename_argument="-security"; repo_component="main"; fi
@@ -2763,7 +2837,7 @@ if [[ -n "${auto_dns_challenge_provider}" ]]; then
         install_required_packages
       fi
       echo -e "${GRAY_R}#${RESET} Installing python3-certbot-dns-${auto_dns_challenge_provider}..."
-      if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "python3-certbot-dns-${auto_dns_challenge_provider}" &>> "${eus_dir}/logs/required.log"; then
+      if ! "${EUS_APT_ENV[@]}" env DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "python3-certbot-dns-${auto_dns_challenge_provider}" &>> "${eus_dir}/logs/required.log"; then
         echo -e "${RED}#${RESET} Failed to install python3-certbot-dns-${auto_dns_challenge_provider} in the first run...\\n"
         if [[ "${repo_codename}" =~ (precise|trusty|utopic|vivid|wily|yakkety|zesty|artful|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky|questing|resolute) ]]; then
           if [[ "${repo_codename}" =~ (focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky|questing|resolute) ]]; then repo_component="main universe"; add_repositories; fi
@@ -2786,7 +2860,7 @@ if [[ -n "${auto_dns_challenge_provider}" ]]; then
         install_required_packages
       fi
       echo -e "${GRAY_R}#${RESET} Installing python3-certbot..."
-      if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install python3-certbot &>> "${eus_dir}/logs/required.log"; then
+      if ! "${EUS_APT_ENV[@]}" env DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install python3-certbot &>> "${eus_dir}/logs/required.log"; then
         echo -e "${RED}#${RESET} Failed to install python3-certbot in the first run...\\n"
         if [[ "${repo_codename}" =~ (precise|trusty|utopic|vivid|wily|yakkety|zesty|artful|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky|questing|resolute) ]]; then
           if [[ "${repo_codename}" =~ (focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky|questing|resolute) ]]; then repo_component="main universe"; add_repositories; fi
@@ -2811,7 +2885,7 @@ if [[ -n "${auto_dns_challenge_provider}" ]]; then
           install_required_packages
         fi
         echo -e "${GRAY_R}#${RESET} Installing ${package}..."
-        if ! DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${package}" &>> "${eus_dir}/logs/required.log"; then
+        if ! "${EUS_APT_ENV[@]}" env DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${package}" &>> "${eus_dir}/logs/required.log"; then
           echo -e "${RED}#${RESET} Failed to install ${package} in the first run...\\n"
           if [[ "${repo_codename}" =~ (precise|trusty|utopic|vivid|wily|yakkety|zesty|artful|xenial|bionic|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky|questing|resolute) ]]; then
             if [[ "${repo_codename}" =~ (focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky|questing|resolute) ]]; then repo_component="main universe"; add_repositories; fi
@@ -2972,7 +3046,7 @@ certbot_auto_install_run() {
       echo -e "${GRAY_R}#${RESET} Running apt-get update..."
       if apt-get update -o Acquire::Check-Valid-Until=false &>> "${eus_dir}/logs/required.log"; then echo -e "${GREEN}#${RESET} Successfully ran apt-get update! \\n"; else echo -e "${YELLOW}#${RESET} Something went wrong during apt-get update...\\n"; fi
       echo -e "${GRAY_R}#${RESET} Installing a required package..."
-      if DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install -t jessie-backports libssl-dev -y &>> "${eus_dir}/logs/required.log"; then echo -e "${GREEN}#${RESET} Successfully installed the required package! \\n"; else abort_reason="Failed to install required package."; abort; fi
+      if "${EUS_APT_ENV[@]}" env DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install -t jessie-backports libssl-dev -y &>> "${eus_dir}/logs/required.log"; then echo -e "${GREEN}#${RESET} Successfully installed the required package! \\n"; else abort_reason="Failed to install required package."; abort; fi
       sed -i '/jessie-backports/d' /etc/apt/sources.list.d/glennr-install-script.list
     fi
   fi
@@ -3732,7 +3806,7 @@ SSL
       if [[ "\${unifi_native_system}" == 'true' ]]; then
         openjdk_native_installed_package="\$(apt-cache search "jre-headless" | grep -Eio "openjdk-[0-9]{1,2}-jre-headless" | sort -V | tail -n1)"
         openjdk_native_installed="true"
-        DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${openjdk_native_installed_package}" 2>&1 | tee -a "${eus_dir}/logs/apt.log"
+        "${EUS_APT_ENV[@]}" env DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install "${openjdk_native_installed_package}" 2>&1 | tee -a "${eus_dir}/logs/apt.log"
       fi
       # shellcheck disable=SC2012
       if [[ "\${old_certificates}" == 'last_three' ]]; then ls -t "${eus_dir}/network/keystore_backups/keystore_*" 2> /dev/null | awk 'NR>3' | xargs rm -f 2> /dev/null; fi
@@ -3749,7 +3823,7 @@ SSL
       fi
       systemctl restart unifi
       if [[ "\${openjdk_native_installed}" == 'true' ]]; then
-        DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' purge "${openjdk_native_installed_package}" &>> "${eus_dir}/logs/uninstall-${openjdk_native_installed_package}.log"
+        "${EUS_APT_ENV[@]}" env DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' purge "${openjdk_native_installed_package}" &>> "${eus_dir}/logs/uninstall-${openjdk_native_installed_package}.log"
       fi
     fi
     if [[ -f "${eus_dir}/cloudkey/cloudkey_management_ui" ]]; then
