@@ -76,7 +76,7 @@
 
 # Script                | UniFi Network/OS Easy Installation Script
 # Version               | 9.0.2
-# Script Version        | 9.0.4
+# Script Version        | 9.0.6
 # Application version   | 8.4.62
 # Debian Repo version   | 8.4.62-26656-1
 # UOS Server version    | 5.0.6
@@ -625,7 +625,6 @@ support_file() {
     process_with_pid_1="$(ps -p 1 -o comm=)"
     cpu_cores="$(grep -ic processor /proc/cpuinfo)"
     cpu_usage="$(awk '{u=$2+$4; t=$2+$4+$5; if (NR==1){u1=u; t1=t;} else print ($2+$4-u1) * 100 / (t-t1) "%"; }' <(grep 'cpu ' /proc/stat) <(sleep 1;grep 'cpu ' /proc/stat))"
-    cpu_cores="$(grep -ic processor /proc/cpuinfo)"
     cpu_architecture="$("$(which dpkg)" --print-architecture)"
     cpu_type="$(uname -p)"
     mem_total="$(grep "^MemTotal:" /proc/meminfo | awk '{print $2}')"
@@ -8541,44 +8540,113 @@ uos_server_install_process() {
   fi
 }
 
-# UOS Server only supported on Ubuntu Noble/Debian Bookworm and newer.
-if [[ "${os_id}" == "ubuntu" ]]; then
-  if ! [[ "${os_codename}" =~ (noble|oracular|plucky|questing|resolute) ]]; then
-    choice="2"
-    unifi_os_server_unsupported="true"
-  fi
-elif [[ "${os_id}" == "debian" ]]; then
-  if ! [[ "${os_codename}" =~ (bookworm|trixie|forky|unstable) ]]; then
-    choice="2"
-    unifi_os_server_unsupported="true"
-  fi
-else
-  choice="2"
-  unifi_os_server_unsupported="true"
-fi
-
-# UOS Server not supported on anything other than arm64/amd64.
-if ! [[ "${architecture}" =~ (amd64|arm64) ]]; then
-  choice="2"
-  unifi_os_server_unsupported="true"
-fi
-
-if [[ "${limited_functionality}" == 'true' ]]; then
-  choice="2"
-  unifi_os_server_unsupported="true"
-fi
-
-# UOS Server not supported within LXC/Docker Container
-if [[ -n "$(command -v jq)" && -e "${eus_dir}/db/db.json" ]]; then
+support_check_api_payload() {
   check_lxc_setup
   check_docker_setup
   check_wsl_setup
-  if [[ "$(jq -r '.database["lxc-container"]' "${eus_dir}/db/db.json" | sed '/null/d')" == 'true' ]]; then
+  cpu_model="$(lscpu | awk -F: 'BEGIN{IGNORECASE=1} $1 ~ /^model name$/ {sub(/^[ \t]+/, "", $2); print $2; exit}')"
+  if [[ -z "${cpu_model}" ]]; then cpu_model="$(lscpu | sed -n 's/^Model name:[[:space:]]*//Ip' | head -n1)"; fi
+  cpu_cores="$(grep -ic '^processor' /proc/cpuinfo)"
+  total_mem_mb="$(awk '/MemTotal/ {printf "%.0f\n", $2/1024}' /proc/meminfo)"
+  swap_total_mb="$(awk '/SwapTotal/ {printf "%.0f\n", $2/1024}' /proc/meminfo)"
+  kernel_version="$(uname -r)"
+  server_uuid="$(jq -r '.database.uuid // empty' "${eus_dir}/db/db.json" 2>/dev/null)"
+  script_version="$(grep -im1 "# Script Version" "${script_location}" | awk -F'|' '{gsub(/[[:space:]]/, "", $2); print $2}')"
+  payload="$(jq -n \
+    --arg server_uuid "${server_uuid}" \
+    --arg server_os_name "${os_id}" \
+    --arg server_os_codename "${os_codename}" \
+    --arg server_architecture "${architecture}" \
+    --arg server_kernel_version "${kernel_version}" \
+    --arg server_cpu_model "${cpu_model}" \
+    --argjson server_cpu_cores "${cpu_cores}" \
+    --argjson server_total_memory "${total_mem_mb}" \
+    --argjson server_total_swap "${swap_total_mb}" \
+    --arg script_name "${script_name}" \
+    --arg script_version "${script_version}" \
+    --argjson lxc "${lxc_setup}" \
+    --argjson docker "${docker_setup}" \
+    --argjson wsl "${wsl_setup}" \
+    --argjson limited_functionality "${limited_functionality:-false}" \
+    '{
+      server_uuid: $server_uuid,
+      server_os_name: $server_os_name,
+      server_os_codename: $server_os_codename,
+      server_architecture: $server_architecture,
+      server_kernel_version: $server_kernel_version,
+      server_cpu_model: $server_cpu_model,
+      server_cpu_cores: $server_cpu_cores,
+      server_total_memory: $server_total_memory,
+      server_total_swap: $server_total_swap,
+      environment: {
+        lxc: $lxc,
+        docker: $docker,
+        wsl: $wsl,
+        limited_functionality: $limited_functionality
+      },
+      script_name: $script_name,
+      script_version: $script_version
+    }'
+  )"
+}
+
+if [[ "$(command -v jq)" ]]; then support_check_status="$(curl "${curl_proxy_arg[@]}" --silent "https://api.glennr.nl/api/support-check?status" 2> /dev/null | jq -r '.status' 2> /dev/null)"; else support_check_status="$(curl "${curl_proxy_arg[@]}" --silent "https://api.glennr.nl/api/support-check?status" 2> /dev/null | grep -oP '(?<="status":")[^"]+')"; fi
+if [[ "${support_check_status}" == "OK" ]]; then
+  support_check_api_payload
+  support_check_api_results="$(curl -sS -X POST "https://api.glennr.nl/api/support-check" -H "Content-Type: application/json" -d "${payload}")"
+  unifi_os_server_supported="$(echo "${support_check_api_results}" | jq -r '.supported')"
+  if [[ "${unifi_os_server_supported}" != 'true' ]]; then
+    unifi_os_server_unsupported_reason="$(echo "${support_check_api_results}" | jq -r '.unsupported_reason')"
     choice="2"
     unifi_os_server_unsupported="true"
-  elif [[ "$(jq -r '.database["docker-container"]' "${eus_dir}/db/db.json" | sed '/null/d')" == 'true' ]]; then
+    header_red
+    echo -e "${YELLOW}#${RESET} ${unifi_os_server_unsupported_reason} \\n\\n"
+    echo -e "${YELLOW}#${RESET} Continuing with UniFi Network Application installation..."
+    for i in {1..15}; do
+      printf "\r${YELLOW}#${RESET} Switching in %2d seconds... [" "$((16-i))"
+      for ((j=0; j<i; j++)); do printf "#"; done
+      for ((j=i; j<15; j++)); do printf "."; done
+      printf "]"
+      sleep 1
+    done
+  fi
+else
+  # UOS Server only supported on Ubuntu Noble/Debian Bookworm and newer.
+  if [[ "${os_id}" == "ubuntu" ]]; then
+    if ! [[ "${os_codename}" =~ (noble|oracular|plucky|questing|resolute) ]]; then
+      choice="2"
+      unifi_os_server_unsupported="true"
+    fi
+  elif [[ "${os_id}" == "debian" ]]; then
+    if ! [[ "${os_codename}" =~ (bookworm|trixie|forky|unstable) ]]; then
+      choice="2"
+      unifi_os_server_unsupported="true"
+    fi
+  else
     choice="2"
     unifi_os_server_unsupported="true"
+  fi
+  # UOS Server not supported on anything other than arm64/amd64.
+  if ! [[ "${architecture}" =~ (amd64|arm64) ]]; then
+    choice="2"
+    unifi_os_server_unsupported="true"
+  fi
+  if [[ "${limited_functionality}" == 'true' ]]; then
+    choice="2"
+    unifi_os_server_unsupported="true"
+  fi
+  # UOS Server not supported within LXC/Docker Container
+  if [[ -n "$(command -v jq)" && -e "${eus_dir}/db/db.json" ]]; then
+    check_lxc_setup
+    check_docker_setup
+    check_wsl_setup
+    if [[ "$(jq -r '.database["lxc-container"]' "${eus_dir}/db/db.json" | sed '/null/d')" == 'true' ]]; then
+      choice="2"
+      unifi_os_server_unsupported="true"
+    elif [[ "$(jq -r '.database["docker-container"]' "${eus_dir}/db/db.json" | sed '/null/d')" == 'true' ]]; then
+      choice="2"
+      unifi_os_server_unsupported="true"
+    fi
   fi
 fi
 

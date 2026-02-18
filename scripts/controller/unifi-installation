@@ -11,6 +11,18 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 9.0.6
+  
+ - Fixed missing variables.
+ 
+ ####
+
+ |  UniFi Network Application Installation Script  |  Version 9.0.5
+  
+ - Added messaging when UniFi OS Server is not supported.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 9.0.4
   
  - Added a workaround for repositories that require SHA1.
