@@ -3,7 +3,7 @@
 # UniFi Network Application Easy Update Script.
 # Script          | UniFi Network Easy Update Script
 # Version         | 9.9.9
-# Script Version  | 10.6.1
+# Script Version  | 10.6.2
 # Author          | Glenn Rietveld
 # Email           | glennrietveld8@hotmail.nl
 # Website         | https://GlennR.nl
@@ -373,7 +373,7 @@ check_docker_setup() {
 }
 
 check_lxc_setup() {
-  if grep -sqa "lxc" /proc/1/environ /proc/self/mountinfo /proc/1/environ; then lxc_setup="true"; else lxc_setup="false"; fi
+  if grep -sqE '(/lxc/|/lxd/)' /proc/1/cgroup 2>/dev/null || tr '\0' '\n' </proc/1/environ 2>/dev/null | grep -sqE '^container=(lxc|lxd)$'; then lxc_setup="true"; else lxc_setup="false"; fi
   if [[ -n "$(command -v jq)" && -e "${eus_dir}/db/db.json" ]]; then
     if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
       jq '."database" += {"lxc-container": "'"${lxc_setup}"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
@@ -569,7 +569,6 @@ support_file() {
     process_with_pid_1="$(ps -p 1 -o comm=)"
     cpu_cores="$(grep -ic processor /proc/cpuinfo)"
     cpu_usage="$(awk '{u=$2+$4; t=$2+$4+$5; if (NR==1){u1=u; t1=t;} else print ($2+$4-u1) * 100 / (t-t1) "%"; }' <(grep 'cpu ' /proc/stat) <(sleep 1;grep 'cpu ' /proc/stat))"
-    cpu_cores="$(grep -ic processor /proc/cpuinfo)"
     cpu_architecture="$("$(which dpkg)" --print-architecture)"
     cpu_type="$(uname -p)"
     mem_total="$(grep "^MemTotal:" /proc/meminfo | awk '{print $2}')"

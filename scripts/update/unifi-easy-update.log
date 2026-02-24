@@ -11,6 +11,12 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 10.6.2
+  
+ - Improved container detection to rule out false positives on AWS instances.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 10.6.1
   
  - Added a workaround for repositories that require SHA1.

@@ -76,7 +76,7 @@
 
 # Script                | UniFi Network/OS Easy Installation Script
 # Version               | 9.0.2
-# Script Version        | 9.0.6
+# Script Version        | 9.0.9
 # Application version   | 9.2.87
 # Debian Repo version   | 9.2.87-29974-1
 # UOS Server version    | 5.0.6
@@ -427,7 +427,7 @@ check_docker_setup() {
 }
 
 check_lxc_setup() {
-  if grep -sqa "lxc" /proc/1/environ /proc/self/mountinfo /proc/1/environ; then lxc_setup="true"; container_system="true"; else lxc_setup="false"; fi
+  if grep -sqE '(/lxc/|/lxd/)' /proc/1/cgroup 2>/dev/null || tr '\0' '\n' </proc/1/environ 2>/dev/null | grep -sqE '^container=(lxc|lxd)$'; then lxc_setup="true"; container_system="true"; else lxc_setup="false"; fi
   if [[ -n "$(command -v jq)" && -e "${eus_dir}/db/db.json" ]]; then
     if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
       jq '."database" += {"lxc-container": "'"${lxc_setup}"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
@@ -1139,7 +1139,8 @@ help_script() {
                                             --intermediate-certificate /tmp/INTERMEDIATE.cer
     --own-certificate                       Requirement if you want to import your own paid certificates
                                             with the use of --skip.
-    --run-easy-encrypt                      Run the UniFi Easy Encrypt script if an FQDN is specified via --fqdn.\\n\\n"
+    --run-easy-encrypt                      Run the UniFi Easy Encrypt script if an FQDN is specified via --fqdn.
+    --support-file                          Generate a support file for debugging by Glenn R.\\n\\n"
   exit 0
 }
 
@@ -3730,6 +3731,11 @@ network_install_dummy_packages_check() {
   done
 }
 
+is_systemd_unit_present() {
+  local unit="$1"
+  [[ "$(systemctl show -p LoadState --value "$unit" 2>/dev/null)" == "loaded" ]]
+}
+
 already_installed_check() {
   local product_name="$1"         # e.g., "UniFi Network Application" or "UniFi OS Server"
   local check_command="$2"        # command to detect installation
@@ -4910,6 +4916,7 @@ get_unifi_version() {
 uos_server_install_set_variables() {
   uos_server_web_port="$(grep -sE '^WEB_PORT=' /var/lib/uosserver/server.conf 2> /dev/null | cut -d= -f2)"
   uos_server_web_port="${uos_server_web_port:-11443}"
+  uos_server_https_legacy_port="8443"
   uos_server_http_captive_portal_port="8880"
   uos_server_https_captive_portal_port="8444"
   uos_server_captive_portal_redirector_1_port="8881"
@@ -5781,6 +5788,9 @@ uos_server_ports_change_support_check() {
 uos_server_install_ports_check() {
   # Check if UniFi OS Server ports are in use.
   uos_server_ports_used=("${uos_server_web_port}" "${uos_server_http_captive_portal_port}" "${uos_server_https_captive_portal_port}" "${uos_server_captive_portal_redirector_1_port}" "${uos_server_captive_portal_redirector_2_port}" "${uos_server_device_inform_port}" "${uos_server_remote_logger_port}" "${uos_server_stun_port}" "${uos_server_mobile_speedtest_port}" "${uos_server_discovery_1_port}" "${uos_server_discovery_2_port}" "${uos_server_rabbitmq_port}" "${uos_server_identity_hub_port}" "${uos_server_management_wrapper_port}")
+  if ! version_ge "${uos_version}" "5.0.7"; then
+    uos_server_ports_used+=("${uos_server_https_legacy_port}")
+  fi
   uos_server_ports_changeable=()
   uos_server_install_flags=()
   uos_server_ports_change_support_check
@@ -8609,6 +8619,7 @@ if [[ "${support_check_status}" == "OK" ]]; then
       printf "]"
       sleep 1
     done
+    header
   fi
 else
   # UOS Server only supported on Ubuntu Noble/Debian Bookworm and newer.
@@ -8672,7 +8683,7 @@ while true; do
       sleep 3
       unifi_core_system_check
       uos_server_install_required_packages_check
-      already_installed_check "UniFi OS Server" 'systemctl list-unit-files uosserver.service'
+      if is_systemd_unit_present "uosserver.service"; then already_installed_check "UniFi OS Server" "true"; fi
       uos_server_install_set_variables
       swap_file_check
       uos_server_install_ports_check
@@ -8699,7 +8710,7 @@ while true; do
       network_install_broken_install_recovery
       network_install_dummy_packages_check
       already_installed_check "UniFi Network Application" 'dpkg -l' 'unifi |unifi-native'
-      already_installed_check "UniFi OS Server" 'systemctl list-unit-files uosserver.service'
+      if is_systemd_unit_present "uosserver.service"; then already_installed_check "UniFi OS Server" "true"; fi
       network_install_required_packages_check
       check_mongodb_installed
       network_install_broken_override_check

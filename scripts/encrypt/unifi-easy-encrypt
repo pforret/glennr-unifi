@@ -11,6 +11,12 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Encrypt Script  |  Version 3.7.8
+  
+ - Improved container detection to rule out false positives on AWS instances.
+ 
+ ####
+
  |  UniFi Easy Encrypt Script  |  Version 3.7.7
   
  - Added a workaround for repositories that require SHA1.

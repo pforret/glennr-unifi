@@ -11,6 +11,24 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 9.0.9
+  
+ - Improved the UniFi OS Server installed check.
+ 
+ ####
+
+ |  UniFi Network Application Installation Script  |  Version 9.0.8
+  
+ - Improved container detection to rule out false positives on AWS instances.
+ 
+ ####
+
+ |  UniFi Network Application Installation Script  |  Version 9.0.7
+  
+ - Improved required ports check for UniFi OS Server.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 9.0.6
   
  - Fixed missing variables.
