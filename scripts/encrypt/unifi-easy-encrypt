@@ -11,6 +11,19 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Encrypt Script  |  Version 3.7.9
+  
+ - Added script process locking, to prevent users from running multiple at once.
+ - Improved the proxy check.
+ - Improved support files.
+ - Improved the script update process.
+ - Improved the service override check.
+ - Improved the CA Certificates update process.
+ - Fixed an issue where the script could write empty DNS servers to the EUS Database.
+ - Fixed an issue where the script could fail to obtain repositoy keys but state that it was a success.
+ 
+ ####
+
  |  UniFi Easy Encrypt Script  |  Version 3.7.8
   
  - Improved container detection to rule out false positives on AWS instances.

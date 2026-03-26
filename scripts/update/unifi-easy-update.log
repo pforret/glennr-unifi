@@ -11,6 +11,23 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 10.6.3
+  
+ - Added script process locking, to prevent users from running multiple at once.
+ - Added 10.1.89 to the fallback list.
+ - Improved the update process for the UniFi Network Application on Ubuntu 16.04/18.04 and Debian Stretch by using the Glenn R. repository for JAVA 25.
+ - Improved the update process on UniFi OS systems. 
+ - Improved the proxy check.
+ - Improved support files.
+ - Improved the script update process.
+ - Improved the service override check.
+ - Improved the CA Certificates update process.
+ - Fixed an issue where Release Candidates could appear in the upgrade-to list while selecting Stable channels.
+ - Fixed an issue where the script could write empty DNS servers to the EUS Database.
+ - Fixed an issue where the script could fail to obtain repositoy keys but state that it was a success.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 10.6.2
   
  - Improved container detection to rule out false positives on AWS instances.

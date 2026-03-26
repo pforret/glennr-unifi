@@ -11,6 +11,20 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 9.1.0
+  
+ - Added script process locking, to prevent users from running multiple at once.
+ - Improved the installation process for the UniFi Network Application on Ubuntu 16.04/18.04 and Debian Stretch by using the Glenn R. repository for JAVA 25.
+ - Improved the proxy check.
+ - Improved support files.
+ - Improved the script update process.
+ - Improved the service override check.
+ - Improved the CA Certificates update process.
+ - Fixed an issue where the script could write empty DNS servers to the EUS Database.
+ - Fixed an issue where the script could fail to obtain repositoy keys but state that it was a success.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 9.0.9
   
  - Improved the UniFi OS Server installed check.

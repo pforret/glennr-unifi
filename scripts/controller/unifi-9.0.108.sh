@@ -76,7 +76,7 @@
 
 # Script                | UniFi Network/OS Easy Installation Script
 # Version               | 9.0.2
-# Script Version        | 9.0.9
+# Script Version        | 9.1.0
 # Application version   | 9.0.108
 # Debian Repo version   | 9.0.108-27982-1
 # UOS Server version    | 5.0.6
@@ -96,6 +96,289 @@ WHITE_R='\033[39m' # Same as GRAY_R for terminals with white background.
 GRAY_R='\033[39m'
 RED='\033[1;31m' # Light Red.
 GREEN='\033[1;32m' # Light Green.
+
+###################################################################################################################################################################################################
+#                                                                                                                                                                                                 #
+#                                                                                           Script Lock                                                                                           #
+#                                                                                                                                                                                                 #
+###################################################################################################################################################################################################
+
+eus_lock_init_paths() {
+  local lock_base_dir=""
+  if [[ -d "/run/lock" && -w "/run/lock" ]]; then
+    lock_base_dir="/run/lock"
+  elif [[ -d "/var/lock" && -w "/var/lock" ]]; then
+    lock_base_dir="/var/lock"
+  else
+    lock_base_dir="/tmp"
+  fi
+  EUS_LOCK_FILE="${lock_base_dir}/${script_name_safe}.lock"
+  EUS_LOCK_META="${lock_base_dir}/${script_name_safe}.lock.meta"
+}
+
+eus_lock_set_traps() {
+  trap 'eus_lock_cleanup' EXIT
+  trap 'eus_lock_cleanup; exit 130' INT
+  trap 'eus_lock_cleanup; exit 143' TERM
+}
+
+eus_lock_write_metadata() {
+  local now_epoch now_human tty_value cmdline_value pgid_value
+  now_epoch="$(date +%s)"
+  now_human="$(date +%F-%T.%6N)"
+  tty_value="$(ps -p $$ -o tty= 2> /dev/null | xargs)"
+  cmdline_value="$(ps -p $$ -o args= 2> /dev/null)"
+  if command -v ps > /dev/null 2>&1; then
+    pgid_value="$(ps -o pgid= -p "$$" 2> /dev/null | xargs)"
+  fi
+  cat > "${EUS_LOCK_META}" <<EOF
+pid=$$
+ppid=$PPID
+pgid=${pgid_value}
+user=$(id -un 2> /dev/null)
+tty=${tty_value:-unknown}
+started_epoch=${now_epoch}
+started_human=${now_human}
+script=${script_file_name}
+cmdline=${cmdline_value}
+EOF
+}
+
+eus_lock_read_metadata() {
+  [[ -f "${EUS_LOCK_META}" ]] || return 0
+  while IFS='=' read -r key value; do
+    value="${value%\"}"
+    value="${value#\"}"
+    value="${value%\'}"
+    value="${value#\'}"
+    case "${key}" in
+      pid) eus_lock_holder_pid="${value}" ;;
+      pgid) eus_lock_holder_pgid="${value}" ;;
+      user) eus_lock_holder_user="${value}" ;;
+      tty) eus_lock_holder_tty="${value}" ;;
+      started_epoch) eus_lock_holder_started_epoch="${value}" ;;
+      started_human) eus_lock_holder_started_human="${value}" ;;
+      script) eus_lock_holder_script="${value}" ;;
+      cmdline) eus_lock_holder_cmdline="${value}" ;;
+    esac
+  done < "${EUS_LOCK_META}"
+}
+
+eus_lock_holder_is_alive() {
+  eus_lock_read_metadata
+  if [[ -n "${eus_lock_holder_pid}" ]] && kill -0 "${eus_lock_holder_pid}" 2> /dev/null; then
+    return 0
+  fi
+  return 1
+}
+
+eus_lock_get_holder_pgid() {
+  eus_lock_read_metadata
+  if [[ -n "${eus_lock_holder_pgid}" ]]; then
+    printf '%s\n' "${eus_lock_holder_pgid}"
+    return 0
+  fi
+  if ! command -v ps > /dev/null 2>&1; then
+    return 1
+  fi
+  if [[ -n "${eus_lock_holder_pid}" ]] && kill -0 "${eus_lock_holder_pid}" 2> /dev/null; then
+    ps -o pgid= -p "${eus_lock_holder_pid}" 2> /dev/null | xargs
+    return 0
+  fi
+  return 1
+}
+
+eus_lock_is_stalled() {
+  local now last diff
+  [[ -f "${EUS_LOCK_META}" ]] || return 1
+  now="$(date +%s)"
+  if command -v stat > /dev/null 2>&1; then
+    last="$(stat -c %Y "${EUS_LOCK_META}" 2> /dev/null || echo 0)"
+  else
+    return 1
+  fi
+  [[ "${last}" =~ ^[0-9]+$ ]] || return 1
+  diff=$((now - last))
+  [[ "${diff}" -gt "${EUS_LOCK_STALL_SECONDS}" ]]
+}
+
+eus_lock_cleanup() {
+  if [[ "${EUS_LOCK_ACQUIRED}" == "true" ]]; then
+    rm -f "${EUS_LOCK_META}" 2> /dev/null || true
+    if [[ -n "${EUS_LOCK_FD}" ]]; then
+      eval "exec ${EUS_LOCK_FD}>&-"
+    fi
+    EUS_LOCK_ACQUIRED="false"
+  fi
+}
+
+eus_lock_try_reacquire() {
+  for _ in {1..10}; do
+    if flock -n "${EUS_LOCK_FD}"; then
+      return 0
+    fi
+    sleep 1
+  done
+  return 1
+}
+
+eus_lock_print_holder_message() {
+  local now_epoch runtime_seconds runtime_human holder_pgid
+  now_epoch="$(date +%s)"
+  runtime_human="unknown"
+  holder_pgid="$(eus_lock_get_holder_pgid 2> /dev/null || true)"
+  if [[ -n "${eus_lock_holder_started_epoch}" && "${eus_lock_holder_started_epoch}" =~ ^[0-9]+$ ]]; then
+    runtime_seconds="$((now_epoch - eus_lock_holder_started_epoch))"
+    runtime_human="${runtime_seconds}s"
+  fi
+  header_red
+  echo -e "${GRAY_R}#${RESET} Another ${script_name} run is already active.\n"
+  [[ -n "${eus_lock_holder_pid}" ]] && echo -e "${GRAY_R}#${RESET} PID      : ${eus_lock_holder_pid}"
+  [[ -n "${holder_pgid}" ]] && echo -e "${GRAY_R}#${RESET} PGID     : ${holder_pgid}"
+  [[ -n "${eus_lock_holder_user}" ]] && echo -e "${GRAY_R}#${RESET} User     : ${eus_lock_holder_user}"
+  [[ -n "${eus_lock_holder_tty}" ]] && echo -e "${GRAY_R}#${RESET} TTY      : ${eus_lock_holder_tty}"
+  [[ -n "${eus_lock_holder_started_human}" ]] && echo -e "${GRAY_R}#${RESET} Started  : ${eus_lock_holder_started_human}"
+  [[ -n "${eus_lock_holder_script}" ]] && echo -e "${GRAY_R}#${RESET} Script   : ${eus_lock_holder_script}"
+  echo -e "${GRAY_R}#${RESET} Runtime  : ${runtime_human}"
+  [[ -n "${eus_lock_holder_cmdline}" ]] && echo -e "${GRAY_R}#${RESET} Command  : ${eus_lock_holder_cmdline}"
+  echo ""
+}
+
+eus_lock_kill_holder() {
+  local holder_pgid current_pgid
+  eus_lock_read_metadata
+  if [[ -z "${eus_lock_holder_pid}" ]]; then
+    echo -e "${YELLOW}#${RESET} No lock holder metadata was found. Removing stale lock metadata..."
+    rm -f "${EUS_LOCK_META}" 2> /dev/null || true
+    return 0
+  fi
+  if ! kill -0 "${eus_lock_holder_pid}" 2> /dev/null; then
+    echo -e "${YELLOW}#${RESET} Lock holder PID ${eus_lock_holder_pid} is no longer running. Removing stale lock metadata..."
+    rm -f "${EUS_LOCK_META}" 2> /dev/null || true
+    return 0
+  fi
+  holder_pgid="$(eus_lock_get_holder_pgid)"
+  current_pgid="$(ps -o pgid= -p "$$" 2> /dev/null | xargs)"
+  if [[ -z "${holder_pgid}" ]]; then
+    echo -e "${RED}#${RESET} Failed to determine the process group of the active run.\n"
+    return 1
+  fi
+  if [[ "${holder_pgid}" == "${current_pgid}" ]]; then
+    echo -e "${RED}#${RESET} Refusing to terminate my own process group.\n"
+    return 1
+  fi
+  echo -e "${YELLOW}#${RESET} Terminating older run process group ${holder_pgid} (PID ${eus_lock_holder_pid})..."
+  kill -TERM -- "-${holder_pgid}" 2> /dev/null || true
+  for _ in {1..15}; do
+    if ! kill -0 "${eus_lock_holder_pid}" 2> /dev/null; then
+      break
+    fi
+    sleep 1
+  done
+  if kill -0 "${eus_lock_holder_pid}" 2> /dev/null; then
+    echo -e "${YELLOW}#${RESET} Older run did not exit after SIGTERM, sending SIGKILL to process group ${holder_pgid}..."
+    kill -KILL -- "-${holder_pgid}" 2> /dev/null || true
+  fi
+  for _ in {1..10}; do
+    if ! kill -0 "${eus_lock_holder_pid}" 2> /dev/null; then
+      rm -f "${EUS_LOCK_META}" 2> /dev/null || true
+      echo -e "${GREEN}#${RESET} Older run stopped successfully.\n"
+      return 0
+    fi
+    sleep 1
+  done
+  echo -e "${RED}#${RESET} Failed to stop the older run process group.\n"
+  return 1
+}
+
+eus_lock_menu() {
+  local lock_choice=""
+  while true; do
+    eus_lock_holder_is_alive || true
+    eus_lock_print_holder_message
+    echo -e "${GRAY_R}---${RESET}\\n"
+    echo -e " [   ${WHITE_R}1 ${RESET}   ]  |  Kill the active run and continue"
+    echo -e " [   ${WHITE_R}2 ${RESET}   ]  |  Bypass the lock and continue (dangerous)"
+    echo -e " [   ${WHITE_R}3 ${RESET}   ]  |  Exit"
+    echo ""
+    read -rp $'Your choice | \033[39m' lock_choice
+    case "${lock_choice}" in
+      1|"")
+        header
+        if eus_lock_kill_holder; then
+          if eus_lock_try_reacquire; then
+            return 0
+          fi
+          echo -e "${RED}#${RESET} Failed to acquire the lock after terminating the older run.\n"
+        fi
+        ;;
+      2)
+        header_red
+        echo -e "${YELLOW}#${RESET} Continuing without a lock may cause unexpected failures...\n"
+        script_option_bypass_lock="true"
+        return 0
+        ;;
+      3)
+        echo -e "${YELLOW}#${RESET} OK... Cancelling this run.\n"
+        exit 1
+        ;;
+      *)
+        header_red
+        echo -e "${GRAY_R}#${RESET} Option ${lock_choice} is not valid..."
+        sleep 3
+        ;;
+    esac
+  done
+}
+
+eus_acquire_lock() {
+  eus_lock_init_paths
+  if ! command -v flock > /dev/null 2>&1; then
+    header_red
+    echo -e "${YELLOW}#${RESET} The command \"flock\" is not available on this system..."
+    echo -e "${YELLOW}#${RESET} Continuing without script locking."
+    echo -e "${YELLOW}#${RESET} This may allow concurrent runs and can cause unexpected failures...\n"
+    script_option_bypass_lock="true"
+    return 0
+  fi
+  eval "exec {EUS_LOCK_FD}>\"${EUS_LOCK_FILE}\"" || {
+    header_red
+    echo -e "${RED}#${RESET} Failed to open lock file: ${EUS_LOCK_FILE}\n"
+    exit 1
+  }
+  if flock -n "${EUS_LOCK_FD}"; then
+    EUS_LOCK_ACQUIRED="true"
+    eus_lock_write_metadata
+    eus_lock_set_traps
+    return 0
+  fi
+  if [[ "${script_option_skip}" == "true" ]]; then
+    eus_lock_holder_is_alive || true
+    eus_lock_print_holder_message
+    if ! eus_lock_kill_holder; then
+      header_red
+      echo -e "${RED}#${RESET} Failed to stop the active run. Unable to continue with ${GREEN}--skip${RESET}.\n"
+      exit 1
+    fi
+    if ! eus_lock_try_reacquire; then
+      header_red
+      echo -e "${RED}#${RESET} Failed to acquire the lock after stopping the older run.\n"
+      exit 1
+    fi
+    EUS_LOCK_ACQUIRED="true"
+    eus_lock_write_metadata
+    eus_lock_set_traps
+    return 0
+  fi
+  eus_lock_holder_is_alive || true
+  eus_lock_menu
+  if [[ "${script_option_bypass_lock}" == "true" ]]; then
+    return 0
+  fi
+  EUS_LOCK_ACQUIRED="true"
+  eus_lock_write_metadata
+  eus_lock_set_traps
+}
 
 ###################################################################################################################################################################################################
 #                                                                                                                                                                                                 #
@@ -355,19 +638,28 @@ validate_http_proxy() {
 }
 
 locate_http_proxy() {
-  env_proxies="$(grep -sE "^[^#]*http_proxy|^[^#]*https_proxy" "/etc/environment" 2> /dev/null | awk -F '=' '{print $2}' | tr -d '"')"
-  profile_proxies="$(find /etc/profile.d/ -type f -exec sh -c 'grep -E "^[^#]*http_proxy|^[^#]*https_proxy" "$1" | awk -F "=" "{print \$2}" | tr -d "\"" ' _ {} \;)"
-  apt_proxies="$(grep -siE "^[^#]*proxy" /etc/apt/apt.conf /etc/apt/apt.conf.d/* 2> /dev/null | awk -F '"' '{print $2}')"
-  wget_proxies="$(grep -sE "^[^#]*http_proxy|^[^#]*https_proxy" "/etc/wgetrc" 2> /dev/null | awk -F '=' '{print $2}' | tr -d '"')"
+  env_proxies="$(grep -sE '^[^#]*http_proxy|^[^#]*https_proxy' '/etc/environment' 2> /dev/null | awk -F '=' '{print $2}' | tr -d '"')"
+  profile_proxies="$(find /etc/profile.d/ -type f -exec sh -c 'grep -E "^[^#]*http_proxy|^[^#]*https_proxy" "$1" | awk -F "=" "{print \$2}" | tr -d "\""' _ {} \;)"
+  apt_proxies="$(grep -siE '^[^#]*proxy' /etc/apt/apt.conf /etc/apt/apt.conf.d/* 2> /dev/null | awk -F '"' '{print $2}')"
+  wget_proxies="$(grep -sE '^[^#]*http_proxy|^[^#]*https_proxy' '/etc/wgetrc' 2> /dev/null | awk -F '=' '{print $2}' | tr -d '"')"
+  http_proxy=""
+  unset noproxy_curl_argument curl_proxy_arg
   if [[ -n "${env_proxies}" ]] || [[ -n "${profile_proxies}" ]] || [[ -n "${apt_proxies}" ]] || [[ -n "${wget_proxies}" ]]; then
-    mapfile -t all_proxies < <(printf "%s\n" "${env_proxies}" "${profile_proxies}" "${apt_proxies}" "${wget_proxies}" | sed 's:/*$::' | sort -u | grep -v '^$')
+    mapfile -t all_proxies < <(
+      printf "%s\n" "${env_proxies}" "${profile_proxies}" "${apt_proxies}" "${wget_proxies}" |
+      sed 's:/*$::' |
+      sort -u |
+      grep -v '^$'
+    )
     valid_proxies=()
     for proxy in "${all_proxies[@]}"; do
       if validate_http_proxy "${proxy}"; then
         valid_proxies+=("${proxy}")
       fi
     done
-    http_proxy="${valid_proxies[-1]}"
+    if ((${#valid_proxies[@]} > 0)); then
+      http_proxy="${valid_proxies[$((${#valid_proxies[@]} - 1))]}"
+    fi
     if [[ -n "$(command -v jq)" && -e "${eus_dir}/db/db.json" ]]; then
       if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
         json_proxies="$(printf '%s\n' "${valid_proxies[@]}" | jq -R -s 'split("\n") | map(select(length > 0))')"
@@ -497,13 +789,15 @@ update_eus_db() {
       eus_database_move
       unset update_at_start_script
     fi
-    json_system_dns_servers="$(echo "$system_dns_servers" | sed 's/[()]//g' | tr ' ' '\n' | jq -R . | jq -s . | jq -c .)"
-    if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
-      jq --argjson dns "$json_system_dns_servers" '.database["name-servers"] = $dns' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
-    else
-      jq '.database["name-servers"] = '"$json_system_dns_servers"'' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+    if [[ -n "${system_dns_servers}" ]]; then
+      json_system_dns_servers="$(echo "$system_dns_servers" | sed 's/[()]//g' | tr ' ' '\n' | jq -R . | jq -s . | jq -c .)"
+      if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
+        jq --argjson dns "$json_system_dns_servers" '.database["name-servers"] = $dns' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+      else
+        jq '.database["name-servers"] = '"$json_system_dns_servers"'' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+      fi
+      eus_database_move
     fi
-    eus_database_move
     unset update_at_support_file
   fi
   check_docker_setup
@@ -534,86 +828,298 @@ get_timezone() {
   timezone="$(date +"%Z")"; if [[ -n "$timezone" ]]; then return; fi
 }
 
+add_existing_path() {
+  local path
+  for path in "$@"; do
+    [[ -e "${path}" ]] && archive_inputs+=("${path}")
+  done
+}
+
+collect_uos_support_files() {
+  local support_zip
+  if command -v uosserver > /dev/null 2>&1; then
+    if command -v timeout > /dev/null 2>&1; then
+      while IFS= read -r support_zip; do
+        [[ -n "${support_zip}" && -f "${support_zip}" ]] && archive_inputs+=("${support_zip}")
+      done < <(timeout 300 uosserver support 2> /dev/null | grep -oE '/tmp/unifi[^ ]+\.zip')
+    else
+      while IFS= read -r support_zip; do
+        [[ -n "${support_zip}" && -f "${support_zip}" ]] && archive_inputs+=("${support_zip}")
+      done < <(uosserver support 2> /dev/null | grep -oE '/tmp/unifi[^ ]+\.zip')
+    fi
+  fi
+}
+
+register_support_file_in_db() {
+  local register_support_file_name="$1"
+  if [[ -f "${eus_dir}/db/db.json" && -n "$(command -v jq)" ]]; then
+    if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
+      jq '.scripts."'"${script_name}"'" |= . + {"support": ((.support // {}) + {("'"${register_support_file_name}"'"): {"abort-reason": "'"${abort_reason}"'","upload-results": ""}})}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+    else
+      jq --arg script_name "$script_name" --arg support_file_name "$register_support_file_name" --arg abort_reason "$abort_reason" '.scripts[$script_name] |= (. + {support: ((.support // {}) + {($support_file_name): {"abort-reason": $abort_reason,"upload-results": ""}})})' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+    fi
+    eus_database_move
+  fi
+}
+
+set_support_file_upload_result_in_db() {
+  local register_support_file_name="$1"
+  local register_upload_result="$2"
+  if [[ -f "${eus_dir}/db/db.json" && -n "$(command -v jq)" ]]; then
+    if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
+      jq '.scripts."'"${script_name}"'".support."'"${register_support_file_name}"'"."upload-results" = "'"${register_upload_result}"'"' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+    else
+      jq --arg script_name "$script_name" --arg support_file_name "$register_support_file_name" --arg upload_result "$register_upload_result" '.scripts[$script_name].support[$support_file_name]["upload-results"] = $upload_result' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+    fi
+    eus_database_move
+  fi
+}
+
+select_support_archive_type() {
+  support_archive_type=""
+  if dpkg -l xz-utils 2> /dev/null | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+    support_archive_type="tar.xz"
+  elif dpkg -l zstd 2> /dev/null | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+    support_archive_type="tar.zst"
+  elif dpkg -l tar 2> /dev/null | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+    support_archive_type="tar.gz"
+  elif dpkg -l zip 2> /dev/null | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+    support_archive_type="zip"
+  fi
+  [[ -n "${support_archive_type}" ]]
+}
+
+build_support_archive_inputs() {
+  archive_inputs=()
+  add_existing_path \
+    "/tmp/EUS" \
+    "${eus_dir}" \
+    "/usr/lib/unifi/logs" \
+    "/etc/apt/sources.list" \
+    "/etc/apt/sources.list.d/" \
+    "/etc/apt/preferences" \
+    "/etc/apt/keyrings" \
+    "/etc/apt/trusted.gpg.d/" \
+    "/etc/apt/preferences.d/" \
+    "/etc/default/unifi" \
+    "/etc/environment" \
+    "/etc/systemd/system/unifi.service.d/" \
+    "/lib/systemd/system/unifi.service" \
+    "/var/lib/apt/" \
+    "/usr/lib/unifi/data/db/version" \
+    "/var/lib/uosserver/"
+  local dpkg_log
+  for dpkg_log in /var/log/dpkg.log*; do
+    [[ -e "${dpkg_log}" ]] && archive_inputs+=("${dpkg_log}")
+  done
+  collect_uos_support_files
+}
+
+create_support_archive() {
+  local archive_target="$1"
+  local -a tar_cmd=()
+  local -a tar_excludes=(
+    "--exclude=${eus_dir}/go.tar.gz"
+    "--exclude=${eus_dir}/unifi_db"
+    "--exclude=${eus_dir}/tmp"
+    "--exclude=/usr/lib/unifi/logs/remote"
+  )
+  case "${support_archive_type}" in
+    tar.xz)
+      tar_cmd=(tar cJf "${archive_target}")
+      "${tar_cmd[@]}" "${tar_excludes[@]}" "${archive_inputs[@]}" &> /dev/null
+      ;;
+    tar.zst)
+      tar_cmd=(tar --use-compress-program=zstd -cf "${archive_target}")
+      "${tar_cmd[@]}" "${tar_excludes[@]}" "${archive_inputs[@]}" &> /dev/null
+      ;;
+    tar.gz)
+      tar_cmd=(tar czf "${archive_target}")
+      "${tar_cmd[@]}" "${tar_excludes[@]}" "${archive_inputs[@]}" &> /dev/null
+      ;;
+    zip)
+      zip -r "${archive_target}" "${archive_inputs[@]}" \
+        -x "${eus_dir}/go.tar.gz" \
+        -x "${eus_dir}/unifi_db/*" \
+        -x "${eus_dir}/tmp/*" \
+        -x "/usr/lib/unifi/logs/remote/*" &> /dev/null
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+create_additional_data_archive() {
+  local archive_target="$1"
+  shift
+  local -a tar_cmd=()
+  case "${support_archive_type}" in
+    tar.xz)
+      tar_cmd=(tar cJf "${archive_target}")
+      "${tar_cmd[@]}" "$@" &> /dev/null
+      ;;
+    tar.zst)
+      tar_cmd=(tar --use-compress-program=zstd -cf "${archive_target}")
+      "${tar_cmd[@]}" "$@" &> /dev/null
+      ;;
+    tar.gz)
+      tar_cmd=(tar czf "${archive_target}")
+      "${tar_cmd[@]}" "$@" &> /dev/null
+      ;;
+    zip)
+      zip -r "${archive_target}" "$@" &> /dev/null
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
 support_file() {
-  if [[ "${update_at_support_file}" != 'true' ]]; then update_at_support_file="true"; update_eus_db; fi
+  local support_dir="/tmp/EUS/support"
+  local system_properties_file
+  local system_properties_files
+  local ood_dir
+  local system_hostname=""
+  local system_kernel_name=""
+  local system_kernel_release=""
+  local system_kernel_version=""
+  local system_machine=""
+  local system_hardware=""
+  local system_os=""
+  local system_runlevel=""
+  local process_with_pid_1=""
+  local cpu_cores=""
+  local cpu_usage=""
+  local cpu_architecture=""
+  local cpu_type=""
+  local mem_total=""
+  local mem_free=""
+  local mem_available=""
+  local mem_used=""
+  local mem_used_percentage=""
+  local mem_buffers=""
+  local mem_cached=""
+  local mem_active=""
+  local mem_inactive=""
+  local mem_dirty=""
+  local swap_total=""
+  local swap_free=""
+  local swap_used=""
+  local swap_cached=""
+  local support_file_uuid=""
+  local support_archive_type=""
+  local support_file=""
+  local support_file_name=""
+  local support_file_time=""
+  local additional_support_file=""
+  local additional_support_file_name=""
+  local upload_result=""
+  local yes_no=""
+  local ubk_file=""
+  local dir=""
+  local ubk_files=()
+  local -a archive_inputs=()
+  if [[ "${update_at_support_file}" != 'true' ]]; then
+    update_at_support_file="true"
+    update_eus_db
+  fi
   get_timezone
-  if [[ "${set_lc_all}" == 'true' ]]; then if [[ -n "${original_lang}" ]]; then export LANG="${original_lang}"; else unset LANG; fi; if [[ -n "${original_lcall}" ]]; then export LC_ALL="${original_lcall}"; else unset LC_ALL; fi; fi
-  if [[ "${script_option_support_file}" == 'true' ]]; then header; abort_reason="Support File script option was issued"; fi
+  if [[ "${set_lc_all}" == 'true' ]]; then
+    if [[ -n "${original_lang}" ]]; then export LANG="${original_lang}"; else unset LANG; fi
+    if [[ -n "${original_lcall}" ]]; then export LC_ALL="${original_lcall}"; else unset LC_ALL; fi
+  fi
+  if [[ "${script_option_support_file}" == 'true' ]]; then
+    header
+    abort_reason="Support File script option was issued"
+  fi
   echo -e "${GRAY_R}#${RESET} Creating support file..."
   eus_directory_location="/tmp/EUS"
   eus_create_directories "support"
   check_unifi_folder_permissions_state="abort-install"
-  if [[ -d "/usr/lib/unifi" ]]; then check_unifi_folder_permissions; fi
-  if "$(which dpkg)" -l lsb-release 2> /dev/null | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then lsb_release -a &> "/tmp/EUS/support/lsb-release"; else cat /etc/os-release &> "/tmp/EUS/support/os-release"; fi
-  if [[ -n "$(command -v jq)" && "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
-    df -hP | awk 'BEGIN {print"{\"disk-usage\":["}{if($1=="Filesystem")next;if(a)print",";print"{\"mount\":\""$6"\",\"size\":\""$2"\",\"used\":\""$3"\",\"avail\":\""$4"\",\"use%\":\""$5"\"}";a++;}END{print"]}";}' | jq &> "/tmp/EUS/support/disk-usage.json"
-  else
-    df -h &> "/tmp/EUS/support/df"
+  if [[ -d "/usr/lib/unifi" ]]; then
+    check_unifi_folder_permissions
   fi
-  uname -a &> "/tmp/EUS/support/uname-results"
+  if dpkg -l lsb-release 2> /dev/null | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+    lsb_release -a &> "${support_dir}/lsb-release"
+  else
+    cat /etc/os-release &> "${support_dir}/os-release"
+  fi
+  if [[ -n "$(command -v jq)" && "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
+    df -hP | awk 'BEGIN {print"{\"disk-usage\":["}{if($1=="Filesystem")next;if(a)print",";print"{\"mount\":\""$6"\",\"size\":\""$2"\",\"used\":\""$3"\",\"avail\":\""$4"\",\"use%\":\""$5"\"}";a++;}END{print"]}";}' | jq &> "${support_dir}/disk-usage.json"
+  else
+    df -h &> "${support_dir}/df"
+  fi
+  uname -a &> "${support_dir}/uname-results"
   {
     echo -e "-----( lscpu )----- \n"; lscpu 2> /dev/null
     echo -e "-----( /proc/cpuinfo )----- \n"; cat /proc/cpuinfo 2> /dev/null
-  } >> "/tmp/EUS/support/cpu-details.log"
-  dmesg &> "/tmp/EUS/support/dmesg.log"
+  } >> "${support_dir}/cpu-details.log"
+  dmesg &> "${support_dir}/dmesg.log"
   {
     echo -e "-----( locale )----- \n"; locale 2> /dev/null
     echo -e "-----( locale --all-locales )----- \n"; locale --all-locales 2> /dev/null
     echo -e "-----( cat /etc/default/locale )----- \n"; cat /etc/default/locale 2> /dev/null
     echo -e "-----( cat /etc/locale.gen )----- \n"; cat /etc/locale.gen 2> /dev/null
     echo -e "-----( cat /etc/locale.alias )----- \n"; cat /etc/locale.alias 2> /dev/null
-  } >> "/tmp/EUS/support/locale-results.log"
+  } >> "${support_dir}/locale-results.log"
   {
     echo -e "-----( env )----- \n"; env 2> /dev/null
     echo -e "-----( cat /etc/environment )----- \n"; cat /etc/environment 2> /dev/null
-  } >> "/tmp/EUS/support/environment-results.log"
+  } >> "${support_dir}/environment-results.log"
   {
     echo -e "-----( --get-selections )----- \n"; update-alternatives --get-selections 2> /dev/null
     echo -e "-----( --display java )----- \n"; update-alternatives --display java 2> /dev/null
     echo -e "-----( JAVA_HOME results )----- \n"; grep -r 'JAVA_HOME' /etc/ 2> /dev/null
     echo -e "-----( readlink java )----- \n"; readlink -f /usr/bin/java 2> /dev/null
-  } >> "/tmp/EUS/support/java-details.log"
-  grep -is '^unifi:' /etc/passwd /etc/group &> "/tmp/EUS/support/unifi-user-group-results"
-  find /usr/sbin -name "unifi*" -type f -print0 | xargs -0 -I {} sh -c 'echo "\n------[ {} ]------\n"; cat "{}"; echo;' &> "/tmp/EUS/support/unifi-helper-results"
-  ps -p $$ -o command= &> "/tmp/EUS/support/script-usage"
-  echo "$PATH" &> "/tmp/EUS/support/PATH"
-  cp "${script_location}" "/tmp/EUS/support/${script_file_name}" &> /dev/null
-  "$(which dpkg)" -l | grep "mongo\\|oracle\\|openjdk\\|unifi\\|temurin" &> "/tmp/EUS/support/unifi-packages-list"
-  "$(which dpkg)" -l &> "/tmp/EUS/support/dpkg-packages-list"
-  journalctl -u unifi -p debug --since "1 week ago" --no-pager &> "/tmp/EUS/support/ujournal.log"
-  journalctl --since yesterday &> "/tmp/EUS/support/journal.log"
-  if [[ -e "/tmp/EUS/support/no-disk-space-info" ]]; then rm --force "/tmp/EUS/support/no-disk-space-info" &> /dev/null; fi
+  } >> "${support_dir}/java-details.log"
+  grep -is '^unifi:' /etc/passwd /etc/group &> "${support_dir}/unifi-user-group-results"
+  while IFS= read -r -d '' system_properties_file; do
+    {
+      printf '\n------[ %s ]------\n\n' "${system_properties_file}"
+      cat "${system_properties_file}"
+      printf '\n'
+    }
+  done < <(find /usr/sbin -name "unifi*" -type f -print0) &> "${support_dir}/unifi-helper-results"
+  ps -p $$ -o command= &> "${support_dir}/script-usage"
+  echo "$PATH" &> "${support_dir}/PATH"
+  cp "${script_location}" "${support_dir}/${script_file_name}" &> /dev/null
+  dpkg -l | grep -E "mongo|oracle|openjdk|unifi|temurin" &> "${support_dir}/unifi-packages-list"
+  dpkg -l &> "${support_dir}/dpkg-packages-list"
+  journalctl -u unifi -p debug --since "1 week ago" --no-pager &> "${support_dir}/ujournal.log"
+  journalctl --since yesterday --no-pager &> "${support_dir}/journal.log"
+  [[ -e "${support_dir}/no-disk-space-info" ]] && rm --force "${support_dir}/no-disk-space-info" &> /dev/null
   while read -r ood_dir; do
     {
-      echo -e "-----( du -sh ${ood_dir} )----- \n" &>> "/tmp/EUS/support/no-disk-space-info"
+      echo -e "-----( du -sh ${ood_dir} )----- \n" &>> "${support_dir}/no-disk-space-info"
       du -sh "${ood_dir}"
-      echo -e "-----( df -h ${ood_dir} )----- \n" &>> "/tmp/EUS/support/no-disk-space-info"
+      echo -e "-----( df -h ${ood_dir} )----- \n" &>> "${support_dir}/no-disk-space-info"
       df -h "${ood_dir}"
-      echo -e "-----( df -hi ${ood_dir} )----- \n" &>> "/tmp/EUS/support/no-disk-space-info"
+      echo -e "-----( df -hi ${ood_dir} )----- \n" &>> "${support_dir}/no-disk-space-info"
       df -hi "${ood_dir}"
-    }	&>> "/tmp/EUS/support/no-disk-space-info"
-  done < <(grep -i "no space left on device" "${eus_dir}"/logs/* | grep -oP '(?<=to )/[^: ]+' | sort -u)
-  if [[ "$(command -v timedatectl)" ]]; then
+    } &>> "${support_dir}/no-disk-space-info"
+  done < <(grep -i "no space left on device" "${eus_dir}"/logs/* 2> /dev/null | grep -oP '(?<=to )/[^: ]+' | sort -u)
+  if command -v timedatectl > /dev/null 2>&1; then
     {
       echo -e "-----( timedatectl )----- \n"
       if timedatectl --help | grep -ioq "\--all" 2> /dev/null; then timedatectl --all --no-pager 2> /dev/null; else timedatectl --no-pager 2> /dev/null; fi
       if timedatectl --help | grep -ioq "show-timesync" 2> /dev/null; then echo -e "\n-----( timedatectl show-timesync )----- \n"; timedatectl show-timesync --no-pager 2> /dev/null; fi
       if timedatectl --help | grep -ioq "timesync-status" 2> /dev/null; then echo -e "\n-----( timedatectl timesync-status )----- \n"; timedatectl timesync-status --no-pager 2> /dev/null; fi
-    } >> "/tmp/EUS/support/timedatectl"
+    } >> "${support_dir}/timedatectl"
   fi
-  ps axjf &> "/tmp/EUS/support/process-tree"
-  if [[ "$(command -v netstat)" ]]; then netstat -tulp &> "/tmp/EUS/support/netstat-results.log"; fi
-  if [[ "$(command -v ss)" ]]; then ss -ltnp &> "/tmp/EUS/support/ss-results.log"; fi
+  ps axjf &> "${support_dir}/process-tree"
+  if command -v netstat > /dev/null 2>&1; then netstat -tulp &> "${support_dir}/netstat-results.log"; fi
+  if command -v ss > /dev/null 2>&1; then ss -ltnp &> "${support_dir}/ss-results.log"; fi
   {
     echo -e "-----( Is systemd PID 1? )----- \n"; ps -p1 -o comm= 2> /dev/null
     echo -e "-----( Can we talk to systemd? )----- \n"; systemctl is-system-running 2> /dev/null
     echo -e "-----( Is logind up? )----- \n"; systemctl status systemd-logind 2> /dev/null
     echo -e "-----( Does loginctl work at all? )----- \n"; loginctl seat-status 2>/dev/null || loginctl 2>/dev/null || echo "loginctl not working" 2> /dev/null
     echo -e "-----( Is dbus running? )----- \n"; systemctl status dbus --no-pager 2>/dev/null || pgrep -x dbus-daemon >/dev/null
-  } >> "/tmp/EUS/support/systemd-status.log"
-  #
-  lsblk -iJ -fs &> "/tmp/EUS/support/disk-layout.json"
-  if [[ -n "$(command -v jq)" ]]; then
+  } >> "${support_dir}/systemd-status.log"
+  lsblk -iJ -fs &> "${support_dir}/disk-layout.json"
+  if command -v jq > /dev/null 2>&1; then
     system_hostname="$(uname --nodename)"
     system_kernel_name="$(uname --kernel-name)"
     system_kernel_release="$(uname --kernel-release)"
@@ -621,11 +1127,11 @@ support_file() {
     system_machine="$(uname --machine)"
     system_hardware="$(uname --hardware-platform)"
     system_os="$(uname --operating-system)"
-    if [[ -n "$(command -v runlevel)" ]]; then system_runlevel="$(runlevel | awk '{print $2}')"; else system_runlevel="command not found"; fi
+    if command -v runlevel > /dev/null 2>&1; then system_runlevel="$(runlevel | awk '{print $2}')"; else system_runlevel="command not found"; fi
     process_with_pid_1="$(ps -p 1 -o comm=)"
     cpu_cores="$(grep -ic processor /proc/cpuinfo)"
     cpu_usage="$(awk '{u=$2+$4; t=$2+$4+$5; if (NR==1){u1=u; t1=t;} else print ($2+$4-u1) * 100 / (t-t1) "%"; }' <(grep 'cpu ' /proc/stat) <(sleep 1;grep 'cpu ' /proc/stat))"
-    cpu_architecture="$("$(which dpkg)" --print-architecture)"
+    cpu_architecture="$(dpkg --print-architecture)"
     cpu_type="$(uname -p)"
     mem_total="$(grep "^MemTotal:" /proc/meminfo | awk '{print $2}')"
     mem_free="$(grep "^MemFree:" /proc/meminfo | awk '{print $2}')"
@@ -643,9 +1149,9 @@ support_file() {
     swap_cached="$(grep "^SwapCached:" /proc/meminfo | awk '{print $2}')"
     if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
       jq -n \
-        --argjson "system-stats" "$( 
+        --argjson "system-stats" "$(
           jq -n \
-            --argjson "system" "$( 
+            --argjson "system" "$(
               jq -n \
                 --arg system_hostname "${system_hostname}" \
                 --arg system_kernel_name "${system_kernel_name}" \
@@ -659,21 +1165,21 @@ support_file() {
                 --arg process_with_pid_1 "${process_with_pid_1}" \
                 "{ \"hostname\" : \"$system_hostname\", \"kernel-name\" : \"$system_kernel_name\", \"kernel-release\" : \"$system_kernel_release\", \"kernel-version\" : \"$system_kernel_version\", \"machine\" : \"$system_machine\", \"hardware\" : \"$system_hardware\", \"operating-system\" : \"$system_os\", \"timezone\" : \"$timezone\", \"runlevel\" : \"$system_runlevel\", \"init\" : \"$process_with_pid_1\" }" \
                 '$ARGS.named'
-              )" \
+            )" \
             '$ARGS.named' \
           jq -n \
-            --argjson "cpu" "$( 
+            --argjson "cpu" "$(
               jq -n \
                 --arg cpu_usage "${cpu_usage}" \
                 --arg cpu_cores "${cpu_cores}" \
                 --arg cpu_architecture "${cpu_architecture}" \
-                --arg cpu_type "${cpu_architecture}" \
+                --arg cpu_type "${cpu_type}" \
                 "{ \"usage\" : \"$cpu_usage\", \"cores\" : \"$cpu_cores\", \"architecture\" : \"$cpu_architecture\", \"type\" : \"$cpu_type\" }" \
                 '$ARGS.named'
-              )" \
+            )" \
             '$ARGS.named' \
           jq -n \
-            --argjson "memory" "$( 
+            --argjson "memory" "$(
               jq -n \
                 --arg mem_total "${mem_total}" \
                 --arg mem_free "${mem_free}" \
@@ -687,10 +1193,10 @@ support_file() {
                 --arg mem_dirty "${mem_dirty}" \
                 "{ \"total\" : \"$mem_total\", \"free\" : \"$mem_free\", \"available\" : \"$mem_available\", \"used\" : \"$mem_used\", \"used_percentage\" : \"$mem_used_percentage\", \"buffers\" : \"$mem_buffers\", \"cached\" : \"$mem_cached\", \"active\" : \"$mem_active\", \"inactive\" : \"$mem_inactive\", \"dirty\" : \"$mem_dirty\" }" \
                 '$ARGS.named'
-              )" \
+            )" \
             '$ARGS.named' \
           jq -n \
-            --argjson "swap" "$( 
+            --argjson "swap" "$(
               jq -n \
                 --arg swap_total "${swap_total}" \
                 --arg swap_free "${swap_free}" \
@@ -698,10 +1204,10 @@ support_file() {
                 --arg swap_cached "${swap_cached}" \
                 "{ \"total\" : \"$swap_total\", \"free\" : \"$swap_free\", \"used\" : \"$swap_used\", \"cached\" : \"$swap_cached\" }" \
                 '$ARGS.named'
-              )" \
+            )" \
             '$ARGS.named'
-          )" \
-        '$ARGS.named' &> "/tmp/EUS/support/sysstat.json"
+        )" \
+        '$ARGS.named' &> "${support_dir}/sysstat.json"
     else
       jq -n \
         --arg system_hostname "${system_hostname}" \
@@ -769,66 +1275,50 @@ support_file() {
             used: $swap_used,
             cached: $swap_cached
           }
-        }' &> "/tmp/EUS/support/sysstat.json"
+        }' &> "${support_dir}/sysstat.json"
     fi
   fi
-  find "${eus_dir}" -type d -print -o -type f -print &> "/tmp/EUS/support/dirs_and_files"
-  # Create a copy of the system.properties file and remove any mongodb PII
+  if [[ -e "${eus_dir}" ]]; then
+    find "${eus_dir}" -type d -print -o -type f -print &> "${support_dir}/dirs_and_files"
+  fi
   if [[ -d "/usr/lib/unifi/data/" ]]; then
     while read -r system_properties_files; do
       {
         echo -e "\n-----( ${system_properties_files} )----- \n"
         cat "${system_properties_files}"
-      } >> "/tmp/EUS/support/unifi.system.properties"
+      } >> "${support_dir}/unifi.system.properties"
     done < <(find /usr/lib/unifi/data/ -name "system.properties*" -type f)
-    if grep -sqE 'mongo\.password|mongo\.uri' "/tmp/EUS/support/unifi.system.properties"; then sed -i -e '/mongo.password/d' -e '/mongo.uri/d' "/tmp/EUS/support/unifi.system.properties"; echo "# Removed mongo.password and mongo.uri for privacy reasons" >> "/tmp/EUS/support/unifi.system.properties"; fi
+    if grep -sqE 'mongo\.password|mongo\.uri' "${support_dir}/unifi.system.properties"; then
+      sed -i -e '/mongo.password/d' -e '/mongo.uri/d' "${support_dir}/unifi.system.properties"
+      echo "# Removed mongo.password and mongo.uri for privacy reasons" >> "${support_dir}/unifi.system.properties"
+    fi
   fi
   if [[ "${unifi_core_system}" != 'true' && -n "$(apt-cache search debsums | awk '/debsums/{print$1}')" ]]; then
-    if ! [[ "$(command -v debsums)" ]]; then "${EUS_APT_ENV[@]}" env DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install debsums &>> "${eus_dir}/logs/apt.log"; fi
-    if [[ "$(command -v debsums)" ]]; then debsums -c &> "/tmp/EUS/support/debsums-check-results"; fi
+    if ! command -v debsums > /dev/null 2>&1; then
+      "${EUS_APT_ENV[@]}" env DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install debsums &>> "${eus_dir}/logs/apt.log"
+    fi
+    if command -v debsums > /dev/null 2>&1; then
+      debsums -c &> "${support_dir}/debsums-check-results"
+    fi
   fi
   support_file_time="$(date +%Y%m%d-%H%M-%S%N)"
-  if [[ -n "$(command -v jq)" && -f "${eus_dir}/db/db.json" ]]; then support_file_uuid="$(jq -r '.database.uuid' "${eus_dir}/db/db.json")-"; fi
-  if "$(which dpkg)" -l xz-utils 2> /dev/null | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
-    support_file="/tmp/eus-support-${support_file_uuid}${support_file_time}.tar.xz"
+  if [[ -n "$(command -v jq)" && -f "${eus_dir}/db/db.json" ]]; then
+    support_file_uuid="$(jq -r '.database.uuid' "${eus_dir}/db/db.json")-"
+  fi
+  build_support_archive_inputs
+  if select_support_archive_type; then
+    case "${support_archive_type}" in
+      tar.xz) support_file="/tmp/eus-support-${support_file_uuid}${support_file_time}.tar.xz" ;;
+      tar.zst) support_file="/tmp/eus-support-${support_file_uuid}${support_file_time}.tar.zst" ;;
+      tar.gz) support_file="/tmp/eus-support-${support_file_uuid}${support_file_time}.tar.gz" ;;
+      zip) support_file="/tmp/eus-support-${support_file_uuid}${support_file_time}.zip" ;;
+    esac
     support_file_name="$(basename "${support_file}")"
-    if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
-      jq '.scripts."'"${script_name}"'" |= . + {"support": (.support + {("'"${support_file_name}"'"): {"abort-reason": "'"${abort_reason}"'","upload-results": ""}})}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+    if create_support_archive "${support_file}"; then
+      register_support_file_in_db "${support_file_name}"
     else
-      jq --arg script_name "$script_name" --arg support_file_name "$support_file_name" --arg abort_reason "$abort_reason" '.scripts[$script_name] |= (. + {support: ((.support // {}) + {($support_file_name): {"abort-reason": $abort_reason,"upload-results": ""}})})' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
+      support_file=""
     fi
-    eus_database_move
-    tar cJvfh "${support_file}" --exclude="${eus_dir}/go.tar.gz" --exclude="${eus_dir}/unifi_db" --exclude="${eus_dir}/tmp" --exclude="/usr/lib/unifi/logs/remote" "/tmp/EUS" "${eus_dir}" "/usr/lib/unifi/logs" "/etc/apt/sources.list" "/etc/apt/sources.list.d/" "/etc/apt/preferences" "/etc/apt/keyrings" "/etc/apt/trusted.gpg.d/" "/etc/apt/preferences.d/" "/etc/default/unifi" "/etc/environment" "/var/log/dpkg.log"* "/etc/systemd/system/unifi.service.d/" "/lib/systemd/system/unifi.service" "/usr/lib/unifi/data/db/version" "/var/lib/uosserver/" &> /dev/null
-  elif "$(which dpkg)" -l zstd 2> /dev/null | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
-    support_file="/tmp/eus-support-${support_file_uuid}${support_file_time}.tar.zst"
-    support_file_name="$(basename "${support_file}")"
-    if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
-      jq '.scripts."'"${script_name}"'" |= . + {"support": (.support + {("'"${support_file_name}"'"): {"abort-reason": "'"${abort_reason}"'","upload-results": ""}})}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
-    else
-      jq --arg script_name "$script_name" --arg support_file_name "$support_file_name" --arg abort_reason "$abort_reason" '.scripts[$script_name] |= (. + {support: ((.support // {}) + {($support_file_name): {"abort-reason": $abort_reason,"upload-results": ""}})})' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
-    fi
-    eus_database_move
-    tar --use-compress-program=zstd -cvf "${support_file}" --exclude="${eus_dir}/go.tar.gz" --exclude="${eus_dir}/unifi_db" --exclude="${eus_dir}/tmp" --exclude="/usr/lib/unifi/logs/remote" "/tmp/EUS" "${eus_dir}" "/usr/lib/unifi/logs" "/etc/apt/sources.list" "/etc/apt/sources.list.d/" "/etc/apt/preferences" "/etc/apt/keyrings" "/etc/apt/trusted.gpg.d/" "/etc/apt/preferences.d/" "/etc/default/unifi" "/etc/environment" "/var/log/dpkg.log"* "/etc/systemd/system/unifi.service.d/" "/lib/systemd/system/unifi.service" "/usr/lib/unifi/data/db/version" "/var/lib/uosserver/" &> /dev/null
-  elif "$(which dpkg)" -l tar 2> /dev/null | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
-    support_file="/tmp/eus-support-${support_file_uuid}${support_file_time}.tar.gz"
-    support_file_name="$(basename "${support_file}")"
-    if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
-      jq '.scripts."'"${script_name}"'" |= . + {"support": (.support + {("'"${support_file_name}"'"): {"abort-reason": "'"${abort_reason}"'","upload-results": ""}})}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
-    else
-      jq --arg script_name "$script_name" --arg support_file_name "$support_file_name" --arg abort_reason "$abort_reason" '.scripts[$script_name] |= (. + {support: ((.support // {}) + {($support_file_name): {"abort-reason": $abort_reason,"upload-results": ""}})})' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
-    fi
-    eus_database_move
-    tar czvfh "${support_file}" --exclude="${eus_dir}/go.tar.gz" --exclude="${eus_dir}/unifi_db" --exclude="${eus_dir}/tmp" --exclude="/usr/lib/unifi/logs/remote" "/tmp/EUS" "${eus_dir}" "/usr/lib/unifi/logs" "/etc/apt/sources.list" "/etc/apt/sources.list.d/" "/etc/apt/preferences" "/etc/apt/keyrings" "/etc/apt/trusted.gpg.d/" "/etc/apt/preferences.d/" "/etc/default/unifi" "/etc/environment" "/var/log/dpkg.log"* "/etc/systemd/system/unifi.service.d/" "/lib/systemd/system/unifi.service" "/usr/lib/unifi/data/db/version" "/var/lib/uosserver/" &> /dev/null
-  elif "$(which dpkg)" -l zip 2> /dev/null | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
-    support_file="/tmp/eus-support-${support_file_uuid}${support_file_time}.zip"
-    support_file_name="$(basename "${support_file}")"
-    if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
-      jq '.scripts."'"${script_name}"'" |= . + {"support": (.support + {("'"${support_file_name}"'"): {"abort-reason": "'"${abort_reason}"'","upload-results": ""}})}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
-    else
-      jq --arg script_name "$script_name" --arg support_file_name "$support_file_name" --arg abort_reason "$abort_reason" '.scripts[$script_name] |= (. + {support: ((.support // {}) + {($support_file_name): {"abort-reason": $abort_reason,"upload-results": ""}})})' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
-    fi
-    eus_database_move
-    zip -r "${support_file}" "/tmp/EUS/" "${eus_dir}/" "/usr/lib/unifi/logs/" "/etc/apt/sources.list" "/etc/apt/sources.list.d/" "/etc/apt/preferences" "/etc/apt/keyrings" "/etc/apt/trusted.gpg.d/" "/etc/apt/preferences.d/" "/etc/default/unifi" "/etc/environment" "/var/log/dpkg.log"* "/etc/systemd/system/unifi.service.d/" "/lib/systemd/system/unifi.service" "/usr/lib/unifi/data/db/version" "/var/lib/uosserver/" -x "${eus_dir}/go.tar.gz" -x "${eus_dir}/unifi_db/*" -x "${eus_dir}/tmp" -x "/usr/lib/unifi/logs/remote" &> /dev/null
   fi
   if [[ -n "${support_file}" ]]; then
     echo -e "${GRAY_R}#${RESET} Support file has been created here: ${support_file} \\n"
@@ -836,62 +1326,40 @@ support_file() {
       if [[ "$(jq -r '.database["support-file-upload"]' "${eus_dir}/db/db.json")" != 'true' ]]; then
         read -rp $'\033[39m#\033[0m Do you want to upload the support file so that Glenn R. can review it and improve the script? (Y/n) ' yes_no
         case "$yes_no" in
-             [Nn]*) ;;
-             *) eus_support_one_time_upload="true";;
+          [Nn]*) ;;
+          *) eus_support_one_time_upload="true" ;;
         esac
       fi
       if [[ "$(jq -r '.database["support-file-upload"]' "${eus_dir}/db/db.json")" == 'true' ]] || [[ "${eus_support_one_time_upload}" == 'true' ]]; then
         upload_result="$(curl "${curl_argument[@]}" -X POST -F "file=@${support_file}" "https://api.glennr.nl/api/eus-support" 2> /dev/null | jq -r '.[]' 2> /dev/null)"
-        if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
-          jq '.scripts."'"${script_name}"'".support."'"${support_file_name}"'"."upload-results" = "'"${upload_result}"'"' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
-        else
-          jq --arg script_name "$script_name" --arg support_file_name "$support_file_name" --arg upload_result "$upload_result" '.scripts[$script_name].support[$support_file_name]["upload-results"] = $upload_result' "${eus_dir}/db/db.json"
-        fi
-        eus_database_move
+        set_support_file_upload_result_in_db "${support_file_name}" "${upload_result}"
         if grep -sqE -m 1 "Error while running DB migration" "/usr/lib/unifi/logs/server.log"; then
-          ubk_files=()
           while read -r dir; do
-            ubk_file="$(find "$dir" -type f -name "*.unf" -printf "%T@ %p\n" 2>/dev/null | sort -nr | head -n 1 | awk '{print $2}')"
-            if [[ -f "${ubk_file}" ]]; then ubk_files+=("${ubk_file}"); fi
-          done < <(find "$(readlink -f /usr/lib/unifi/data)" -type d -name "*backup*")
+            ubk_file="$(find "$dir" -type f -name "*.unf" -printf "%T@ %p\n" 2> /dev/null | sort -nr | head -n 1 | awk '{print $2}')"
+            if [[ -f "${ubk_file}" ]]; then
+              ubk_files+=("${ubk_file}")
+            fi
+          done < <(find "$(readlink -f /usr/lib/unifi/data)" -type d -name "*backup*" 2> /dev/null)
           if (( "${#ubk_files[@]}" )); then
-            if "$(which dpkg)" -l xz-utils 2> /dev/null | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
-              tar cJvfh "/tmp/additional-data-${support_file_name}" "${ubk_files[@]}" &> /dev/null
-            elif "$(which dpkg)" -l zstd 2> /dev/null | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
-              tar --use-compress-program=zstd -cvf "/tmp/additional-data-${support_file_name}" "${ubk_files[@]}" &> /dev/null
-            elif "$(which dpkg)" -l tar 2> /dev/null | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
-              tar czvfh "/tmp/additional-data-${support_file_name}" "${ubk_files[@]}" &> /dev/null
-            elif "$(which dpkg)" -l zip 2> /dev/null | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
-              zip -r "/tmp/additional-data-${support_file_name}" "${ubk_files[@]}" &> /dev/null
+            additional_support_file="/tmp/additional-data-${support_file_name}"
+            additional_support_file_name="$(basename "${additional_support_file}")"
+            if create_additional_data_archive "${additional_support_file}" "${ubk_files[@]}"; then
+              register_support_file_in_db "${additional_support_file_name}"
+              upload_result="$(curl "${curl_argument[@]}" -X POST -F "file=@${additional_support_file}" "https://api.glennr.nl/api/eus-support" 2> /dev/null | jq -r '.[]' 2> /dev/null)"
+              rm --force "${additional_support_file}" &> /dev/null
+              set_support_file_upload_result_in_db "${additional_support_file_name}" "${upload_result}"
             fi
-            if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
-              jq '.scripts."'"${script_name}"'" |= . + {"support": (.support + {("'"additional-data-${support_file_name}"'"): {"abort-reason": "'"${abort_reason}"'","upload-results": ""}})}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
-            else
-              jq --arg script_name "$script_name" --arg support_file_name "additional-data-${support_file_name}" --arg abort_reason "$abort_reason" '.scripts[$script_name] |= (. + {support: ((.support // {}) + {($support_file_name): {"abort-reason": $abort_reason,"upload-results": ""}})})' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
-            fi
-            eus_database_move
-            upload_result="$(curl "${curl_argument[@]}" -X POST -F "file=@/tmp/additional-data-${support_file_name}" "https://api.glennr.nl/api/eus-support" 2> /dev/null | jq -r '.[]' 2> /dev/null)"
-            rm --force "/tmp/additional-data-${support_file_name}" &> /dev/null
-            if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
-              jq '.scripts."'"${script_name}"'".support."'"additional-data-${support_file_name}"'"."upload-results" = "'"${upload_result}"'"' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
-            else
-              jq --arg script_name "$script_name" --arg support_file_name "additional-data-${support_file_name}" --arg upload_result "$upload_result" '.scripts[$script_name].support[$support_file_name]["upload-results"] = $upload_result' "${eus_dir}/db/db.json"
-            fi
-            eus_database_move
           fi
         fi
       else
         upload_result="skipped"
-        if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
-          jq '.scripts."'"${script_name}"'".support."'"${support_file_name}"'"."upload-results" = "'"${upload_result}"'"' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
-        else
-          jq --arg script_name "$script_name" --arg support_file_name "$support_file_name" --arg upload_result "$upload_result" '.scripts[$script_name].support[$support_file_name]["upload-results"] = $upload_result' "${eus_dir}/db/db.json"
-        fi
-        eus_database_move
+        set_support_file_upload_result_in_db "${support_file_name}" "${upload_result}"
       fi
     fi
   fi
-  if [[ "${script_option_support_file}" == 'true' ]]; then exit 0; fi
+  if [[ "${script_option_support_file}" == 'true' ]]; then
+    exit 0
+  fi
 }
 
 abort() {
@@ -1067,8 +1535,10 @@ start_script() {
   if ! [[ -f "${script_location}" ]]; then header_red; echo -e "${YELLOW}#${RESET} The script needs to be saved on the disk in order to work properly, please follow the instructions...\\n${YELLOW}#${RESET} Usage: curl -sO https://get.glennr.nl/unifi/install/install_latest/unifi-latest.sh && bash unifi-latest.sh\\n\\n"; exit 1; fi
   script_file_name="$(basename "${BASH_SOURCE[0]}")"
   script_name="$(grep -i "# Script" "${script_location}" | head -n 1 | cut -d'|' -f2 | sed -e 's/^ //g')"
-  eus_directories
+  script_name_safe="$(printf '%s' "${script_name}" | tr '[:upper:]' '[:lower:]' | sed -e 's/[^a-z0-9]/-/g' -e 's/-\+/-/g' -e 's/^-//' -e 's/-$//')"
   start_script_header
+  eus_acquire_lock
+  eus_directories
   if [[ "${update_at_start_script}" != 'true' ]]; then update_at_start_script="true"; update_eus_db; fi
   if pgrep -f unattended-upgrade &> /dev/null; then if systemctl stop unattended-upgrades &>> "${eus_dir}/logs/unattended-upgrades.log"; then stopped_unattended_upgrade="true"; fi; fi
 }
@@ -1897,116 +2367,163 @@ reverse_check_add_mongodb_repo_variable() {
   fi
 }
 
-# https://github.com/AmazedMender16/mongodb-no-avx-patch
-add_glennr_mongod_repo() {
+add_glennr_repo() {
+  local repo_family="${1}"   # mongod or temurin
+  local repo_version="${2}"  # 5.0 / 8.0 / 25 / etc
   check_dns apt.glennr.nl
   if [[ "${force_http_repositories}" != 'true' ]]; then repo_http_https="https"; else repo_http_https="http"; fi
+  local repo_component=""
+  local repo_display_version=""
+  case "${repo_family}" in
+    mongod)
+      repo_display_version="${repo_version}"
+      repo_component="mongod/${repo_version}"
+      ;;
+    temurin)
+      repo_display_version="${repo_version}"
+      repo_component="temurin/${repo_version}"
+      ;;
+    *)
+      abort_reason="Unsupported Glenn R. APT repository type: ${repo_family}"
+      abort
+      ;;
+  esac
+  if [[ "${os_codename}" =~ (stretch) ]]; then
+    repo_codename="repo stretch"
+    glennr_apt_key_name="glennr-apt-public-rsa"
+  elif [[ "${os_codename}" =~ (buster|bullseye|bookworm|trixie|forky) ]]; then
+    repo_codename="repo ${os_codename}"
+    glennr_apt_key_name="glennr-apt-public-ed25519"
+  elif [[ "${os_codename}" =~ (unstable) ]]; then
+    repo_codename="repo forky"
+    glennr_apt_key_name="glennr-apt-public-ed25519"
+  elif [[ "${os_codename}" =~ (xenial|sarah|serena|sonya|sylvia|loki) ]]; then
+    repo_codename="repo xenial"
+    glennr_apt_key_name="glennr-apt-public-rsa"
+  elif [[ "${os_codename}" =~ (bionic|tara|tessa|tina|tricia|hera|juno) ]]; then
+    repo_codename="repo bionic"
+    glennr_apt_key_name="glennr-apt-public-rsa"
+  elif [[ "${os_codename}" =~ (focal|groovy|hirsute|impish) ]]; then
+    repo_codename="repo focal"
+    glennr_apt_key_name="glennr-apt-public-ed25519"
+  elif [[ "${os_codename}" =~ (jammy|kinetic|lunar|mantic) ]]; then
+    repo_codename="repo jammy"
+    glennr_apt_key_name="glennr-apt-public-ed25519"
+  elif [[ "${os_codename}" =~ (noble|oracular) ]]; then
+    repo_codename="repo noble"
+    glennr_apt_key_name="glennr-apt-public-ed25519"
+  elif [[ "${os_codename}" =~ (plucky|questing|resolute) ]]; then
+    repo_codename="repo plucky"
+    glennr_apt_key_name="glennr-apt-public-ed25519"
+  else
+    repo_codename="repo xenial"
+    glennr_apt_key_name="glennr-apt-public-rsa"
+  fi
+  if [[ "${try_http_glennr_mongod_repo}" == 'true' ]]; then
+    repo_http_https="http"
+    try_http_glennr_repo_text_1=" using the HTTP protocol"
+    try_http_glennr_repo_text_2=" with the HTTP protocol"
+  fi
+  if ! gpg --list-packets "/etc/apt/keyrings/${glennr_apt_key_name}.gpg" &> /dev/null; then
+    echo -e "${GRAY_R}#${RESET} Adding key for the Glenn R. APT Repository..."
+    aptkey_depreciated
+    echo -e "$(date +%F-%T.%6N) | apt.glennr.nl repository key.\n" &>> "${eus_dir}/logs/repository-keys.log"
+    if [[ "${apt_key_deprecated}" == 'true' ]]; then
+      curl "${curl_argument[@]}" -fSL "${repo_http_https}://get.glennr.nl/apt/keys/${glennr_apt_key_name}.asc" 2>&1 | tee -a "${eus_dir}/logs/repository-keys.log" | gpg -o "/etc/apt/keyrings/${glennr_apt_key_name}.gpg" --dearmor --yes &> /dev/null
+      glennr_pipe_status=( "${PIPESTATUS[@]}" )
+      glennr_curl_exit_status="${glennr_pipe_status[0]}"
+      glennr_gpg_exit_status="${glennr_pipe_status[2]}"
+      if [[ "${glennr_curl_exit_status}" -eq "0" && "${glennr_gpg_exit_status}" -eq "0" && -s "/etc/apt/keyrings/${glennr_apt_key_name}.gpg" ]]; then
+        echo -e "${GREEN}#${RESET} Successfully added the key for the Glenn R. APT Repository! \n"
+        signed_by_value=" signed-by=/etc/apt/keyrings/${glennr_apt_key_name}.gpg"
+        deb822_signed_by_value="\nSigned-By: /etc/apt/keyrings/${glennr_apt_key_name}.gpg"
+        repository_key_location="/etc/apt/keyrings/${glennr_apt_key_name}.gpg"
+        check_repository_key_permissions
+      else
+        abort_reason="Failed to add the key for the Glenn R. APT Repository."
+        abort
+      fi
+    else
+      curl "${curl_argument[@]}" -fSL "${repo_http_https}://get.glennr.nl/apt/keys/${glennr_apt_key_name}.asc" 2>&1 | tee -a "${eus_dir}/logs/repository-keys.log" | apt-key add - &> /dev/null
+      glennr_pipe_status=( "${PIPESTATUS[@]}" )
+      glennr_curl_exit_status="${glennr_pipe_status[0]}"
+      glennr_apt_key_exit_status="${glennr_pipe_status[2]}"
+      if [[ "${glennr_curl_exit_status}" -eq "0" && "${glennr_apt_key_exit_status}" -eq "0" ]]; then
+        echo -e "${GREEN}#${RESET} Successfully added the key for the Glenn R. APT Repository! \n"
+      else
+        abort_reason="Failed to add the key for the Glenn R. APT Repository."
+        abort
+      fi
+    fi
+  else
+    if [[ "${apt_key_deprecated}" == 'true' ]]; then
+      signed_by_value=" signed-by=/etc/apt/keyrings/${glennr_apt_key_name}.gpg"
+      deb822_signed_by_value="\nSigned-By: /etc/apt/keyrings/${glennr_apt_key_name}.gpg"
+    fi
+  fi
+  echo -e "${GRAY_R}#${RESET} Adding the Glenn R. APT repository for ${repo_family} ${repo_display_version}${try_http_glennr_repo_text_1}..."
+  if [[ "${architecture}" == 'arm64' ]]; then
+    arch="arch=arm64"
+  elif [[ "${architecture}" == 'amd64' ]]; then
+    arch="arch=amd64"
+  else
+    arch="arch=amd64,arm64"
+  fi
+  if [[ "${use_deb822_format}" == 'true' ]]; then
+    repo_entry="Types: deb\nURIs: ${repo_http_https}://apt.glennr.nl/$(echo "${repo_codename}" | awk -F' ' '{print $1}')\nSuites: $(echo "${repo_codename}" | awk -F' ' '{print $2}')\nComponents: ${repo_component}\nArchitectures: ${arch//arch=/}${deb822_signed_by_value}"
+  else
+    repo_entry="deb [ ${arch}${signed_by_value} ] ${repo_http_https}://apt.glennr.nl/${repo_codename} ${repo_component}"
+  fi
+  repo_file="/etc/apt/sources.list.d/glennr-${repo_family}-${repo_display_version}.${source_file_format}"
+  if echo -e "${repo_entry}" > "${repo_file}"; then
+    echo -e "${GREEN}#${RESET} Successfully added the Glenn R. APT repository for ${repo_family} ${repo_display_version}${try_http_glennr_repo_text_2}!\n"
+    glennr_mongod_repository_check
+    run_apt_get_update_with_sha1_fallback
+  else
+    abort_reason="Failed to add the Glenn R. APT repository for ${repo_family} ${repo_display_version}${try_http_glennr_repo_text_2}."
+    abort
+  fi
+  unset signed_by_value
+  unset deb822_signed_by_value
+  unset try_http_glennr_repo_text_1
+  unset try_http_glennr_repo_text_2
+}
+
+# https://github.com/AmazedMender16/mongodb-no-avx-patch
+add_glennr_mongod_repo() {
   glennr_mongod_v="$("$(which dpkg)" -l | grep "${gr_mongod_name}" | grep -i "^ii\\|^hi\\|^ri\\|^pi\\|^ui" | awk '{print $3}' | sed 's/\.//g' | sed 's/.*://' | sed 's/-.*//g' | sed 's/+.*//g' | sort -V | tail -n 1)"
   if [[ "${glennr_mongod_v::2}" == '50' ]] || [[ "${add_mongod_50_repo}" == 'true' ]]; then
     mongod_version_major_minor="5.0"
-    mongod_repo_type="mongod/5.0"
   fi
   if [[ "${glennr_mongod_v::2}" == '60' ]] || [[ "${add_mongod_60_repo}" == 'true' ]]; then
     mongod_version_major_minor="6.0"
-    mongod_repo_type="mongod/6.0"
   fi
   if [[ "${glennr_mongod_v::2}" == '70' ]] || [[ "${add_mongod_70_repo}" == 'true' ]]; then
     mongod_version_major_minor="7.0"
-    mongod_repo_type="mongod/7.0"
   fi
   if [[ "${glennr_mongod_v::2}" == '80' ]] || [[ "${add_mongod_80_repo}" == 'true' ]]; then
     mongod_version_major_minor="8.0"
-    mongod_repo_type="mongod/8.0"
   fi
-  if [[ "${os_codename}" =~ (stretch) ]]; then
-    mongod_codename="repo stretch"
-  elif [[ "${os_codename}" =~ (buster|bullseye|bookworm|trixie|forky) ]]; then
-    mongod_codename="repo ${os_codename}"
-  elif [[ "${os_codename}" =~ (unstable) ]]; then
-    mongod_codename="repo forky"
-  elif [[ "${os_codename}" =~ (utopic|vivid|wily|yakkety|zesty|artful|xenial|sarah|serena|sonya|sylvia|loki) ]]; then
-    mongod_codename="repo xenial"
-  elif [[ "${os_codename}" =~ (bionic|tara|tessa|tina|tricia|hera|juno) ]]; then
-    mongod_codename="repo bionic"
-  elif [[ "${os_codename}" =~ (focal|groovy|hirsute|impish) ]]; then
-    mongod_codename="repo focal"
-  elif [[ "${os_codename}" =~ (jammy|kinetic|lunar|mantic) ]]; then
-    mongod_codename="repo jammy"
-  elif [[ "${os_codename}" =~ (noble|oracular) ]]; then
-    mongod_codename="repo noble"
-  elif [[ "${os_codename}" =~ (plucky|questing|resolute) ]]; then
-    mongod_codename="repo plucky"
-  else
-    mongod_codename="repo xenial"
-  fi
-  if [[ "${try_http_glennr_mongod_repo}" == 'true' ]]; then repo_http_https="http"; try_http_glennr_mongod_repo_text_1=" using the HTTP protocol"; try_http_glennr_mongod_repo_text_2=" with the HTTP protocol"; fi
   if [[ -n "${mongod_version_major_minor}" ]]; then
-    if ! gpg --list-packets "/etc/apt/keyrings/apt-glennr.gpg" &> /dev/null; then
-      echo -e "${GRAY_R}#${RESET} Adding key for the Glenn R. APT Repository..."
-      aptkey_depreciated
-      if [[ "${apt_key_deprecated}" == 'true' ]]; then
-        echo -e "$(date +%F-%T.%6N) | apt.glennr.nl repository key.\\n" &>> "${eus_dir}/logs/repository-keys.log"
-        if curl "${curl_argument[@]}" -fSL "${repo_http_https}://get.glennr.nl/apt/keys/apt-glennr.asc" 2>&1 | tee -a "${eus_dir}/logs/repository-keys.log" | gpg -o "/etc/apt/keyrings/apt-glennr.gpg" --dearmor --yes &> /dev/null; then
-          glennr_curl_exit_status="${PIPESTATUS[0]}"
-          glennr_gpg_exit_status="${PIPESTATUS[2]}"
-          if [[ "${glennr_curl_exit_status}" -eq "0" && "${glennr_gpg_exit_status}" -eq "0" && -s "/etc/apt/keyrings/apt-glennr.gpg" ]]; then
-            echo -e "${GREEN}#${RESET} Successfully added the key for the Glenn R. APT Repository! \\n"
-            signed_by_value=" signed-by=/etc/apt/keyrings/apt-glennr.gpg"; deb822_signed_by_value="\nSigned-By: /etc/apt/keyrings/apt-glennr.gpg"
-            repository_key_location="/etc/apt/keyrings/apt-glennr.gpg"; check_repository_key_permissions
-          else
-            abort_reason="Failed to add the key for the Glenn R. APT Repository."
-            abort
-          fi
-        fi
-      else
-        echo -e "$(date +%F-%T.%6N) | apt.glennr.nl repository key.\\n" &>> "${eus_dir}/logs/repository-keys.log"
-        if curl "${curl_argument[@]}" -fSL "${repo_http_https}://get.glennr.nl/apt/keys/apt-glennr.asc" 2>&1 | tee -a "${eus_dir}/logs/repository-keys.log" | apt-key add - &> /dev/null; then
-          glennr_curl_exit_status="${PIPESTATUS[0]}"
-          glennr_apt_key_exit_status="${PIPESTATUS[2]}"
-          if [[ "${glennr_curl_exit_status}" -eq "0" && "${glennr_apt_key_exit_status}" -eq "0" ]]; then
-            echo -e "${GREEN}#${RESET} Successfully added the key for the Glenn R. APT Repository! \\n"
-          else
-            abort_reason="Failed to add the key for the Glenn R. APT Repository."
-            abort
-          fi
-        fi
+    add_glennr_repo "mongod" "${mongod_version_major_minor}"
+    if [[ "${mongodb_key_update}" != 'true' ]]; then
+      mongod_upgrade_to_version_with_dot="$(apt-cache policy "${gr_mongod_name}" | grep -i "${mongo_version_max_with_dot}" | grep -i Candidate | sed -e 's/ //g' -e 's/*//g' | cut -d':' -f2)"
+      if [[ -z "${mongod_upgrade_to_version_with_dot}" ]]; then
+        mongod_upgrade_to_version_with_dot="$(apt-cache policy "${gr_mongod_name}" | grep -i "${mongo_version_max_with_dot}" | sed -e 's/500//g' -e 's/-1//g' -e 's/100//g' -e 's/ //g' -e '/http/d' -e 's/*//g' | cut -d':' -f2 | sed '/mongod/d' | sed 's/*//g' | sort -r -V | head -n 1)"
       fi
-    else
-      if [[ "${apt_key_deprecated}" == 'true' ]]; then signed_by_value=" signed-by=/etc/apt/keyrings/apt-glennr.gpg"; deb822_signed_by_value="\nSigned-By: /etc/apt/keyrings/apt-glennr.gpg"; fi
-    fi
-    echo -e "${GRAY_R}#${RESET} Adding the Glenn R. APT repository for mongod ${mongod_version_major_minor}${try_http_glennr_mongod_repo_text_1}..."
-    if [[ "${architecture}" == 'arm64' ]]; then arch="arch=arm64"; elif [[ "${architecture}" == 'amd64' ]]; then arch="arch=amd64"; else arch="arch=amd64,arm64"; fi
-    if [[ "${use_deb822_format}" == 'true' ]]; then
-      # DEB822 format
-      mongod_repo_entry="Types: deb\nURIs: ${repo_http_https}://apt.glennr.nl/$(echo "${mongod_codename}" | awk -F" " '{print $1}')\nSuites: $(echo "${mongod_codename}" | awk -F" " '{print $2}')\nComponents: ${mongod_repo_type}\nArchitectures: ${arch//arch=/}${deb822_signed_by_value}"
-    else
-      # Traditional format
-      mongod_repo_entry="deb [ ${arch}${signed_by_value} ] ${repo_http_https}://apt.glennr.nl/${mongod_codename} ${mongod_repo_type}"
-    fi
-    if echo -e "${mongod_repo_entry}" &> "/etc/apt/sources.list.d/glennr-mongod-${mongod_version_major_minor}.${source_file_format}"; then
-      echo -e "${GREEN}#${RESET} Successfully added the Glenn R. APT repository for mongod ${mongod_version_major_minor}${try_http_glennr_mongod_repo_text_2}!\\n"
-      glennr_mongod_repository_check
-      if [[ "${mongodb_key_update}" != 'true' ]]; then
-        run_apt_get_update_with_sha1_fallback
-        mongod_upgrade_to_version_with_dot="$(apt-cache policy "${gr_mongod_name}" | grep -i "${mongo_version_max_with_dot}" | grep -i Candidate | sed -e 's/ //g' -e 's/*//g' | cut -d':' -f2)"
-        if [[ -z "${mongod_upgrade_to_version_with_dot}" ]]; then mongod_upgrade_to_version_with_dot="$(apt-cache policy "${gr_mongod_name}" | grep -i "${mongo_version_max_with_dot}" | sed -e 's/500//g' -e 's/-1//g' -e 's/100//g' -e 's/ //g' -e '/http/d' -e 's/*//g' | cut -d':' -f2 | sed '/mongod/d' | sed 's/*//g' | sort -r -V | head -n 1)"; fi
-        if [[ -z "${mongod_upgrade_to_version_with_dot}" && "${try_http_glennr_mongod_repo}" != "true" ]]; then try_http_glennr_mongod_repo="true"; add_glennr_mongod_repo; return; fi
-        mongod_upgrade_to_version="${mongod_upgrade_to_version_with_dot//./}"
-        if [[ "${mongod_upgrade_to_version::2}" == "${mongo_version_max}" ]]; then
-          install_mongod_version="${mongod_upgrade_to_version_with_dot}"
-          install_mongod_version_with_equality_sign="=${mongod_upgrade_to_version_with_dot}"
-        fi
+      if [[ -z "${mongod_upgrade_to_version_with_dot}" && "${try_http_glennr_mongod_repo}" != "true" ]]; then
+        try_http_glennr_mongod_repo="true"
+        add_glennr_mongod_repo
+        return
       fi
-    else
-      abort_reason="Failed to add the Glenn R. APT repository for mongod ${mongod_version_major_minor}${try_http_glennr_mongod_repo_text_2}."
-      abort
+      mongod_upgrade_to_version="${mongod_upgrade_to_version_with_dot//./}"
+      if [[ "${mongod_upgrade_to_version::2}" == "${mongo_version_max}" ]]; then
+        install_mongod_version="${mongod_upgrade_to_version_with_dot}"
+        install_mongod_version_with_equality_sign="=${mongod_upgrade_to_version_with_dot}"
+      fi
     fi
   fi
   unset glennr_mongod_v
-  unset signed_by_value
-  unset deb822_signed_by_value
-  unset try_http_glennr_mongod_repo_text_1
-  unset try_different_mongodb_repo_test_2
 }
 
 add_extra_repo_mongodb() {
@@ -2426,7 +2943,7 @@ add_mongodb_repo() {
   fi
   eus_database_move
   if [[ "${try_different_mongodb_repo}" == 'true' ]]; then try_different_mongodb_repo_test="a different"; try_different_mongodb_repo_test_2="different "; else try_different_mongodb_repo_test="the"; try_different_mongodb_repo_test_2=""; fi
-  if [[ "${try_http_mongodb_repo}" == 'true' ]]; then repo_http_https="http"; try_different_mongodb_repo_test="the HTTP instead of HTTPS"; try_different_mongodb_repo_test_2="HTTP "; else try_different_mongodb_repo_test="the"; try_different_mongodb_repo_test_2=""; fi
+  if [[ "${try_http_mongodb_repo}" == 'true' ]]; then repo_http_https="http"; try_different_mongodb_repo_test="a HTTP instead of HTTPS"; try_different_mongodb_repo_test_2="HTTP "; else try_different_mongodb_repo_test="the"; try_different_mongodb_repo_test_2=""; fi
   if [[ -n "${mongodb_version_major_minor}" ]]; then
     if gpg --list-packets "/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg" &> /dev/null && [[ "${mongodb_key_update}" != 'true' ]]; then if [[ "$(gpg --show-keys --with-colons "/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg" 2> /dev/null | awk -F':' '$1=="pub"{print $7}' | head -n1)" -le "$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/mongodb-release?version=${mongodb_version_major_minor}" 2> /dev/null | jq -r '.updated' 2> /dev/null)" ]]; then expired_existing_mongodb_key="true"; fi; fi
     if [[ "${mongodb_version_major_minor}" != "4.4" ]]; then unset mongo_version_locked; fi
@@ -2434,68 +2951,68 @@ add_mongodb_repo() {
       echo -e "${GRAY_R}#${RESET} Adding key for MongoDB ${mongodb_version_major_minor}..."
       aptkey_depreciated
       if [[ "${apt_key_deprecated}" == 'true' ]]; then
-        echo -e "$(date +%F-%T.%6N) | pgp.mongodb.com repository key.\\n" &>> "${eus_dir}/logs/repository-keys.log"
-        if curl "${curl_argument[@]}" -fSL "${repo_http_https}://pgp.mongodb.com/server-${mongodb_version_major_minor}.asc" 2>&1 | tee -a "${eus_dir}/logs/repository-keys.log" | gpg -o "/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg" --dearmor --yes &> /dev/null; then
-          mongodb_curl_exit_status="${PIPESTATUS[0]}"
-          mongodb_gpg_exit_status="${PIPESTATUS[2]}"
+        echo -e "$(date +%F-%T.%6N) | pgp.mongodb.com repository key.\n" &>> "${eus_dir}/logs/repository-keys.log"
+        curl "${curl_argument[@]}" -fSL "${repo_http_https}://pgp.mongodb.com/server-${mongodb_version_major_minor}.asc" 2>&1 | tee -a "${eus_dir}/logs/repository-keys.log" | gpg -o "/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg" --dearmor --yes &> /dev/null
+        mongodb_pipe_status=( "${PIPESTATUS[@]}" )
+        mongodb_curl_exit_status="${mongodb_pipe_status[0]}"
+        mongodb_gpg_exit_status="${mongodb_pipe_status[2]}"
+        if [[ "${mongodb_curl_exit_status}" -eq "0" && "${mongodb_gpg_exit_status}" -eq "0" && -s "/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg" ]]; then
+          echo -e "${GREEN}#${RESET} Successfully added the key for MongoDB ${mongodb_version_major_minor}! \n"
+          signed_by_value=" signed-by=/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg"; deb822_signed_by_value="\nSigned-By: /etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg"
+          repository_key_location="/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg"; check_repository_key_permissions
+        else
+          echo -e "$(date +%F-%T.%6N) | www.mongodb.org repository key.\n" &>> "${eus_dir}/logs/repository-keys.log"
+          curl "${curl_argument[@]}" -fSL "${repo_http_https}://www.mongodb.org/static/pgp/server-${mongodb_version_major_minor}.asc" 2>&1 | tee -a "${eus_dir}/logs/repository-keys.log" | gpg -o "/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg" --dearmor --yes &> /dev/null
+          mongodb_pipe_status=( "${PIPESTATUS[@]}" )
+          mongodb_curl_exit_status="${mongodb_pipe_status[0]}"
+          mongodb_gpg_exit_status="${mongodb_pipe_status[2]}"
           if [[ "${mongodb_curl_exit_status}" -eq "0" && "${mongodb_gpg_exit_status}" -eq "0" && -s "/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg" ]]; then
-            echo -e "${GREEN}#${RESET} Successfully added the key for MongoDB ${mongodb_version_major_minor}! \\n"
+            echo -e "${GREEN}#${RESET} Successfully added the key for MongoDB ${mongodb_version_major_minor}! \n"
             signed_by_value=" signed-by=/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg"; deb822_signed_by_value="\nSigned-By: /etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg"
             repository_key_location="/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg"; check_repository_key_permissions
           else
-            echo -e "$(date +%F-%T.%6N) | www.mongodb.org repository key.\\n" &>> "${eus_dir}/logs/repository-keys.log"
-            if curl "${curl_argument[@]}" -fSL "${repo_http_https}://www.mongodb.org/static/pgp/server-${mongodb_version_major_minor}.asc" 2>&1 | tee -a "${eus_dir}/logs/repository-keys.log" | gpg -o "/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg" --dearmor --yes &> /dev/null; then
-              mongodb_curl_exit_status="${PIPESTATUS[0]}"
-              mongodb_gpg_exit_status="${PIPESTATUS[2]}"
-              if [[ "${mongodb_curl_exit_status}" -eq "0" && "${mongodb_gpg_exit_status}" -eq "0" && -s "/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg" ]]; then
-                echo -e "${GREEN}#${RESET} Successfully added the key for MongoDB ${mongodb_version_major_minor}! \\n"
-                signed_by_value=" signed-by=/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg"; deb822_signed_by_value="\nSigned-By: /etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg"
-                repository_key_location="/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg"; check_repository_key_permissions
-              else
-                echo -e "$(date +%F-%T.%6N) | pgp.mongodb.com repository key.\\n" &>> "${eus_dir}/logs/repository-keys.log"
-                if curl "${curl_argument[@]}" --insecure -fSL "${repo_http_https}://pgp.mongodb.com/server-${mongodb_version_major_minor}.asc" 2>&1 | tee -a "${eus_dir}/logs/repository-keys.log" | gpg -o "/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg" --dearmor --yes &> /dev/null; then
-                  mongodb_curl_exit_status="${PIPESTATUS[0]}"
-                  mongodb_gpg_exit_status="${PIPESTATUS[2]}"
-                  if [[ "${mongodb_curl_exit_status}" -eq "0" && "${mongodb_gpg_exit_status}" -eq "0" && -s "/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg" ]]; then
-                    echo -e "${GREEN}#${RESET} Successfully added the key for MongoDB ${mongodb_version_major_minor}! \\n"
-                    signed_by_value=" signed-by=/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg"; deb822_signed_by_value="\nSigned-By: /etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg"
-                    repository_key_location="/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg"; check_repository_key_permissions
-                  else
-                    abort_reason="Failed to add the key for MongoDB ${mongodb_version_major_minor}."
-                    abort
-                  fi
-                fi
-              fi
+             echo -e "$(date +%F-%T.%6N) | pgp.mongodb.com repository key.\n" &>> "${eus_dir}/logs/repository-keys.log"
+            curl "${curl_argument[@]}" --insecure -fSL "${repo_http_https}://pgp.mongodb.com/server-${mongodb_version_major_minor}.asc" 2>&1 | tee -a "${eus_dir}/logs/repository-keys.log" | gpg -o "/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg" --dearmor --yes &> /dev/null
+            mongodb_pipe_status=( "${PIPESTATUS[@]}" )
+            mongodb_curl_exit_status="${mongodb_pipe_status[0]}"
+            mongodb_gpg_exit_status="${mongodb_pipe_status[2]}"
+            if [[ "${mongodb_curl_exit_status}" -eq "0" && "${mongodb_gpg_exit_status}" -eq "0" && -s "/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg" ]]; then
+              echo -e "${GREEN}#${RESET} Successfully added the key for MongoDB ${mongodb_version_major_minor}! \n"
+              signed_by_value=" signed-by=/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg"; deb822_signed_by_value="\nSigned-By: /etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg"
+              repository_key_location="/etc/apt/keyrings/mongodb-server-${mongodb_version_major_minor}.gpg"; check_repository_key_permissions
+            else
+              abort_reason="Failed to add the key for MongoDB ${mongodb_version_major_minor}."
+              abort
             fi
           fi
         fi
       else
-        echo -e "$(date +%F-%T.%6N) | pgp.mongodb.com repository key.\\n" &>> "${eus_dir}/logs/repository-keys.log"
-        if curl "${curl_argument[@]}" -fSL "${repo_http_https}://pgp.mongodb.com/server-${mongodb_version_major_minor}.asc" 2>&1 | tee -a "${eus_dir}/logs/repository-keys.log" | apt-key add - &> /dev/null; then
-          mongodb_curl_exit_status="${PIPESTATUS[0]}"
-          mongodb_apt_key_exit_status="${PIPESTATUS[2]}"
+        echo -e "$(date +%F-%T.%6N) | pgp.mongodb.com repository key.\n" &>> "${eus_dir}/logs/repository-keys.log"
+        curl "${curl_argument[@]}" -fSL "${repo_http_https}://pgp.mongodb.com/server-${mongodb_version_major_minor}.asc" 2>&1 | tee -a "${eus_dir}/logs/repository-keys.log" | apt-key add - &> /dev/null
+        mongodb_pipe_status=( "${PIPESTATUS[@]}" )
+        mongodb_curl_exit_status="${mongodb_pipe_status[0]}"
+        mongodb_apt_key_exit_status="${mongodb_pipe_status[2]}"
+        if [[ "${mongodb_curl_exit_status}" -eq "0" && "${mongodb_apt_key_exit_status}" -eq "0" ]]; then
+          echo -e "${GREEN}#${RESET} Successfully added the key for MongoDB ${mongodb_version_major_minor}! \n"
+        else
+          echo -e "$(date +%F-%T.%6N) | www.mongodb.org repository key.\n" &>> "${eus_dir}/logs/repository-keys.log"
+          curl "${curl_argument[@]}" -fSL "${repo_http_https}://www.mongodb.org/static/pgp/server-${mongodb_version_major_minor}.asc" 2>&1 | tee -a "${eus_dir}/logs/repository-keys.log" | apt-key add - &> /dev/null
+          mongodb_pipe_status=( "${PIPESTATUS[@]}" )
+          mongodb_curl_exit_status="${mongodb_pipe_status[0]}"
+          mongodb_apt_key_exit_status="${mongodb_pipe_status[2]}"
           if [[ "${mongodb_curl_exit_status}" -eq "0" && "${mongodb_apt_key_exit_status}" -eq "0" ]]; then
-            echo -e "${GREEN}#${RESET} Successfully added the key for MongoDB ${mongodb_version_major_minor}! \\n"
+            echo -e "${GREEN}#${RESET} Successfully added the key for MongoDB ${mongodb_version_major_minor}! \n"
           else
-            echo -e "$(date +%F-%T.%6N) | www.mongodb.org repository key.\\n" &>> "${eus_dir}/logs/repository-keys.log"
-            if curl "${curl_argument[@]}" -fSL "${repo_http_https}://www.mongodb.org/static/pgp/server-${mongodb_version_major_minor}.asc" 2>&1 | tee -a "${eus_dir}/logs/repository-keys.log" | apt-key add - &> /dev/null; then
-              mongodb_curl_exit_status="${PIPESTATUS[0]}"
-              mongodb_apt_key_exit_status="${PIPESTATUS[2]}"
-              if [[ "${mongodb_curl_exit_status}" -eq "0" && "${mongodb_apt_key_exit_status}" -eq "0" ]]; then
-                echo -e "${GREEN}#${RESET} Successfully added the key for MongoDB ${mongodb_version_major_minor}! \\n"
-              else
-                echo -e "$(date +%F-%T.%6N) | pgp.mongodb.com repository key.\\n" &>> "${eus_dir}/logs/repository-keys.log"
-                if curl "${curl_argument[@]}" --insecure -fSL "${repo_http_https}://pgp.mongodb.com/server-${mongodb_version_major_minor}.asc" 2>&1 | tee -a "${eus_dir}/logs/repository-keys.log" | apt-key add - &> /dev/null; then
-                  mongodb_curl_exit_status="${PIPESTATUS[0]}"
-                  mongodb_apt_key_exit_status="${PIPESTATUS[2]}"
-                  if [[ "${mongodb_curl_exit_status}" -eq "0" && "${mongodb_apt_key_exit_status}" -eq "0" ]]; then
-                    echo -e "${GREEN}#${RESET} Successfully added the key for MongoDB ${mongodb_version_major_minor}! \\n"
-                  else
-                    abort_reason="Failed to add the key for MongoDB ${mongodb_version_major_minor}."
-                    abort
-                  fi
-                fi
-              fi
+            echo -e "$(date +%F-%T.%6N) | pgp.mongodb.com repository key.\n" &>> "${eus_dir}/logs/repository-keys.log"
+            curl "${curl_argument[@]}" --insecure -fSL "${repo_http_https}://pgp.mongodb.com/server-${mongodb_version_major_minor}.asc" 2>&1 | tee -a "${eus_dir}/logs/repository-keys.log" | apt-key add - &> /dev/null
+            mongodb_pipe_status=( "${PIPESTATUS[@]}" )
+            mongodb_curl_exit_status="${mongodb_pipe_status[0]}"
+            mongodb_apt_key_exit_status="${mongodb_pipe_status[2]}"
+            if [[ "${mongodb_curl_exit_status}" -eq "0" && "${mongodb_apt_key_exit_status}" -eq "0" ]]; then
+              echo -e "${GREEN}#${RESET} Successfully added the key for MongoDB ${mongodb_version_major_minor}! \n"
+            else
+              abort_reason="Failed to add the key for MongoDB ${mongodb_version_major_minor}."
+              abort
             fi
           fi
         fi
@@ -2512,7 +3029,7 @@ add_mongodb_repo() {
       # Traditional format
       mongodb_repo_entry="deb [ ${arch}${signed_by_value}${trusted_mongodb_repo} ] ${repo_http_https}://repo.mongodb.org/apt/${mongodb_codename}/mongodb-org/${mongodb_version_major_minor} ${mongodb_repo_type}"
     fi
-    if echo -e "${mongodb_repo_entry}" &> "/etc/apt/sources.list.d/mongodb-org-${mongodb_version_major_minor}.${source_file_format}"; then
+    if echo -e "${mongodb_repo_entry}" > "/etc/apt/sources.list.d/mongodb-org-${mongodb_version_major_minor}.${source_file_format}"; then
       echo -e "${GREEN}#${RESET} Successfully added the ${try_different_mongodb_repo_test_2}MongoDB ${mongodb_version_major_minor} repository!\\n" && sleep 2
       if [[ "${mongodb_key_update}" != 'true' ]]; then
         run_apt_get_update_with_sha1_fallback
@@ -3122,7 +3639,7 @@ update_script() {
     online_sha256sum="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-script-version?script=unifi-install&version=${install_version}" 2> /dev/null | grep -oP '"sha256sum"\s*:\s*"\K[^"]+')"
   fi
   if curl "${curl_argument[@]}" -o "${script_location}.tmp" "https://get.glennr.nl/unifi/install/${install_script_name}.sh"; then
-    if [[ -n "${online_sha256sum}" && "$(command -v sha256sum)" ]]; then
+    if [[ -n "${online_sha256sum}" && -n "$(command -v sha256sum)" ]]; then
       local_checksum="$(sha256sum "${script_location}.tmp" 2> /dev/null | awk '{print $1}')"
       if [[ "${local_checksum}" != "${online_sha256sum}" ]]; then
         for attempt in {1..5}; do
@@ -3131,14 +3648,22 @@ update_script() {
           else
             online_sha256sum_latest="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-script-version?script=unifi-install&version=${install_version}" 2> /dev/null | grep -oP '"sha256sum"\s*:\s*"\K[^"]+')"
           fi
-          if [[ -n "${online_sha256sum_latest}" ]]; then online_sha256sum="${online_sha256sum_latest}"; unset online_sha256sum_latest; fi
+          if [[ -n "${online_sha256sum_latest}" ]]; then
+            online_sha256sum="${online_sha256sum_latest}"
+            unset online_sha256sum_latest
+          fi
           local_checksum="$(sha256sum "${script_location}.tmp" 2> /dev/null | awk '{print $1}')"
           if [[ "${local_checksum}" == "${online_sha256sum}" ]]; then
             echo -e "$(date +%F-%T.%6N) | Successfully updated script \"${script_name}\" from version \"${local_version}\" to \"${online_version}\"!" &>> "${eus_dir}/logs/script-update.log"
-            rm --force "${script_location}" 2> /dev/null
+            chmod +x "${script_location}.tmp" 2> /dev/null || true
+            eus_lock_cleanup
+            mv -f "${script_location}.tmp" "${script_location}" || {
+              echo -e "$(date +%F-%T.%6N) | Failed to replace ${script_location} with ${script_location}.tmp" &>> "${eus_dir}/logs/script-update.log"
+              abort_reason="Failed to replace the script after successful checksum verification."
+              abort
+            }
             # shellcheck disable=SC2068
-            mv "${script_location}.tmp" "${script_location}" && bash "${script_location}" ${script_options[@]}
-            exit 0
+            exec bash "${script_location}" ${script_options[@]}
           else
             echo -e "$(date +%F-%T.%6N) | Local script file SHA256 is \"${local_checksum}\" while it should be \"${online_sha256sum}\" (attempt ${attempt}/5)..." &>> "${eus_dir}/logs/script-update.log"
             echo -e "${RED}#${RESET} Checksum mismatch (attempt ${attempt}/5), retrying download..."
@@ -3150,20 +3675,27 @@ update_script() {
         abort
       else
         echo -e "$(date +%F-%T.%6N) | Successfully updated script \"${script_name}\" from version \"${local_version}\" to \"${online_version}\"!" &>> "${eus_dir}/logs/script-update.log"
-        rm --force "${script_location}" 2> /dev/null
+        chmod +x "${script_location}.tmp" 2> /dev/null || true
+        eus_lock_cleanup
+        mv -f "${script_location}.tmp" "${script_location}" || {
+          echo -e "$(date +%F-%T.%6N) | Failed to replace ${script_location} with ${script_location}.tmp" &>> "${eus_dir}/logs/script-update.log"
+          abort_reason="Failed to replace the script after successful checksum verification."
+          abort
+        }
         # shellcheck disable=SC2068
-        mv "${script_location}.tmp" "${script_location}" && bash "${script_location}" ${script_options[@]}
-        exit 0
+        exec bash "${script_location}" ${script_options[@]}
       fi
     else
-      if [[ -n "${online_sha256sum}" ]]; then
+      if [[ -z "${online_sha256sum}" ]]; then
         echo -e "$(date +%F-%T.%6N) | Variable \"online_sha256sum\" is empty..." &>> "${eus_dir}/logs/script-update.log"
-      elif [[ "$(command -v sha256sum)" ]]; then
+      elif [[ -z "$(command -v sha256sum)" ]]; then
         echo -e "$(date +%F-%T.%6N) | Unknown command \"sha256sum\"..." &>> "${eus_dir}/logs/script-update.log"
       fi
       rm --force "${install_script_name}.sh" 2> /dev/null
+      eus_lock_cleanup
       # shellcheck disable=SC2068
-      curl "${curl_argument[@]}" --remote-name "https://get.glennr.nl/unifi/install/${install_script_name}.sh" && bash "${install_script_name}.sh" ${script_options[@]}; exit 0
+      curl "${curl_argument[@]}" --remote-name "https://get.glennr.nl/unifi/install/${install_script_name}.sh" && exec bash "${install_script_name}.sh" ${script_options[@]}
+      exit 1
     fi
   fi
 }
@@ -3815,8 +4347,9 @@ check_service_overrides() {
   if [[ "${limited_functionality}" != 'true' ]]; then
     if [[ -e "/etc/systemd/system/unifi.service" ]] || [[ -e "/etc/systemd/system/unifi.service.d/" ]]; then
       echo -e "${GRAY_R}#${RESET} UniFi Network Application service overrides detected... Removing them..."
-      unifi_override_version="$("$(which dpkg)" -l unifi | tail -n1 |  awk '{print $3}' | cut -d'-' -f1)"
-      eus_create_directories "unifi-service-overrides"
+      unifi_override_version="$(dpkg-query -W -f='${Version}' unifi 2>/dev/null | cut -d'-' -f1)"
+      if [[ -z "${unifi_override_version}" ]]; then unifi_override_version="unknown-$(date +%s)"; fi
+      eus_create_directories "unifi-service-overrides/${unifi_override_version}"
       if [[ -d "${eus_dir}/unifi-service-overrides/${unifi_override_version}/" ]]; then
         if [[ -e "/etc/systemd/system/unifi.service" ]]; then
           mv "/etc/systemd/system/unifi.service" "${eus_dir}/unifi-service-overrides/${unifi_override_version}/unifi.service" &>> "${eus_dir}/logs/service-override.log"
@@ -6136,31 +6669,35 @@ adoptium_java() {
     aptkey_depreciated
     if [[ "${apt_key_deprecated}" == 'true' ]]; then
       echo -e "$(date +%F-%T.%6N) | packages.adoptium.net repository key.\\n" &>> "${eus_dir}/logs/repository-keys.log"
-      if curl "${curl_argument[@]}" -fSL "https://packages.adoptium.net/artifactory/api/gpg/key/public" 2>&1 | tee -a "${eus_dir}/logs/repository-keys.log" | gpg -o "/etc/apt/keyrings/packages-adoptium.gpg" --dearmor --yes &> /dev/null; then
-        adoptium_curl_exit_status="${PIPESTATUS[0]}"
-        adoptium_gpg_exit_status="${PIPESTATUS[2]}"
-        if [[ "${adoptium_curl_exit_status}" -eq "0" && "${adoptium_gpg_exit_status}" -eq "0" && -s "/etc/apt/keyrings/packages-adoptium.gpg" ]]; then
-          echo -e "${GREEN}#${RESET} Successfully added the key for adoptium packages! \\n"; signed_by_value_adoptium="signed-by=/etc/apt/keyrings/packages-adoptium.gpg"; deb822_signed_by_value="\nSigned-By: /etc/apt/keyrings/packages-adoptium.gpg"
-          repository_key_location="/etc/apt/keyrings/packages-adoptium.gpg"; check_repository_key_permissions
-        else
-          abort_reason="Failed to add the key for adoptium packages."; abort
-        fi
+      curl "${curl_argument[@]}" -fSL "https://packages.adoptium.net/artifactory/api/gpg/key/public" 2>&1 | tee -a "${eus_dir}/logs/repository-keys.log" | gpg -o "/etc/apt/keyrings/packages-adoptium.gpg" --dearmor --yes &> /dev/null
+      adoptium_pipe_status=( "${PIPESTATUS[@]}" )
+      adoptium_curl_exit_status="${adoptium_pipe_status[0]}"
+      adoptium_gpg_exit_status="${adoptium_pipe_status[2]}"
+      if [[ "${adoptium_curl_exit_status}" -eq "0" && "${adoptium_gpg_exit_status}" -eq "0" && -s "/etc/apt/keyrings/packages-adoptium.gpg" ]]; then
+        echo -e "${GREEN}#${RESET} Successfully added the key for adoptium packages! \\n"; signed_by_value_adoptium="signed-by=/etc/apt/keyrings/packages-adoptium.gpg"; deb822_signed_by_value="\nSigned-By: /etc/apt/keyrings/packages-adoptium.gpg"
+        repository_key_location="/etc/apt/keyrings/packages-adoptium.gpg"; check_repository_key_permissions
       else
-        abort_reason="Failed to fetch the key for adoptium packages."
+        if [[ "${adoptium_curl_exit_status}" -ne "0" ]]; then
+          abort_reason="Failed to fetch the key for adoptium packages."
+        else
+          abort_reason="Failed to add the key for adoptium packages."
+        fi
         abort
       fi
     else
       echo -e "$(date +%F-%T.%6N) | packages.adoptium.net repository key.\\n" &>> "${eus_dir}/logs/repository-keys.log"
-      if curl "${curl_argument[@]}" -fSL "https://packages.adoptium.net/artifactory/api/gpg/key/public" 2>&1 | tee -a "${eus_dir}/logs/repository-keys.log" | apt-key add - &> /dev/null; then
-        adoptium_curl_exit_status="${PIPESTATUS[0]}"
-        adoptium_apt_key_exit_status="${PIPESTATUS[2]}"
-        if [[ "${adoptium_curl_exit_status}" -eq "0" && "${adoptium_apt_key_exit_status}" -eq "0" ]]; then
-          echo -e "${GREEN}#${RESET} Successfully added the key for adoptium packages! \\n"
-        else
-          abort_reason="Failed to add the key for adoptium packages."; abort
-        fi
+      curl "${curl_argument[@]}" -fSL "https://packages.adoptium.net/artifactory/api/gpg/key/public" 2>&1 | tee -a "${eus_dir}/logs/repository-keys.log" | apt-key add - &> /dev/null
+      adoptium_pipe_status=( "${PIPESTATUS[@]}" )
+      adoptium_curl_exit_status="${adoptium_pipe_status[0]}"
+      adoptium_apt_key_exit_status="${adoptium_pipe_status[2]}"
+      if [[ "${adoptium_curl_exit_status}" -eq "0" && "${adoptium_apt_key_exit_status}" -eq "0" ]]; then
+        echo -e "${GREEN}#${RESET} Successfully added the key for adoptium packages! \\n"
       else
-        abort_reason="Failed to fetch the key for adoptium packages."
+        if [[ "${adoptium_curl_exit_status}" -ne "0" ]]; then
+          abort_reason="Failed to fetch the key for adoptium packages."
+        else
+          abort_reason="Failed to add the key for adoptium packages."
+        fi
         abort
       fi
     fi
@@ -6172,7 +6709,7 @@ adoptium_java() {
       # Traditional format
       adoptium_repo_entry="deb [ ${signed_by_value_adoptium} ] ${http_or_https}://packages.adoptium.net/artifactory/deb ${os_codename} main"
     fi
-    if echo -e "${adoptium_repo_entry}" &> "/etc/apt/sources.list.d/glennr-packages-adoptium.${source_file_format}"; then
+    if echo -e "${adoptium_repo_entry}" > "/etc/apt/sources.list.d/glennr-packages-adoptium.${source_file_format}"; then
       echo -e "${GREEN}#${RESET} Successfully added the adoptium packages repository!\\n" && sleep 2
     else
       abort_reason="Failed to add the adoptium packages repository."
@@ -6296,21 +6833,32 @@ network_install_dependencies_check() {
 available_java_packages_check() {
   if apt-cache search --names-only ^"openjdk-${required_java_version_short}-jre-headless" | grep -ioq "openjdk-${required_java_version_short}-jre-headless"; then openjdk_available="true"; else unset openjdk_available; fi
   if apt-cache search --names-only ^"temurin-${required_java_version_short}-jre|temurin-${required_java_version_short}-jdk" | grep -ioq "temurin-${required_java_version_short}-jre\\|temurin-${required_java_version_short}-jdk"; then temurin_available="true"; else unset temurin_available; fi
+  if [[ "${temurin_available}" != 'true' && "${required_java_version_short}" =~ (25) ]]; then
+    add_glennr_repo "temurin" "${required_java_version_short}"
+    if apt-cache search --names-only ^"temurin-${required_java_version_short}-jre|temurin-${required_java_version_short}-jdk" | grep -ioq "temurin-${required_java_version_short}-jre\\|temurin-${required_java_version_short}-jdk"; then temurin_available="true"; else unset temurin_available; fi
+  fi
 }
 
 update_ca_certificates() {
-  if [[ "${update_ca_certificates_ran}" != 'true' ]]; then
-    echo -e "${GRAY_R}#${RESET} Updating the ca-certificates..."
-    rm /etc/ssl/certs/java/cacerts 2> /dev/null
-    if update-ca-certificates -f &> /dev/null; then
-      echo -e "${GREEN}#${RESET} Successfully updated the ca-certificates\\n" && sleep 3
-      if [[ -e "/usr/bin/printf" ]]; then /usr/bin/printf '\xfe\xed\xfe\xed\x00\x00\x00\x02\x00\x00\x00\x00\xe2\x68\x6e\x45\xfb\x43\xdf\xa4\xd9\x92\xdd\x41\xce\xb6\xb2\x1c\x63\x30\xd7\x92' > /etc/ssl/certs/java/cacerts; fi
-      if [[ -e "/var/lib/dpkg/info/ca-certificates-java.postinst" ]]; then /var/lib/dpkg/info/ca-certificates-java.postinst configure &> /dev/null; fi
-      update_ca_certificates_ran="true"
-    else
-      echo -e "${RED}#${RESET} Failed to update the ca-certificates...\\n" && sleep 3
-    fi
+  if [[ "${update_ca_certificates_ran}" == "true" ]]; then return 0; fi
+  echo -e "${GRAY_R}#${RESET} Updating the ca-certificates..."
+  rm -f /etc/ssl/certs/java/cacerts 2> /dev/null
+  if ! update-ca-certificates -f &> /dev/null; then
+    echo -e "${RED}#${RESET} Failed to update the ca-certificates...\n"; sleep 3; return 1
   fi
+  echo -e "${GREEN}#${RESET} Successfully updated the ca-certificates\n"
+  sleep 3
+  mkdir -p /etc/ssl/certs/java || {
+    echo -e "${RED}#${RESET} Failed to create /etc/ssl/certs/java\n"; sleep 3; return 1
+  }
+  if [[ -x "/usr/bin/printf" ]]; then
+    /usr/bin/printf '\xfe\xed\xfe\xed\x00\x00\x00\x02\x00\x00\x00\x00\xe2\x68\x6e\x45\xfb\x43\xdf\xa4\xd9\x92\xdd\x41\xce\xb6\xb2\x1c\x63\x30\xd7\x92' > /etc/ssl/certs/java/cacerts || {
+      echo -e "${RED}#${RESET} Failed to write Java cacerts placeholder\n"; sleep 3; return 1
+    }
+  fi
+  if [[ -x "/var/lib/dpkg/info/ca-certificates-java.postinst" ]]; then /var/lib/dpkg/info/ca-certificates-java.postinst configure &> /dev/null; fi
+  update_ca_certificates_ran="true"
+  return 0
 }
 
 java_home_check() {
@@ -7116,36 +7664,40 @@ mongodb_installation_armhf() {
   if [[ -z "${raspbian_repo_url}" ]]; then raspbian_repo_url="${http_or_https}://archive.raspbian.org/raspbian"; fi
   if [[ "${apt_key_deprecated}" == 'true' ]]; then
     echo -e "$(date +%F-%T.%6N) | archive.raspbian.org repository key.\\n" &>> "${eus_dir}/logs/repository-keys.log"
-    if curl "${curl_argument[@]}" -fSL "${raspbian_repo_url}.public.key" 2>&1 | tee -a "${eus_dir}/logs/repository-keys.log" | gpg -o "/etc/apt/keyrings/raspbian.gpg" --dearmor --yes &> /dev/null; then
-      raspbian_curl_exit_status="${PIPESTATUS[0]}"
-      raspbian_gpg_exit_status="${PIPESTATUS[2]}"
-      if [[ "${raspbian_curl_exit_status}" -eq "0" && "${raspbian_gpg_exit_status}" -eq "0" && -s "/etc/apt/keyrings/raspbian.gpg" ]]; then
-        echo -e "${GREEN}#${RESET} Successfully added the key for the raspbian repository! \\n"; signed_by_value_raspbian="[ signed-by=/etc/apt/keyrings/raspbian.gpg ]"
-        repository_key_location="/etc/apt/keyrings/raspbian.gpg"; check_repository_key_permissions
-      else
-        abort_reason="Failed to add the key for the raspbian repository."; abort
-      fi
+    curl "${curl_argument[@]}" -fSL "${raspbian_repo_url}.public.key" 2>&1 | tee -a "${eus_dir}/logs/repository-keys.log" | gpg -o "/etc/apt/keyrings/raspbian.gpg" --dearmor --yes &> /dev/null
+    raspbian_pipe_status=( "${PIPESTATUS[@]}" )
+    raspbian_curl_exit_status="${raspbian_pipe_status[0]}"
+    raspbian_gpg_exit_status="${raspbian_pipe_status[2]}"
+    if [[ "${raspbian_curl_exit_status}" -eq "0" && "${raspbian_gpg_exit_status}" -eq "0" && -s "/etc/apt/keyrings/raspbian.gpg" ]]; then
+      echo -e "${GREEN}#${RESET} Successfully added the key for the raspbian repository! \\n"; signed_by_value_raspbian="[ signed-by=/etc/apt/keyrings/raspbian.gpg ]"
+      repository_key_location="/etc/apt/keyrings/raspbian.gpg"; check_repository_key_permissions
     else
-      abort_reason="Failed to fetch the key for the raspbian repository."
+      if [[ "${raspbian_curl_exit_status}" -ne "0" ]]; then
+        abort_reason="Failed to fetch the key for the raspbian repository."
+      else
+        abort_reason="Failed to add the key for the raspbian repository."
+      fi
       abort
     fi
   else
     echo -e "$(date +%F-%T.%6N) | archive.raspbian.org repository key.\\n" &>> "${eus_dir}/logs/repository-keys.log"
-    if curl "${curl_argument[@]}" -fSL "${raspbian_repo_url}.public.key" 2>&1 | tee -a "${eus_dir}/logs/repository-keys.log" | apt-key add - &> /dev/null; then
-      raspbian_curl_exit_status="${PIPESTATUS[0]}"
-      raspbian_apt_key_exit_status="${PIPESTATUS[2]}"
-      if [[ "${raspbian_curl_exit_status}" -eq "0" && "${raspbian_apt_key_exit_status}" -eq "0" ]]; then
-        echo -e "${GREEN}#${RESET} Successfully added the key for the raspbian repository! \\n"
-      else
-        abort_reason="Failed to add the key for the raspbian repository."; abort
-      fi
+    curl "${curl_argument[@]}" -fSL "${raspbian_repo_url}.public.key" 2>&1 | tee -a "${eus_dir}/logs/repository-keys.log" | apt-key add - &> /dev/null
+    raspbian_pipe_status=( "${PIPESTATUS[@]}" )
+    raspbian_curl_exit_status="${raspbian_pipe_status[0]}"
+    raspbian_apt_key_exit_status="${raspbian_pipe_status[2]}"
+    if [[ "${raspbian_curl_exit_status}" -eq "0" && "${raspbian_apt_key_exit_status}" -eq "0" ]]; then
+      echo -e "${GREEN}#${RESET} Successfully added the key for the raspbian repository! \\n"
     else
-      abort_reason="Failed to fetch the key for the raspbian repository."
+      if [[ "${raspbian_curl_exit_status}" -ne "0" ]]; then
+        abort_reason="Failed to fetch the key for the raspbian repository."
+      else
+        abort_reason="Failed to add the key for the raspbian repository."
+      fi
       abort
     fi
   fi
   if [[ -f "/etc/apt/sources.list.d/glennr_armhf.list" ]]; then rm --force "/etc/apt/sources.list.d/glennr_armhf.list"; fi
-  echo "deb ${signed_by_value_raspbian}${raspbian_repo_url} ${os_codename} main contrib non-free rpi" &> /etc/apt/sources.list.d/glennr-install-script.list
+  echo "deb ${signed_by_value_raspbian}${raspbian_repo_url} ${os_codename} main contrib non-free rpi" > /etc/apt/sources.list.d/glennr-install-script.list
   run_apt_get_update_with_sha1_fallback
   check_dpkg_lock
   if "${EUS_APT_ENV[@]}" env DEBIAN_FRONTEND='noninteractive' apt-get -y "${apt_downgrade_option[@]}" "${apt_options[@]}" -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' install mongodb-server mongodb-clients &>> "${eus_dir}/logs/mongodb-armhf-install.log"; then
@@ -7986,35 +8538,33 @@ network_install_repository_check() {
           done < <(find /etc/apt/sources.list.d/ -type f -name "*.sources")
           rm --force /etc/apt/sources.list.d/100-ubnt-unifi.* 2> /dev/null
           echo -e "${GRAY_R}#${RESET} Downloading the UniFi Network Application repository key..."
-          if curl "${curl_argument[@]}" -fSL "https://dl.ui.com/unifi/unifi-repo.gpg" | gpg -o "/etc/apt/keyrings/unifi-repo.gpg" --dearmor --yes &> /dev/null; then
-            unifi_curl_exit_status="${PIPESTATUS[0]}"
-            unifi_gpg_exit_status="${PIPESTATUS[2]}"
-            if [[ "${unifi_curl_exit_status}" -eq "0" && "${unifi_gpg_exit_status}" -eq "0" && -s "/etc/apt/keyrings/unifi-repo.gpg" ]]; then
-              signed_by_value_unifi="/etc/apt/keyrings/unifi-repo.gpg"
-              echo -e "${GREEN}#${RESET} Successfully downloaded the key for the UniFi Network Application repository! \\n"
-              echo -e "${GRAY_R}#${RESET} Adding the UniFi Network Application repository..."
-              if [[ "${architecture}" == 'arm64' ]]; then arch="arch=arm64"; elif [[ "${architecture}" == 'amd64' ]]; then arch="arch=amd64"; else arch="arch=amd64,arm64"; fi
-              if [[ "${use_deb822_format}" == 'true' ]]; then
-                # DEB822 format
-                unifi_repo_entry="Types: deb\nURIs: ${http_or_https}://www.ui.com/downloads/unifi/debian\nSuites: unifi-${first_digit_unifi}.${second_digit_unifi}\nComponents: ubiquiti\nSigned-By: ${signed_by_value_unifi}\nArchitectures: ${arch//arch=/}"
+          curl "${curl_argument[@]}" -fSL "https://dl.ui.com/unifi/unifi-repo.gpg" | gpg -o "/etc/apt/keyrings/unifi-repo.gpg" --dearmor --yes &> /dev/null
+          unifi_pipe_status=( "${PIPESTATUS[@]}" )
+          unifi_curl_exit_status="${unifi_pipe_status[0]}"
+          unifi_gpg_exit_status="${unifi_pipe_status[1]}"
+          if [[ "${unifi_curl_exit_status}" -eq "0" && "${unifi_gpg_exit_status}" -eq "0" && -s "/etc/apt/keyrings/unifi-repo.gpg" ]]; then
+            signed_by_value_unifi="/etc/apt/keyrings/unifi-repo.gpg"
+            echo -e "${GREEN}#${RESET} Successfully downloaded the key for the UniFi Network Application repository! \\n"
+            echo -e "${GRAY_R}#${RESET} Adding the UniFi Network Application repository..."
+            if [[ "${architecture}" == 'arm64' ]]; then arch="arch=arm64"; elif [[ "${architecture}" == 'amd64' ]]; then arch="arch=amd64"; else arch="arch=amd64,arm64"; fi
+            if [[ "${use_deb822_format}" == 'true' ]]; then
+              # DEB822 format
+              unifi_repo_entry="Types: deb\nURIs: ${http_or_https}://www.ui.com/downloads/unifi/debian\nSuites: unifi-${first_digit_unifi}.${second_digit_unifi}\nComponents: ubiquiti\nSigned-By: ${signed_by_value_unifi}\nArchitectures: ${arch//arch=/}"
+            else
+              # Traditional format
+              unifi_repo_entry="deb [ ${arch} signed-by=${signed_by_value_unifi} ] ${http_or_https}://www.ui.com/downloads/unifi/debian unifi-${first_digit_unifi}.${second_digit_unifi} ubiquiti"
+            fi
+            if echo -e "${unifi_repo_entry}" > "/etc/apt/sources.list.d/100-ubnt-unifi.${source_file_format}"; then
+              echo -e "${GREEN}#${RESET} Successfully added UniFi Network Application source list! \\n"
+              run_apt_get_update_with_sha1_fallback
+              echo -ne "\\r${GRAY_R}#${RESET} Checking if the added UniFi Network Application repository is valid..." && sleep 1
+              if grep -sioq "unifi-${first_digit_unifi}.${second_digit_unifi} Release' does not" /tmp/EUS/apt/apt-update.log; then
+                echo -ne "\\r${RED}#${RESET} The added UniFi Repository is not valid/used, the repository list will be removed! \\n"
+                rm -f "/etc/apt/sources.list.d/100-ubnt-unifi.${source_file_format}" &> /dev/null
               else
-                # Traditional format
-                unifi_repo_entry="deb [ ${arch} signed-by=${signed_by_value_unifi} ] ${http_or_https}://www.ui.com/downloads/unifi/debian unifi-${first_digit_unifi}.${second_digit_unifi} ubiquiti"
+                echo -ne "\\r${GREEN}#${RESET} The added UniFi Network Application Repository is valid! \\n"
               fi
-              if echo -e "${unifi_repo_entry}" &> "/etc/apt/sources.list.d/100-ubnt-unifi.${source_file_format}"; then
-                echo -e "${GREEN}#${RESET} Successfully added UniFi Network Application source list! \\n"
-                run_apt_get_update_with_sha1_fallback
-                echo -ne "\\r${GRAY_R}#${RESET} Checking if the added UniFi Network Application repository is valid..." && sleep 1
-                if grep -sioq "unifi-${first_digit_unifi}.${second_digit_unifi} Release' does not" /tmp/EUS/apt/apt-update.log; then
-                  echo -ne "\\r${RED}#${RESET} The added UniFi Repository is not valid/used, the repository list will be removed! \\n"
-                  rm -f "/etc/apt/sources.list.d/100-ubnt-unifi.${source_file_format}" &> /dev/null
-                else
-                  echo -ne "\\r${GREEN}#${RESET} The added UniFi Network Application Repository is valid! \\n"
-                fi
-                sleep 3
-              else
-                echo -e "${RED}#${RESET} Failed to add the UniFi Network Application source list...\\n"
-              fi
+              sleep 3
             else
               echo -e "${RED}#${RESET} Failed to add the UniFi Network Application source list...\\n"
             fi
