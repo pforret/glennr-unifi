@@ -11,6 +11,13 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 9.1.1
+  
+ - Fixed support for Devuan Freia.
+ 
+ ####
+
+
  |  UniFi Network Application Installation Script  |  Version 9.1.0
   
  - Added script process locking, to prevent users from running multiple at once.

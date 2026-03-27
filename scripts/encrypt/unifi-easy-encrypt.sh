@@ -3,7 +3,7 @@
 # UniFi Easy Encrypt script.
 # Script          | UniFi Network Easy Encrypt Script
 # Version         | 3.7.6
-# Script Version  | 3.7.9
+# Script Version  | 3.8.0
 # Author          | Glenn Rietveld
 # Email           | glennrietveld8@hotmail.nl
 # Website         | https://GlennR.nl
@@ -1935,7 +1935,8 @@ get_distro() {
     elif [[ "${os_codename}" =~ ^(bullseye|kali-rolling|elsie|ara|beryllium|chimaera|orion-belt|byzantium|xenon|tiger)$ ]]; then repo_codename="bullseye"; os_codename="bullseye"; os_id="debian"
     elif [[ "${os_codename}" =~ ^(bookworm|lory|faye|boron|beige|preslee|daedalus|crimson|vapour|shockworm|yirmiuc)$ ]]; then repo_codename="bookworm"; os_codename="bookworm"; os_id="debian"
     elif [[ "${os_codename}" =~ ^(trixie|excalibur|seven-sisters|gigi|yirmibes)$ ]]; then repo_codename="trixie"; os_codename="trixie"; os_id="debian"
-    elif [[ "${os_codename}" =~ ^(forky|freia|tiamat)$ ]]; then repo_codename="forky"; os_codename="forky"; os_id="debian"
+    elif [[ "${os_codename}" =~ ^(forky|freia|freia ceres|tiamat)$ ]]; then repo_codename="forky"; os_codename="forky"; os_id="debian"
+    elif [[ "${os_codename}" =~ ^(duke)$ ]]; then repo_codename="duke"; os_codename="duke"; os_id="debian"
     elif [[ "${os_codename}" =~ ^(unstable|rolling|nest)$ ]]; then repo_codename="unstable"; os_codename="unstable"; os_id="debian"
     else
       repo_codename="${os_codename}"

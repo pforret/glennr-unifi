@@ -11,6 +11,12 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Encrypt Script  |  Version 3.8.0
+  
+ - Fixed support for Devuan Freia.
+ 
+ ####
+
  |  UniFi Easy Encrypt Script  |  Version 3.7.9
   
  - Added script process locking, to prevent users from running multiple at once.

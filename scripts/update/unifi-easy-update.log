@@ -11,6 +11,12 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 10.6.4
+  
+ - Fixed support for Devuan Freia.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 10.6.3
   
  - Added script process locking, to prevent users from running multiple at once.
