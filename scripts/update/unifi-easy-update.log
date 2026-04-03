@@ -11,6 +11,14 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 10.6.5
+  
+ - Improved the MongoDB Upgrade process.
+ - Fixed an issue where the script could loop through malformed repositories.
+ - Fixed an issue where the script could add invalid repositories after adding the Glenn R. MongoDB repository.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 10.6.4
   
  - Fixed support for Devuan Freia.

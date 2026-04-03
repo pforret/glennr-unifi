@@ -3,7 +3,7 @@
 # UniFi Easy Encrypt script.
 # Script          | UniFi Network Easy Encrypt Script
 # Version         | 3.7.6
-# Script Version  | 3.8.0
+# Script Version  | 3.8.1
 # Author          | Glenn Rietveld
 # Email           | glennrietveld8@hotmail.nl
 # Website         | https://GlennR.nl
@@ -309,6 +309,26 @@ eus_acquire_lock() {
 #                                                                                           Start Checks                                                                                          #
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
+
+eus_dir_value() {
+  if uname -a | tr '[:upper:]' '[:lower:]' | grep -iq "cloudkey\\|uck\\|ubnt-mtk"; then
+    eus_dir='/srv/EUS'
+    is_cloudkey="true"
+    if grep -iq "UCKP" /usr/lib/version; then is_cloudkey_gen2_plus="true"; fi
+  elif grep -iq "UCKP\\|UCKG2\\|UCK" /usr/lib/version &> /dev/null; then
+    eus_dir='/srv/EUS'
+    is_cloudkey="true"
+    if grep -iq "UCKP" /usr/lib/version; then is_cloudkey_gen2_plus="true"; fi
+  elif "$(which dpkg)" -l unifi-core 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+    eus_dir='/srv/EUS'
+    is_cloudkey="false"
+    is_cloudkey_gen2_plus="false"
+  else
+    eus_dir='/usr/lib/EUS'
+    is_cloudkey="false"
+    is_cloudkey_gen2_plus="false"
+  fi
+}
 
 header() {
   if [[ "${script_option_debug}" != 'true' ]]; then clear; clear; fi
@@ -1135,23 +1155,7 @@ cancel_script() {
   exit 0
 }
 
-if uname -a | tr '[:upper:]' '[:lower:]' | grep -iq "cloudkey\\|uck\\|ubnt-mtk"; then
-  eus_dir='/srv/EUS'
-  is_cloudkey="true"
-  if grep -iq "UCKP" /usr/lib/version; then is_cloudkey_gen2_plus="true"; fi
-elif grep -iq "UCKP\\|UCKG2\\|UCK" /usr/lib/version &> /dev/null; then
-  eus_dir='/srv/EUS'
-  is_cloudkey="true"
-  if grep -iq "UCKP" /usr/lib/version; then is_cloudkey_gen2_plus="true"; fi
-elif "$(which dpkg)" -l unifi-core 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
-  eus_dir='/srv/EUS'
-  is_cloudkey="false"
-  is_cloudkey_gen2_plus="false"
-else
-  eus_dir='/usr/lib/EUS'
-  is_cloudkey="false"
-  is_cloudkey_gen2_plus="false"
-fi
+eus_dir_value
 if [[ "${eus_dir}" == '/srv/EUS' ]]; then if findmnt -no OPTIONS "$(df --output=target /srv | tail -1)" | grep -ioq "ro"; then eus_dir='/usr/lib/EUS'; fi; fi
 
 check_dig_curl() {
@@ -1329,6 +1333,7 @@ locate_http_proxy() {
 }
 
 set_curl_arguments() {
+  eus_dir_value
   locate_http_proxy
   if [[ "$(command -v jq)" ]]; then ssl_check_status="$(curl "${curl_proxy_arg[@]}" --silent "https://api.glennr.nl/api/ssl-check" 2> /dev/null | jq -r '.status' 2> /dev/null)"; else ssl_check_status="$(curl "${curl_proxy_arg[@]}" --silent "https://api.glennr.nl/api/ssl-check" 2> /dev/null | grep -oP '(?<="status":")[^"]+')"; fi
   if [[ "${ssl_check_status}" != "OK" ]]; then
@@ -2232,7 +2237,7 @@ broken_packages_check() {
     fi
     while read -r log_file; do
       sed -i 's/--fix-broken install/--fix-broken install (completed)/g' "${log_file}" &> /dev/null
-    done < <(find "${eus_dir}/logs/" -maxdepth 1 -type f -exec grep -Eil "Try 'sudo apt --fix-broken install' with no packages|Try 'apt --fix-broken install' with no packages" {} \;)
+    done < <(find "${eus_dir}/logs/" -maxdepth 1 -type f ! -name "apt-check.log" -print0 | xargs -0 grep -Eil "Try 'sudo apt --fix-broken install' with no packages|Try 'apt --fix-broken install' with no packages")
   fi
 }
 

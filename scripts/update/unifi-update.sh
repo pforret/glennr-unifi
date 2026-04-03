@@ -3,7 +3,7 @@
 # UniFi Network Application Easy Update Script.
 # Script          | UniFi Network Easy Update Script
 # Version         | 9.9.9
-# Script Version  | 10.6.4
+# Script Version  | 10.6.5
 # Author          | Glenn Rietveld
 # Email           | glennrietveld8@hotmail.nl
 # Website         | https://GlennR.nl
@@ -309,6 +309,18 @@ eus_acquire_lock() {
 #                                                                                           Start Checks                                                                                          #
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
+
+eus_dir_value() {
+  if uname -a | tr '[:upper:]' '[:lower:]' | grep -iq "cloudkey\\|uck\\|ubnt-mtk"; then
+    eus_dir='/srv/EUS'
+  elif grep -iq "UCKP\\|UCKG2\\|UCK" /usr/lib/version &> /dev/null; then
+    eus_dir='/srv/EUS'
+  elif "$(which dpkg)" -l unifi-core 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+    eus_dir='/srv/EUS'
+  else
+    eus_dir='/usr/lib/EUS'
+  fi
+}
 
 header() {
   if [[ "${script_option_debug}" != 'true' ]]; then clear; clear; fi
@@ -619,7 +631,23 @@ locate_http_proxy() {
   fi
 }
 
+eus_database_move() {
+  if [[ -z "${eus_database_move_file}" ]]; then eus_database_move_file="${eus_dir}/db/db.json"; eus_database_move_log_file="${eus_dir}/logs/eus-database-management.log"; fi
+  if [[ -s "${eus_database_move_file}.tmp" ]] && jq . "${eus_database_move_file}.tmp" >/dev/null 2>&1; then
+    mv "${eus_database_move_file}.tmp" "${eus_database_move_file}" &>> "${eus_database_move_log_file}"
+  else
+    if ! [[ -s "${eus_database_move_file}.tmp" ]]; then
+      echo -e "$(date +%F-%T.%6N) | \"${eus_database_move_file}.tmp\" is empty." >> "${eus_database_move_log_file}"
+    else
+      echo -e "$(date +%F-%T.%6N) | \"${eus_database_move_file}.tmp\" does not contain valid JSON. Contents:" >> "${eus_database_move_log_file}"
+      cat "${eus_database_move_file}.tmp" >> "${eus_database_move_log_file}"
+    fi
+  fi
+  unset eus_database_move_file
+}
+
 set_curl_arguments() {
+  eus_dir_value
   locate_http_proxy
   if [[ "$(command -v jq)" ]]; then ssl_check_status="$(curl "${curl_proxy_arg[@]}" --silent "https://api.glennr.nl/api/ssl-check" 2> /dev/null | jq -r '.status' 2> /dev/null)"; else ssl_check_status="$(curl "${curl_proxy_arg[@]}" --silent "https://api.glennr.nl/api/ssl-check" 2> /dev/null | grep -oP '(?<="status":")[^"]+')"; fi
   if [[ "${ssl_check_status}" != "OK" ]]; then
@@ -750,21 +778,6 @@ update_eus_db() {
   check_lxc_setup
   check_wsl_setup
   locate_http_proxy
-}
-
-eus_database_move() {
-  if [[ -z "${eus_database_move_file}" ]]; then eus_database_move_file="${eus_dir}/db/db.json"; eus_database_move_log_file="${eus_dir}/logs/eus-database-management.log"; fi
-  if [[ -s "${eus_database_move_file}.tmp" ]] && jq . "${eus_database_move_file}.tmp" >/dev/null 2>&1; then
-    mv "${eus_database_move_file}.tmp" "${eus_database_move_file}" &>> "${eus_database_move_log_file}"
-  else
-    if ! [[ -s "${eus_database_move_file}.tmp" ]]; then
-      echo -e "$(date +%F-%T.%6N) | \"${eus_database_move_file}.tmp\" is empty." >> "${eus_database_move_log_file}"
-    else
-      echo -e "$(date +%F-%T.%6N) | \"${eus_database_move_file}.tmp\" does not contain valid JSON. Contents:" >> "${eus_database_move_log_file}"
-      cat "${eus_database_move_file}.tmp" >> "${eus_database_move_log_file}"
-    fi
-  fi
-  unset eus_database_move_file
 }
 
 get_timezone() {
@@ -1576,15 +1589,7 @@ eus_tmp_directory_check() {
 }
 
 eus_directories() {
-  if uname -a | tr '[:upper:]' '[:lower:]' | grep -iq "cloudkey\\|uck\\|ubnt-mtk"; then
-    eus_dir='/srv/EUS'
-  elif grep -iq "UCKP\\|UCKG2\\|UCK" /usr/lib/version &> /dev/null; then
-    eus_dir='/srv/EUS'
-  elif "$(which dpkg)" -l unifi-core 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
-    eus_dir='/srv/EUS'
-  else
-    eus_dir='/usr/lib/EUS'
-  fi
+  eus_dir_value
   if [[ "${eus_dir}" == '/srv/EUS' ]]; then if findmnt -no OPTIONS "$(df --output=target /srv | tail -1)" | grep -ioq "ro"; then eus_dir='/usr/lib/EUS'; fi; fi
   eus_directory_location="${eus_dir}"
   eus_create_directories "db" "logs" "tmp"
@@ -2567,7 +2572,7 @@ broken_packages_check() {
     fi
     while read -r log_file; do
       sed -i 's/--fix-broken install/--fix-broken install (completed)/g' "${log_file}" &> /dev/null
-    done < <(find "${eus_dir}/logs/" -maxdepth 1 -type f -exec grep -Eil "Try 'sudo apt --fix-broken install' with no packages|Try 'apt --fix-broken install' with no packages" {} \;)
+    done < <(find "${eus_dir}/logs/" -maxdepth 1 -type f ! -name "apt-check.log" -print0 | xargs -0 grep -Eil "Try 'sudo apt --fix-broken install' with no packages|Try 'apt --fix-broken install' with no packages")
   fi
 }
 
@@ -3710,34 +3715,34 @@ add_glennr_repo() {
       ;;
   esac
   if [[ "${os_codename}" =~ (stretch) ]]; then
-    repo_codename="repo stretch"
+    glennr_repo_codename="repo stretch"
     glennr_apt_key_name="glennr-apt-public-rsa"
   elif [[ "${os_codename}" =~ (buster|bullseye|bookworm|trixie|forky) ]]; then
-    repo_codename="repo ${os_codename}"
+    glennr_repo_codename="repo ${os_codename}"
     glennr_apt_key_name="glennr-apt-public-ed25519"
   elif [[ "${os_codename}" =~ (unstable) ]]; then
-    repo_codename="repo forky"
+    glennr_repo_codename="repo forky"
     glennr_apt_key_name="glennr-apt-public-ed25519"
   elif [[ "${os_codename}" =~ (xenial|sarah|serena|sonya|sylvia|loki) ]]; then
-    repo_codename="repo xenial"
+    glennr_repo_codename="repo xenial"
     glennr_apt_key_name="glennr-apt-public-rsa"
   elif [[ "${os_codename}" =~ (bionic|tara|tessa|tina|tricia|hera|juno) ]]; then
-    repo_codename="repo bionic"
+    glennr_repo_codename="repo bionic"
     glennr_apt_key_name="glennr-apt-public-rsa"
   elif [[ "${os_codename}" =~ (focal|groovy|hirsute|impish) ]]; then
-    repo_codename="repo focal"
+    glennr_repo_codename="repo focal"
     glennr_apt_key_name="glennr-apt-public-ed25519"
   elif [[ "${os_codename}" =~ (jammy|kinetic|lunar|mantic) ]]; then
-    repo_codename="repo jammy"
+    glennr_repo_codename="repo jammy"
     glennr_apt_key_name="glennr-apt-public-ed25519"
   elif [[ "${os_codename}" =~ (noble|oracular) ]]; then
-    repo_codename="repo noble"
+    glennr_repo_codename="repo noble"
     glennr_apt_key_name="glennr-apt-public-ed25519"
   elif [[ "${os_codename}" =~ (plucky|questing|resolute) ]]; then
-    repo_codename="repo plucky"
+    glennr_repo_codename="repo plucky"
     glennr_apt_key_name="glennr-apt-public-ed25519"
   else
-    repo_codename="repo xenial"
+    glennr_repo_codename="repo xenial"
     glennr_apt_key_name="glennr-apt-public-rsa"
   fi
   if [[ "${try_http_glennr_mongod_repo}" == 'true' ]]; then
@@ -3791,9 +3796,9 @@ add_glennr_repo() {
     arch="arch=amd64,arm64"
   fi
   if [[ "${use_deb822_format}" == 'true' ]]; then
-    repo_entry="Types: deb\nURIs: ${repo_http_https}://apt.glennr.nl/$(echo "${repo_codename}" | awk -F' ' '{print $1}')\nSuites: $(echo "${repo_codename}" | awk -F' ' '{print $2}')\nComponents: ${repo_component}\nArchitectures: ${arch//arch=/}${deb822_signed_by_value}"
+    repo_entry="Types: deb\nURIs: ${repo_http_https}://apt.glennr.nl/$(echo "${glennr_repo_codename}" | awk -F' ' '{print $1}')\nSuites: $(echo "${glennr_repo_codename}" | awk -F' ' '{print $2}')\nComponents: ${repo_component}\nArchitectures: ${arch//arch=/}${deb822_signed_by_value}"
   else
-    repo_entry="deb [ ${arch}${signed_by_value} ] ${repo_http_https}://apt.glennr.nl/${repo_codename} ${repo_component}"
+    repo_entry="deb [ ${arch}${signed_by_value} ] ${repo_http_https}://apt.glennr.nl/${glennr_repo_codename} ${repo_component}"
   fi
   repo_file="/etc/apt/sources.list.d/glennr-${repo_family}-${repo_display_version}.${source_file_format}"
   if echo -e "${repo_entry}" > "${repo_file}"; then
@@ -10109,9 +10114,23 @@ mongodb_upgrade() {
   "$(which dpkg)" -l | grep "^ii\\|^hi\\|^ri\\|^pi\\|^ui\\|^iU" | awk '{print$2}' | grep "^unifi" | awk '{print $1}' &> /tmp/EUS/mongodb/unifi_package_list
   token="$("${mongocommand}" --quiet --port 27117 ace --eval 'db.setting.find({"key": "super_fwupdate"}).forEach(function(document){ print(document.x_sso_token) })' | grep -Eio "[0-9,a-z]{8}-[0-9,a-z]{4}-[0-9,a-z]{4}-[0-9,a-z]{4}-[0-9,a-z]{12}")"
   unifi_data_size="$("${mongocommand}" --quiet --port 27117 ace --eval "var stats = db.stats(); print(Math.floor(stats.dataSize / (1024 * 1024 * 1024)))" 2> /dev/null)"
-  while read -r unifi_package; do
+  while IFS= read -r unifi_package; do
     echo -e "${GRAY_R}#${RESET} Stopping service ${unifi_package}..."
-    if systemctl stop "${unifi_package}" &>> "${eus_dir}/logs/mongodb_upgrade_${mongodb_upgrade_from_version::2}_to_${mongo_version_max}_systemctl.log"; then echo -e "${GREEN}#${RESET} Successfully stopped service ${unifi_package}! \\n"; else abort_reason="Failed to stop service ${unifi_package}."; abort; fi
+    if ! systemctl stop "${unifi_package}" >> "${eus_dir}/logs/mongodb_upgrade_${mongodb_upgrade_from_version::2}_to_${mongo_version_max}_systemctl.log" 2>&1; then
+      abort_reason="Failed to stop service ${unifi_package}."
+      abort
+    fi
+    systemctl kill --kill-who=all --signal=SIGTERM "${unifi_package}" >> "${eus_dir}/logs/mongodb_upgrade_${mongodb_upgrade_from_version::2}_to_${mongo_version_max}_systemctl.log" 2>&1 || true
+    sleep 2
+    if systemctl is-active --quiet "${unifi_package}"; then
+      systemctl kill --kill-who=all --signal=SIGKILL "${unifi_package}" >> "${eus_dir}/logs/mongodb_upgrade_${mongodb_upgrade_from_version::2}_to_${mongo_version_max}_systemctl.log" 2>&1 || true
+      sleep 1
+    fi
+    if systemctl is-active --quiet "${unifi_package}"; then
+      abort_reason="Service ${unifi_package} is still active after stop/kill."
+      abort
+    fi
+    echo -e "${GREEN}#${RESET} Successfully stopped service ${unifi_package}!\n"
   done < /tmp/EUS/mongodb/unifi_package_list
   # DB Dumping
   if [[ "${mongodb_upgrade_without_export_import}" != 'true' ]]; then
@@ -10616,7 +10635,7 @@ mongodb_upgrade() {
             if "${EUS_APT_ENV[@]}" env DEBIAN_FRONTEND='noninteractive' apt-get -y -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' --only-upgrade install "${mongodb_mongosh_libssl_version}" &>> "${eus_dir}/logs/libssl.log"; then
               echo -e "${GREEN}#${RESET} Successfully updated ${mongodb_mongosh_libssl_version}! \\n"
             else
-              echo -e "${RED}#${RESET} Failed to update ${mongodb_mongosh_libssl_version}...\\n"
+              echo -e "${RED}#${RESET} eus_database_moveFailed to update ${mongodb_mongosh_libssl_version}...\\n"
             fi
           fi
           get_apt_options
@@ -10649,9 +10668,23 @@ mongodb_upgrade() {
       abort
     fi
     if [[ "${mongodb_upgrade_without_export_import}" != 'true' ]]; then
-      while read -r unifi_package; do
+      while IFS= read -r unifi_package; do
         echo -e "${GRAY_R}#${RESET} Stopping service ${unifi_package}..."
-        if systemctl stop "${unifi_package}" &>> "${eus_dir}/logs/mongodb_upgrade_${mongodb_upgrade_from_version::2}_to_${mongo_version_max}_systemctl.log"; then echo -e "${GREEN}#${RESET} Successfully stopped service ${unifi_package}! \\n"; else abort_reason="Failed to stop service ${unifi_package}."; abort; fi
+        if ! systemctl stop "${unifi_package}" >> "${eus_dir}/logs/mongodb_upgrade_${mongodb_upgrade_from_version::2}_to_${mongo_version_max}_systemctl.log" 2>&1; then
+          abort_reason="Failed to stop service ${unifi_package}."
+          abort
+        fi
+        systemctl kill --kill-who=all --signal=SIGTERM "${unifi_package}" >> "${eus_dir}/logs/mongodb_upgrade_${mongodb_upgrade_from_version::2}_to_${mongo_version_max}_systemctl.log" 2>&1 || true
+        sleep 2
+        if systemctl is-active --quiet "${unifi_package}"; then
+          systemctl kill --kill-who=all --signal=SIGKILL "${unifi_package}" >> "${eus_dir}/logs/mongodb_upgrade_${mongodb_upgrade_from_version::2}_to_${mongo_version_max}_systemctl.log" 2>&1 || true
+          sleep 1
+        fi
+        if systemctl is-active --quiet "${unifi_package}"; then
+          abort_reason="Failed to fully stop service ${unifi_package}."
+          abort
+        fi
+        echo -e "${GREEN}#${RESET} Successfully stopped service ${unifi_package}!\n"
       done < /tmp/EUS/mongodb/unifi_package_list
       if [[ -d "${unifi_database_location}" ]]; then
         echo -e "${GRAY_R}#${RESET} Moving \"${unifi_database_location}/\" to \"${unifi_db_eus_dir}/unifi_db/db-backup-${mongodb_upgrade_date}-post-reinstall\"..."

@@ -76,7 +76,7 @@
 
 # Script                | UniFi Network/OS Easy Installation Script
 # Version               | 9.0.2
-# Script Version        | 9.1.1
+# Script Version        | 9.1.2
 # Application version   | 7.2.91
 # Debian Repo version   | 7.2.91-18675-1
 # UOS Server version    | 5.0.6
@@ -386,6 +386,21 @@ eus_acquire_lock() {
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+eus_dir_value() {
+  if uname -a | tr '[:upper:]' '[:lower:]' | grep -iq "cloudkey\\|uck\\|ubnt-mtk"; then
+    eus_dir='/srv/EUS'
+    is_cloudkey="true"
+  elif grep -iq "UCKP\\|UCKG2\\|UCK" /usr/lib/version &> /dev/null; then
+    eus_dir='/srv/EUS'
+    is_cloudkey="true"
+  elif "$(which dpkg)" -l unifi-core 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+    eus_dir='/srv/EUS'
+  else
+    eus_dir='/usr/lib/EUS'
+    is_cloudkey="false"
+  fi
+}
+
 header() {
   if [[ "${script_option_debug}" != 'true' ]]; then clear; clear; fi
   echo -e "${GREEN}#########################################################################${RESET}\\n"
@@ -676,6 +691,7 @@ locate_http_proxy() {
 }
 
 set_curl_arguments() {
+  eus_dir_value
   locate_http_proxy
   if [[ "$(command -v jq)" ]]; then ssl_check_status="$(curl "${curl_proxy_arg[@]}" --silent "https://api.glennr.nl/api/ssl-check" 2> /dev/null | jq -r '.status' 2> /dev/null)"; else ssl_check_status="$(curl "${curl_proxy_arg[@]}" --silent "https://api.glennr.nl/api/ssl-check" 2> /dev/null | grep -oP '(?<="status":")[^"]+')"; fi
   if [[ "${ssl_check_status}" != "OK" ]]; then
@@ -1480,18 +1496,7 @@ eus_tmp_directory_check() {
 }
 
 eus_directories() {
-  if uname -a | tr '[:upper:]' '[:lower:]' | grep -iq "cloudkey\\|uck\\|ubnt-mtk"; then
-    eus_dir='/srv/EUS'
-    is_cloudkey="true"
-  elif grep -iq "UCKP\\|UCKG2\\|UCK" /usr/lib/version &> /dev/null; then
-    eus_dir='/srv/EUS'
-    is_cloudkey="true"
-  elif "$(which dpkg)" -l unifi-core 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
-    eus_dir='/srv/EUS'
-  else
-    eus_dir='/usr/lib/EUS'
-    is_cloudkey="false"
-  fi
+  eus_dir_value
   if [[ "${eus_dir}" == '/srv/EUS' ]]; then if findmnt -no OPTIONS "$(df --output=target /srv | tail -1)" | grep -ioq "ro"; then eus_dir='/usr/lib/EUS'; fi; fi
   eus_directory_location="${eus_dir}"
   eus_create_directories "db" "logs" "tmp"
@@ -2389,34 +2394,34 @@ add_glennr_repo() {
       ;;
   esac
   if [[ "${os_codename}" =~ (stretch) ]]; then
-    repo_codename="repo stretch"
+    glennr_repo_codename="repo stretch"
     glennr_apt_key_name="glennr-apt-public-rsa"
   elif [[ "${os_codename}" =~ (buster|bullseye|bookworm|trixie|forky) ]]; then
-    repo_codename="repo ${os_codename}"
+    glennr_repo_codename="repo ${os_codename}"
     glennr_apt_key_name="glennr-apt-public-ed25519"
   elif [[ "${os_codename}" =~ (unstable) ]]; then
-    repo_codename="repo forky"
+    glennr_repo_codename="repo forky"
     glennr_apt_key_name="glennr-apt-public-ed25519"
   elif [[ "${os_codename}" =~ (xenial|sarah|serena|sonya|sylvia|loki) ]]; then
-    repo_codename="repo xenial"
+    glennr_repo_codename="repo xenial"
     glennr_apt_key_name="glennr-apt-public-rsa"
   elif [[ "${os_codename}" =~ (bionic|tara|tessa|tina|tricia|hera|juno) ]]; then
-    repo_codename="repo bionic"
+    glennr_repo_codename="repo bionic"
     glennr_apt_key_name="glennr-apt-public-rsa"
   elif [[ "${os_codename}" =~ (focal|groovy|hirsute|impish) ]]; then
-    repo_codename="repo focal"
+    glennr_repo_codename="repo focal"
     glennr_apt_key_name="glennr-apt-public-ed25519"
   elif [[ "${os_codename}" =~ (jammy|kinetic|lunar|mantic) ]]; then
-    repo_codename="repo jammy"
+    glennr_repo_codename="repo jammy"
     glennr_apt_key_name="glennr-apt-public-ed25519"
   elif [[ "${os_codename}" =~ (noble|oracular) ]]; then
-    repo_codename="repo noble"
+    glennr_repo_codename="repo noble"
     glennr_apt_key_name="glennr-apt-public-ed25519"
   elif [[ "${os_codename}" =~ (plucky|questing|resolute) ]]; then
-    repo_codename="repo plucky"
+    glennr_repo_codename="repo plucky"
     glennr_apt_key_name="glennr-apt-public-ed25519"
   else
-    repo_codename="repo xenial"
+    glennr_repo_codename="repo xenial"
     glennr_apt_key_name="glennr-apt-public-rsa"
   fi
   if [[ "${try_http_glennr_mongod_repo}" == 'true' ]]; then
@@ -2470,9 +2475,9 @@ add_glennr_repo() {
     arch="arch=amd64,arm64"
   fi
   if [[ "${use_deb822_format}" == 'true' ]]; then
-    repo_entry="Types: deb\nURIs: ${repo_http_https}://apt.glennr.nl/$(echo "${repo_codename}" | awk -F' ' '{print $1}')\nSuites: $(echo "${repo_codename}" | awk -F' ' '{print $2}')\nComponents: ${repo_component}\nArchitectures: ${arch//arch=/}${deb822_signed_by_value}"
+    repo_entry="Types: deb\nURIs: ${repo_http_https}://apt.glennr.nl/$(echo "${glennr_repo_codename}" | awk -F' ' '{print $1}')\nSuites: $(echo "${glennr_repo_codename}" | awk -F' ' '{print $2}')\nComponents: ${repo_component}\nArchitectures: ${arch//arch=/}${deb822_signed_by_value}"
   else
-    repo_entry="deb [ ${arch}${signed_by_value} ] ${repo_http_https}://apt.glennr.nl/${repo_codename} ${repo_component}"
+    repo_entry="deb [ ${arch}${signed_by_value} ] ${repo_http_https}://apt.glennr.nl/${glennr_repo_codename} ${repo_component}"
   fi
   repo_file="/etc/apt/sources.list.d/glennr-${repo_family}-${repo_display_version}.${source_file_format}"
   if echo -e "${repo_entry}" > "${repo_file}"; then
@@ -3801,7 +3806,7 @@ broken_packages_check() {
     fi
     while read -r log_file; do
       sed -i 's/--fix-broken install/--fix-broken install (completed)/g' "${log_file}" &> /dev/null
-    done < <(find "${eus_dir}/logs/" -maxdepth 1 -type f -exec grep -Eil "Try 'sudo apt --fix-broken install' with no packages|Try 'apt --fix-broken install' with no packages" {} \;)
+    done < <(find "${eus_dir}/logs/" -maxdepth 1 -type f ! -name "apt-check.log" -print0 | xargs -0 grep -Eil "Try 'sudo apt --fix-broken install' with no packages|Try 'apt --fix-broken install' with no packages")
   fi
 }
 
