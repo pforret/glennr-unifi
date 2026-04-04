@@ -76,7 +76,7 @@
 
 # Script                | UniFi Network/OS Easy Installation Script
 # Version               | 9.0.2
-# Script Version        | 9.1.2
+# Script Version        | 9.1.3
 # Application version   | 5.11.46
 # Debian Repo version   | 5.11.46-12723-1
 # UOS Server version    | 5.0.6
@@ -1330,9 +1330,8 @@ support_file() {
       zip) support_file="/tmp/eus-support-${support_file_uuid}${support_file_time}.zip" ;;
     esac
     support_file_name="$(basename "${support_file}")"
-    if create_support_archive "${support_file}"; then
-      register_support_file_in_db "${support_file_name}"
-    else
+    register_support_file_in_db "${support_file_name}"
+    if ! create_support_archive "${support_file}"; then
       support_file=""
     fi
   fi

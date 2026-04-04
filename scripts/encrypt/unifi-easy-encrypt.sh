@@ -3,7 +3,7 @@
 # UniFi Easy Encrypt script.
 # Script          | UniFi Network Easy Encrypt Script
 # Version         | 3.7.6
-# Script Version  | 3.8.1
+# Script Version  | 3.8.2
 # Author          | Glenn Rietveld
 # Email           | glennrietveld8@hotmail.nl
 # Website         | https://GlennR.nl
@@ -1062,9 +1062,8 @@ support_file() {
       zip) support_file="/tmp/eus-support-${support_file_uuid}${support_file_time}.zip" ;;
     esac
     support_file_name="$(basename "${support_file}")"
-    if create_support_archive "${support_file}"; then
-      register_support_file_in_db "${support_file_name}"
-    else
+    register_support_file_in_db "${support_file_name}"
+    if ! create_support_archive "${support_file}"; then
       support_file=""
     fi
   fi
@@ -1633,7 +1632,15 @@ while [ -n "$1" ]; do
        dns_manual_flag="--non-interactive"
        auto_dns_challenge_provider="${2}"
        if [[ "${certbot_native_plugin}" == 'true' ]]; then
-         auto_dns_challenge_arguments="--dns-${auto_dns_challenge_provider} --dns-${auto_dns_challenge_provider}-propagation-seconds 60"
+         auto_dns_challenge_arguments="--dns-${auto_dns_challenge_provider}"
+         case "${auto_dns_challenge_provider}" in
+           route53)
+             # Route53 handles propagation internally
+             ;;
+           *)
+             auto_dns_challenge_arguments+=" --dns-${auto_dns_challenge_provider}-propagation-seconds 60"
+             ;;
+         esac
        fi
        echo "--dns-provider ${2}" &>> /tmp/EUS/script_options;;
   --dns-provider-credentials)

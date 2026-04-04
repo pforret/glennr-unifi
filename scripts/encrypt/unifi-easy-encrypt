@@ -11,6 +11,13 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Encrypt Script  |  Version 3.8.2
+  
+ - Fixed Route53 DNS challenge.
+ - Fixed an issue where support files didn't include script abort reasons.
+ 
+ ####
+
  |  UniFi Easy Encrypt Script  |  Version 3.8.1
   
  - Fixed an issue where the script could loop through malformed repositories.

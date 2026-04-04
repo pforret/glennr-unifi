@@ -3,7 +3,7 @@
 # UniFi Network Application Easy Update Script.
 # Script          | UniFi Network Easy Update Script
 # Version         | 9.9.9
-# Script Version  | 10.6.5
+# Script Version  | 10.6.6
 # Author          | Glenn Rietveld
 # Email           | glennrietveld8@hotmail.nl
 # Website         | https://GlennR.nl
@@ -1269,9 +1269,8 @@ support_file() {
       zip) support_file="/tmp/eus-support-${support_file_uuid}${support_file_time}.zip" ;;
     esac
     support_file_name="$(basename "${support_file}")"
-    if create_support_archive "${support_file}"; then
-      register_support_file_in_db "${support_file_name}"
-    else
+    register_support_file_in_db "${support_file_name}"
+    if ! create_support_archive "${support_file}"; then
       support_file=""
     fi
   fi
