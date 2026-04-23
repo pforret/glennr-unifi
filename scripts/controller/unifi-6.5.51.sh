@@ -3135,9 +3135,30 @@ http_proxy_found() {
 }
 
 remove_yourself() {
-  if [[ "${set_lc_all}" == 'true' ]]; then if [[ -n "${original_lang}" ]]; then export LANG="${original_lang}"; else unset LANG; fi; if [[ -n "${original_lcall}" ]]; then export LC_ALL="${original_lcall}"; else unset LC_ALL; fi; fi
-  if [[ "${stopped_unattended_upgrade}" == 'true' ]]; then systemctl start unattended-upgrades &>> "${eus_dir}/logs/unattended-upgrades.log"; unset stopped_unattended_upgrade; fi
-  if [[ "$(jq -r '.database["keep-script-on-system"]' "${eus_dir}/db/db.json")" == "false" || "${script_option_skip}" == 'true' ]]; then if [[ -e "${script_location}" ]]; then rm --force "${script_location}" 2> /dev/null; fi; fi
+  if [[ "${set_lc_all}" == 'true' ]]; then
+    if [[ -n "${original_lang}" ]]; then
+      export LANG="${original_lang}"
+    else
+      unset LANG
+    fi
+    if [[ -n "${original_lcall}" ]]; then
+      export LC_ALL="${original_lcall}"
+    else
+      unset LC_ALL
+    fi
+  fi
+  if [[ "${stopped_unattended_upgrade}" == 'true' ]]; then
+    systemctl start unattended-upgrades &>> "${eus_dir}/logs/unattended-upgrades.log"
+    unset stopped_unattended_upgrade
+  fi
+  if [[ -f "${eus_dir}/db/db.json" ]] && command -v jq >/dev/null 2>&1; then
+    keep_script_on_system="$(jq -r '.database["keep-script-on-system"]' "${eus_dir}/db/db.json" 2>/dev/null)"
+  fi
+  if [[ "${script_option_skip}" == 'true' || "${keep_script_on_system}" == 'false' ]]; then
+    if [[ -e "${script_location}" ]]; then
+      rm --force "${script_location}" 2>/dev/null
+    fi
+  fi
 }
 
 christmass_new_year() {
