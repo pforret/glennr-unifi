@@ -11,6 +11,12 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 9.1.4
+  
+ - Improved the free space check.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 9.1.3
   
  - Fixed an issue where support files didn't include script abort reasons.

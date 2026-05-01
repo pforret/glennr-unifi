@@ -11,6 +11,13 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 10.6.7
+  
+ - Improved the free space check.
+ - Improved logging for the creation of the Upgrade Menu.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 10.6.6
   
  - Fixed an issue where support files didn't include script abort reasons.

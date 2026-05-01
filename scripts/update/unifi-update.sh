@@ -3,7 +3,7 @@
 # UniFi Network Application Easy Update Script.
 # Script          | UniFi Network Easy Update Script
 # Version         | 9.9.9
-# Script Version  | 10.6.6
+# Script Version  | 10.6.7
 # Author          | Glenn Rietveld
 # Email           | glennrietveld8@hotmail.nl
 # Website         | https://GlennR.nl
@@ -1957,7 +1957,7 @@ get_distro() {
     else
       repo_codename="${os_codename}"
     fi
-    if [[ -n "$(command -v jq)" && "$(jq -r '.database.distribution' "${eus_dir}/db/db.json")" != "${os_codename}" ]]; then
+    if [[ -n "$(command -v jq)" && "$(jq -r '.database.distribution' "${eus_dir}/db/db.json" 2> /dev/null)" != "${os_codename}" ]]; then
       if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
         jq '."database" += {"distribution": "'"${os_codename}"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
       else
@@ -6899,9 +6899,30 @@ migration_check() {
 
 remove_yourself() {
   script_cleanup
-  if [[ "${set_lc_all}" == 'true' ]]; then if [[ -n "${original_lang}" ]]; then export LANG="${original_lang}"; else unset LANG; fi; if [[ -n "${original_lcall}" ]]; then export LC_ALL="${original_lcall}"; else unset LC_ALL; fi; fi
-  if [[ "${stopped_unattended_upgrade}" == 'true' ]]; then systemctl start unattended-upgrades &>> "${eus_dir}/logs/unattended-upgrades.log"; unset stopped_unattended_upgrade; fi
-  if [[ "$(jq -r '.database["keep-script-on-system"]' "${eus_dir}/db/db.json")" == "false" ]]; then if [[ -e "${script_location}" ]]; then rm --force "${script_location}" 2> /dev/null; fi; fi
+  if [[ "${set_lc_all}" == 'true' ]]; then
+    if [[ -n "${original_lang}" ]]; then
+      export LANG="${original_lang}"
+    else
+      unset LANG
+    fi
+    if [[ -n "${original_lcall}" ]]; then
+      export LC_ALL="${original_lcall}"
+    else
+      unset LC_ALL
+    fi
+  fi
+  if [[ "${stopped_unattended_upgrade}" == 'true' ]]; then
+    systemctl start unattended-upgrades &>> "${eus_dir}/logs/unattended-upgrades.log"
+    unset stopped_unattended_upgrade
+  fi
+  if [[ -f "${eus_dir}/db/db.json" ]] && command -v jq >/dev/null 2>&1; then
+    keep_script_on_system="$(jq -r '.database["keep-script-on-system"]' "${eus_dir}/db/db.json" 2>/dev/null)"
+  fi
+  if [[ "${script_option_skip}" == 'true' || "${keep_script_on_system}" == 'false' ]]; then
+    if [[ -e "${script_location}" ]]; then
+      rm --force "${script_location}" 2>/dev/null
+    fi
+  fi
 }
 
 upgrade_start() {
@@ -11844,7 +11865,7 @@ uos_server_upgrade_process() {
   done
   free_disk_space_check "${uos_server_tmp_dir}" "2"
   free_disk_space_check "/var/lib" "1"
-  free_disk_space_check "/home" "18"
+  free_disk_space_check "/home" "7"
   if [[ "${architecture}" == "amd64" ]]; then fwupdate_uos_server_platform="linux-x64"; elif [[ "${architecture}" == "arm64" ]]; then fwupdate_uos_server_platform="linux-arm64"; fi
   if [[ "$(curl "${curl_argument[@]}" https://api.glennr.nl/api/application-release?status 2> /dev/null | jq -r '.[]' 2> /dev/null)" == "OK" ]]; then
     fw_update_dl_link="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/application-release?app=uosserver&version=${uos_server_version}&architecture=${architecture}" | jq -r '."download_link"' | sed '/null/d' 2> "${eus_dir}/logs/locate-download.log")"
@@ -11964,7 +11985,7 @@ run_upgrade_menu_for() {
         "8.1.127-810cd1e59a" "8.2.93-1c329ecd26" "8.3.32-896f48ed11" "8.4.62-i3q2j125cz"
         "8.5.6-1x29lm155t" "8.6.9-0f45j609pu" "9.0.114-k5dy363g65" "9.1.120-e1aep1zs38"
         "9.2.87-uf39xch68k" "9.3.45-9iw96x349g" "9.4.19-0f76duk082" "9.5.21-6nxxr6v29z"
-        "10.0.162-07s9p09k3a" "10.1.89"
+        "10.0.162-07s9p09k3a" "10.1.89" "10.2.105-2yiwv9j6z9" "10.3.58-2kp7io9bd2"
       )
       app_pretty="UniFi Network Application"
       current="${unifi}"
@@ -11986,43 +12007,100 @@ run_upgrade_menu_for() {
       return 1
       ;;
   esac
+  echo -e "$(date +%F-%T.%6N) | [${app_key}] Starting run_upgrade_menu_for | current=${current} | current_base=${current%%-*} | latest=${latest} | latest_base=${latest%%-*} | latest_rc=${latest_rc} | latest_rc_base=${latest_rc%%-*} | fallback_count=${#fallback_versions[@]} | fallback_versions=${fallback_versions[*]}" >> "${eus_dir}/logs/upgrade-menu.log"
   release_wanted
+  echo -e "$(date +%F-%T.%6N) | [${app_key}] release_wanted completed | release_stage=${release_stage} | release_stage_friendly=${release_stage_friendly}" >> "${eus_dir}/logs/upgrade-menu.log"
   local all_versions=("${fallback_versions[@]}")
-  local api_results http_code body
+  local api_results http_code body curl_exit jq_exit
+  local versions_source="fallback"
+  local raw_latest_present="no"
+  local base_latest_present="no"
+  local raw_current_present="no"
+  local base_current_present="no"
   api_results="$(curl "${curl_argument[@]}" -w "\n%{http_code}" "https://api.glennr.nl/api/list-releases?application=${api_name}")"
-  http_code="$(echo "${api_results}" | tail -n1)"
-  body="$(echo "${api_results}" | head -n -1)"
-  if [[ "${http_code}" == "200" && "$(echo "${body}" | jq -e . >/dev/null 2>&1; echo $?)" == 0 ]]; then
-    mapfile -t all_versions < <(echo "${body}" | jq -r '.[]')
+  curl_exit=$?
+  if [[ ${curl_exit} -ne 0 || -z "${api_results}" ]]; then
+    echo -e "$(date +%F-%T.%6N) | [${app_key}] API request failed before parsing, using fallback | curl_exit=${curl_exit} | api_name=${api_name} | versions_source=${versions_source} | fallback_count=${#all_versions[@]} | fallback_versions=${all_versions[*]}" >> "${eus_dir}/logs/upgrade-menu.log"
   else
-    echo -e "$(date +%F-%T.%6N) | API (/api/list-releases?application=${api_name}) request failed or invalid JSON, using fallback." &>> "${eus_dir}/logs/glennr-api.log"
+    http_code="$(echo "${api_results}" | tail -n1)"
+    body="$(echo "${api_results}" | head -n -1)"
+    echo "${body}" | jq -e . >/dev/null 2>&1
+    jq_exit=$?
+    if [[ "${http_code}" == "200" && "${jq_exit}" == 0 ]]; then
+      mapfile -t all_versions < <(echo "${body}" | jq -r '.[]')
+      versions_source="api"
+      echo -e "$(date +%F-%T.%6N) | [${app_key}] API list accepted | curl_exit=${curl_exit} | http_code=${http_code} | jq_exit=${jq_exit} | versions_source=${versions_source} | count=${#all_versions[@]} | versions=${all_versions[*]}" >> "${eus_dir}/logs/upgrade-menu.log"
+    else
+      echo -e "$(date +%F-%T.%6N) | [${app_key}] API request failed or invalid JSON, using fallback | curl_exit=${curl_exit} | http_code=${http_code} | jq_exit=${jq_exit} | api_name=${api_name} | versions_source=${versions_source} | body=${body} | fallback_count=${#all_versions[@]} | fallback_versions=${all_versions[*]}" >> "${eus_dir}/logs/upgrade-menu.log"
+    fi
   fi
+  if printf '%s\n' "${all_versions[@]}" | grep -qx "${latest}"; then raw_latest_present="yes"; fi
+  if printf '%s\n' "${all_versions[@]}" | grep -qE "^${latest%%-*}(-.*)?$"; then base_latest_present="yes"; fi
+  if printf '%s\n' "${all_versions[@]}" | grep -qx "${current}"; then raw_current_present="yes"; fi
+  if printf '%s\n' "${all_versions[@]}" | grep -qE "^${current%%-*}(-.*)?$"; then base_current_present="yes"; fi
+  echo -e "$(date +%F-%T.%6N) | [${app_key}] Version presence check | versions_source=${versions_source} | latest=${latest} | latest_base=${latest%%-*} | raw_latest_present=${raw_latest_present} | base_latest_present=${base_latest_present} | current=${current} | current_base=${current%%-*} | raw_current_present=${raw_current_present} | base_current_present=${base_current_present}" >> "${eus_dir}/logs/upgrade-menu.log"
   # Remove RC from Stable lists when RC differs from Stable
   if [[ "${release_stage}" == "S" && -n "${latest_rc}" && "${latest_rc%%-*}" != "${latest%%-*}" ]]; then
     local tmp_versions=()
     local rc_base="${latest_rc%%-*}"
+    echo -e "$(date +%F-%T.%6N) | [${app_key}] Applying RC filter for Stable stage | versions_source=${versions_source} | rc_base=${rc_base} | before_count=${#all_versions[@]} | before_versions=${all_versions[*]}" >> "${eus_dir}/logs/upgrade-menu.log"
     for v in "${all_versions[@]}"; do
       [[ "${v%%-*}" == "${rc_base}" ]] && continue
       tmp_versions+=("$v")
     done
     all_versions=("${tmp_versions[@]}")
+    echo -e "$(date +%F-%T.%6N) | [${app_key}] RC filter applied | versions_source=${versions_source} | after_count=${#all_versions[@]} | after_versions=${all_versions[*]}" >> "${eus_dir}/logs/upgrade-menu.log"
+  else
+    echo -e "$(date +%F-%T.%6N) | [${app_key}] RC filter skipped | versions_source=${versions_source} | release_stage=${release_stage} | latest=${latest} | latest_rc=${latest_rc}" >> "${eus_dir}/logs/upgrade-menu.log"
   fi
   local options=()
+  local skipped_same=()
+  local skipped_not_newer=()
+  local latest_in_options="no"
+  local latest_raw_in_options="no"
   for v in "${all_versions[@]}"; do
     local base="${v%%-*}"
-    if [[ "${base}" != "${current%%-*}" && "$(printf '%s\n%s\n' "${current%%-*}" "${base}" | sort -V | head -n1)" != "${base}" ]]; then
+    if [[ "${base}" == "${current%%-*}" ]]; then
+      skipped_same+=("${v}")
+      continue
+    fi
+    if [[ "$(printf '%s\n%s\n' "${current%%-*}" "${base}" | sort -V | head -n1)" != "${base}" ]]; then
       options+=("${v}")
+      [[ "${base}" == "${latest%%-*}" ]] && latest_in_options="yes"
+      [[ "${v}" == "${latest}" ]] && latest_raw_in_options="yes"
+    else
+      skipped_not_newer+=("${v}")
     fi
   done
+  echo -e "$(date +%F-%T.%6N) | [${app_key}] Option build completed | versions_source=${versions_source} | current=${current} | current_base=${current%%-*} | latest=${latest} | latest_base=${latest%%-*} | latest_in_options=${latest_in_options} | latest_raw_in_options=${latest_raw_in_options} | option_count=${#options[@]} | options=${options[*]} | skipped_same=${skipped_same[*]} | skipped_not_newer=${skipped_not_newer[*]}" >> "${eus_dir}/logs/upgrade-menu.log"
   if [[ "${release_stage}" == "RC" && -n "${latest_rc}" ]] && ! printf '%s\n' "${options[@]}" | grep -qE "^${latest_rc%%-*}(-.*)?$"; then
     options=("${latest_rc}" "${options[@]}")
+    echo -e "$(date +%F-%T.%6N) | [${app_key}] RC mode prepend applied | versions_source=${versions_source} | latest_rc=${latest_rc} | options=${options[*]}" >> "${eus_dir}/logs/upgrade-menu.log"
+  else
+    echo -e "$(date +%F-%T.%6N) | [${app_key}] RC mode prepend skipped | versions_source=${versions_source} | release_stage=${release_stage} | latest_rc=${latest_rc}" >> "${eus_dir}/logs/upgrade-menu.log"
   fi
   options+=("Cancel")
+  local display_options=()
+  local opt display
+  for opt in "${options[@]}"; do
+    display="${opt}"
+    [[ "${display}" == *"|"* ]] && display="${display##*| }"
+    [[ "${display}" == *"-"* ]] && display="${display%%-*}"
+    display_options+=("${display}")
+  done
+  local latest_display="${latest%%-*}"
+  local latest_in_display_options="no"
+  if printf '%s\n' "${display_options[@]}" | grep -qx "${latest_display}"; then
+    latest_in_display_options="yes"
+  fi
+  echo -e "$(date +%F-%T.%6N) | [${app_key}] Final menu options | versions_source=${versions_source} | count=${#options[@]} | selectable_count=$((${#options[@]} - 1)) | latest_display=${latest_display} | latest_in_display_options=${latest_in_display_options} | options=${options[*]} | display_options=${display_options[*]}" >> "${eus_dir}/logs/upgrade-menu.log"
   if [[ "${release_stage}" == 'S' && "${current%%-*}" == "${latest%%-*}" ]]; then
+    echo -e "$(date +%F-%T.%6N) | [${app_key}] Auto-upgrade path triggered for Stable | versions_source=${versions_source} | current_base=${current%%-*} | latest_base=${latest%%-*}" >> "${eus_dir}/logs/upgrade-menu.log"
     if [[ "${app_key}" == "network" ]]; then debug_check_no_upgrade; fi
     upgrade_latest "${app_key}"
   fi
   if [[ "${release_stage}" == 'RC' && -n "${latest_rc}" && "${current%%-*}" == "${latest_rc%%-*}" ]]; then
+    echo -e "$(date +%F-%T.%6N) | [${app_key}] Auto-upgrade path triggered for RC | versions_source=${versions_source} | current_base=${current%%-*} | latest_rc_base=${latest_rc%%-*}" >> "${eus_dir}/logs/upgrade-menu.log"
     if [[ "${app_key}" == "network" ]]; then debug_check_no_upgrade; fi
     upgrade_latest "${app_key}"
   fi
@@ -12033,41 +12111,52 @@ run_upgrade_menu_for() {
     echo -e "\n  Release stage is set to | ${GRAY_R}${release_stage_friendly}${RESET}\n\n"
     print_menu "${options[@]}"
     read -rp $'Your choice | \033[39m' UPGRADE_VERSION
+    echo -e "$(date +%F-%T.%6N) | [${app_key}] User input received | raw_choice=${UPGRADE_VERSION} | options_count=${#options[@]} | options=${options[*]} | display_options=${display_options[*]}" >> "${eus_dir}/logs/upgrade-menu.log"
     if ! [[ "${UPGRADE_VERSION}" =~ ^[0-9]+$ ]]; then
+      echo -e "$(date +%F-%T.%6N) | [${app_key}] Invalid input | raw_choice=${UPGRADE_VERSION}" >> "${eus_dir}/logs/upgrade-menu.log"
       header_red
       echo -e "${RED}#${RESET} Invalid input. Please enter a number."
       sleep 3
       continue
     fi
     if (( UPGRADE_VERSION < 1 || UPGRADE_VERSION > ${#options[@]} )); then
+      echo -e "$(date +%F-%T.%6N) | [${app_key}] Choice out of range | raw_choice=${UPGRADE_VERSION} | valid_range=1-${#options[@]}" >> "${eus_dir}/logs/upgrade-menu.log"
       header_red
       echo -e "${RED}#${RESET} Choice out of range. Please select a valid option."
       sleep 3
       continue
     fi
     local upgrade_menu_choice="${options[$((UPGRADE_VERSION-1))]}"
+    local upgrade_menu_display="${display_options[$((UPGRADE_VERSION-1))]}"
+    echo -e "$(date +%F-%T.%6N) | [${app_key}] Resolved menu choice | index=${UPGRADE_VERSION} | selected=${upgrade_menu_choice} | selected_display=${upgrade_menu_display}" >> "${eus_dir}/logs/upgrade-menu.log"
     case "${upgrade_menu_choice}" in
       "Cancel")
+        echo -e "$(date +%F-%T.%6N) | [${app_key}] Upgrade canceled by user" >> "${eus_dir}/logs/upgrade-menu.log"
         echo "Upgrade canceled."
         exit 0
         ;;
       *)
         case "${app_key}" in
           network)
+            echo -e "$(date +%F-%T.%6N) | [${app_key}] Starting upgrade flow | selected=${upgrade_menu_choice} | selected_display=${upgrade_menu_display} | current=${unifi}" >> "${eus_dir}/logs/upgrade-menu.log"
             upgrade_start network
             unifi_firmware_requirement
             if [[ "${unifi}" == "5.6.40" ]]; then
+              echo -e "$(date +%F-%T.%6N) | [${app_key}] Special migration path triggered | from=${unifi} | forced_intermediate=5.6.42" >> "${eus_dir}/logs/upgrade-menu.log"
               application_version="5.6.42"
               application_upgrade_releases
               migration_check
             fi
             application_version="${upgrade_menu_choice}"
+            echo -e "$(date +%F-%T.%6N) | [${app_key}] application_version set | application_version=${application_version}" >> "${eus_dir}/logs/upgrade-menu.log"
             application_upgrade_releases
             upgrade_finished network
             ;;
           uosserver)
+            echo -e "$(date +%F-%T.%6N) | [${app_key}] Starting upgrade flow | selected=${upgrade_menu_choice} | selected_display=${upgrade_menu_display} | current=${uos_version}" >> "${eus_dir}/logs/upgrade-menu.log"
             upgrade_start uosserver
             uos_server_version="${upgrade_menu_choice}"
+            echo -e "$(date +%F-%T.%6N) | [${app_key}] uos_server_version set | uos_server_version=${uos_server_version}" >> "${eus_dir}/logs/upgrade-menu.log"
             uos_server_upgrade_process
             upgrade_finished uosserver
             ;;

@@ -76,7 +76,7 @@
 
 # Script                | UniFi Network/OS Easy Installation Script
 # Version               | 9.0.2
-# Script Version        | 9.1.3
+# Script Version        | 9.1.4
 # Application version   | 9.3.43
 # Debian Repo version   | 9.3.43-30430-1
 # UOS Server version    | 5.0.6
@@ -3287,7 +3287,7 @@ get_distro() {
     else
       repo_codename="${os_codename}"
     fi
-    if [[ -n "$(command -v jq)" && "$(jq -r '.database.distribution' "${eus_dir}/db/db.json")" != "${os_codename}" ]]; then
+    if [[ -n "$(command -v jq)" && "$(jq -r '.database.distribution' "${eus_dir}/db/db.json" 2> /dev/null)" != "${os_codename}" ]]; then
       if [[ "$(dpkg-query --showformat='${version}' --show jq 2> /dev/null | sed -e 's/.*://' -e 's/-.*//g' -e 's/[^0-9.]//g' -e 's/\.//g' | sort -V | tail -n1)" -ge "16" ]]; then
         jq '."database" += {"distribution": "'"${os_codename}"'"}' "${eus_dir}/db/db.json" > "${eus_dir}/db/db.json.tmp" 2>> "${eus_dir}/logs/eus-database-management.log"
       else
