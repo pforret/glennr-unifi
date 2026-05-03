@@ -11,6 +11,12 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 9.1.5
+  
+ - Added support for Netrunner 26.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 9.1.4
   
  - Improved the free space check.
