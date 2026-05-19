@@ -11,6 +11,13 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Encrypt Script  |  Version 3.8.4
+  
+ - Added support for Parrot OS 7 (Echo).
+ - Added support for Ubuntu Stonking Stingray ( 26.10 ).
+ 
+ ####
+
  |  UniFi Easy Encrypt Script  |  Version 3.8.3
   
  - Added support for Netrunner 26.

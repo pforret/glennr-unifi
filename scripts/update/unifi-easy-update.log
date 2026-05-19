@@ -11,6 +11,15 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 10.6.9
+  
+ - Added support for Parrot OS 7 (Echo).
+ - Added support for Ubuntu Stonking Stingray ( 26.10 ).
+ - Improved UniFi OS support.
+ - Updated Glenn R. repository for Ubuntu Resolute Raccoon ( 26.04 ).
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 10.6.8
   
  - Added support for Netrunner 26.
