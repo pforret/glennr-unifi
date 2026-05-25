@@ -3,7 +3,7 @@
 # UniFi Easy Encrypt script.
 # Script          | UniFi Network Easy Encrypt Script
 # Version         | 3.7.6
-# Script Version  | 3.8.4
+# Script Version  | 3.8.5
 # Author          | Glenn Rietveld
 # Email           | glennrietveld8@hotmail.nl
 # Website         | https://GlennR.nl
@@ -2538,22 +2538,20 @@ script_version_check() {
 }
 if [[ "$(command -v curl)" ]]; then script_version_check; fi
 
-if ! [[ "${os_codename}" =~ (precise|maya|trusty|utopic|vivid|wily|yakkety|zesty|artful|qiana|rebecca|rafaela|rosa|xenial|sarah|serena|sonya|sylvia|bionic|tara|tessa|tina|tricia|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky|questing|resolute|stonking|wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky|unstable) ]]; then
+if ! [[ "${os_codename}" =~ (precise|maya|trusty|utopic|vivid|wily|yakkety|zesty|artful|qiana|rebecca|rafaela|rosa|xenial|sarah|serena|sonya|sylvia|bionic|tara|tessa|tina|tricia|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky|questing|resolute|stonking|wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky|unstable) ]] || [[ -z "$(command -v apt)" ]]; then
   if [[ -e "/etc/os-release" ]]; then full_os_details="$(sed ':a;N;$!ba;s/\n/\\n/g' /etc/os-release | sed 's/"/\\"/g')"; fi
-  if [[ -z "$(which apt)" ]]; then non_apt_based_linux="true"; fi
+  if [[ -z "$(command -v apt)" ]]; then non_apt_based_linux="true"; fi
   unsupported_no_modify="true"
   get_distro
   if [[ "${non_apt_based_linux}" != 'true' ]]; then distro_support_missing_report="$(curl "${curl_argument[@]}" -X POST -H "Content-Type: application/json" -d "{\"distribution\": \"${os_id}\", \"codename\": \"${os_codename}\", \"script-name\": \"${script_name}\", \"full-os-details\": \"${full_os_details}\"}" https://api.glennr.nl/api/missing-distro-support 2> /dev/null | jq -r '.[]' 2> /dev/null)"; fi
   if [[ "${script_option_debug}" != 'true' ]]; then clear; fi
   header_red
-  if [[ "${distro_support_missing_report}" == "OK" ]]; then
+  if [[ "${non_apt_based_linux}" == 'true' ]]; then
+    echo -e "${GRAY_R}#${RESET} It looks like you're using a Linux distribution (${os_id} ${os_codename}) that doesn't use the APT package manager.\\n${GRAY_R}#${RESET} The script is only made for distributions that use the APT package manager..."
+  elif [[ "${distro_support_missing_report}" == "OK" ]]; then
     echo -e "${GRAY_R}#${RESET} The script does not (yet) support ${os_id} ${os_codename}, and Glenn R. has been informed about it..."
   else
-    if [[ "${non_apt_based_linux}" != 'true' ]]; then
-      echo -e "${GRAY_R}#${RESET} The script does not yet support ${os_id} ${os_codename}..."
-    else
-      echo -e "${GRAY_R}#${RESET} It looks like you're a using a linux distribution (${os_id} ${os_codename}) that doesn't use the APT package manager. \\n${GRAY_R}#${RESET} the script is only made for distros based on the APT package manager..."
-    fi
+    echo -e "${GRAY_R}#${RESET} The script does not yet support ${os_id} ${os_codename}..."
   fi
   echo -e "${GRAY_R}#${RESET} Feel free to contact Glenn R. (AmazedMender16) on the UI Community if you need help with installing your UniFi Network Application.\\n\\n"
   author

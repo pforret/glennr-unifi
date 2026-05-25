@@ -3,7 +3,7 @@
 # UniFi Network Application Easy Update Script.
 # Script          | UniFi Network Easy Update Script
 # Version         | 9.9.9
-# Script Version  | 10.6.9
+# Script Version  | 10.7.0
 # Author          | Glenn Rietveld
 # Email           | glennrietveld8@hotmail.nl
 # Website         | https://GlennR.nl
@@ -398,7 +398,20 @@ get_uos_server_variables() {
 }
 
 get_uos_server_version() {
-  uos_version="$(grep -sE '^UOS_SERVER_VERSION=' /var/lib/uosserver/server.conf 2> /dev/null | cut -d= -f2)"
+  is_valid_version() { [[ "$1" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; }
+  uos_version="$(grep -m1 -sE '^(APP_VERSION|UOS_SERVER_VERSION)=' /var/lib/uosserver/server.conf | cut -d= -f2)"
+  if ! is_valid_version "${uos_version}"; then
+    echo -e "$(date +%F-%T.%6N) | Invalid UOS version from server.conf: '${uos_version}', trying overlay version file..." &>> "${eus_dir}/logs/uos-server-variables.log"
+    uos_version="$(awk -F. '{print $3"."$4"."$5; exit}' /home/uosserver/.local/share/containers/storage/volumes/uosserver_persistent/_data/.config/version 2>/dev/null)"
+    if ! is_valid_version "${uos_version}"; then
+      echo -e "$(date +%F-%T.%6N) | Invalid UOS version from overlay version file: '${uos_version}', trying CLI..." &>> "${eus_dir}/logs/uos-server-variables.log"
+      uos_version="$(uosserver version 2>/dev/null)"
+      if ! is_valid_version "${uos_version}"; then
+        echo -e "$(date +%F-%T.%6N) | Invalid UOS version from CLI: '${uos_version}'..." &>> "${eus_dir}/logs/uos-server-variables.log"
+        uos_version=""
+      fi
+    fi
+  fi
   #first_digit_uos_server="$(echo "${uos_version}" | cut -d'.' -f1)"
   #second_digit_uos_server="$(echo "${uos_version}" | cut -d'.' -f2)"
   #third_digit_uos_server="$(echo "${uos_version}" | cut -d'.' -f3)"
@@ -3201,22 +3214,20 @@ check_dpkg_lock() {
   check_dpkg_interrupted
 }
 
-if ! [[ "${os_codename}" =~ (precise|maya|trusty|utopic|vivid|wily|yakkety|zesty|artful|qiana|rebecca|rafaela|rosa|xenial|sarah|serena|sonya|sylvia|bionic|tara|tessa|tina|tricia|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky|questing|resolute|stonking|wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky|unstable) ]]; then
+if ! [[ "${os_codename}" =~ (precise|maya|trusty|utopic|vivid|wily|yakkety|zesty|artful|qiana|rebecca|rafaela|rosa|xenial|sarah|serena|sonya|sylvia|bionic|tara|tessa|tina|tricia|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky|questing|resolute|stonking|wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky|unstable) ]] || [[ -z "$(command -v apt)" ]]; then
   if [[ -e "/etc/os-release" ]]; then full_os_details="$(sed ':a;N;$!ba;s/\n/\\n/g' /etc/os-release | sed 's/"/\\"/g')"; fi
-  if [[ -z "$(which apt)" ]]; then non_apt_based_linux="true"; fi
+  if [[ -z "$(command -v apt)" ]]; then non_apt_based_linux="true"; fi
   unsupported_no_modify="true"
   get_distro
   if [[ "${non_apt_based_linux}" != 'true' ]]; then distro_support_missing_report="$(curl "${curl_argument[@]}" -X POST -H "Content-Type: application/json" -d "{\"distribution\": \"${os_id}\", \"codename\": \"${os_codename}\", \"script-name\": \"${script_name}\", \"full-os-details\": \"${full_os_details}\"}" https://api.glennr.nl/api/missing-distro-support 2> /dev/null | jq -r '.[]' 2> /dev/null)"; fi
   if [[ "${script_option_debug}" != 'true' ]]; then clear; fi
   header_red
-  if [[ "${distro_support_missing_report}" == "OK" ]]; then
+  if [[ "${non_apt_based_linux}" == 'true' ]]; then
+    echo -e "${GRAY_R}#${RESET} It looks like you're using a Linux distribution (${os_id} ${os_codename}) that doesn't use the APT package manager.\\n${GRAY_R}#${RESET} The script is only made for distributions that use the APT package manager..."
+  elif [[ "${distro_support_missing_report}" == "OK" ]]; then
     echo -e "${GRAY_R}#${RESET} The script does not (yet) support ${os_id} ${os_codename}, and Glenn R. has been informed about it..."
   else
-    if [[ "${non_apt_based_linux}" != 'true' ]]; then
-      echo -e "${GRAY_R}#${RESET} The script does not yet support ${os_id} ${os_codename}..."
-    else
-      echo -e "${GRAY_R}#${RESET} It looks like you're a using a linux distribution (${os_id} ${os_codename}) that doesn't use the APT package manager. \\n${GRAY_R}#${RESET} the script is only made for distros based on the APT package manager..."
-    fi
+    echo -e "${GRAY_R}#${RESET} The script does not yet support ${os_id} ${os_codename}..."
   fi
   echo -e "${GRAY_R}#${RESET} Feel free to contact Glenn R. (AmazedMender16) on the UI Community if you need help with installing your UniFi Network Application.\\n\\n"
   author
@@ -11862,6 +11873,7 @@ show_spinner() {
 
 uos_server_upgrade_process() {
   tmp_dir_candidates=("/tmp" "/var/tmp")
+  uos_server_install_flags=()
   uos_server_tmp_dir=""
   for directory in "${tmp_dir_candidates[@]}"; do
     if [[ -d "${directory}" ]]; then
@@ -11928,6 +11940,9 @@ uos_server_upgrade_process() {
       printf "%s#%s Max retries reached, trying different download links...\n" "${RED}" "${RESET}"
     fi
   done
+  if version_ge "${uos_server_version}" "5.0.4"; then
+    uos_server_install_flags+=( "--force-install" )
+  fi
   uos_server_conf_check
   if dpkg -s unifi >/dev/null 2>&1; then
     if systemctl is-active --quiet unifi.service; then
@@ -11947,7 +11962,7 @@ uos_server_upgrade_process() {
       abort_reason="Failed to change the permissions on ${uos_server_file_temp_file}."
       abort
     fi
-    if "${uos_server_file_temp_file}" --non-interactive &>> "${eus_dir}/logs/uos-server-update.log"; then
+    if "${uos_server_file_temp_file}" --non-interactive "${uos_server_install_flags[@]}" &>> "${eus_dir}/logs/uos-server-update.log"; then
       echo -e "${GREEN}#${RESET} Successfully updated UniFi OS Server version ${uos_version} to ${uos_server_version}! \\n"
       sleep 3
     else

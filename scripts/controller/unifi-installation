@@ -11,6 +11,12 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 9.1.7
+  
+ - Improved missing distro support reporting.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 9.1.6
   
  - Added support for Parrot OS 7 (Echo).
