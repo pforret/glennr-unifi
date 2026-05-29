@@ -80,7 +80,7 @@
 # Script Version        | 9.1.7
 # Application version   | 8.6.9
 # Debian Repo version   | 8.6.9-27327-1
-# UOS Server version    | 5.0.8
+# UOS Server version    | 5.1.15
 # Author                | Glenn Rietveld
 # Email                 | glennrietveld8@hotmail.nl
 # Website               | https://GlennR.nl
