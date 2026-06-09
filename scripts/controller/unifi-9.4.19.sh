@@ -77,7 +77,7 @@
 
 # Script                | UniFi Network/OS Easy Installation Script
 # Version               | 9.0.2
-# Script Version        | 9.1.7
+# Script Version        | 9.1.8
 # Application version   | 9.4.19
 # Debian Repo version   | 9.4.19-31042-1
 # UOS Server version    | 5.1.15
@@ -855,15 +855,11 @@ add_existing_path() {
 collect_uos_support_files() {
   local support_zip
   if command -v uosserver > /dev/null 2>&1; then
-    if command -v timeout > /dev/null 2>&1; then
-      while IFS= read -r support_zip; do
-        [[ -n "${support_zip}" && -f "${support_zip}" ]] && archive_inputs+=("${support_zip}")
-      done < <(timeout 300 uosserver support 2> /dev/null | grep -oE '/tmp/unifi[^ ]+\.zip')
-    else
-      while IFS= read -r support_zip; do
-        [[ -n "${support_zip}" && -f "${support_zip}" ]] && archive_inputs+=("${support_zip}")
-      done < <(uosserver support 2> /dev/null | grep -oE '/tmp/unifi[^ ]+\.zip')
-    fi
+    local cmd=(uosserver support)
+    command -v timeout > /dev/null 2>&1 && cmd=(timeout 300 "${cmd[@]}")
+    while IFS= read -r support_zip; do
+      [[ -n "${support_zip}" && -f "${support_zip}" ]] && archive_inputs+=("${support_zip}")
+    done < <("${cmd[@]}" 2>/dev/null | grep -oE '/tmp/(unifi|uos)-[^ ]+\.zip')
   fi
 }
 
@@ -5481,6 +5477,7 @@ uos_server_install_set_variables() {
   uos_server_web_port="$(grep -sE '^WEB_PORT=' /var/lib/uosserver/server.conf 2> /dev/null | cut -d= -f2)"
   uos_server_web_port="${uos_server_web_port:-11443}"
   uos_server_https_legacy_port="8443"
+  uos_server_device_support_file_port="28082"
   uos_server_http_captive_portal_port="8880"
   uos_server_https_captive_portal_port="8444"
   uos_server_captive_portal_redirector_1_port="8881"
@@ -6354,6 +6351,9 @@ uos_server_install_ports_check() {
   uos_server_ports_used=("${uos_server_web_port}" "${uos_server_http_captive_portal_port}" "${uos_server_https_captive_portal_port}" "${uos_server_captive_portal_redirector_1_port}" "${uos_server_captive_portal_redirector_2_port}" "${uos_server_device_inform_port}" "${uos_server_remote_logger_port}" "${uos_server_stun_port}" "${uos_server_mobile_speedtest_port}" "${uos_server_discovery_1_port}" "${uos_server_discovery_2_port}" "${uos_server_rabbitmq_port}" "${uos_server_identity_hub_port}" "${uos_server_management_wrapper_port}")
   if ! version_ge "${uos_version}" "5.0.7"; then
     uos_server_ports_used+=("${uos_server_https_legacy_port}")
+  fi
+  if version_ge "${uos_version}" "5.1.15"; then
+    uos_server_ports_used+=("${uos_server_device_support_file_port}")
   fi
   uos_server_ports_changeable=()
   uos_server_install_flags=()

@@ -3,7 +3,7 @@
 # UniFi Network Application Easy Update Script.
 # Script          | UniFi Network Easy Update Script
 # Version         | 9.9.9
-# Script Version  | 10.7.0
+# Script Version  | 10.7.1
 # Author          | Glenn Rietveld
 # Email           | glennrietveld8@hotmail.nl
 # Website         | https://GlennR.nl
@@ -810,15 +810,11 @@ add_existing_path() {
 collect_uos_support_files() {
   local support_zip
   if command -v uosserver > /dev/null 2>&1; then
-    if command -v timeout > /dev/null 2>&1; then
-      while IFS= read -r support_zip; do
-        [[ -n "${support_zip}" && -f "${support_zip}" ]] && archive_inputs+=("${support_zip}")
-      done < <(timeout 300 uosserver support 2> /dev/null | grep -oE '/tmp/unifi[^ ]+\.zip')
-    else
-      while IFS= read -r support_zip; do
-        [[ -n "${support_zip}" && -f "${support_zip}" ]] && archive_inputs+=("${support_zip}")
-      done < <(uosserver support 2> /dev/null | grep -oE '/tmp/unifi[^ ]+\.zip')
-    fi
+    local cmd=(uosserver support)
+    command -v timeout > /dev/null 2>&1 && cmd=(timeout 300 "${cmd[@]}")
+    while IFS= read -r support_zip; do
+      [[ -n "${support_zip}" && -f "${support_zip}" ]] && archive_inputs+=("${support_zip}")
+    done < <("${cmd[@]}" 2>/dev/null | grep -oE '/tmp/(unifi|uos)-[^ ]+\.zip')
   fi
 }
 
@@ -2500,8 +2496,8 @@ if [[ "${latest_application_release_api_status}" == "OK" ]]; then
   if [[ -n "$(command -v jq)" ]]; then latest_uos_server_release_candidate="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-application-release?app=unifi-os-server&version=latest-release-candidate" 2> /dev/null | jq -r '.latest_release_candidate' 2> /dev/null)"; else latest_uos_server_release_candidate="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-application-release?app=unifi-os-server&version=latest-release-candidate" 2> /dev/null | sed -n 's/.*"latest_release_candidate":"\([^"]*\)".*/\1/p')"; fi
   if [[ -n "$(command -v jq)" ]]; then latest_uos_server_release="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-application-release?app=unifi-os-server&version=latest" 2> /dev/null | jq -r '.latest_release' 2> /dev/null)"; else latest_uos_server_release="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-application-release?app=unifi-os-server&version=latest" 2> /dev/null | sed -n 's/.*"latest_release":"\([^"]*\)".*/\1/p')"; fi
 else
-  latest_net_release="10.3.58"
-  latest_uos_server_release="5.0.6"
+  latest_net_release="10.4.57"
+  latest_uos_server_release="5.1.15"
 fi
 
 if [[ "${latest_net_release_candidate}" == "${latest_net_release}" ]]; then

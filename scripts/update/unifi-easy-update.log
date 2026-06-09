@@ -11,6 +11,12 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 10.7.1
+  
+ - Improved obtaining UniFi OS Server support files.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 10.7.0
   
  - Improved missing distro support reporting.
