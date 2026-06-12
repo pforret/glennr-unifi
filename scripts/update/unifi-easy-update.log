@@ -11,6 +11,18 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 10.7.2
+  
+ - Added non-interactive mode for UniFi OS Server with --uos-version argument.
+ - Added UniFi OS Server to the application running check.
+ - Improved the script lock process.
+ - Improved th UniFi OS Server update process.
+ - Improved the application running check.
+ - Improved obtaining current UniFi OS Server version.
+ - Improved obtaining updated-to version for UniFi OS Server process.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 10.7.1
   
  - Improved obtaining UniFi OS Server support files.

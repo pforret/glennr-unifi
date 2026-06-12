@@ -77,7 +77,7 @@
 
 # Script                | UniFi Network/OS Easy Installation Script
 # Version               | 9.0.2
-# Script Version        | 9.1.8
+# Script Version        | 9.1.9
 # Application version   | 9.5.21
 # Debian Repo version   | 9.5.21-31260-1
 # UOS Server version    | 5.1.15
@@ -117,10 +117,27 @@ eus_lock_init_paths() {
   EUS_LOCK_META="${lock_base_dir}/${script_name_safe}.lock.meta"
 }
 
+eus_lock_cleanup() {
+  if [[ "${EUS_LOCK_ACQUIRED}" == "true" ]]; then
+    rm -f "${EUS_LOCK_META}" "${EUS_LOCK_FILE}" 2> /dev/null || true
+    if [[ -n "${EUS_LOCK_FD}" ]]; then
+      eval "exec ${EUS_LOCK_FD}>&-"
+    fi
+    EUS_LOCK_ACQUIRED="false"
+  fi
+}
+
+eus_exit() {
+  local exit_code="${1:-0}"
+  if declare -f eus_apt_sha1_disable &>/dev/null; then eus_apt_sha1_disable; fi
+  if [[ "${EUS_LOCK_ACQUIRED}" == "true" ]]; then eus_lock_cleanup; fi
+  exit "${exit_code}"
+}
+
 eus_lock_set_traps() {
-  trap 'eus_lock_cleanup' EXIT
-  trap 'eus_lock_cleanup; exit 130' INT
-  trap 'eus_lock_cleanup; exit 143' TERM
+  trap 'eus_exit 0' EXIT
+  trap 'eus_exit 130' INT
+  trap 'eus_exit 143' TERM
 }
 
 eus_lock_write_metadata() {
@@ -201,16 +218,6 @@ eus_lock_is_stalled() {
   [[ "${last}" =~ ^[0-9]+$ ]] || return 1
   diff=$((now - last))
   [[ "${diff}" -gt "${EUS_LOCK_STALL_SECONDS}" ]]
-}
-
-eus_lock_cleanup() {
-  if [[ "${EUS_LOCK_ACQUIRED}" == "true" ]]; then
-    rm -f "${EUS_LOCK_META}" 2> /dev/null || true
-    if [[ -n "${EUS_LOCK_FD}" ]]; then
-      eval "exec ${EUS_LOCK_FD}>&-"
-    fi
-    EUS_LOCK_ACQUIRED="false"
-  fi
 }
 
 eus_lock_try_reacquire() {
@@ -321,7 +328,7 @@ eus_lock_menu() {
         ;;
       3)
         echo -e "${YELLOW}#${RESET} OK... Cancelling this run.\n"
-        exit 1
+        eus_exit 1
         ;;
       *)
         header_red
@@ -345,8 +352,10 @@ eus_acquire_lock() {
   eval "exec {EUS_LOCK_FD}>\"${EUS_LOCK_FILE}\"" || {
     header_red
     echo -e "${RED}#${RESET} Failed to open lock file: ${EUS_LOCK_FILE}\n"
-    exit 1
+    eus_exit 1
   }
+  trap 'rm -f "${EUS_LOCK_FILE}" "${EUS_LOCK_META}" 2>/dev/null; [[ -n "${EUS_LOCK_FD}" ]] && eval "exec ${EUS_LOCK_FD}>&-" 2>/dev/null; eus_exit 130' INT
+  trap 'rm -f "${EUS_LOCK_FILE}" "${EUS_LOCK_META}" 2>/dev/null; [[ -n "${EUS_LOCK_FD}" ]] && eval "exec ${EUS_LOCK_FD}>&-" 2>/dev/null; eus_exit 143' TERM
   if flock -n "${EUS_LOCK_FD}"; then
     EUS_LOCK_ACQUIRED="true"
     eus_lock_write_metadata
@@ -359,12 +368,12 @@ eus_acquire_lock() {
     if ! eus_lock_kill_holder; then
       header_red
       echo -e "${RED}#${RESET} Failed to stop the active run. Unable to continue with ${GREEN}--skip${RESET}.\n"
-      exit 1
+      eus_exit 1
     fi
     if ! eus_lock_try_reacquire; then
       header_red
       echo -e "${RED}#${RESET} Failed to acquire the lock after stopping the older run.\n"
-      exit 1
+      eus_exit 1
     fi
     EUS_LOCK_ACQUIRED="true"
     eus_lock_write_metadata
@@ -418,7 +427,7 @@ if [ -z "$BASH_VERSION" ]; then
   clear; clear; printf "\033[1;31m#########################################################################\033[0m\n"
   printf "\n\033[39m#\033[0m The script requires to be ran with bash, run the command printed below... \\n"
   printf "\033[39m#\033[0m bash %s %s\n\n" "${script_name}" "$*"
-  exit 1
+  eus_exit 1
 fi
 
 # Check for root (SUDO).
@@ -429,7 +438,7 @@ if [[ "$EUID" -ne 0 ]]; then
   echo -e "${GREEN}#${RESET} sudo -i\\n"
   echo -e "${GRAY_R}#${RESET} For Debian based systems run the command below to login as root"
   echo -e "${GREEN}#${RESET} su\\n\\n"
-  exit 1
+  eus_exit 1
 fi
 
 # Unset environment variables.
@@ -1370,7 +1379,7 @@ support_file() {
     fi
   fi
   if [[ "${script_option_support_file}" == 'true' ]]; then
-    exit 0
+    eus_exit 0
   fi
 }
 
@@ -1411,7 +1420,7 @@ abort() {
   support_file
   update_eus_db
   cleanup_codename_mismatch_repos
-  exit 1
+  eus_exit 1
 }
 
 eus_create_directories() {
@@ -1533,7 +1542,7 @@ start_script_header() {
 
 start_script() {
   script_location="${BASH_SOURCE[0]}"
-  if ! [[ -f "${script_location}" ]]; then header_red; echo -e "${YELLOW}#${RESET} The script needs to be saved on the disk in order to work properly, please follow the instructions...\\n${YELLOW}#${RESET} Usage: curl -sO https://get.glennr.nl/unifi/install/install_latest/unifi-latest.sh && bash unifi-latest.sh\\n\\n"; exit 1; fi
+  if ! [[ -f "${script_location}" ]]; then header_red; echo -e "${YELLOW}#${RESET} The script needs to be saved on the disk in order to work properly, please follow the instructions...\\n${YELLOW}#${RESET} Usage: curl -sO https://get.glennr.nl/unifi/install/install_latest/unifi-latest.sh && bash unifi-latest.sh\\n\\n"; eus_exit 1; fi
   script_file_name="$(basename "${BASH_SOURCE[0]}")"
   script_name="$(grep -i "# Script" "${script_location}" | head -n 1 | cut -d'|' -f2 | sed -e 's/^ //g')"
   script_name_safe="$(printf '%s' "${script_name}" | tr '[:upper:]' '[:lower:]' | sed -e 's/[^a-z0-9]/-/g' -e 's/-\+/-/g' -e 's/^-//' -e 's/-$//')"
@@ -1614,7 +1623,7 @@ help_script() {
                                             with the use of --skip.
     --run-easy-encrypt                      Run the UniFi Easy Encrypt script if an FQDN is specified via --fqdn.
     --support-file                          Generate a support file for debugging by Glenn R.\\n\\n"
-  exit 0
+  eus_exit 0
 }
 
 rm --force /tmp/EUS/script_options &> /dev/null
@@ -2248,8 +2257,6 @@ eus_apt_sha1_disable() {
   fi
   return 1
 }
-
-trap eus_apt_sha1_disable EXIT
 
 run_apt_get_update_with_sha1_fallback() {
   eus_apt_sha1_disable
@@ -3128,7 +3135,7 @@ cancel_script() {
   update_eus_db
   cleanup_codename_mismatch_repos
   remove_yourself
-  exit 0
+  eus_exit 0
 }
 
 http_proxy_found() {
@@ -3724,7 +3731,7 @@ update_script() {
       eus_lock_cleanup
       # shellcheck disable=SC2068
       curl "${curl_argument[@]}" --remote-name "https://get.glennr.nl/unifi/install/${install_script_name}.sh" && exec bash "${install_script_name}.sh" ${script_options[@]}
-      exit 1
+      eus_exit 1
     fi
   fi
 }
@@ -3792,7 +3799,7 @@ if ! [[ "${os_codename}" =~ (precise|maya|trusty|utopic|vivid|wily|yakkety|zesty
   fi
   echo -e "${GRAY_R}#${RESET} Feel free to contact Glenn R. (AmazedMender16) on the UI Community if you need help with installing your UniFi Network Application.\\n\\n"
   author
-  exit 1
+  eus_exit 1
 fi
 
 if ! [[ -d /etc/apt/sources.list.d ]]; then mkdir -p /etc/apt/sources.list.d; fi
@@ -4306,12 +4313,12 @@ already_installed_check() {
     echo -e "${GRAY_R}#${RESET} You can use my Easy Update Script to update your ${product_name}.${RESET}\n\n"
     read -rp $'\033[39m#\033[0m Would you like to download and run my Easy Update Script? (Y/n) ' yes_no
     case "$yes_no" in
-        [Nn]*) check_apt_listbugs; exit 0;;
+        [Nn]*) check_apt_listbugs; eus_exit 0;;
         *)
           check_apt_listbugs
           rm --force "${script_location}" 2>/dev/null
           curl "${curl_argument[@]}" --remote-name https://get.glennr.nl/unifi/update/unifi-update.sh && bash unifi-update.sh
-          exit 0;;
+          eus_exit 0;;
     esac
   fi
 }
@@ -4324,7 +4331,7 @@ armhf_recommendation() {
   if [[ "${print_architecture}" == 'armhf' ]] && uname -a | grep -ioq aarch64; then
     header_red
     echo -e "${GRAY_R}#${RESET} You appear to have a 64-bit capable device, please use a 64-bit based OS and re-run the script.\\n"
-    exit 1
+    eus_exit 1
   elif [[ "${print_architecture}" == 'armhf' && "${is_cloudkey}" == "false" ]]; then
     header_red
     echo -e "${GRAY_R}#${RESET} Your installation might fail, please consider getting a Cloud Key Gen2 or go with a VPS at OVH/DO/AWS."
@@ -5514,7 +5521,7 @@ network_install_gen1_cloudkey_check() {
       echo -e "${GRAY_R}#${RESET} UniFi Cloud Key Gen2       | https://store.ui.com/products/unifi-cloud-key-gen2"
       echo -e "${GRAY_R}#${RESET} UniFi Cloud Key Gen2 Plus  | https://store.ui.com/products/unifi-cloudkey-gen2-plus\\n\\n"
       author
-      exit 0
+      eus_exit 0
     fi
   fi
 }
@@ -5528,7 +5535,7 @@ network_install_32_bit_check() {
       echo -e "${GRAY_R}#${RESET} The latest supported version on your system/OS is $(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-application-release?app=network&version=${unifi_latest_supported_version}" 2> /dev/null | jq -r '.latest_version' 2> /dev/null) and older..."
       echo -e "${GRAY_R}#${RESET} Consider upgrading to a 64-bit system/OS!\\n\\n"
       author
-      exit 0
+      eus_exit 0
     fi
   fi
 }
@@ -8393,7 +8400,7 @@ network_install_minimal_mongodb_version_check() {
         echo -e "${GRAY_R}#${RESET} You're using a 32-bit OS.. please switch over to a 64-bit OS.\\n\\n"
       fi
       author
-      exit 0
+      eus_exit 0
     fi
   fi
 }

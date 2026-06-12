@@ -11,6 +11,12 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 9.1.9
+  
+ - Improved the script lock process.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 9.1.8
   
  - Added port 28082 for UniFi OS Server installation checks.

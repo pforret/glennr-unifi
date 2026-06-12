@@ -3,7 +3,7 @@
 # UniFi Easy Encrypt script.
 # Script          | UniFi Network Easy Encrypt Script
 # Version         | 3.7.6
-# Script Version  | 3.8.5
+# Script Version  | 3.8.6
 # Author          | Glenn Rietveld
 # Email           | glennrietveld8@hotmail.nl
 # Website         | https://GlennR.nl
@@ -40,10 +40,27 @@ eus_lock_init_paths() {
   EUS_LOCK_META="${lock_base_dir}/${script_name_safe}.lock.meta"
 }
 
+eus_lock_cleanup() {
+  if [[ "${EUS_LOCK_ACQUIRED}" == "true" ]]; then
+    rm -f "${EUS_LOCK_META}" "${EUS_LOCK_FILE}" 2> /dev/null || true
+    if [[ -n "${EUS_LOCK_FD}" ]]; then
+      eval "exec ${EUS_LOCK_FD}>&-"
+    fi
+    EUS_LOCK_ACQUIRED="false"
+  fi
+}
+
+eus_exit() {
+  local exit_code="${1:-0}"
+  if declare -f eus_apt_sha1_disable &>/dev/null; then eus_apt_sha1_disable; fi
+  if [[ "${EUS_LOCK_ACQUIRED}" == "true" ]]; then eus_lock_cleanup; fi
+  exit "${exit_code}"
+}
+
 eus_lock_set_traps() {
-  trap 'eus_lock_cleanup' EXIT
-  trap 'eus_lock_cleanup; exit 130' INT
-  trap 'eus_lock_cleanup; exit 143' TERM
+  trap 'eus_exit 0' EXIT
+  trap 'eus_exit 130' INT
+  trap 'eus_exit 143' TERM
 }
 
 eus_lock_write_metadata() {
@@ -124,16 +141,6 @@ eus_lock_is_stalled() {
   [[ "${last}" =~ ^[0-9]+$ ]] || return 1
   diff=$((now - last))
   [[ "${diff}" -gt "${EUS_LOCK_STALL_SECONDS}" ]]
-}
-
-eus_lock_cleanup() {
-  if [[ "${EUS_LOCK_ACQUIRED}" == "true" ]]; then
-    rm -f "${EUS_LOCK_META}" 2> /dev/null || true
-    if [[ -n "${EUS_LOCK_FD}" ]]; then
-      eval "exec ${EUS_LOCK_FD}>&-"
-    fi
-    EUS_LOCK_ACQUIRED="false"
-  fi
 }
 
 eus_lock_try_reacquire() {
@@ -244,7 +251,7 @@ eus_lock_menu() {
         ;;
       3)
         echo -e "${YELLOW}#${RESET} OK... Cancelling this run.\n"
-        exit 1
+        eus_exit 1
         ;;
       *)
         header_red
@@ -268,8 +275,10 @@ eus_acquire_lock() {
   eval "exec {EUS_LOCK_FD}>\"${EUS_LOCK_FILE}\"" || {
     header_red
     echo -e "${RED}#${RESET} Failed to open lock file: ${EUS_LOCK_FILE}\n"
-    exit 1
+    eus_exit 1
   }
+  trap 'rm -f "${EUS_LOCK_FILE}" "${EUS_LOCK_META}" 2>/dev/null; [[ -n "${EUS_LOCK_FD}" ]] && eval "exec ${EUS_LOCK_FD}>&-" 2>/dev/null; eus_exit 130' INT
+  trap 'rm -f "${EUS_LOCK_FILE}" "${EUS_LOCK_META}" 2>/dev/null; [[ -n "${EUS_LOCK_FD}" ]] && eval "exec ${EUS_LOCK_FD}>&-" 2>/dev/null; eus_exit 143' TERM
   if flock -n "${EUS_LOCK_FD}"; then
     EUS_LOCK_ACQUIRED="true"
     eus_lock_write_metadata
@@ -282,12 +291,12 @@ eus_acquire_lock() {
     if ! eus_lock_kill_holder; then
       header_red
       echo -e "${RED}#${RESET} Failed to stop the active run. Unable to continue with ${GREEN}--skip${RESET}.\n"
-      exit 1
+      eus_exit 1
     fi
     if ! eus_lock_try_reacquire; then
       header_red
       echo -e "${RED}#${RESET} Failed to acquire the lock after stopping the older run.\n"
-      exit 1
+      eus_exit 1
     fi
     EUS_LOCK_ACQUIRED="true"
     eus_lock_write_metadata
@@ -346,7 +355,7 @@ if [ -z "$BASH_VERSION" ]; then
   clear; clear; printf "\033[1;31m#########################################################################\033[0m\n"
   printf "\n\033[39m#\033[0m The script requires to be ran with bash, run the command printed below...\n"
   printf "\033[39m#\033[0m bash %s %s\n\n" "${script_name}" "$*"
-  exit 1
+  eus_exit 1
 fi
 
 # Check for root (SUDO).
@@ -357,7 +366,7 @@ if [[ "$EUID" -ne 0 ]]; then
   echo -e "${GREEN}#${RESET} sudo -i\\n"
   echo -e "${GRAY_R}#${RESET} For Debian based systems run the command below to login as root"
   echo -e "${GREEN}#${RESET} su\\n\\n"
-  exit 1
+  eus_exit 1
 fi
 
 # Unset environment variables.
@@ -1105,7 +1114,7 @@ support_file() {
     fi
   fi
   if [[ "${script_option_support_file}" == 'true' ]]; then
-    exit 0
+    eus_exit 0
   fi
 }
 
@@ -1134,7 +1143,7 @@ abort() {
   support_file
   update_eus_db
   cleanup_codename_mismatch_repos
-  exit 1
+  eus_exit 1
 }
 
 cancel_script() {
@@ -1151,7 +1160,7 @@ cancel_script() {
   author
   update_eus_db
   cleanup_codename_mismatch_repos
-  exit 0
+  eus_exit 0
 }
 
 eus_dir_value
@@ -1376,7 +1385,7 @@ eus_tmp_directories_cleanup() {
 
 create_remove_files() {
   script_location="${BASH_SOURCE[0]}"
-  if ! [[ -f "${script_location}" ]]; then header_red; echo -e "${YELLOW}#${RESET} The script needs to be saved on the disk in order to work properly, please follow the instructions...\\n${YELLOW}#${RESET} Usage: curl -sO https://get.glennr.nl/unifi/extra/unifi-easy-encrypt.sh && bash unifi-easy-encrypt.sh\\n\\n"; exit 1; fi
+  if ! [[ -f "${script_location}" ]]; then header_red; echo -e "${YELLOW}#${RESET} The script needs to be saved on the disk in order to work properly, please follow the instructions...\\n${YELLOW}#${RESET} Usage: curl -sO https://get.glennr.nl/unifi/extra/unifi-easy-encrypt.sh && bash unifi-easy-encrypt.sh\\n\\n"; eus_exit 1; fi
   script_file_name="$(basename "${BASH_SOURCE[0]}")"
   script_name="$(grep -i "# Script" "${script_location}" | head -n 1 | cut -d'|' -f2 | sed -e 's/^ //g')"
   script_name_safe="$(printf '%s' "${script_name}" | tr '[:upper:]' '[:lower:]' | sed -e 's/[^a-z0-9]/-/g' -e 's/-\+/-/g' -e 's/^-//' -e 's/-$//')"
@@ -1496,7 +1505,7 @@ help_script() {
     --restore                               Restore previous certificate/config files.
     --support-file                          Generate a support file for debugging by Glenn R.
     --help                                  Shows this information :) \\n\\n"
-  exit 0
+  eus_exit 0
 }
 
 rm --force /tmp/EUS/le_script_options &> /dev/null
@@ -2508,7 +2517,7 @@ update_script() {
       eus_lock_cleanup
       # shellcheck disable=SC2068
       curl "${curl_argument[@]}" --remote-name https://get.glennr.nl/unifi/extra/unifi-easy-encrypt.sh && exec bash unifi-easy-encrypt.sh ${script_options[@]}
-      exit 1
+      eus_exit 1
     fi
   fi
 }
@@ -2555,7 +2564,7 @@ if ! [[ "${os_codename}" =~ (precise|maya|trusty|utopic|vivid|wily|yakkety|zesty
   fi
   echo -e "${GRAY_R}#${RESET} Feel free to contact Glenn R. (AmazedMender16) on the UI Community if you need help with installing your UniFi Network Application.\\n\\n"
   author
-  exit 1
+  eus_exit 1
 fi
 
 check_package_cache_file_corruption() {
@@ -2905,8 +2914,6 @@ eus_apt_sha1_disable() {
   return 1
 }
 
-trap eus_apt_sha1_disable EXIT
-
 run_apt_get_update_with_sha1_fallback() {
   eus_apt_sha1_disable
   run_apt_get_update
@@ -3030,7 +3037,7 @@ if [[ "${required_service}" != 'true' && "${skip_required_service_check}" != "tr
   echo -e "${RED}-${RESET} UniFi Network Application"
   echo -e "${RED}-${RESET} UniFi Video NVR"
   echo -e "${RED}-${RESET} UniFi LED Controller\\n\\n"
-  exit 1
+  eus_exit 1
 fi
 
 unifi_status="$(systemctl status unifi 2>/dev/null | grep -i 'Active:' | awk '{print $2}')"
@@ -4543,7 +4550,7 @@ le_import_failed() {
   rm --force "/etc/letsencrypt/renewal-hooks/pre/EUS_${server_fqdn}.sh" &> /dev/null
   rm --force "/etc/letsencrypt/renewal-hooks/post/EUS_${server_fqdn}.sh" &> /dev/null
   run_uck_scripts=no
-  exit 1
+  eus_exit 1
 }
 
 cloudkey_management_ui() {
@@ -5855,18 +5862,18 @@ restore_previous_certs() {
         header
         echo -e "${GRAY_R}#${RESET} Canceling restore certificates... \\n"
         author
-        exit 0;;
+        eus_exit 0;;
   esac
   if [[ "${restore_done}" != 'yes' ]]; then
     header
     echo -e "${YELLOW}#${RESET} Nothing has been restored... \\n"
     author
-    exit 0
+    eus_exit 0
   else
     header
     echo -e "${GREEN}#${RESET} The script successfully restored your certificates/configs! \\n"
     author
-    exit 0
+    eus_exit 0
   fi
 }
 
@@ -6388,7 +6395,7 @@ EOF
          echo "--dns" &>> /tmp/EUS/script_options
          get_script_options
          # shellcheck disable=SC2068
-         bash "${script_location}" ${script_options[@]}; exit 0;;
+         bash "${script_location}" ${script_options[@]}; eus_exit 0;;
        [Nn]*) ;;
     esac
   else

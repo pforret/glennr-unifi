@@ -3,7 +3,7 @@
 # UniFi Network Application Easy Update Script.
 # Script          | UniFi Network Easy Update Script
 # Version         | 9.9.9
-# Script Version  | 10.7.1
+# Script Version  | 10.7.2
 # Author          | Glenn Rietveld
 # Email           | glennrietveld8@hotmail.nl
 # Website         | https://GlennR.nl
@@ -40,10 +40,27 @@ eus_lock_init_paths() {
   EUS_LOCK_META="${lock_base_dir}/${script_name_safe}.lock.meta"
 }
 
+eus_lock_cleanup() {
+  if [[ "${EUS_LOCK_ACQUIRED}" == "true" ]]; then
+    rm -f "${EUS_LOCK_META}" "${EUS_LOCK_FILE}" 2> /dev/null || true
+    if [[ -n "${EUS_LOCK_FD}" ]]; then
+      eval "exec ${EUS_LOCK_FD}>&-"
+    fi
+    EUS_LOCK_ACQUIRED="false"
+  fi
+}
+
+eus_exit() {
+  local exit_code="${1:-0}"
+  if declare -f eus_apt_sha1_disable &>/dev/null; then eus_apt_sha1_disable; fi
+  if [[ "${EUS_LOCK_ACQUIRED}" == "true" ]]; then eus_lock_cleanup; fi
+  exit "${exit_code}"
+}
+
 eus_lock_set_traps() {
-  trap 'eus_lock_cleanup' EXIT
-  trap 'eus_lock_cleanup; exit 130' INT
-  trap 'eus_lock_cleanup; exit 143' TERM
+  trap 'eus_exit 0' EXIT
+  trap 'eus_exit 130' INT
+  trap 'eus_exit 143' TERM
 }
 
 eus_lock_write_metadata() {
@@ -124,16 +141,6 @@ eus_lock_is_stalled() {
   [[ "${last}" =~ ^[0-9]+$ ]] || return 1
   diff=$((now - last))
   [[ "${diff}" -gt "${EUS_LOCK_STALL_SECONDS}" ]]
-}
-
-eus_lock_cleanup() {
-  if [[ "${EUS_LOCK_ACQUIRED}" == "true" ]]; then
-    rm -f "${EUS_LOCK_META}" 2> /dev/null || true
-    if [[ -n "${EUS_LOCK_FD}" ]]; then
-      eval "exec ${EUS_LOCK_FD}>&-"
-    fi
-    EUS_LOCK_ACQUIRED="false"
-  fi
 }
 
 eus_lock_try_reacquire() {
@@ -244,7 +251,7 @@ eus_lock_menu() {
         ;;
       3)
         echo -e "${YELLOW}#${RESET} OK... Cancelling this run.\n"
-        exit 1
+        eus_exit 1
         ;;
       *)
         header_red
@@ -268,8 +275,10 @@ eus_acquire_lock() {
   eval "exec {EUS_LOCK_FD}>\"${EUS_LOCK_FILE}\"" || {
     header_red
     echo -e "${RED}#${RESET} Failed to open lock file: ${EUS_LOCK_FILE}\n"
-    exit 1
+    eus_exit 1
   }
+  trap 'rm -f "${EUS_LOCK_FILE}" "${EUS_LOCK_META}" 2>/dev/null; [[ -n "${EUS_LOCK_FD}" ]] && eval "exec ${EUS_LOCK_FD}>&-" 2>/dev/null; eus_exit 130' INT
+  trap 'rm -f "${EUS_LOCK_FILE}" "${EUS_LOCK_META}" 2>/dev/null; [[ -n "${EUS_LOCK_FD}" ]] && eval "exec ${EUS_LOCK_FD}>&-" 2>/dev/null; eus_exit 143' TERM
   if flock -n "${EUS_LOCK_FD}"; then
     EUS_LOCK_ACQUIRED="true"
     eus_lock_write_metadata
@@ -282,12 +291,12 @@ eus_acquire_lock() {
     if ! eus_lock_kill_holder; then
       header_red
       echo -e "${RED}#${RESET} Failed to stop the active run. Unable to continue with ${GREEN}--skip${RESET}.\n"
-      exit 1
+      eus_exit 1
     fi
     if ! eus_lock_try_reacquire; then
       header_red
       echo -e "${RED}#${RESET} Failed to acquire the lock after stopping the older run.\n"
-      exit 1
+      eus_exit 1
     fi
     EUS_LOCK_ACQUIRED="true"
     eus_lock_write_metadata
@@ -338,7 +347,7 @@ if [ -z "$BASH_VERSION" ]; then
   clear; clear; printf "\033[1;31m#########################################################################\033[0m\n"
   printf "\n\033[39m#\033[0m The script requires to be ran with bash, run the command printed below...\n"
   printf "\033[39m#\033[0m bash %s %s\n\n" "${script_name}" "$*"
-  exit 1
+  eus_exit 1
 fi
 
 # Check for root (SUDO).
@@ -349,7 +358,7 @@ if [[ "$EUID" -ne 0 ]]; then
   echo -e "${GREEN}#${RESET} sudo -i\\n"
   echo -e "${GRAY_R}#${RESET} For Debian based systems run the command below to login as root"
   echo -e "${GREEN}#${RESET} su\\n\\n"
-  exit 1
+  eus_exit 1
 fi
 
 # Unset environment variables.
@@ -399,7 +408,7 @@ get_uos_server_variables() {
 
 get_uos_server_version() {
   is_valid_version() { [[ "$1" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; }
-  uos_version="$(grep -m1 -sE '^(APP_VERSION|UOS_SERVER_VERSION)=' /var/lib/uosserver/server.conf | cut -d= -f2)"
+  uos_version="$(grep -m1 -sE '^APP_VERSION=' /var/lib/uosserver/server.conf | cut -d= -f2 || grep -m1 -sE '^UOS_SERVER_VERSION=' /var/lib/uosserver/server.conf | cut -d= -f2)"
   if ! is_valid_version "${uos_version}"; then
     echo -e "$(date +%F-%T.%6N) | Invalid UOS version from server.conf: '${uos_version}', trying overlay version file..." &>> "${eus_dir}/logs/uos-server-variables.log"
     uos_version="$(awk -F. '{print $3"."$4"."$5; exit}' /home/uosserver/.local/share/containers/storage/volumes/uosserver_persistent/_data/.config/version 2>/dev/null)"
@@ -415,6 +424,183 @@ get_uos_server_version() {
   #first_digit_uos_server="$(echo "${uos_version}" | cut -d'.' -f1)"
   #second_digit_uos_server="$(echo "${uos_version}" | cut -d'.' -f2)"
   #third_digit_uos_server="$(echo "${uos_version}" | cut -d'.' -f3)"
+}
+
+uos_server_set_variables() {
+  uos_server_web_port="$(grep -sE '^WEB_PORT=' /var/lib/uosserver/server.conf 2> /dev/null | cut -d= -f2)"
+  uos_server_web_port="${uos_server_web_port:-11443}"
+  uos_server_https_legacy_port="8443"
+  uos_server_device_support_file_port="28082"
+  uos_server_http_captive_portal_port="8880"
+  uos_server_https_captive_portal_port="8444"
+  uos_server_captive_portal_redirector_1_port="8881"
+  uos_server_captive_portal_redirector_2_port="8882"
+  uos_server_device_inform_port="8080"
+  uos_server_remote_logger_port="5514"
+  uos_server_stun_port="3478"
+  uos_server_mobile_speedtest_port="6789"
+  uos_server_discovery_1_port="10003"
+  uos_server_discovery_2_port="11002"
+  uos_server_rabbitmq_port="5671"
+  uos_server_identity_hub_port="9543"
+  uos_server_management_wrapper_port="11084"
+}
+
+uos_server_ports_change_support_check() {
+  declare -gA port_variable_install_flag=(
+    ["uos_server_web_port"]="--web-port"
+  )
+  declare -A uos_server_port_change_map
+  uos_server_port_change_map["4.3.3"]="uos_server_web_port"
+  for version in "${!uos_server_port_change_map[@]}"; do
+    if version_ge "${uos_server_version}" "${version}"; then
+      for uos_server_ports_variable in ${uos_server_port_change_map[${version}]}; do
+        uos_server_ports_changeable+=("${uos_server_ports_variable}")
+      done
+    fi
+  done
+}
+
+uos_server_ports_check() {
+  # Check if UniFi OS Server ports are in use.
+  uos_server_ports_used=("${uos_server_web_port}" "${uos_server_http_captive_portal_port}" "${uos_server_https_captive_portal_port}" "${uos_server_captive_portal_redirector_1_port}" "${uos_server_captive_portal_redirector_2_port}" "${uos_server_device_inform_port}" "${uos_server_remote_logger_port}" "${uos_server_stun_port}" "${uos_server_mobile_speedtest_port}" "${uos_server_discovery_1_port}" "${uos_server_discovery_2_port}" "${uos_server_rabbitmq_port}" "${uos_server_identity_hub_port}" "${uos_server_management_wrapper_port}")
+  if ! version_ge "${uos_server_version}" "5.0.7"; then
+    uos_server_ports_used+=("${uos_server_https_legacy_port}")
+  fi
+  if version_ge "${uos_server_version}" "5.1.15"; then
+    uos_server_ports_used+=("${uos_server_device_support_file_port}")
+  fi
+  uos_server_ports_changeable=()
+  uos_server_install_flags=()
+  uos_server_ports_change_support_check
+  for uos_server_port in "${!uos_server_ports_used[@]}"; do
+    port="${uos_server_ports_used[${uos_server_port}]}"
+    process_info="$(ss -ltnp "( sport = :${port} )" 2>/dev/null | awk 'NR>1 {print $6}' | uniq)"
+    if [[ -n "${process_info}" ]]; then
+      mapfile -t pids < <(echo "${process_info}" | grep -oP 'pid=\K[0-9]+' | sort -u)
+      if [[ "${#uos_server_own_pids[@]}" -gt "0" ]]; then
+        filtered_pids=()
+        for pid in "${pids[@]}"; do
+          own=false
+          for own_pid in "${uos_server_own_pids[@]}"; do
+            if [[ "${pid}" == "${own_pid}" ]]; then own=true; break; fi
+          done
+          if [[ "${own}" == "false" ]]; then filtered_pids+=("${pid}"); fi
+        done
+        if [[ "${#filtered_pids[@]}" -eq "0" ]]; then
+          echo -e "$(date +%F-%T.%6N) | Port ${port} is in use exclusively by uosserver, skipping conflict check." &>> "${eus_dir}/logs/uos-server-ports-check.log"
+          continue
+        fi
+        pids=("${filtered_pids[@]}")
+      fi
+      services=()
+      for pid in "${pids[@]}"; do
+        svc="$(systemctl status "$pid" --no-pager 2>/dev/null | head -n 1 | awk '{print $2}' | sed 's/\.service$//')"
+        if [[ -z "${svc}" ]]; then svc="$(ps -p "$pid" -o comm=)"; fi
+        services+=("${svc}")
+      done
+      unique_services=$(printf "%s\n" "${services[@]}" | sort -u | paste -sd, -)
+      for var in "${uos_server_ports_changeable[@]}"; do
+        if [[ "${!var}" == "${port}" ]]; then
+          new_port=$((port+1))
+          while [[ -n "$(ss -ltn "( sport = :${new_port} )" | awk 'NR>1')" ]]; do
+            new_port=$((new_port+1))
+          done
+          if [[ "${uos_server_ports_check_header_printed}" != 'true' ]]; then header; uos_server_ports_check_header_printed="true"; fi
+          echo -e "${YELLOW}#${RESET} Port ${port} was in use by ${unique_services}, switching to port ${new_port}..."
+          echo -e "$(date +%F-%T.%6N) | Port ${port} in use by ${unique_services}, attempting to change it to port ${new_port}" &>> "${eus_dir}/logs/uos-server-ports-check.log"
+          # Update array + actual variable
+          uos_server_ports_used["${uos_server_port}"]="${new_port}"
+          if printf -v "${var}" '%s' "${new_port}"; then
+            echo -e "$(date +%F-%T.%6N) | Successfully updated ${var} to port ${new_port}!" &>> "${eus_dir}/logs/uos-server-ports-check.log"
+            echo -e "${GREEN}#${RESET} Successfully updated the variable to port ${new_port}! \\n"
+            if [[ -n "${port_variable_install_flag[${var}]}" ]]; then
+              uos_server_install_flags+=( "${port_variable_install_flag[$var]}" "${new_port}" )
+            fi
+            continue 2
+          else
+            echo -e "$(date +%F-%T.%6N) | Failed to update ${var} to port ${new_port}..." &>> "${eus_dir}/logs/uos-server-ports-check.log"
+            echo -e "${RED}#${RESET} Failed to update the variable to port ${new_port}... \\n"
+          fi
+        fi
+      done
+      if [[ "${unique_services}" == "unifi" && "${uos_server_overlapping_ports_message_printed}" != 'true' ]]; then
+        uos_server_overlapping_ports_message_printed="true"
+        header_red
+        echo -e "${YELLOW}#${RESET} The UniFi Network Application appears to be running already..."
+        echo -e "${YELLOW}#${RESET} The UniFi OS Server software uses overlapping ports, which means that the"
+        echo -e "${YELLOW}#${RESET} UniFi Network Application has to be stopped in order to proceed with the install\\n"
+        while true; do
+          if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Do you want to proceed with the UniFi OS Server install? (y/N) ' yes_no; fi
+          case "$yes_no" in
+            [Yy]*)
+              echo -e "${GREEN}#${RESET} OK! Proceeding with the install of the UniFi OS Server software!\\n"
+              sleep 2
+              break;;
+            [Nn]*|"") cancel_script; break;;
+            *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
+          esac
+        done
+      fi
+      if [[ "${uos_server_ports_check_header_printed}" != 'true' ]]; then header; uos_server_ports_check_header_printed="true"; fi
+      echo -e "${YELLOW}#${RESET} Port ${port} is in use by: ${unique_services} (PIDs: ${pids[*]})..."
+      echo -e "$(date +%F-%T.%6N) | Port ${port} is in use by: ${unique_services} (PIDs ${pids[*]})" &>> "${eus_dir}/logs/uos-server-ports-check.log"
+      while true; do
+        if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Do you want to stop '"${unique_services}"'? (Y/n) ' yes_no; fi
+        case "$yes_no" in
+          [Yy]*|"")
+            for idx in "${!pids[@]}"; do
+              pid="${pids[$idx]}"
+              svc="${services[$idx]}"
+              # Try to detect if PID belongs to a real systemd unit
+              unit="$(systemctl status "${pid}" --no-pager 2>/dev/null | awk '/Loaded:/ {print $2}' | sed -n 's/\.service$//p')"
+              if [[ -n "${unit}" ]]; then
+                echo -e "\\n${WHITE_R}#${RESET} Attempting to stop service unit ${unit}.service..."
+                echo -e "$(date +%F-%T.%6N) | Attempting to stop service unit ${unit}.service..." &>> "${eus_dir}/logs/uos-server-ports-check.log"
+                if systemctl stop "${unit}.service" &>> "${eus_dir}/logs/uos-server-ports-check.log"; then
+                  echo -e "$(date +%F-%T.%6N) | Successfully stopped ${unit}.service!" &>> "${eus_dir}/logs/uos-server-ports-check.log"
+                  echo -e "${GREEN}#${RESET} Successfully stopped ${unit}.service!\\n"
+                else
+                  echo -e "$(date +%F-%T.%6N) | Failed to stop ${unit}.service (PID ${pid})" &>> "${eus_dir}/logs/uos-server-ports-check.log"
+                  abort_reason="Failed to stop ${unit}.service (PID ${pid}) during the UniFi OS Server ports check process"
+                  abort
+                fi
+              elif [[ -n "${svc}" ]]; then
+                echo -e "\n${WHITE_R}#${RESET} Attempting to stop service ${svc}.service..."
+               if systemctl stop "${svc}.service" &>> "${eus_dir}/logs/uos-server-ports-check.log"; then
+                  echo -e "${GREEN}#${RESET} Successfully stopped ${svc}.service!\\n"
+                else
+                  echo -e "\n${WHITE_R}#${RESET} Attempting to kill PID ${pid} (${svc})..."
+                  if kill "$pid" &>> "${eus_dir}/logs/uos-server-ports-check.log"; then
+                    echo -e "${GREEN}#${RESET} Successfully killed PID ${pid}!\\n"
+                  else
+                    abort_reason="Failed to kill PID ${pid} (${svc}) during the UniFi OS Server ports check process"
+                    abort
+                  fi
+                fi
+              else
+                echo -e "$(date +%F-%T.%6N) | Attempting to kill PID ${pid} (${svc})..." &>> "${eus_dir}/logs/uos-server-ports-check.log"
+                echo -e "\\n${WHITE_R}#${RESET} Attempting to kill PID ${pid} (${svc})..."
+                if kill "$pid" &>> "${eus_dir}/logs/uos-server-ports-check.log"; then
+                  echo -e "$(date +%F-%T.%6N) | Successfully killed PID ${pid}!" &>> "${eus_dir}/logs/uos-server-ports-check.log"
+                  echo -e "${GREEN}#${RESET} Successfully killed PID ${pid}!\\n"
+                else
+                  echo -e "$(date +%F-%T.%6N) | Failed to kill PID ${pid} (${svc})..." &>> "${eus_dir}/logs/uos-server-ports-check.log"
+                  abort_reason="Failed to kill PID ${pid} (${svc}) during the UniFi OS Server ports check process"
+                  abort
+                fi
+              fi
+            done
+            break;;
+          [Nn]*) abort_reason="Ports required by UniFi OS Server are already in use (services: ${unique_services})."; abort;;
+          *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
+        esac
+      done
+    else
+      echo -e "$(date +%F-%T.%6N) | Port ${port} is free" &>> "${eus_dir}/logs/uos-server-ports-check.log"
+    fi
+  done
+  if [[ "${uos_server_ports_check_header_printed}" == 'true' ]]; then sleep 3; fi
 }
 
 cleanup_codename_mismatch_repos() {
@@ -1321,7 +1507,7 @@ support_file() {
     fi
   fi
   if [[ "${script_option_support_file}" == 'true' ]]; then
-    exit 0
+    eus_exit 0
   fi
 }
 
@@ -1516,7 +1702,7 @@ abort() {
   support_file
   update_eus_db
   cleanup_codename_mismatch_repos
-  exit 1
+  eus_exit 1
 }
 
 eus_create_directories() {
@@ -1638,7 +1824,7 @@ start_script_header() {
 start_script() {
   script_location="${BASH_SOURCE[0]}"
   script_file_name="$(basename "${BASH_SOURCE[0]}")"
-  if ! [[ -f "${script_location}" ]]; then header_red; echo -e "${YELLOW}#${RESET} The script needs to be saved on the disk in order to work properly, please follow the instructions...\\n${YELLOW}#${RESET} Usage: curl -sO https://get.glennr.nl/unifi/update/unifi-update.sh && bash unifi-update.sh\\n\\n"; exit 1; fi
+  if ! [[ -f "${script_location}" ]]; then header_red; echo -e "${YELLOW}#${RESET} The script needs to be saved on the disk in order to work properly, please follow the instructions...\\n${YELLOW}#${RESET} Usage: curl -sO https://get.glennr.nl/unifi/update/unifi-update.sh && bash unifi-update.sh\\n\\n"; eus_exit 1; fi
   script_name="$(grep -i "# Script" "${script_location}" | head -n 1 | cut -d'|' -f2 | sed -e 's/^ //g')"
   script_name_safe="$(printf '%s' "${script_name}" | tr '[:upper:]' '[:lower:]' | sed -e 's/[^a-z0-9]/-/g' -e 's/-\+/-/g' -e 's/^-//' -e 's/-$//')"
   start_script_header
@@ -1656,6 +1842,8 @@ help_script() {
   check_apt_listbugs
   if command -v jq >/dev/null 2>&1; then help_menu_net_release="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-application-release?app=network&version=latest" 2>/dev/null | jq -r '.latest_release // empty' 2>/dev/null)"; else help_menu_net_release="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-application-release?app=network&version=latest" 2>/dev/null | sed -n 's/.*"latest_release":"\([^"]*\)".*/\1/p')"; fi
   help_menu_net_release="${help_menu_net_release:-10.3.58}"
+  if command -v jq >/dev/null 2>&1; then help_menu_uos_server_release="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-application-release?app=unifi-os-server&version=latest" 2>/dev/null | jq -r '.latest_release // empty' 2>/dev/null)"; else help_menu_uos_server_release="$(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-application-release?app=unifi-os-server&version=latest" 2>/dev/null | sed -n 's/.*"latest_release":"\([^"]*\)".*/\1/p')"; fi
+  help_menu_uos_server_release="${help_menu_uos_server_release:-5.1.15}"
   if [[ "${script_option_help}" == 'true' ]]; then header; script_logo; else echo -e "${GRAY_R}----${RESET}\\n"; fi
   echo -e "    Easy UniFi Network Application Install Script assistance\\n"
   echo -e "
@@ -1664,9 +1852,14 @@ help_script() {
   
   Script options:
     --skip                      Skip most user interactive questions.
-    --unifi-version [argument]  Combine with --skip for non-interactive Network Application upgrades
-                                if all requirements are already present. A possible argument could
-                                be ${help_menu_net_release} or latest for example.
+    --unifi-version [argument]  Use with --skip to upgrade the UniFi Network Application non-interactively.
+                                example:
+                                --unifi-version ${help_menu_net_release}
+                                --unifi-version latest
+    --uos-version [argument]    Use with --skip to upgrade the UniFi OS Server non-interactively.
+                                example:
+                                --uos-version ${help_menu_uos_server_release}
+                                --uos-version latest
     --archive-alerts            Archive all alerts from the UniFi Network Application.
     --delete-events             Delete all events from the UniFi Network Application.
     --do-not-start-unifi        Automatically stop the UniFi Network Application post updates.
@@ -1677,7 +1870,7 @@ help_script() {
                                 --custom-url https://dl.ui.com/unifi/${help_menu_net_release}/unifi_sysvinit_all.deb
     --support-file              Generate a support file for debugging by Glenn R.
     --help                      Shows this information :)\\n\\n"
-  exit 0
+  eus_exit 0
 }
 
 rm --force /tmp/EUS/script_options &> /dev/null
@@ -1711,6 +1904,10 @@ while [ -n "$1" ]; do
        if [[ -n "${2}" ]]; then if [[ "${2}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then application_version="${2}"; elif [[ "${2}" == "latest" ]]; then application_version="${2}"; else header_red; echo -e "${RED}#${RESET} ${2} is not a valid version...\\n"; help_script; fi; fi
        script_option_unifi_version="true"
        echo "--unifi-version ${2}" &>> /tmp/EUS/script_options;;
+  --uos-version)
+       if [[ -n "${2}" ]]; then if [[ "${2}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then uos_server_version="${2}"; elif [[ "${2}" == "latest" ]]; then uos_server_version="${2}"; else header_red; echo -e "${RED}#${RESET} ${2} is not a valid version...\\n"; help_script; fi; fi
+       script_option_uos_version="true"
+       echo "--uos-version ${2}" &>> /tmp/EUS/script_options;;
   --help)
        script_option_help="true"
        help_script;;
@@ -2434,7 +2631,7 @@ update_script() {
       eus_lock_cleanup
       # shellcheck disable=SC2068
       curl "${curl_argument[@]}" --remote-name https://get.glennr.nl/unifi/update/unifi-update.sh && exec bash unifi-update.sh ${script_options[@]}
-      exit 1
+      eus_exit 1
     fi
   fi
 }
@@ -2484,8 +2681,8 @@ if ! "$(which dpkg)" -l unifi 2>/dev/null | awk '{print $1}' | grep -iqE "^ii|^h
   echo -e "${GRAY_R}#${RESET} The UniFi Network Application or UniFi OS Server is not installed on your system or is in a broken state!"
   if [[ "${script_option_skip}" != 'true' ]]; then read -rp $'\033[39m#\033[0m Do you want to run the Easy Installation Script? (Y/n) ' yes_no; fi
   case "$yes_no" in
-      [Nn]*) check_apt_listbugs; exit 0;;
-      *) check_apt_listbugs; curl "${curl_argument[@]}" --remote-name https://get.glennr.nl/unifi/install/install_latest/unifi-latest.sh && bash unifi-latest.sh; exit 0;;
+      [Nn]*) check_apt_listbugs; eus_exit 0;;
+      *) check_apt_listbugs; curl "${curl_argument[@]}" --remote-name https://get.glennr.nl/unifi/install/install_latest/unifi-latest.sh && bash unifi-latest.sh; eus_exit 0;;
   esac
 fi
 
@@ -3227,7 +3424,7 @@ if ! [[ "${os_codename}" =~ (precise|maya|trusty|utopic|vivid|wily|yakkety|zesty
   fi
   echo -e "${GRAY_R}#${RESET} Feel free to contact Glenn R. (AmazedMender16) on the UI Community if you need help with installing your UniFi Network Application.\\n\\n"
   author
-  exit 1
+  eus_exit 1
 fi
 
 check_package_cache_file_corruption() {
@@ -3576,8 +3773,6 @@ eus_apt_sha1_disable() {
   fi
   return 1
 }
-
-trap eus_apt_sha1_disable EXIT
 
 run_apt_get_update_with_sha1_fallback() {
   eus_apt_sha1_disable
@@ -6905,7 +7100,7 @@ migration_check() {
     header_red
     echo -e "${RED}#${RESET} DB migration check timed out!"
     echo -e "${RED}#${RESET} Please contact Glenn R. (AmazedMender16) on the Community Forums! \\n\\n"
-    exit 1
+    eus_exit 1
   fi
   echo -e "\\n"
 }
@@ -7123,14 +7318,13 @@ upgrade_finished() {
     login_cleanup
   elif [[ "${app}" == "uosserver" ]]; then
     app_pretty="UniFi OS Server"
-    upgrade_finished_version="$(grep -sE '^UOS_SERVER_VERSION=' /var/lib/uosserver/server.conf 2> /dev/null | cut -d= -f2)"
+    upgrade_finished_version="$(grep -m1 -sE '^APP_VERSION=' /var/lib/uosserver/server.conf | cut -d= -f2 || grep -m1 -sE '^UOS_SERVER_VERSION=' /var/lib/uosserver/server.conf | cut -d= -f2)"
   else
     app_pretty="Unknown"
     upgrade_finished_version="Unknown"
   fi
   header
   echo -e "${GRAY_R}#${RESET} Your ${app_pretty} has been successfully updated to ${upgrade_finished_version}!"
-  
   if [[ "${app}" == "network" ]]; then
     if [[ "${script_option_do_not_start_unifi}" == 'true' ]]; then
       echo -e "${GRAY_R}#${RESET} You've used the script option \"Do Not Start UniFi\"... Stopping the service..."
@@ -7154,7 +7348,7 @@ upgrade_finished() {
   echo -e "\\n"
   author
   remove_yourself
-  exit 0
+  eus_exit 0
 }
 
 upgrade_latest() {
@@ -7183,7 +7377,7 @@ upgrade_latest() {
   echo -e "\\n"
   author
   remove_yourself
-  exit 0
+  eus_exit 0
 }
 
 os_update_finish() {
@@ -7191,7 +7385,7 @@ os_update_finish() {
   echo -e "${GRAY_R}#${RESET} The latest patches have been successfully installed on your system! \\n\\n"
   author
   remove_yourself
-  exit 0
+  eus_exit 0
 }
 
 event_alert_archive_delete_finish() {
@@ -7199,7 +7393,7 @@ event_alert_archive_delete_finish() {
   echo -e "${GRAY_R}#${RESET} All Alerts and Events have been successfully archived/deleted! \\n\\n"
   author
   remove_yourself
-  exit 0
+  eus_exit 0
 }
 
 devices_update_finish() {
@@ -7220,7 +7414,7 @@ devices_update_finish() {
   echo -e "\\n"
   author
   remove_yourself
-  exit 0
+  eus_exit 0
 }
 
 cancel_script() {
@@ -7241,7 +7435,7 @@ cancel_script() {
   update_eus_db
   cleanup_codename_mismatch_repos
   remove_yourself
-  exit 0
+  eus_exit 0
 }
 
 application_startup_message() {
@@ -7260,7 +7454,7 @@ not_supported_version() {
   echo -e "${GRAY_R}#${RESET} Current version of your UniFi Network Application | ${GRAY_R}$unifi${RESET}"
   backup_save_location
   echo -e "\\n"
-  exit 1
+  eus_exit 1
 }
 
 get_sysinfo() {
@@ -7524,7 +7718,7 @@ only_archive_or_delete() {
   fi
   author
   remove_yourself
-  exit 0
+  eus_exit 0
 }
 
 if [[ "${script_option_archive_alerts}" == 'true' || "${script_option_delete_events}" == 'true' ]]; then only_archive_or_delete; fi
@@ -7816,7 +8010,7 @@ debug_check () {
         echo -e "\\n${RED}#${RESET} UniFi Network Application Settings"
         echo -e "${RED}#${RESET} Settings > System > System Logging > Logging Levels"
         echo -e "\\n\\n${RED}#${RESET} Run the script again once you completed the step above."
-        exit 1
+        eus_exit 1
       fi
     fi
   fi
@@ -9206,7 +9400,7 @@ are_you_sure() {
   if [[ "${are_you_sure_proceed}" == 'no' ]]; then
     header_red
     echo -e "${GRAY_R}#${RESET} Cancelling operation: ${are_you_sure_var}"
-    exit 1
+    eus_exit 1
   fi
 }
 
@@ -9483,7 +9677,7 @@ custom_url_upgrade_check() {
         echo -e "${GRAY_R}#${RESET} UniFi Cloud Key Gen2       | https://store.ui.com/products/unifi-cloud-key-gen2"
         echo -e "${GRAY_R}#${RESET} UniFi Cloud Key Gen2 Plus  | https://store.ui.com/products/unifi-cloudkey-gen2-plus\\n\\n"
         author
-        exit 0
+        eus_exit 0
       fi
     fi
     if [[ "${first_digit_unifi}" -gt '7' ]] || [[ "${first_digit_unifi}" == '7' && "${second_digit_unifi}" -ge '5' ]]; then
@@ -9495,7 +9689,7 @@ custom_url_upgrade_check() {
         echo -e "${GRAY_R}#${RESET} The latest supported version on your system/OS is $(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-application-release?app=network&version=${unifi_latest_supported_version}" 2> /dev/null | jq -r '.latest_version' 2> /dev/null) and older..."
         echo -e "${GRAY_R}#${RESET} Consider upgrading to a 64-bit system/OS!\\n\\n"
         author
-        exit 0
+        eus_exit 0
       fi
     fi
     if [[ "${unifi_core_system}" != 'true' ]]; then
@@ -9557,7 +9751,7 @@ custom_url_upgrade_check() {
           fi
           if [[ "${unifi_update_mongodb_upgrade_process_success}" != 'true' && "${unifi_core_mongodb_upgrade_bypass}" != 'true' ]]; then
             author
-            exit 0
+            eus_exit 0
           fi
         fi
       fi
@@ -9588,12 +9782,12 @@ custom_url_upgrade_check() {
     header
 	echo -e "${GRAY_R}#${RESET} Your UniFi Network Application is already running \"${current_application_version}\"...\\n\\n"
     author
-    exit 0
+    eus_exit 0
   elif [[ "${application_upgrade}" != 'yes' ]]; then
     header_red
 	echo -e "${GRAY_R}#${RESET} You were about to downgrade your UniFi Network Application from \"${current_application_version}\" to \"${custom_application_version}\".. Cancelling this upgrade..\\n\\n"
     author
-    exit 0
+    eus_exit 0
   fi
 }
 
@@ -9795,14 +9989,14 @@ mongodb_upgrade() {
         header_red
         echo -e "${RED}#${RESET} You need to upgrade UniFi-Video to 3.10.x or newer.."
         echo -e "${RED}#${RESET} Always backups prior to upgrading anything! \\n\\n"
-        exit 0
+        eus_exit 0
       fi
     else
       check_apt_listbugs
       header_red
       echo -e "${RED}#${RESET} You should run UniFi Video elsewhere.. or migrate to UniFi Protect..."
       echo -e "${RED}#${RESET} Exiting the script...\\n\\n"
-      exit 0
+      eus_exit 0
     fi
   fi
   if [[ "${mongodb_upgrade_without_export_import}" != 'true' ]]; then mongodb_upgrade_space_check; fi
@@ -9838,7 +10032,7 @@ mongodb_upgrade() {
                  [Nn]*|"")
                     header_red
                     echo -e "${RED}#${RESET} Please take a backup of your UniFi Network Application and then run the script again. \\n"
-                    exit 1
+                    eus_exit 1
                     break;;
                  *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
               esac
@@ -10893,7 +11087,7 @@ mongodb_upgrade() {
   check_unifi_folder_permissions_state="after"
   check_unifi_folder_permissions
   unset mongodb_upgrade_started_success_value
-  if [[ "${unifi_update_mongodb_upgrade_process}" == 'true' ]]; then sleep 3; unifi_update_mongodb_upgrade_process_success="true"; else author; exit 0; fi
+  if [[ "${unifi_update_mongodb_upgrade_process}" == 'true' ]]; then sleep 3; unifi_update_mongodb_upgrade_process_success="true"; else author; eus_exit 0; fi
 }
 
 ###################################################################################################################################################################################################
@@ -10948,7 +11142,7 @@ application_statistics() {
   echo -e "${GRAY_R}#${RESET} Total adopted devices on this UniFi Network Application: ${GREEN}${total_adopted}${RESET}\\n"
   echo -e "${GRAY_R}#${RESET} Statistics json file is saved on the locations below: \\n${GRAY_R}-${RESET} \"${eus_dir}/stats/complete_stats_${json_time}.json\" \\n${GRAY_R}-${RESET} \"${eus_dir}/stats/total_adopted_${json_time}.json\"\\n\\n"
   author
-  exit 0
+  eus_exit 0
 }
 
 ###################################################################################################################################################################################################
@@ -11168,7 +11362,13 @@ free_disk_space_check() {
 }
 
 not_running_proceed() {
-  echo -e "${RED}#${RESET} The UniFi Network Application is still not running.. you may experience login issues..."
+  local app="${1:-network}"
+  local app_pretty
+  case "${app}" in
+    uosserver) app_pretty="UniFi OS Server";;
+    *)         app_pretty="UniFi Network Application";;
+  esac
+  echo -e "${RED}#${RESET} The ${app_pretty} is still not running.. you may experience login issues..."
   while true; do
     read -rp $'\033[39m#\033[0m Do you want to proceed anyway? (Y/n) ' yes_no
     case "$yes_no" in
@@ -11177,6 +11377,48 @@ not_running_proceed() {
         *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
     esac
   done
+}
+
+get_inactive_epoch() {
+  local svc="${1}"
+  local ts
+  ts="$(systemctl show "${svc}" --property=InactiveEnterTimestamp --value 2>/dev/null)"
+  if [[ -z "${ts}" || "${ts}" == "0" ]]; then echo "0"; return; fi
+  date -d "${ts}" +%s 2>/dev/null || echo "0"
+}
+
+try_start_application() {
+  local start_service=""
+  if systemctl cat uosserver.service &>/dev/null && systemctl cat unifi.service &>/dev/null; then
+    local uos_epoch unifi_epoch
+    uos_epoch="$(get_inactive_epoch uosserver.service)"
+    unifi_epoch="$(get_inactive_epoch unifi.service)"
+    if [[ "${uos_epoch}" -ge "${unifi_epoch}" ]]; then
+      start_service="uosserver"
+    else
+      start_service="unifi"
+    fi
+  elif systemctl cat uosserver.service &>/dev/null; then
+    start_service="uosserver"
+  elif systemctl cat unifi.service &>/dev/null; then
+    start_service="unifi"
+  fi
+  case "${start_service}" in
+    uosserver)
+      echo -e "${GRAY_R}#${RESET} The UniFi OS Server does not appear to be running... Trying to start it..."
+      if systemctl start uosserver.service &>/dev/null; then
+        echo -e "${GREEN}#${RESET} Successfully started the UniFi OS Server! \\n"; sleep 3
+      fi
+      if ! systemctl is-active -q uosserver.service; then not_running_proceed uosserver; fi
+      ;;
+    unifi)
+      echo -e "${GRAY_R}#${RESET} The UniFi Network Application does not appear to be running... Trying to start it..."
+      if systemctl start unifi &>/dev/null; then
+        echo -e "${GREEN}#${RESET} Successfully started the UniFi Network Application! \\n"; sleep 3
+      fi
+      if ! systemctl is-active -q unifi; then not_running_proceed unifi; fi
+      ;;
+  esac
 }
 
 not_running_dir_check() {
@@ -11243,36 +11485,22 @@ if [[ "${limited_functionality}" == 'true' ]]; then
     not_running_dir_check
     not_running_java_21_check
     echo -e "${GRAY_R}#${RESET} The UniFi Network Application does not appear to be running... Trying to start it..."
-    if service unifi start &> /dev/null; then echo -e "${GREEN}#${RESET} The UniFi Network Application started successfully!"; sleep 3; fi
+    if service unifi start &>/dev/null; then
+      echo -e "${GREEN}#${RESET} Successfully started the UniFi Network Application! \\n"; sleep 3
+    fi
     if ! [[ "$(pgrep -f "/usr/lib/unifi" | grep -cv grep)" -ge "2" ]]; then
       not_running_proceed
     fi
   fi
 else
-  if ! systemctl is-active -q uosserver; then
-    if [[ "${os_codename}" =~ (precise|maya|trusty|utopic|vivid|wily|yakkety|zesty|artful|qiana|rebecca|rafaela|rosa|utopic|vivid|wily|yakkety|zesty|artful) ]]; then
-      if ! systemctl status unifi | grep -iq running; then
-        if [[ "${installing_required_package}" != 'yes' ]]; then echo -e "\\n${GREEN}---${RESET}\\n"; else header; fi
-        not_running_dir_check
-        not_running_java_21_check
-        echo -e "${GRAY_R}#${RESET} The UniFi Network Application does not appear to be running... Trying to start it..."
-        if systemctl start unifi &> /dev/null; then echo -e "${GREEN}#${RESET} The UniFi Network Application started successfully!"; sleep 3; fi
-        if ! systemctl status unifi | grep -iq running; then
-          not_running_proceed
-        fi
-      fi
-    else
-      if ! systemctl is-active -q unifi; then
-        if [[ "${installing_required_package}" != 'yes' ]]; then echo -e "\\n${GREEN}---${RESET}\\n"; else header; fi
-        not_running_dir_check
-        not_running_java_21_check
-        echo -e "${GRAY_R}#${RESET} The UniFi Network Application does not appear to be running... Trying to start it..."
-        if systemctl start unifi &> /dev/null; then echo -e "${GREEN}#${RESET} The UniFi Network Application started successfully!"; sleep 3; fi
-        if ! systemctl is-active -q unifi; then
-          not_running_proceed
-        fi
-      fi
-    fi
+  unifi_or_uosserver_running="false"
+  if systemctl is-active -q uosserver.service 2>/dev/null; then unifi_or_uosserver_running="true"; fi
+  if systemctl is-active -q unifi 2>/dev/null; then unifi_or_uosserver_running="true"; fi
+  if [[ "${unifi_or_uosserver_running}" == "false" ]]; then
+    if [[ "${installing_required_package}" != 'yes' ]]; then echo -e "\\n${GREEN}---${RESET}\\n"; else header; fi
+    not_running_dir_check
+    not_running_java_21_check
+    try_start_application
   fi
 fi
 
@@ -11469,12 +11697,19 @@ invalid_choice() {
 }
 
 script_option_run_question() {
+  if [[ "${script_option_skip}" == 'true' ]]; then
+    if [[ "${script_option_unifi_version}" == 'true' ]]; then
+      non_interactive_application_upgrade="true"
+      return
+    fi
+    if [[ "${script_option_uos_version}" == 'true' ]]; then
+      perform_uos_upgrade="true"
+      non_interactive_uos_upgrade="true"
+      return
+    fi
+  fi
   header
   echo -e "  What would you like to perform?\\n\\n"
-  if [[ "${script_option_skip}" == 'true' && "${script_option_unifi_version}" == 'true' ]]; then
-    non_interactive_application_upgrade="true"
-    return
-  fi
   build_menu
   print_menu "${MENU_ITEMS[@]}"
   read -rp $'Your choice | \033[39m' unifi_easy_update
@@ -11547,7 +11782,7 @@ if [[ "${perform_application_upgrade}" == 'true' ]]; then
               echo -e "${RED}#${RESET} You didn't download a backup!"
               echo -e "${RED}#${RESET} Please download a backup and rerun the script..\\n"
               echo -e "${RED}#${RESET} Cancelling the script!"
-              exit 1
+              eus_exit 1
               break;;
             *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
         esac
@@ -11634,12 +11869,12 @@ application_upgrade_releases() {
     header
 	echo -e "${GRAY_R}#${RESET} Your UniFi Network Application is already running \"${unifi_current}\"...\\n\\n"
     author
-    exit 0
+    eus_exit 0
   elif [[ "${application_upgrade}" != 'yes' ]]; then
     header_red
 	echo -e "${GRAY_R}#${RESET} You were about to downgrade your UniFi Network Application from \"${unifi_current}\" to \"${application_version_release}\".. Cancelling this upgrade..\\n\\n"
     author
-    exit 0
+    eus_exit 0
   fi
   first_digit_unifi="${application_version_release_digit_1}"
   second_digit_unifi="${application_version_release_digit_2}"
@@ -11653,7 +11888,7 @@ application_upgrade_releases() {
       echo -e "${GRAY_R}#${RESET} UniFi Cloud Key Gen2       | https://store.ui.com/products/unifi-cloud-key-gen2"
       echo -e "${GRAY_R}#${RESET} UniFi Cloud Key Gen2 Plus  | https://store.ui.com/products/unifi-cloudkey-gen2-plus\\n\\n"
       author
-      exit 0
+      eus_exit 0
     fi
   fi
   if [[ "${first_digit_unifi}" -gt '7' ]] || [[ "${first_digit_unifi}" == '7' && "${second_digit_unifi}" -ge '5' ]]; then
@@ -11665,7 +11900,7 @@ application_upgrade_releases() {
       echo -e "${GRAY_R}#${RESET} The latest supported version on your system/OS is $(curl "${curl_argument[@]}" "https://api.glennr.nl/api/latest-application-release?app=network&version=${unifi_latest_supported_version}" 2> /dev/null | jq -r '.latest_version' 2> /dev/null) and older..."
       echo -e "${GRAY_R}#${RESET} Consider upgrading to a 64-bit system/OS!\\n\\n"
       author
-      exit 0
+      eus_exit 0
     fi
   fi
   if [[ "${first_digit_unifi}" -gt '7' ]] || [[ "${first_digit_unifi}" == '7' && "${second_digit_unifi}" == '4' ]] || [[ "${first_digit_unifi}" == '7' && "${second_digit_unifi}" -ge '5' ]]; then
@@ -11726,7 +11961,7 @@ application_upgrade_releases() {
       fi
       if [[ "${unifi_update_mongodb_upgrade_process_success}" != 'true' && "${unifi_core_mongodb_upgrade_bypass}" != 'true' ]]; then
         author
-        exit 0
+        eus_exit 0
       fi
     fi
   fi
@@ -11877,6 +12112,39 @@ uos_server_upgrade_process() {
       break
     fi
   done
+  uos_server_set_variables
+  uos_server_own_pids=()
+  if systemctl is-active --quiet uosserver.service 2>/dev/null; then
+    uos_server_service_user="$(systemctl show uosserver.service --property=User --value 2>/dev/null)"
+    uos_server_main_pid="$(systemctl show uosserver.service --property=MainPID --value 2>/dev/null)"
+    mapfile -t uos_server_own_pids < <(
+      if [[ -n "${uos_server_service_user}" ]]; then
+        ps -u "${uos_server_service_user}" -o pid=,comm= 2>/dev/null | awk '$2 ~ /^(slirp4netns|pasta)$/ {print $1}'
+      fi
+      if [[ -n "${uos_server_main_pid}" && "${uos_server_main_pid}" != "0" ]]; then
+        ps --ppid "${uos_server_main_pid}" -o pid= 2>/dev/null | tr -d " "
+      fi
+    )
+    echo -e "$(date +%F-%T.%6N) | uosserver.service is running; PIDs exempt from port conflict check: ${uos_server_own_pids[*]}" &>> "${eus_dir}/logs/uos-server-ports-check.log"
+  fi
+  uos_server_ports_check
+  # On versions below 5.0.0, stop uosserver before the upgrade attempt.
+  if ! version_ge "${uos_version}" "5.0.0"; then
+    if systemctl is-active --quiet uosserver.service 2>/dev/null; then
+      header
+      echo -e "${GRAY_R}#${RESET} Stopping the UniFi OS Server service..."
+      echo -e "$(date +%F-%T.%6N) | Stopping uosserver.service before upgrade (version ${uos_version} is below 5.1.15)..." &>> "${eus_dir}/logs/uos-server-update.log"
+      if systemctl stop uosserver.service &>> "${eus_dir}/logs/uos-server-update.log"; then
+        echo -e "${GRAY_R}#${RESET} Successfully stopped the UniFi OS Server service! \\n"
+        echo -e "$(date +%F-%T.%6N) | Successfully stopped uosserver.service." &>> "${eus_dir}/logs/uos-server-update.log"
+      else
+        echo -e "${GRAY_R}#${RESET} Failed to stop the UniFi OS Server service... \\n"
+        echo -e "$(date +%F-%T.%6N) | Failed to stop uosserver.service." &>> "${eus_dir}/logs/uos-server-update.log"
+        abort_reason="Failed to stop uosserver.service before the upgrade process."
+        abort
+      fi
+    fi
+  fi
   free_disk_space_check "${uos_server_tmp_dir}" "2"
   free_disk_space_check "/var/lib" "1"
   free_disk_space_check "/home" "7"
@@ -11982,6 +12250,14 @@ if [[ "${non_interactive_application_upgrade}" == 'true' ]]; then
   if [[ "${application_version}" == "latest" ]]; then application_version="${latest_net_release}"; fi
   application_upgrade_releases
   upgrade_finished network
+fi
+
+if [[ "${non_interactive_uos_upgrade}" == 'true' ]]; then
+  get_uos_server_version
+  upgrade_start uosserver
+  if [[ "${uos_server_version}" == "latest" ]]; then uos_server_version="${latest_uos_server_release}"; fi
+  uos_server_upgrade_process
+  upgrade_finished uosserver
 fi
 
 ##########################################################################################################################################################################
@@ -12150,7 +12426,7 @@ run_upgrade_menu_for() {
       "Cancel")
         echo -e "$(date +%F-%T.%6N) | [${app_key}] Upgrade canceled by user" >> "${eus_dir}/logs/upgrade-menu.log"
         echo "Upgrade canceled."
-        exit 0
+        eus_exit 0
         ;;
       *)
         case "${app_key}" in
