@@ -11,6 +11,12 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 9.2.0
+  
+ - Improved missing distro support reporting.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 9.1.9
   
  - Improved the script lock process.

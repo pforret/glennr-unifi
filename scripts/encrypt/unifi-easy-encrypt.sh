@@ -3,7 +3,7 @@
 # UniFi Easy Encrypt script.
 # Script          | UniFi Network Easy Encrypt Script
 # Version         | 3.7.6
-# Script Version  | 3.8.6
+# Script Version  | 3.8.7
 # Author          | Glenn Rietveld
 # Email           | glennrietveld8@hotmail.nl
 # Website         | https://GlennR.nl
@@ -2523,7 +2523,6 @@ update_script() {
 }
 
 script_version_check() {
-  local local_version
   local online_version
   local_version="$(grep -im1 "# Script Version" "${script_location}" | awk -F'|' '{gsub(/[[:space:]]/, "", $2); print $2}')"
   if [[ -n "$(command -v jq)" ]]; then
@@ -2552,7 +2551,7 @@ if ! [[ "${os_codename}" =~ (precise|maya|trusty|utopic|vivid|wily|yakkety|zesty
   if [[ -z "$(command -v apt)" ]]; then non_apt_based_linux="true"; fi
   unsupported_no_modify="true"
   get_distro
-  if [[ "${non_apt_based_linux}" != 'true' ]]; then distro_support_missing_report="$(curl "${curl_argument[@]}" -X POST -H "Content-Type: application/json" -d "{\"distribution\": \"${os_id}\", \"codename\": \"${os_codename}\", \"script-name\": \"${script_name}\", \"full-os-details\": \"${full_os_details}\"}" https://api.glennr.nl/api/missing-distro-support 2> /dev/null | jq -r '.[]' 2> /dev/null)"; fi
+  if [[ "${non_apt_based_linux}" != 'true' ]]; then distro_support_missing_report="$(curl "${curl_argument[@]}" -X POST -H "Content-Type: application/json" -d "{\"distribution\": \"${os_id}\", \"codename\": \"${os_codename}\", \"script-name\": \"${script_name}\", \"script-version\": \"${local_version}\", \"full-os-details\": \"${full_os_details}\"}" https://api.glennr.nl/api/missing-distro-support 2> /dev/null | jq -r '.[]' 2> /dev/null)"; fi
   if [[ "${script_option_debug}" != 'true' ]]; then clear; fi
   header_red
   if [[ "${non_apt_based_linux}" == 'true' ]]; then

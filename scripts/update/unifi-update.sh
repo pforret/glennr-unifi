@@ -3,7 +3,7 @@
 # UniFi Network Application Easy Update Script.
 # Script          | UniFi Network Easy Update Script
 # Version         | 9.9.9
-# Script Version  | 10.7.2
+# Script Version  | 10.7.3
 # Author          | Glenn Rietveld
 # Email           | glennrietveld8@hotmail.nl
 # Website         | https://GlennR.nl
@@ -2637,7 +2637,6 @@ update_script() {
 }
 
 script_version_check() {
-  local local_version
   local online_version
   local_version="$(grep -im1 "# Script Version" "${script_location}" | awk -F'|' '{gsub(/[[:space:]]/, "", $2); print $2}')"
   if [[ -n "$(command -v jq)" ]]; then
@@ -3412,7 +3411,7 @@ if ! [[ "${os_codename}" =~ (precise|maya|trusty|utopic|vivid|wily|yakkety|zesty
   if [[ -z "$(command -v apt)" ]]; then non_apt_based_linux="true"; fi
   unsupported_no_modify="true"
   get_distro
-  if [[ "${non_apt_based_linux}" != 'true' ]]; then distro_support_missing_report="$(curl "${curl_argument[@]}" -X POST -H "Content-Type: application/json" -d "{\"distribution\": \"${os_id}\", \"codename\": \"${os_codename}\", \"script-name\": \"${script_name}\", \"full-os-details\": \"${full_os_details}\"}" https://api.glennr.nl/api/missing-distro-support 2> /dev/null | jq -r '.[]' 2> /dev/null)"; fi
+  if [[ "${non_apt_based_linux}" != 'true' ]]; then distro_support_missing_report="$(curl "${curl_argument[@]}" -X POST -H "Content-Type: application/json" -d "{\"distribution\": \"${os_id}\", \"codename\": \"${os_codename}\", \"script-name\": \"${script_name}\", \"script-version\": \"${local_version}\", \"full-os-details\": \"${full_os_details}\"}" https://api.glennr.nl/api/missing-distro-support 2> /dev/null | jq -r '.[]' 2> /dev/null)"; fi
   if [[ "${script_option_debug}" != 'true' ]]; then clear; fi
   header_red
   if [[ "${non_apt_based_linux}" == 'true' ]]; then
@@ -7059,7 +7058,7 @@ else
   unifi_api_baseurl="https://localhost:${unifi_port_https}"
 fi
 unifi_api_cookie=$(mktemp --tmpdir=/tmp/EUS unifi_api_cookie_XXXXX)
-unifi_api_curl_cmd="curl --tlsv1 --silent --cookie ${unifi_api_cookie} --cookie-jar ${unifi_api_cookie} --insecure "
+unifi_api_curl_cmd=(curl --tlsv1 --silent --cookie "${unifi_api_cookie}" --cookie-jar "${unifi_api_cookie}" --insecure)
 
 # UniFi Devices ( 3.7.58 )
 UGW3=(UGW3) #USG3
@@ -7460,7 +7459,7 @@ not_supported_version() {
 get_sysinfo() {
   if [[ "${application_login}" == 'success' ]]; then
     if ! [[ -f /tmp/EUS/application/sysinfo ]]; then
-      ${unifi_api_curl_cmd} "$unifi_api_baseurl/api/s/default/stat/sysinfo" &>> /tmp/EUS/application/sysinfo_tmp
+      "${unifi_api_curl_cmd[@]}" "$unifi_api_baseurl/api/s/default/stat/sysinfo" &>> /tmp/EUS/application/sysinfo_tmp
       tr -d '[:space:]' < /tmp/EUS/application/sysinfo_tmp > /tmp/EUS/application/sysinfo
       sysinfo_version=$(grep -io '"version":".*"' /tmp/EUS/application/sysinfo | cut -d':' -f2 | cut -d'}' -f1 | tr -d '"' | cut -d'.' -f1-2 | tr -d '.')
     fi
@@ -7763,6 +7762,9 @@ two_factor_request() {
     sleep 3
     unset ubic_2fa_token
     read -rp $' 2FA Token:\033[39m ' ubic_2fa_token
+  else
+    header
+    echo -e "${GRAY_R}#${RESET} Attempting to login..."
   fi
 }
 
@@ -7802,15 +7804,19 @@ unifi_login() {
     username_case_sensitive_check
     if "$(which dpkg)" -l unifi-core 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
       if [[ "${two_factor}" == 'enabled' ]]; then
-        jq -n --arg username "$username" --arg password "$password" --arg ubic_2fa_token "$ubic_2fa_token" '{username: $username, password: $password, token: $ubic_2fa_token}' | ${unifi_api_curl_cmd} -d@- --header "Content-Type: application/json" "https://localhost/api/auth/login" &>> /tmp/EUS/application/login
+        jq -n --arg username "$username" --arg password "$password" --arg ubic_2fa_token "$ubic_2fa_token" '{username: $username, password: $password, token: $ubic_2fa_token}' | "${unifi_api_curl_cmd[@]}" -d@- --header "Content-Type: application/json" "https://localhost/api/auth/login" &>> /tmp/EUS/application/login
       else
-        jq -n --arg username "$username" --arg password "$password" '{username: $username, password: $password}' | ${unifi_api_curl_cmd} -d@- --header "Content-Type: application/json" "https://localhost/api/auth/login" &>> /tmp/EUS/application/login
+        jq -n --arg username "$username" --arg password "$password" '{username: $username, password: $password}' | "${unifi_api_curl_cmd[@]}" -d@- --header "Content-Type: application/json" "https://localhost/api/auth/login" &>> /tmp/EUS/application/login
+      fi
+      csrf_token=$(grep TOKEN "${unifi_api_cookie}" | awk '{print $7}' | awk -F'.' '{print $2}' | base64 -d 2>/dev/null | jq -r '.csrfToken // empty')
+      if [[ -n "${csrf_token}" ]]; then
+        unifi_api_curl_cmd=(curl --tlsv1 --silent --cookie "${unifi_api_cookie}" --cookie-jar "${unifi_api_cookie}" --insecure --header "X-CSRF-Token: ${csrf_token}")
       fi
     else
       if [[ "${two_factor}" == 'enabled' ]]; then
-        jq -n --arg username "$username" --arg password "$password" --arg ubic_2fa_token "$ubic_2fa_token" '{username: $username, password: $password, ubic_2fa_token: $ubic_2fa_token}' | ${unifi_api_curl_cmd} -d@- "$unifi_api_baseurl/api/login" >> /tmp/EUS/application/login
+        jq -n --arg username "$username" --arg password "$password" --arg ubic_2fa_token "$ubic_2fa_token" '{username: $username, password: $password, ubic_2fa_token: $ubic_2fa_token}' | "${unifi_api_curl_cmd[@]}" -d@- "$unifi_api_baseurl/api/login" >> /tmp/EUS/application/login
       else
-        jq -n --arg username "$username" --arg password "$password" '{username: $username, password: $password}' | ${unifi_api_curl_cmd} -d@- "$unifi_api_baseurl/api/login" >> /tmp/EUS/application/login
+        jq -n --arg username "$username" --arg password "$password" '{username: $username, password: $password}' | "${unifi_api_curl_cmd[@]}" -d@- "$unifi_api_baseurl/api/login" >> /tmp/EUS/application/login
       fi
     fi
     unifi_login_check
@@ -7820,7 +7826,7 @@ unifi_login() {
 }
 
 unifi_logout() {
-  ${unifi_api_curl_cmd} "$unifi_api_baseurl/logout"
+  "${unifi_api_curl_cmd[@]}" "$unifi_api_baseurl/logout"
   executed_unifi_login="false"
 }
 
@@ -7963,6 +7969,7 @@ unifi_login_check() {
     unifi_login_cleanup
     header
     echo -e "${GRAY_R}#${RESET} Login success! \\n"
+    sleep 2
   fi
 }
 
@@ -8002,8 +8009,8 @@ debug_check () {
       if [[ "${sysinfo_version}" -ge '511' ]]; then log_level_setting='Verbose'; else log_level_setting='More'; fi
       echo -e "${GRAY_R}#${RESET} Settings log level for management and system to ${log_level_setting}, this is required for the script to get the needed information."
       debug_warn_info="true"
-      ${unifi_api_curl_cmd} --data "{\"cmd\":\"set-param\", \"key\":\"debug.mgmt\", \"value\":\"info\"}" "$unifi_api_baseurl/api/s/${site}/cmd/system" &>> /tmp/EUS/application/log_levels
-      ${unifi_api_curl_cmd} --data "{\"cmd\":\"set-param\", \"key\":\"debug.system\", \"value\":\"info\"}" "$unifi_api_baseurl/api/s/${site}/cmd/system" &>> /tmp/EUS/application/log_levels
+      "${unifi_api_curl_cmd[@]}" --data "{\"cmd\":\"set-param\", \"key\":\"debug.mgmt\", \"value\":\"info\"}" "$unifi_api_baseurl/api/s/${site}/cmd/system" &>> /tmp/EUS/application/log_levels
+      "${unifi_api_curl_cmd[@]}" --data "{\"cmd\":\"set-param\", \"key\":\"debug.system\", \"value\":\"info\"}" "$unifi_api_baseurl/api/s/${site}/cmd/system" &>> /tmp/EUS/application/log_levels
       sleep 3
       if ! grep "ok" /tmp/EUS/application/log_levels; then
         echo -e "${RED}#${RESET} Failed to set log level to ${log_level_setting}, please login to your UniFi Network Application and set the MGMT log level to ${log_level_setting}."
@@ -8021,8 +8028,8 @@ debug_check_no_upgrade() {
     header
     echo -e "${GRAY_R}#${RESET} Setting log level for management and system back to normal.\\n\\n"
     sleep 3
-    ${unifi_api_curl_cmd} --data "{\"cmd\":\"set-param\", \"key\":\"debug.mgmt\", \"value\":\"warn\"}" "$unifi_api_baseurl/api/s/${site}/cmd/system" &>> /tmp/EUS/application/log_levels
-    ${unifi_api_curl_cmd} --data "{\"cmd\":\"set-param\", \"key\":\"debug.system\", \"value\":\"info\"}" "$unifi_api_baseurl/api/s/${site}/cmd/system" &>> /tmp/EUS/application/log_levels
+    "${unifi_api_curl_cmd[@]}" --data "{\"cmd\":\"set-param\", \"key\":\"debug.mgmt\", \"value\":\"warn\"}" "$unifi_api_baseurl/api/s/${site}/cmd/system" &>> /tmp/EUS/application/log_levels
+    "${unifi_api_curl_cmd[@]}" --data "{\"cmd\":\"set-param\", \"key\":\"debug.system\", \"value\":\"info\"}" "$unifi_api_baseurl/api/s/${site}/cmd/system" &>> /tmp/EUS/application/log_levels
     if ! grep -iq "ok" /tmp/EUS/application/log_levels; then
       echo -e "${RED}#${RESET} Failed to set log level back to normal."
     fi
@@ -8083,277 +8090,494 @@ alert_event_cleanup() {
     esac
   fi
 }
+
 ###################################################################################################################################################################################################
 #                                                                                                                                                                                                 #
 #                                                                                      UniFi Firmware Cache                                                                                       #
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+declare -a device_models_list=()
+declare -a special_devices_list=()
+declare -a base_models_list=()
+declare -a unifi_sites_list=()
+declare -A site_desc_map=()
+declare -A site_timezone_map=()
+declare -A uap_mac_map=()
+declare -A uap_mac_u6qca_map=()
+declare -A usw_mac_map=()
+declare -A usw_mac_gen2_map=()
+declare -A ugw_mac_map=()
+declare -A uxg_mac_map=()
+declare -a uap_models_list=()
+declare -a usw_models_list=()
+declare -a ugw_models_list=()
+declare -A custom_mac_map=()
+declare -A schedule_mac_map=()
+declare -A scheduled_mac_map=()
+declare -A device_type_schedule_message=()
+
+firmware_check_result=""
+cached_fw_json=""
+available_fw_json=""
+cached_firmware_json=""
+
+uap_upgrade_done="no"
+usw_upgrade_done="no"
+uxg_upgrade_done="no"
+ugw_upgrade_done="no"
+uap_upgrade_schedule_done="no"
+usw_upgrade_schedule_done="no"
+uxg_upgrade_schedule_done="no"
+ugw_upgrade_schedule_done="no"
+
+###################################################################################################################################################################################################
+#                                                                                                                                                                                                 #
+#                                                               Firmware Cache — check / model discovery / remove / download                                                                      #
+#                                                                                                                                                                                                 #
+###################################################################################################################################################################################################
+
 unifi_firmware_check() {
+  if [[ -z "${site}" ]]; then unifi_get_site_variable; fi
   header
   echo -e "${GRAY_R}#${RESET} Checking for Firmware Updates..."
-  ${unifi_api_curl_cmd} --data "{\"cmd\":\"check-firmware-update\"}" "$unifi_api_baseurl/api/s/${site}/cmd/system" &> /tmp/EUS/firmware/check
-  if grep -iq 'ok' /tmp/EUS/firmware/check; then echo -e "${GREEN}#${RESET} Successfully checked for firmware updates"; fi
-  rm --force /tmp/EUS/firmware/check 2> /dev/null
+  echo -e "$(date +%F-%T.%6N) | Starting firmware update check via API (site: '${site}')." &>> "${eus_dir}/logs/firmware-cache.log"
+  firmware_check_result="$("${unifi_api_curl_cmd[@]}" --data '{"cmd":"check-firmware-update"}' "$unifi_api_baseurl/api/s/${site}/cmd/system" 2>&1)"
+  if echo "${firmware_check_result}" | grep -iq 'ok'; then
+    echo -e "${GREEN}#${RESET} Successfully checked for firmware updates"
+    echo -e "$(date +%F-%T.%6N) | Successfully checked for firmware updates (response contained 'ok')." &>> "${eus_dir}/logs/firmware-cache.log"
+  else
+    echo -e "${YELLOW}#${RESET} Firmware update check returned an unexpected response, please check the logs."
+    echo -e "$(date +%F-%T.%6N) | WARNING | Firmware update check response did not contain 'ok'. Raw response: ${firmware_check_result}" &>> "${eus_dir}/logs/firmware-cache.log"
+  fi
+  firmware_check_result=""
   sleep 3
 }
 
 unifi_cache_models() {
   header
   echo -e "${GRAY_R}#${RESET} Catching all the device models on your UniFi Network Application.."
-  "${mongocommand}" --quiet --port 27117 ace --eval "${mongoprefix}db.getCollection('device').find({})${mongosuffix}" | jq -r '.[].model' | awk '!a[$0]++' &> /tmp/EUS/firmware/device_models
-  if [[ -f /tmp/EUS/firmware/device_models && -s /tmp/EUS/firmware/device_models ]]; then echo -e "${GREEN}#${RESET} Successfully found all device models on your UniFi Network Application."; sleep 3; fi
-  if grep -iq "UP1" /tmp/EUS/firmware/device_models; then echo "UP1" &>> /tmp/EUS/firmware/special_devices; fi
-  if grep -iq "UP6" /tmp/EUS/firmware/device_models; then echo "UP6" &>> /tmp/EUS/firmware/special_devices; fi
-  if grep -iq "USMINI" /tmp/EUS/firmware/device_models; then echo "USMINI" &>> /tmp/EUS/firmware/special_devices; fi
-  sed -i -e '/UP1/d' -e '/UP6/d' -e '/USMINI/d' -e '/UDM/d' /tmp/EUS/firmware/device_models
+  echo -e "$(date +%F-%T.%6N) | Querying MongoDB for all adopted device models." &>> "${eus_dir}/logs/firmware-cache.log"
+  local raw_models
+  raw_models="$("${mongocommand}" --quiet --port 27117 ace --eval "${mongoprefix}db.getCollection('device').find({})${mongosuffix}" | jq -r '.[].model' | awk '!a[$0]++')"
+  if [[ -z "${raw_models}" ]]; then
+    echo -e "${YELLOW}#${RESET} No adopted devices were found on your UniFi Network Application."
+    echo -e "$(date +%F-%T.%6N) | WARNING | MongoDB query returned no device models — no adopted devices found." &>> "${eus_dir}/logs/firmware-cache.log"
+    sleep 3
+    return
+  fi
+  device_models_list=()
+  special_devices_list=()
+  while IFS= read -r model; do
+    [[ -z "${model}" ]] && continue
+    case "${model}" in
+      UP1|UP6|USMINI)
+        special_devices_list+=("${model}")
+        echo -e "$(date +%F-%T.%6N) | Found special device model: ${model} (excluded from base models, remove-only)." &>> "${eus_dir}/logs/firmware-cache.log"
+        ;;
+      UDM)
+        echo -e "$(date +%F-%T.%6N) | Skipping UDM — excluded from firmware cache workflow." &>> "${eus_dir}/logs/firmware-cache.log"
+        ;;
+      *)
+        device_models_list+=("${model}")
+        echo -e "$(date +%F-%T.%6N) | Found adoptable device model: ${model}." &>> "${eus_dir}/logs/firmware-cache.log"
+        ;;
+    esac
+  done <<< "${raw_models}"
+  if [[ "${#device_models_list[@]}" -gt 0 ]]; then
+    echo -e "${GREEN}#${RESET} Successfully found all device models on your UniFi Network Application."
+    echo -e "$(date +%F-%T.%6N) | Model discovery complete — ${#device_models_list[@]} standard model(s), ${#special_devices_list[@]} special model(s)." &>> "${eus_dir}/logs/firmware-cache.log"
+  else
+    echo -e "${YELLOW}#${RESET} No standard adoptable devices were found (only special or excluded models present)."
+    echo -e "$(date +%F-%T.%6N) | WARNING | No standard device models after filtering. Special models: ${special_devices_list[*]:-none}." &>> "${eus_dir}/logs/firmware-cache.log"
+  fi
+  sleep 3
 }
 
 unifi_cache_remove() {
+  if [[ "${#unifi_sites_list[@]}" -eq 0 ]]; then unifi_list_sites; fi
   unifi_get_site_variable
   header
-  ${unifi_api_curl_cmd} --data "{\"cmd\":\"list-cached\"}" "$unifi_api_baseurl/api/s/${site}/cmd/firmware" >> /tmp/EUS/firmware/cached
-  while read -r device_model; do
-    # shellcheck disable=SC2086
-    fw_versions=$(jq -r '.data[] | select(.device == "'${device_model}'") | .version' /tmp/EUS/firmware/cached)
-    for fw_version in "${fw_versions[@]}"; do
-      echo -ne "\\r${GRAY_R}#${RESET} Removing firmware version ${fw_version} for ${device_model}..."
-      ${unifi_api_curl_cmd} --data "{\"cmd\":\"remove\", \"device\":\"$device_model\", \"version\":\"$fw_version\"}" "$unifi_api_baseurl/api/s/${site}/cmd/firmware" >> /tmp/EUS/firmware/removed
-      if grep -iq 'result.*true' /tmp/EUS/firmware/removed; then echo -e "\\r${GREEN}#${RESET} Successfully removed cached firmware version ${fw_version} for ${device_model}!"; fi
-      if grep -iq 'result.*false' /tmp/EUS/firmware/removed; then echo -e "\\r${RED}#${RESET} Failed to remove cached firmware version ${fw_version} for ${device_model}..."; fi
-      rm --force /tmp/EUS/firmware/removed 2> /dev/null
-    done
-  done < /tmp/EUS/firmware/base_models
+  echo -e "$(date +%F-%T.%6N) | Starting cached firmware removal for site '${site}'." &>> "${eus_dir}/logs/firmware-cache.log"
+  echo -e "$(date +%F-%T.%6N) | Fetching currently cached firmware list from API." &>> "${eus_dir}/logs/firmware-cache.log"
+  cached_fw_json="$("${unifi_api_curl_cmd[@]}" --data '{"cmd":"list-cached"}' "$unifi_api_baseurl/api/s/${site}/cmd/firmware" 2>&1)"
+  if [[ -z "${cached_fw_json}" ]] || ! echo "${cached_fw_json}" | jq -e '.data | length > 0' &>/dev/null; then
+    echo -e "${YELLOW}#${RESET} No cached firmware found on the UniFi Network Application. \\n"
+    echo -e "$(date +%F-%T.%6N) | WARNING | list-cached returned no entries — no cached firmware present." &>> "${eus_dir}/logs/firmware-cache.log"
+    sleep 3
+    return
+  fi
+  local platform_entries platform_count platform_device platform_version remove_result
+  platform_entries="$(jq -r '
+    [ .data[] | { path: (.path | split("/")[0]), device: .device, version: .version } ]
+    | unique_by(.path)
+    | .[]
+    | .device + ":" + .version
+  ' <<< "${cached_fw_json}")"
+  platform_count="$(echo "${platform_entries}" | grep -c .)"
+  echo -e "$(date +%F-%T.%6N) | list-cached response received (${#cached_fw_json} bytes). ${platform_count} unique base platform(s) to remove (grouped by path prefix)." &>> "${eus_dir}/logs/firmware-cache.log"
+  local all_devices_logged
+  all_devices_logged="$(jq -r '[.data[] | .device + "(" + (.path|split("/")[0]) + ")"] | join(", ")' <<< "${cached_fw_json}")"
+  echo -e "$(date +%F-%T.%6N) | All cached device keys and their platform grouping: ${all_devices_logged}." &>> "${eus_dir}/logs/firmware-cache.log"
+  while IFS= read -r entry; do
+    [[ -z "${entry}" ]] && continue
+    platform_device="${entry%%:*}"
+    platform_version="${entry##*:}"
+    echo -e "$(date +%F-%T.%6N) | Processing removal for platform '${platform_device}' version ${platform_version}." &>> "${eus_dir}/logs/firmware-cache.log"
+    echo -ne "\\r${GRAY_R}#${RESET} Removing firmware version ${platform_version} for ${platform_device}..."
+    remove_result="$("${unifi_api_curl_cmd[@]}" --data "{\"cmd\":\"remove\", \"device\":\"${platform_device}\", \"version\":\"${platform_version}\"}" "$unifi_api_baseurl/api/s/${site}/cmd/firmware" 2>&1)"
+    if echo "${remove_result}" | grep -iq 'result.*true'; then
+      echo -e "\\r${GREEN}#${RESET} Successfully removed cached firmware version ${platform_version} for ${platform_device}!"
+      echo -e "$(date +%F-%T.%6N) | Successfully removed cached firmware version ${platform_version} for platform ${platform_device}." &>> "${eus_dir}/logs/firmware-cache.log"
+    elif echo "${remove_result}" | grep -iq 'result.*false'; then
+      echo -e "\\r${RED}#${RESET} Failed to remove cached firmware version ${platform_version} for ${platform_device}..."
+      echo -e "$(date +%F-%T.%6N) | ERROR | Failed to remove cached firmware version ${platform_version} for platform ${platform_device}. API response: ${remove_result}" &>> "${eus_dir}/logs/firmware-cache.log"
+    else
+      echo -e "$(date +%F-%T.%6N) | WARNING | Unexpected API response removing ${platform_version} for platform ${platform_device}: ${remove_result}" &>> "${eus_dir}/logs/firmware-cache.log"
+    fi
+  done <<< "${platform_entries}"
+  echo -e "$(date +%F-%T.%6N) | Firmware removal pass complete." &>> "${eus_dir}/logs/firmware-cache.log"
   sleep 3
 }
 
 unifi_cache_download() {
-  header
+  if [[ "${#unifi_sites_list[@]}" -eq 0 ]]; then unifi_list_sites; fi
+  if [[ -z "${site}" ]]; then unifi_get_site_variable; fi
   echo -e "${GREEN}#${RESET} Downloading/Caching firmware versions for all device models on the UniFi Network Application..."
   echo -e "${GREEN}#${RESET} The duration of the download(s) depends on the internet connection.\\n\\n"
-  ${unifi_api_curl_cmd} --data "{\"cmd\":\"list-cached\"}" "$unifi_api_baseurl/api/s/${site}/cmd/firmware" >> /tmp/EUS/firmware/currently_cached
-  ${unifi_api_curl_cmd} --data "{\"cmd\":\"list-available\"}" "$unifi_api_baseurl/api/s/${site}/cmd/firmware" >> /tmp/EUS/firmware/available
-  while read -r device_model; do
-    # shellcheck disable=SC2086
-    jq -r '.data[] | select(.device == "'${device_model}'") | .base_model' /tmp/EUS/firmware/available &>> /tmp/EUS/firmware/base_models_tmp
-    # shellcheck disable=SC2086
-    jq -r '.data[] | select(.device == "'${device_model}'") | .path' /tmp/EUS/firmware/currently_cached | cut -d'/' -f1 | awk '!a[$0]++' &>> /tmp/EUS/firmware/base_models_tmp
-  done < /tmp/EUS/firmware/device_models
-  if [[ -f /tmp/EUS/firmware/base_models_tmp ]]; then
-    awk '!a[$0]++' /tmp/EUS/firmware/base_models_tmp &>> /tmp/EUS/firmware/base_models
-    rm --force /tmp/EUS/firmware/base_models_tmp
+  echo -e "$(date +%F-%T.%6N) | Starting firmware download/cache pass for site '${site}'. Querying list-cached and list-available." &>> "${eus_dir}/logs/firmware-cache.log"
+  cached_fw_json="$("${unifi_api_curl_cmd[@]}" --data '{"cmd":"list-cached"}' "$unifi_api_baseurl/api/s/${site}/cmd/firmware" 2>&1)"
+  available_fw_json="$("${unifi_api_curl_cmd[@]}" --data '{"cmd":"list-available"}' "$unifi_api_baseurl/api/s/${site}/cmd/firmware" 2>&1)"
+  echo -e "$(date +%F-%T.%6N) | list-cached: ${#cached_fw_json} bytes. list-available: ${#available_fw_json} bytes." &>> "${eus_dir}/logs/firmware-cache.log"
+  echo -e "$(date +%F-%T.%6N) | Building base_models_list from ${#device_models_list[@]} device model(s)." &>> "${eus_dir}/logs/firmware-cache.log"
+  local -A _base_seen=()
+  local bm
+  base_models_list=()
+  for device_model in "${device_models_list[@]}"; do
+    while IFS= read -r bm; do
+      [[ -z "${bm}" || -n "${_base_seen[${bm}]}" ]] && continue
+      _base_seen["${bm}"]=1
+      base_models_list+=("${bm}")
+      echo -e "$(date +%F-%T.%6N) | Added base model '${bm}' from available firmware (device model: ${device_model})." &>> "${eus_dir}/logs/firmware-cache.log"
+    done < <(jq -r --arg m "${device_model}" '.data[] | select(.device == $m) | .base_model' <<< "${available_fw_json}")
+    while IFS= read -r bm; do
+      [[ -z "${bm}" || -n "${_base_seen[${bm}]}" ]] && continue
+      _base_seen["${bm}"]=1
+      base_models_list+=("${bm}")
+      echo -e "$(date +%F-%T.%6N) | Added base model '${bm}' from cached firmware path (device model: ${device_model})." &>> "${eus_dir}/logs/firmware-cache.log"
+    done < <(jq -r --arg m "${device_model}" '.data[] | select(.device == $m) | .path' <<< "${cached_fw_json}" | cut -d'/' -f1 | awk '!a[$0]++')
+  done
+  echo -e "$(date +%F-%T.%6N) | base_models_list has ${#base_models_list[@]} unique model(s): ${base_models_list[*]}" &>> "${eus_dir}/logs/firmware-cache.log"
+  if [[ "${#base_models_list[@]}" -eq 0 ]]; then
+    echo -e "${GREEN}#${RESET} All firmware versions are already up to date and cached — nothing to download."
+    echo -e "$(date +%F-%T.%6N) | base_models_list is empty after querying available/cached — all firmware already current, or list-available returned no data." &>> "${eus_dir}/logs/firmware-cache.log"
+    firmware_cached="yes"
+    cached_firmware_json="${cached_fw_json}"
+    return
   fi
-  while read -r device_model; do
-    # shellcheck disable=SC2086
-    fw_version=$(jq -r '.data[] | select(.device == "'${device_model}'") | .version' /tmp/EUS/firmware/available | head -n1)
-    # shellcheck disable=SC2086
-    cached_fw_version=$(jq -r '.data[] | select(.device == "'${device_model}'") | .version' /tmp/EUS/firmware/currently_cached &> /tmp/EUS/firmware/all_currently_cached && head -n1 /tmp/EUS/firmware/all_currently_cached )
-    cp /tmp/EUS/firmware/all_currently_cached /tmp/EUS/firmware/old_cached_firmware 2> /dev/null
-    older_cached_fw=$(cat /tmp/EUS/firmware/old_cached_firmware && sed -i "/${cached_fw_version}/d" /tmp/EUS/firmware/old_cached_firmware)
-    # shellcheck disable=SC2086
-    if ! jq -r '.data[] | select(.device == "'${device_model}'")' /tmp/EUS/firmware/available | grep -iq "${device_model}"; then
-      # shellcheck disable=SC2086
-      if jq -r '.data[] | select(.device == "'${device_model}'")' /tmp/EUS/firmware/currently_cached | grep -iq "${device_model}"; then
-        echo -e "${YELLOW}#${RESET} Firmware version ${cached_fw_version} for ${device_model} is already cached!" && sleep 1
+  local fw_version cached_fw_version all_cached_versions older_cached_fws removed_cached_fw
+  local remove_result download_result
+  for device_model in "${base_models_list[@]}"; do
+    echo -e "$(date +%F-%T.%6N) | Processing base model: ${device_model}." &>> "${eus_dir}/logs/firmware-cache.log"
+    removed_cached_fw="false"
+    fw_version="$(jq -r --arg m "${device_model}" '.data[] | select(.device == $m) | .version' <<< "${available_fw_json}" | head -n1)"
+    cached_fw_version="$(jq -r --arg m "${device_model}" '.data[] | select(.device == $m) | .version' <<< "${cached_fw_json}" | head -n1)"
+    echo -e "$(date +%F-%T.%6N) | ${device_model} — available: '${fw_version:-<none>}', cached: '${cached_fw_version:-<none>}'." &>> "${eus_dir}/logs/firmware-cache.log"
+    all_cached_versions="$(jq -r --arg m "${device_model}" '.data[] | select(.device == $m) | .version' <<< "${cached_fw_json}")"
+    older_cached_fws="$(echo "${all_cached_versions}" | grep -v "^${cached_fw_version}$" || true)"
+    if [[ -n "${older_cached_fws}" ]]; then
+      echo -e "$(date +%F-%T.%6N) | ${device_model} — older cached versions found: $(echo "${older_cached_fws}" | tr '\n' ' ')." &>> "${eus_dir}/logs/firmware-cache.log"
+    fi
+    if ! jq -e --arg m "${device_model}" '.data[] | select(.device == $m)' <<< "${available_fw_json}" | grep -iq "${device_model}"; then
+      if jq -e --arg m "${device_model}" '.data[] | select(.device == $m)' <<< "${cached_fw_json}" | grep -iq "${device_model}"; then
+        echo -e "${YELLOW}#${RESET} Firmware version ${cached_fw_version} for ${device_model} is already cached!"
+        echo -e "$(date +%F-%T.%6N) | ${device_model} not in available list but already cached at ${cached_fw_version} — nothing to do." &>> "${eus_dir}/logs/firmware-cache.log"
+      else
+        echo -e "$(date +%F-%T.%6N) | WARNING | ${device_model} not found in available or cached firmware — skipping." &>> "${eus_dir}/logs/firmware-cache.log"
       fi
-    elif [[ "${cached_fw_version}" != "${fw_version}" ]]; then
-      if [[ -n "${cached_fw_version}" ]]; then
-        echo -ne "${GRAY_R}#${RESET} Removing cached firmware version ${version} for ${device_model}..."
-        ${unifi_api_curl_cmd} --data "{\"cmd\":\"remove\", \"device\":\"$device_model\", \"version\":\"$cached_fw_version\"}" "$unifi_api_baseurl/api/s/${site}/cmd/firmware" >> /tmp/EUS/firmware/removed
-        if grep -iq 'result.*true' /tmp/EUS/firmware/removed; then echo -e "\\r${GREEN}#${RESET} Successfully removed cached firmware version ${cached_fw_version} for ${device_model}!"; fi
-        if grep -iq 'result.*false' /tmp/EUS/firmware/removed; then echo -e "\\r${RED}#${RESET} Failed to remove cached firmware version ${cached_fw_version} for ${device_model}..." && cache_download_failed="yes"; fi
-        rm --force /tmp/EUS/firmware/removed 2> /dev/null
+    elif [[ "${cached_fw_version}" != "${fw_version}" && -n "${cached_fw_version}" ]]; then
+      echo -ne "${GRAY_R}#${RESET} Removing cached firmware version ${cached_fw_version} for ${device_model}..."
+      echo -e "$(date +%F-%T.%6N) | Cached version (${cached_fw_version}) differs from available (${fw_version}) for ${device_model} — removing." &>> "${eus_dir}/logs/firmware-cache.log"
+      remove_result="$("${unifi_api_curl_cmd[@]}" --data "{\"cmd\":\"remove\", \"device\":\"${device_model}\", \"version\":\"${cached_fw_version}\"}" "$unifi_api_baseurl/api/s/${site}/cmd/firmware" 2>&1)"
+      if echo "${remove_result}" | grep -iq 'result.*true'; then
+        echo -e "\\r${GREEN}#${RESET} Successfully removed cached firmware version ${cached_fw_version} for ${device_model}!"
+        echo -e "$(date +%F-%T.%6N) | Successfully removed stale cached version ${cached_fw_version} for ${device_model}." &>> "${eus_dir}/logs/firmware-cache.log"
         removed_cached_fw="true"
+      elif echo "${remove_result}" | grep -iq 'result.*false'; then
+        echo -e "\\r${RED}#${RESET} Failed to remove cached firmware version ${cached_fw_version} for ${device_model}..."
+        echo -e "$(date +%F-%T.%6N) | ERROR | Failed to remove cached version ${cached_fw_version} for ${device_model}. API response: ${remove_result}" &>> "${eus_dir}/logs/firmware-cache.log"
+        cache_download_failed="yes"
+      else
+        echo -e "$(date +%F-%T.%6N) | WARNING | Unexpected response removing ${cached_fw_version} for ${device_model}: ${remove_result}" &>> "${eus_dir}/logs/firmware-cache.log"
       fi
     fi
-    if [[ -n "${older_cached_fw}" ]]; then
-      while read -r version; do
+    if [[ -n "${older_cached_fws}" ]]; then
+      local version
+      while IFS= read -r version; do
+        [[ -z "${version}" ]] && continue
         echo -ne "\\r${GRAY_R}#${RESET} Removing older cached firmware version ${version} for ${device_model}..."
-        ${unifi_api_curl_cmd} --data "{\"cmd\":\"remove\", \"device\":\"$device_model\", \"version\":\"$version\"}" "$unifi_api_baseurl/api/s/${site}/cmd/firmware" >> /tmp/EUS/firmware/removed
-        if grep -iq 'result.*true' /tmp/EUS/firmware/removed; then echo -e "\\r${GREEN}#${RESET} Successfully removed older cached firmware version ${version} for ${device_model}!"; fi
-        if grep -iq 'result.*false' /tmp/EUS/firmware/removed; then echo -e "\\r${RED}#${RESET} Failed to remove cached firmware version ${version} for ${device_model}..." && cache_download_failed="yes"; fi
-        rm --force /tmp/EUS/firmware/removed 2> /dev/null
-        removed_cached_fw="true"
-      done < /tmp/EUS/firmware/old_cached_firmware
+        echo -e "$(date +%F-%T.%6N) | Removing older cached version ${version} for ${device_model}." &>> "${eus_dir}/logs/firmware-cache.log"
+        remove_result="$("${unifi_api_curl_cmd[@]}" --data "{\"cmd\":\"remove\", \"device\":\"${device_model}\", \"version\":\"${version}\"}" "$unifi_api_baseurl/api/s/${site}/cmd/firmware" 2>&1)"
+        if echo "${remove_result}" | grep -iq 'result.*true'; then
+          echo -e "\\r${GREEN}#${RESET} Successfully removed older cached firmware version ${version} for ${device_model}!"
+          echo -e "$(date +%F-%T.%6N) | Successfully removed older cached version ${version} for ${device_model}." &>> "${eus_dir}/logs/firmware-cache.log"
+          removed_cached_fw="true"
+        elif echo "${remove_result}" | grep -iq 'result.*false'; then
+          echo -e "\\r${RED}#${RESET} Failed to remove cached firmware version ${version} for ${device_model}..."
+          echo -e "$(date +%F-%T.%6N) | ERROR | Failed to remove older cached version ${version} for ${device_model}. API response: ${remove_result}" &>> "${eus_dir}/logs/firmware-cache.log"
+          cache_download_failed="yes"
+        else
+          echo -e "$(date +%F-%T.%6N) | WARNING | Unexpected response removing older version ${version} for ${device_model}: ${remove_result}" &>> "${eus_dir}/logs/firmware-cache.log"
+        fi
+      done <<< "${older_cached_fws}"
     fi
-    # shellcheck disable=SC2086
-    if [[ "${removed_cached_fw}" == 'true' ]] || jq -r '.data[] | select(.device == "'${device_model}'")' /tmp/EUS/firmware/available | grep -iq "${device_model}" &> /dev/null; then
+    if [[ "${removed_cached_fw}" == 'true' ]] || jq -e --arg m "${device_model}" '.data[] | select(.device == $m)' <<< "${available_fw_json}" | grep -iq "${device_model}"; then
       echo -ne "\\r${GRAY_R}#${RESET} Downloading firmware version ${fw_version} for ${device_model}..."
-      ${unifi_api_curl_cmd} --data "{\"cmd\":\"download\", \"device\":\"$device_model\", \"version\":\"$fw_version\"}" "$unifi_api_baseurl/api/s/${site}/cmd/firmware" >> /tmp/EUS/firmware/download
-      if grep -iq 'result.*true' /tmp/EUS/firmware/download; then echo -e "\\r${GREEN}#${RESET} Successfully downloaded firmware version ${fw_version} for ${device_model}!"; fi
-      if grep -iq 'result.*false' /tmp/EUS/firmware/download; then echo -e "\\r${RED}#${RESET} Failed to downloaded firmware version ${fw_version} for ${device_model}..." && cache_download_failed="yes"; fi
-      rm --force /tmp/EUS/firmware/download 2> /dev/null
-    fi
-    unset removed_cached_fw
-  done < /tmp/EUS/firmware/base_models
-  if [[ -f /tmp/EUS/firmware/special_devices && -s /tmp/EUS/firmware/special_devices ]]; then
-    while read -r device_model; do
-      # shellcheck disable=SC2086
-      cached_fw_version=$(jq -r '.data[] | select(.device == "'${device_model}'") | .version' /tmp/EUS/firmware/currently_cached &> /tmp/EUS/firmware/all_currently_cached && head -n1 /tmp/EUS/firmware/all_currently_cached )
-      if [[ -n "${cached_fw_version}" ]]; then 
-        echo -ne "\\r${GRAY_R}#${RESET} Removing cached firmware version ${cached_fw_version} for ${device_model}..."
-        ${unifi_api_curl_cmd} --data "{\"cmd\":\"remove\", \"device\":\"$device_model\", \"version\":\"$cached_fw_version\"}" "$unifi_api_baseurl/api/s/${site}/cmd/firmware" >> /tmp/EUS/firmware/removed
-        if grep -iq 'result.*true' /tmp/EUS/firmware/removed; then echo -e "\\r${GREEN}#${RESET} Successfully removed cached firmware version ${cached_fw_version} for ${device_model}!"; fi
-        if grep -iq 'result.*false' /tmp/EUS/firmware/removed; then echo -e "\\r${RED}#${RESET} Failed to removed cached firmware version ${cached_fw_version} for ${device_model}..."; fi
-        rm --force /tmp/EUS/firmware/removed 2> /dev/null
+      echo -e "$(date +%F-%T.%6N) | Initiating download for ${device_model} version ${fw_version}." &>> "${eus_dir}/logs/firmware-cache.log"
+      download_result="$("${unifi_api_curl_cmd[@]}" --data "{\"cmd\":\"download\", \"device\":\"${device_model}\", \"version\":\"${fw_version}\"}" "$unifi_api_baseurl/api/s/${site}/cmd/firmware" 2>&1)"
+      if echo "${download_result}" | grep -iq 'result.*true'; then
+        echo -e "\\r${GREEN}#${RESET} Successfully downloaded firmware version ${fw_version} for ${device_model}!"
+        echo -e "$(date +%F-%T.%6N) | Successfully downloaded firmware version ${fw_version} for ${device_model}." &>> "${eus_dir}/logs/firmware-cache.log"
+      elif echo "${download_result}" | grep -iq 'result.*false'; then
+        echo -e "\\r${RED}#${RESET} Failed to download firmware version ${fw_version} for ${device_model}..."
+        echo -e "$(date +%F-%T.%6N) | ERROR | Download failed for ${device_model} version ${fw_version}. API response: ${download_result}" &>> "${eus_dir}/logs/firmware-cache.log"
+        cache_download_failed="yes"
+      else
+        echo -e "$(date +%F-%T.%6N) | WARNING | Unexpected download response for ${device_model} version ${fw_version}: ${download_result}" &>> "${eus_dir}/logs/firmware-cache.log"
       fi
-    done < /tmp/EUS/firmware/special_devices
+    fi
+  done
+  if [[ "${#special_devices_list[@]}" -gt 0 ]]; then
+    echo -e "$(date +%F-%T.%6N) | Processing special device removal for ${#special_devices_list[@]} model(s): ${special_devices_list[*]}." &>> "${eus_dir}/logs/firmware-cache.log"
+    local sp_cached_version sp_remove_result
+    for device_model in "${special_devices_list[@]}"; do
+      sp_cached_version="$(jq -r --arg m "${device_model}" '.data[] | select(.device == $m) | .version' <<< "${cached_fw_json}" | head -n1)"
+      if [[ -n "${sp_cached_version}" ]]; then
+        echo -ne "\\r${GRAY_R}#${RESET} Removing cached firmware version ${sp_cached_version} for ${device_model}..."
+        echo -e "$(date +%F-%T.%6N) | Removing cached firmware for special device ${device_model} version ${sp_cached_version}." &>> "${eus_dir}/logs/firmware-cache.log"
+        sp_remove_result="$("${unifi_api_curl_cmd[@]}" --data "{\"cmd\":\"remove\", \"device\":\"${device_model}\", \"version\":\"${sp_cached_version}\"}" "$unifi_api_baseurl/api/s/${site}/cmd/firmware" 2>&1)"
+        if echo "${sp_remove_result}" | grep -iq 'result.*true'; then
+          echo -e "\\r${GREEN}#${RESET} Successfully removed cached firmware version ${sp_cached_version} for ${device_model}!"
+          echo -e "$(date +%F-%T.%6N) | Successfully removed cached firmware for ${device_model} version ${sp_cached_version}." &>> "${eus_dir}/logs/firmware-cache.log"
+        elif echo "${sp_remove_result}" | grep -iq 'result.*false'; then
+          echo -e "\\r${RED}#${RESET} Failed to remove cached firmware version ${sp_cached_version} for ${device_model}..."
+          echo -e "$(date +%F-%T.%6N) | ERROR | Failed to remove cached firmware for ${device_model} version ${sp_cached_version}. API response: ${sp_remove_result}" &>> "${eus_dir}/logs/firmware-cache.log"
+        else
+          echo -e "$(date +%F-%T.%6N) | WARNING | Unexpected response removing ${device_model} version ${sp_cached_version}: ${sp_remove_result}" &>> "${eus_dir}/logs/firmware-cache.log"
+        fi
+      else
+        echo -e "$(date +%F-%T.%6N) | No cached firmware found for special device ${device_model} — nothing to remove." &>> "${eus_dir}/logs/firmware-cache.log"
+      fi
+    done
   fi
-  rm --force /tmp/EUS/firmware/special_devices &> /dev/null
+  special_devices_list=()
   sleep 3
-  ${unifi_api_curl_cmd} --data "{\"cmd\":\"list-cached\"}" "$unifi_api_baseurl/api/s/${site}/cmd/firmware" >> /tmp/EUS/firmware/cached_firmware
+  echo -e "$(date +%F-%T.%6N) | Refreshing post-download cached firmware list." &>> "${eus_dir}/logs/firmware-cache.log"
+  cached_firmware_json="$("${unifi_api_curl_cmd[@]}" --data '{"cmd":"list-cached"}' "$unifi_api_baseurl/api/s/${site}/cmd/firmware" 2>&1)"
+  echo -e "$(date +%F-%T.%6N) | Post-download cached firmware list received (${#cached_firmware_json} bytes)." &>> "${eus_dir}/logs/firmware-cache.log"
   if [[ "${cache_download_failed}" != 'yes' ]]; then
     firmware_cached="yes"
+    echo -e "$(date +%F-%T.%6N) | Firmware cache pass completed successfully — firmware_cached=yes." &>> "${eus_dir}/logs/firmware-cache.log"
   else
     firmware_cached="no"
+    echo -e "$(date +%F-%T.%6N) | ERROR | Firmware cache pass completed with failures — firmware_cached=no." &>> "${eus_dir}/logs/firmware-cache.log"
   fi
-  rm --force /tmp/EUS/firmware/old_cached_firmware 2> /dev/null
 }
 
 firmware_cache_question() {
   header
   echo -e "${GRAY_R}#${RESET} I highly recommand caching the firmware on the UniFi Network Application prior to the device upgrades."
+  echo -e "$(date +%F-%T.%6N) | Prompting user for firmware cache confirmation." &>> "${eus_dir}/logs/firmware-cache.log"
+  local yes_no firmware_cache_free_kb
   while true; do
     read -rp $'\033[39m#\033[0m Can we proceed with the firmware download/caching? (Y/n) ' yes_no
     case "$yes_no" in
         [Yy]*|"")
+           echo -e "$(date +%F-%T.%6N) | User confirmed firmware caching (input: '${yes_no}')." &>> "${eus_dir}/logs/firmware-cache.log"
            unifi_cache_models
+           if [[ "${#device_models_list[@]}" -eq 0 ]]; then
+             echo -e "${YELLOW}#${RESET} Skipping firmware cache as there are no adopted devices. \\n"
+             echo -e "$(date +%F-%T.%6N) | WARNING | Skipping firmware cache — device_models_list is empty after unifi_cache_models." &>> "${eus_dir}/logs/firmware-cache.log"
+             sleep 3
+             break
+           fi
            unifi_firmware_check
-           firmware_cache_directory=$(df -k /usr/lib/unifi/data/ | awk '{print $4}' | tail -n1)
-           if [[ "${firmware_cache_directory}" -ge '1000000' ]]; then
+           firmware_cache_free_kb="$(df -k /usr/lib/unifi/data/ | awk '{print $4}' | tail -n1)"
+           echo -e "$(date +%F-%T.%6N) | Available disk space at /usr/lib/unifi/data/: ${firmware_cache_free_kb} KB." &>> "${eus_dir}/logs/firmware-cache.log"
+           if [[ "${firmware_cache_free_kb}" -ge '1000000' ]]; then
+             echo -e "$(date +%F-%T.%6N) | Sufficient disk space — proceeding with firmware cache download." &>> "${eus_dir}/logs/firmware-cache.log"
              unifi_cache_download
              firmware_cached="yes"
            else
              header_red
              echo -e "${RED}#${RESET} There is not enough disk space to download the firmware..\\n\\n"
+             echo -e "$(date +%F-%T.%6N) | ERROR | Insufficient disk space — ${firmware_cache_free_kb} KB available, 1000000 KB required." &>> "${eus_dir}/logs/firmware-cache.log"
              sleep 3
            fi
            break;;
-        [Nn]*) unifi_firmware_check; break;;
-        *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
+        [Nn]*)
+           echo -e "$(date +%F-%T.%6N) | User declined firmware caching (input: '${yes_no}') — running firmware check only." &>> "${eus_dir}/logs/firmware-cache.log"
+           unifi_firmware_check
+           break;;
+        *)
+           echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"
+           echo -e "$(date +%F-%T.%6N) | WARNING | Invalid user input '${yes_no}' — reprompting." &>> "${eus_dir}/logs/firmware-cache.log"
+           sleep 3;;
     esac
   done
 }
 
 firmware_cache_remove_question() {
-  if [[ "${firmware_cached}" == 'yes' ]]; then
-    fw_dir_size=$(du -sch /usr/lib/unifi/data/firmware | grep "total$" | awk '{print $1}')
-    header
-    if [[ "${uap_upgrade_done}" == 'no' ]] && [[ "${uap_upgrade_schedule_done}" == 'no' ]] && [[ "${usw_upgrade_done}" == 'no' ]] && [[ "${usw_upgrade_schedule_done}" == 'no' ]] && [[ "${ugw_upgrade_done}" == 'no' ]] && [[ "${ugw_upgrade_schedule_done}" == 'no' ]]; then
-      echo -e "${GRAY_R}#${RESET} There were 0 devices that required an upgrade, therefore we don't need the cached firmware anymore.."
-      echo -e "${GRAY_R}#${RESET} Removing cached firmware will free up ${fw_dir_size} on your disk..\\n"
-      echo -e "${GRAY_R}#${RESET} What would you like to do with the cached firmware?\\n\\n"
-      echo -e " [   ${WHITE_R}1${RESET}   ]  |  Continue and keep the cached firmware. ( default )"
-      echo -e " [   ${WHITE_R}2${RESET}   ]  |  Remove the cached firmware.\\n\\n"
-      read -rp $'Your choice | \033[39m' firmware_choice
-      case "$firmware_choice" in
-          1) ;;
-          2) unifi_cache_remove;;
-          *) ;;
-      esac
-    elif [[ "${uap_upgrade_schedule_done}" == 'yes' || "${usw_upgrade_schedule_done}" == 'yes' || "${ugw_upgrade_schedule_done}" == 'yes' ]]; then
-      if [[ "${two_factor}" != 'enabled' ]]; then
-        echo -e "${GRAY_R}#${RESET} Information: Your UniFi Network Application login credentials will be used/copied to that script."
-        while true; do
-          read -rp $'\033[39m#\033[0m Do you want to schedule a script to remove the cached firmware after the device upgrade schedule (24 hours/1 day later)? (Y/n) ' yes_no
-          case "${yes_no}" in
-              [Yy]*|"")
-                 cron_day="$(date -d "+1 day" +"%a" | tr '[:upper:]' '[:lower:]')"
-                 mkdir -p /root/EUS/
-                 if [[ -f /root/EUS/remove_firmware_cache.sh && -s /root/EUS/remove_firmware_cache.sh ]] && [[ -f /etc/cron.d/eus_firmware_removal_script && -s /etc/cron.d/eus_firmware_removal_script ]]; then
-                   header
-                   scheduled_time_hour=$(grep /root/EUS/remove_firmware_cache.sh /etc/cron.d/eus_firmware_removal_script | awk '{print $2}')
-                   scheduled_day=$(grep /root/EUS/remove_firmware_cache.sh /etc/cron.d/eus_firmware_removal_script | awk '{print $5}')
-                   if [[ "${scheduled_time_hour}" =~ (^0$|^1$|^2$|^3$|^4$|^5$|^6$|^7$|^8$|^9$) ]]; then scheduled_time_hour="0${scheduled_time_hour}"; fi
-                   echo -e "${GRAY_R}#${RESET} The script already seems to be scheduled for: '${scheduled_day} ${scheduled_time_hour}:00'.."
-                   sleep 6
-                 else
-                   if curl "${curl_argument[@]}" --output "/root/EUS/remove_firmware_cache.sh" 'https://get.glennr.nl/unifi/extra/remove_firmware_cache.sh'; then
-                     sed -i "s/change_username/${username}/g" /root/EUS/remove_firmware_cache.sh
-                     sed -i "s/change_password/${password}/g" /root/EUS/remove_firmware_cache.sh
-                     chmod +x /root/EUS/remove_firmware_cache.sh
-                     sed -i 's/\r//' /root/EUS/remove_firmware_cache.sh
-                     tee /etc/cron.d/eus_firmware_removal_script &>/dev/null << EOF
+  if [[ "${firmware_cached}" != 'yes' ]]; then
+    echo -e "$(date +%F-%T.%6N) | firmware_cached is '${firmware_cached:-<unset>}' — skipping cache remove/keep prompt." &>> "${eus_dir}/logs/firmware-cache.log"
+    return
+  fi
+  local fw_dir_size firmware_choice yes_no
+  fw_dir_size="$(du -sch /usr/lib/unifi/data/firmware | grep "total$" | awk '{print $1}')"
+  echo -e "$(date +%F-%T.%6N) | firmware_cached=yes. Firmware directory size: ${fw_dir_size}. Evaluating post-upgrade cache disposition." &>> "${eus_dir}/logs/firmware-cache.log"
+  header
+
+  if [[ "${uap_upgrade_done}" == 'no' && "${uap_upgrade_schedule_done}" == 'no' && "${usw_upgrade_done}" == 'no' && "${usw_upgrade_schedule_done}" == 'no' && "${uxg_upgrade_done}" == 'no' && "${uxg_upgrade_schedule_done}" == 'no' && "${ugw_upgrade_done}" == 'no' && "${ugw_upgrade_schedule_done}" == 'no' ]]; then
+    echo -e "$(date +%F-%T.%6N) | No devices were upgraded or scheduled — prompting user to keep or remove cached firmware." &>> "${eus_dir}/logs/firmware-cache.log"
+    echo -e "${GRAY_R}#${RESET} There were 0 devices that required an upgrade, therefore we don't need the cached firmware anymore.."
+    echo -e "${GRAY_R}#${RESET} Removing cached firmware will free up ${fw_dir_size} on your disk..\\n"
+    echo -e "${GRAY_R}#${RESET} What would you like to do with the cached firmware?\\n\\n"
+    echo -e " [   ${WHITE_R}1${RESET}   ]  |  Continue and keep the cached firmware. ( default )"
+    echo -e " [   ${WHITE_R}2${RESET}   ]  |  Remove the cached firmware.\\n\\n"
+    read -rp $'Your choice | \033[39m' firmware_choice
+    case "$firmware_choice" in
+        1|"") echo -e "$(date +%F-%T.%6N) | User chose to keep cached firmware (choice: '${firmware_choice:-default}')." &>> "${eus_dir}/logs/firmware-cache.log";;
+        2) echo -e "$(date +%F-%T.%6N) | User chose to remove cached firmware (choice: 2)." &>> "${eus_dir}/logs/firmware-cache.log"; unifi_cache_remove;;
+        *) echo -e "$(date +%F-%T.%6N) | Unrecognised choice '${firmware_choice}' — keeping cached firmware by default." &>> "${eus_dir}/logs/firmware-cache.log";;
+    esac
+
+  elif [[ "${uap_upgrade_schedule_done}" == 'yes' || "${usw_upgrade_schedule_done}" == 'yes' || "${uxg_upgrade_schedule_done}" == 'yes' || "${ugw_upgrade_schedule_done}" == 'yes' ]]; then
+    echo -e "$(date +%F-%T.%6N) | Upgrades were scheduled. Evaluating automatic cache removal scheduling (two_factor=${two_factor:-<unset>})." &>> "${eus_dir}/logs/firmware-cache.log"
+    if [[ "${two_factor}" != 'enabled' ]]; then
+      echo -e "${GRAY_R}#${RESET} Information: Your UniFi Network Application login credentials will be used/copied to that script."
+      while true; do
+        read -rp $'\033[39m#\033[0m Do you want to schedule a script to remove the cached firmware after the device upgrade schedule (24 hours/1 day later)? (Y/n) ' yes_no
+        case "${yes_no}" in
+            [Yy]*|"")
+               echo -e "$(date +%F-%T.%6N) | User confirmed scheduling firmware cache removal (input: '${yes_no}')." &>> "${eus_dir}/logs/firmware-cache.log"
+               local cron_day
+               cron_day="$(date -d "+1 day" +"%a" | tr '[:upper:]' '[:lower:]')"
+               mkdir -p /root/EUS/
+               if [[ -f /root/EUS/remove_firmware_cache.sh && -s /root/EUS/remove_firmware_cache.sh && -f /etc/cron.d/eus_firmware_removal_script && -s /etc/cron.d/eus_firmware_removal_script ]]; then
+                 header
+                 local scheduled_time_hour scheduled_day
+                 scheduled_time_hour="$(grep /root/EUS/remove_firmware_cache.sh /etc/cron.d/eus_firmware_removal_script | awk '{print $2}')"
+                 scheduled_day="$(grep /root/EUS/remove_firmware_cache.sh /etc/cron.d/eus_firmware_removal_script | awk '{print $5}')"
+                 if [[ "${scheduled_time_hour}" =~ ^[0-9]$ ]]; then scheduled_time_hour="0${scheduled_time_hour}"; fi
+                 echo -e "${GRAY_R}#${RESET} The script already seems to be scheduled for: '${scheduled_day} ${scheduled_time_hour}:00'.."
+                 echo -e "$(date +%F-%T.%6N) | Firmware removal cron already exists — scheduled ${scheduled_day} at ${scheduled_time_hour}:00. No changes made." &>> "${eus_dir}/logs/firmware-cache.log"
+                 sleep 6
+               else
+                 if curl "${curl_argument[@]}" --output "/root/EUS/remove_firmware_cache.sh" 'https://get.glennr.nl/unifi/extra/remove_firmware_cache.sh'; then
+                   echo -e "$(date +%F-%T.%6N) | Downloaded remove_firmware_cache.sh successfully." &>> "${eus_dir}/logs/firmware-cache.log"
+                   sed -i "s/change_username/${username}/g" /root/EUS/remove_firmware_cache.sh
+                   sed -i "s/change_password/${password}/g" /root/EUS/remove_firmware_cache.sh
+                   chmod +x /root/EUS/remove_firmware_cache.sh
+                   sed -i 's/\r//' /root/EUS/remove_firmware_cache.sh
+                   tee /etc/cron.d/eus_firmware_removal_script &>/dev/null <<EOF
 SHELL=/bin/sh
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 ${cron_expr} * * ${cron_day} root /bin/bash /root/EUS/remove_firmware_cache.sh
 EOF
-                   fi
+                   echo -e "$(date +%F-%T.%6N) | Created cron entry '${cron_expr} * * ${cron_day}' for /root/EUS/remove_firmware_cache.sh." &>> "${eus_dir}/logs/firmware-cache.log"
+                 else
+                   echo -e "$(date +%F-%T.%6N) | ERROR | Failed to download remove_firmware_cache.sh — cron not created." &>> "${eus_dir}/logs/firmware-cache.log"
                  fi
-                 break;;
-              [Nn]*) break;;
-              *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
-          esac
-        done
-      fi
+               fi
+               break;;
+            [Nn]*) echo -e "$(date +%F-%T.%6N) | User declined scheduling firmware removal (input: '${yes_no}')." &>> "${eus_dir}/logs/firmware-cache.log"; break;;
+            *)
+              echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"
+              echo -e "$(date +%F-%T.%6N) | WARNING | Invalid input '${yes_no}' — reprompting." &>> "${eus_dir}/logs/firmware-cache.log"
+              sleep 3;;
+        esac
+      done
     else
-      echo -e "${GRAY_R}#${RESET} Devices are currently using the cached firmware to upgrade... we have a few options."
-      echo -e "${GRAY_R}#${RESET} Removing cached firmware will free up ${fw_dir_size} on your disk..\\n"
-      if [[ "${two_factor}" != 'enabled' ]]; then
-        echo -e " [   ${WHITE_R}1${RESET}   ]  |  Continue and keep the cached firmware. ( default )"
-        echo -e " [   ${WHITE_R}2${RESET}   ]  |  Continue and schedule a script to remove the cached firmware after 1 hour."
-        echo -e " [   ${WHITE_R}3${RESET}   ]  |  Wait 10 minutes, remove the cached firmware and then continue the script."
-      else
-        echo -e " [   ${WHITE_R}1${RESET}   ]  |  Continue and keep the cached firmware. ( default )"
-        echo -e " [   ${WHITE_R}2${RESET}   ]  |  Wait 10 minutes, remove the cached firmware and then continue the script."
-      fi
-      echo -e "\\n"
-      read -rp $'Your choice | \033[39m' firmware_choice
-      if [[ "${two_factor}" != 'enabled' ]]; then
-        case "$firmware_choice" in
-            1|"") ;;
-            2)
-              header
-              echo -e "${GRAY_R}#${RESET} Your UniFi Network Application login credentials will be used/copied to that script."
-              echo -e "${GRAY_R}#${RESET} The script will run after 1 hour and will be deleted/erased.\\n\\n"
-              read -rp $'\033[39m#\033[0m Do you want to schedule the script? (y/N) ' yes_no
-              case "$yes_no" in
-                  [Yy]*)
-                     header
-                     echo -e "${GRAY_R}#${RESET} Scheduling the script..\\n\\n" && sleep 2
-                       mkdir -p /root/EUS/
-                       if [[ -f /root/EUS/remove_firmware_cache.sh && -s /root/EUS/remove_firmware_cache.sh ]] && [[ -f /etc/cron.d/eus_firmware_removal_script && -s /etc/cron.d/eus_firmware_removal_script ]]; then
-                         header
-                         scheduled_time_minute=$(grep /root/EUS/remove_firmware_cache.sh /etc/cron.d/eus_firmware_removal_script | awk '{print $1}')
-                         scheduled_time_hour=$(grep /root/EUS/remove_firmware_cache.sh /etc/cron.d/eus_firmware_removal_script | awk '{print $2}')
-                         if [[ "${scheduled_time_hour}" =~ (^0$|^1$|^2$|^3$|^4$|^5$|^6$|^7$|^8$|^9$) ]]; then scheduled_time_hour="0${scheduled_time_hour}"; fi
-                         if [[ "${scheduled_time_minute}" =~ (^0$|^1$|^2$|^3$|^4$|^5$|^6$|^7$|^8$|^9$) ]]; then scheduled_time_minute="0${scheduled_time_minute}"; fi
-                         echo -e "${GRAY_R}#${RESET} The script seems to be scheduled already at '${scheduled_time_hour}:${scheduled_time_minute}'.."
-                         sleep 6
-                       else
-                         if curl "${curl_argument[@]}" --output "/root/EUS/remove_firmware_cache.sh" 'https://get.glennr.nl/unifi/extra/remove_firmware_cache.sh'; then
-                           sed -i "s/change_username/${username}/g" /root/EUS/remove_firmware_cache.sh
-                           sed -i "s/change_password/${password}/g" /root/EUS/remove_firmware_cache.sh
-                           chmod +x /root/EUS/remove_firmware_cache.sh
-                           sed -i 's/\r//' /root/EUS/remove_firmware_cache.sh
-                           time_minute=$(date '+%M' | sed 's/^0*//')
-                           time_hour=$(date '+%H' | sed 's/^0*//')
-                           cron_time_hour=$((time_hour + 1))
-                           if [[ "${cron_time_hour}" == '24' ]]; then cron_time_hour=0; fi
-                           if [[ -z "${time_minute}" ]]; then time_minute=0; fi
-                           tee /etc/cron.d/eus_firmware_removal_script &>/dev/null << EOF
+      echo -e "$(date +%F-%T.%6N) | Two-factor auth enabled — skipping firmware removal scheduling (credentials cannot be embedded)." &>> "${eus_dir}/logs/firmware-cache.log"
+    fi
+  else
+    echo -e "$(date +%F-%T.%6N) | Upgrades in progress. Presenting cache disposition options (two_factor=${two_factor:-<unset>})." &>> "${eus_dir}/logs/firmware-cache.log"
+    echo -e "${GRAY_R}#${RESET} Devices are currently using the cached firmware to upgrade... we have a few options."
+    echo -e "${GRAY_R}#${RESET} Removing cached firmware will free up ${fw_dir_size} on your disk..\\n"
+    if [[ "${two_factor}" != 'enabled' ]]; then
+      echo -e " [   ${WHITE_R}1${RESET}   ]  |  Continue and keep the cached firmware. ( default )"
+      echo -e " [   ${WHITE_R}2${RESET}   ]  |  Continue and schedule a script to remove the cached firmware after 1 hour."
+      echo -e " [   ${WHITE_R}3${RESET}   ]  |  Wait 10 minutes, remove the cached firmware and then continue the script."
+    else
+      echo -e " [   ${WHITE_R}1${RESET}   ]  |  Continue and keep the cached firmware. ( default )"
+      echo -e " [   ${WHITE_R}2${RESET}   ]  |  Wait 10 minutes, remove the cached firmware and then continue the script."
+    fi
+    echo -e "\\n"
+    read -rp $'Your choice | \033[39m' firmware_choice
+    echo -e "$(date +%F-%T.%6N) | User selected post-upgrade cache option: '${firmware_choice}' (two_factor=${two_factor:-<unset>})." &>> "${eus_dir}/logs/firmware-cache.log"
+    if [[ "${two_factor}" != 'enabled' ]]; then
+      case "$firmware_choice" in
+          1|"") echo -e "$(date +%F-%T.%6N) | Keeping cached firmware (choice: '${firmware_choice:-default}')." &>> "${eus_dir}/logs/firmware-cache.log";;
+          2)
+            header
+            echo -e "${GRAY_R}#${RESET} Your UniFi Network Application login credentials will be used/copied to that script."
+            echo -e "${GRAY_R}#${RESET} The script will run after 1 hour and will be deleted/erased.\\n\\n"
+            read -rp $'\033[39m#\033[0m Do you want to schedule the script? (y/N) ' yes_no
+            case "$yes_no" in
+                [Yy]*)
+                   header
+                   echo -e "${GRAY_R}#${RESET} Scheduling the script..\\n\\n" && sleep 2
+                   mkdir -p /root/EUS/
+                   echo -e "$(date +%F-%T.%6N) | User confirmed 1-hour scheduled removal (input: '${yes_no}'). Checking for existing cron." &>> "${eus_dir}/logs/firmware-cache.log"
+                   if [[ -f /root/EUS/remove_firmware_cache.sh && -s /root/EUS/remove_firmware_cache.sh && -f /etc/cron.d/eus_firmware_removal_script && -s /etc/cron.d/eus_firmware_removal_script ]]; then
+                     local scheduled_time_minute scheduled_time_hour
+                     scheduled_time_minute="$(grep /root/EUS/remove_firmware_cache.sh /etc/cron.d/eus_firmware_removal_script | awk '{print $1}')"
+                     scheduled_time_hour="$(grep /root/EUS/remove_firmware_cache.sh /etc/cron.d/eus_firmware_removal_script | awk '{print $2}')"
+                     if [[ "${scheduled_time_hour}" =~ ^[0-9]$ ]]; then scheduled_time_hour="0${scheduled_time_hour}"; fi
+                     if [[ "${scheduled_time_minute}" =~ ^[0-9]$ ]]; then scheduled_time_minute="0${scheduled_time_minute}"; fi
+                     echo -e "${GRAY_R}#${RESET} The script seems to be scheduled already at '${scheduled_time_hour}:${scheduled_time_minute}'.."
+                     echo -e "$(date +%F-%T.%6N) | Existing cron found — already scheduled at ${scheduled_time_hour}:${scheduled_time_minute}. No changes made." &>> "${eus_dir}/logs/firmware-cache.log"
+                     sleep 6
+                   else
+                     if curl "${curl_argument[@]}" --output "/root/EUS/remove_firmware_cache.sh" 'https://get.glennr.nl/unifi/extra/remove_firmware_cache.sh'; then
+                       echo -e "$(date +%F-%T.%6N) | Downloaded remove_firmware_cache.sh for 1-hour removal." &>> "${eus_dir}/logs/firmware-cache.log"
+                       sed -i "s/change_username/${username}/g" /root/EUS/remove_firmware_cache.sh
+                       sed -i "s/change_password/${password}/g" /root/EUS/remove_firmware_cache.sh
+                       chmod +x /root/EUS/remove_firmware_cache.sh
+                       sed -i 's/\r//' /root/EUS/remove_firmware_cache.sh
+                       local time_minute time_hour cron_time_hour
+                       time_minute="$(date '+%M' | sed 's/^0*//')"
+                       time_hour="$(date '+%H' | sed 's/^0*//')"
+                       cron_time_hour=$((time_hour + 1))
+                       if [[ "${cron_time_hour}" == '24' ]]; then cron_time_hour=0; fi
+                       if [[ -z "${time_minute}" ]]; then time_minute=0; fi
+                       tee /etc/cron.d/eus_firmware_removal_script &>/dev/null <<EOF
 SHELL=/bin/sh
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 ${time_minute} ${cron_time_hour} * * * root /bin/bash /root/EUS/remove_firmware_cache.sh
 EOF
-                         fi
-                       fi;;
-                  [Nn]*|"") ;;
-              esac;;
-            3)
-              sleep 600
-              unifi_cache_remove;;
-            *) ;;
-        esac
-      else
-        case "$firmware_choice" in
-            1|"") ;;
-            2)
-              sleep 600
-              unifi_cache_remove;;
-            *) ;;
-        esac
-      fi
+                       echo -e "$(date +%F-%T.%6N) | Created 1-hour cron: minute=${time_minute}, hour=${cron_time_hour} for /root/EUS/remove_firmware_cache.sh." &>> "${eus_dir}/logs/firmware-cache.log"
+                     else
+                       echo -e "$(date +%F-%T.%6N) | ERROR | Failed to download remove_firmware_cache.sh — 1-hour cron not created." &>> "${eus_dir}/logs/firmware-cache.log"
+                     fi
+                   fi;;
+                [Nn]*|"") echo -e "$(date +%F-%T.%6N) | User declined 1-hour removal scheduling (input: '${yes_no:-empty}')." &>> "${eus_dir}/logs/firmware-cache.log";;
+            esac;;
+          3)
+            echo -e "$(date +%F-%T.%6N) | User chose to wait 10 minutes then remove cached firmware (choice: 3)." &>> "${eus_dir}/logs/firmware-cache.log"
+            sleep 600
+            unifi_cache_remove;;
+          *) echo -e "$(date +%F-%T.%6N) | WARNING | Unrecognised choice '${firmware_choice}' — keeping cached firmware by default." &>> "${eus_dir}/logs/firmware-cache.log";;
+      esac
+    else
+      case "$firmware_choice" in
+          1|"") echo -e "$(date +%F-%T.%6N) | Keeping cached firmware with 2FA enabled (choice: '${firmware_choice:-default}')." &>> "${eus_dir}/logs/firmware-cache.log";;
+          2)
+            echo -e "$(date +%F-%T.%6N) | User chose to wait 10 minutes then remove cached firmware with 2FA enabled (choice: 2)." &>> "${eus_dir}/logs/firmware-cache.log"
+            sleep 600
+            unifi_cache_remove;;
+          *) echo -e "$(date +%F-%T.%6N) | WARNING | Unrecognised choice '${firmware_choice}' with 2FA enabled — keeping by default." &>> "${eus_dir}/logs/firmware-cache.log";;
+      esac
     fi
   fi
 }
@@ -8365,37 +8589,41 @@ EOF
 ###################################################################################################################################################################################################
 
 unifi_get_site_variable() {
-  if grep -iq "default" /tmp/EUS/unifi_sites; then
+  if printf '%s\n' "${unifi_sites_list[@]}" | grep -iq "default"; then
     site='default'
   else
-    site=$(awk 'NR==1{print $1}' /tmp/EUS/unifi_sites)
+    site="${unifi_sites_list[0]}"
   fi
 }
 
 unifi_list_sites() {
-  if [[ "${executed_unifi_list_sites}" != 'true' ]]; then
-    header
-    echo -e "${GRAY_R}#${RESET} Catching all the site names! \\n\\n"
-    sleep 2
-    eus_directory_location="/tmp/EUS"
-    eus_create_directories "sites"
-    ${unifi_api_curl_cmd} "$unifi_api_baseurl/api/self/sites" | jq -r '.data[] .name' &> /tmp/EUS/unifi_sites # /api/stat/sites
-    while read -r site; do
-      eus_directory_location="/tmp/EUS"
-      eus_create_directories "sites/${site}/upgrade"
-      # shellcheck disable=SC2086
-      ${unifi_api_curl_cmd} "$unifi_api_baseurl/api/self/sites" | jq -r '.data[] | select(.name == "'${site}'") | .desc' >> "/tmp/EUS/sites/${site}/site_desc" # /api/stat/sites
-      ${unifi_api_curl_cmd} "$unifi_api_baseurl/api/s/${site}/stat/sysinfo" | jq -r '.data[] | .timezone' >> "/tmp/EUS/sites/${site}/site_timezone"
-      echo -e "${GREEN}#${RESET} Successfully found site with ID ${site}"
-    done < /tmp/EUS/unifi_sites
-    sleep 2
-    unifi_get_site_variable
-    executed_unifi_list_sites="true"
+  if [[ "${executed_unifi_list_sites}" == 'true' ]]; then
+    return
   fi
+  header
+  echo -e "${GRAY_R}#${RESET} Catching all the site names! \\n\\n"
+  local sites_json site desc tz
+  sites_json="$("${unifi_api_curl_cmd[@]}" "$unifi_api_baseurl/api/self/sites" 2>&1)"
+  unifi_sites_list=()
+  while IFS= read -r site; do
+    [[ -z "${site}" ]] && continue
+    unifi_sites_list+=("${site}")
+    desc="$(jq -r --arg s "${site}" '.data[] | select(.name == $s) | .desc' <<< "${sites_json}")"
+    site_desc_map["${site}"]="${desc}"
+    tz="$("${unifi_api_curl_cmd[@]}" "$unifi_api_baseurl/api/s/${site}/stat/sysinfo" | jq -r '.data[] | .timezone' | tail -n1)"
+    site_timezone_map["${site}"]="${tz}"
+    echo -e "${GREEN}#${RESET} Successfully found site with ID ${site}"
+    echo -e "$(date +%F-%T.%6N) | Site found | id: '${site}' | description: '${desc}' | timezone: '${tz}'." &>> "${eus_dir}/logs/device-upgrade.log"
+  done < <(jq -r '.data[] | .name' <<< "${sites_json}")
+
+  echo -e "$(date +%F-%T.%6N) | Total sites discovered: ${#unifi_sites_list[@]}." &>> "${eus_dir}/logs/device-upgrade.log"
+  sleep 2
+  unifi_get_site_variable
+  executed_unifi_list_sites="true"
 }
 
 get_site_desc() {
-  site_desc=$(cat "/tmp/EUS/sites/${site}/site_desc")
+  site_desc="${site_desc_map[${site}]}"
 }
 
 uap_upgrading() {
@@ -8415,386 +8643,469 @@ usw_upgrading() {
 }
 
 cached_firmware_url() {
-  if [[ "${firmware_cached}" == 'yes' ]]; then
-    # shellcheck disable=SC2086
-    cached_fw_path="$(jq -r '.data[] | select(.device == "'$model'") | .path' /tmp/EUS/firmware/cached_firmware)"
-    if [[ -z "${application_inform_address}" ]]; then
-      if [[ "$("${mongocommand}" --quiet --port 27117 ace --eval "${mongoprefix}db.getCollection('setting').find({key:'super_mgmt'})${mongosuffix}" | jq -r '.[].override_inform_host')" == 'true' ]]; then
-        application_inform_address="$("${mongocommand}" --quiet --port 27117 ace --eval "${mongoprefix}db.getCollection('setting').find({key:'super_identity'})${mongosuffix}" | jq -r '.[].hostname')"
-      else
-        application_inform_address="$(${unifi_api_curl_cmd} "$unifi_api_baseurl/api/s/${site}/stat/device" | jq -r '.data[] | select(.uptime >= 0) | .inform_ip' | tail -n1)"
-      fi
+  if [[ "${firmware_cached}" != 'yes' ]]; then
+    return
+  fi
+  cached_fw_path="$(jq -r --arg m "${model}" '.data[] | select(.device == $m) | .path' <<< "${cached_firmware_json}")"
+  if [[ -z "${application_inform_address}" ]]; then
+    local override_inform
+    override_inform="$("${mongocommand}" --quiet --port 27117 ace --eval "${mongoprefix}db.getCollection('setting').find({key:'super_mgmt'})${mongosuffix}" | jq -r '.[].override_inform_host')"
+    if [[ "${override_inform}" == 'true' ]]; then
+      application_inform_address="$("${mongocommand}" --quiet --port 27117 ace --eval "${mongoprefix}db.getCollection('setting').find({key:'super_identity'})${mongosuffix}" | jq -r '.[].hostname')"
+    else
+      application_inform_address="$("${unifi_api_curl_cmd[@]}" "$unifi_api_baseurl/api/s/${site}/stat/device" | jq -r '.data[] | select(.uptime >= 0) | .inform_ip' | tail -n1)"
     fi
-    if [[ -z "${http_unifi_port}" ]] || [[ -z "${cache_fw_port}" ]]; then
-      if [[ -f "/usr/lib/unifi/data/system.properties" ]]; then
-        http_unifi_port="$(grep "^unifi.http.port=" /usr/lib/unifi/data/system.properties | sed 's/unifi.http.port//g' | tr -d '="')"
-      fi
-      if [[ -z "${http_unifi_port}" ]]; then
-        cache_fw_port="8080"
-      else
-        cache_fw_port="${http_unifi_port}"
-      fi
+  fi
+  if [[ -z "${http_unifi_port}" || -z "${cache_fw_port}" ]]; then
+    if [[ -f "/usr/lib/unifi/data/system.properties" ]]; then
+      http_unifi_port="$(grep "^unifi.http.port=" /usr/lib/unifi/data/system.properties | sed 's/unifi.http.port//g' | tr -d '="')"
+    fi
+    if [[ -z "${http_unifi_port}" ]]; then
+      cache_fw_port="8080"
+    else
+      cache_fw_port="${http_unifi_port}"
     fi
   fi
 }
-
 uap_custom_upgrade_commands() {
   get_site_desc
-  ${unifi_api_curl_cmd}  --data "{\"url\":\"${firmware_url}\", \"mac\":\"${uap_mac}\"}" "$unifi_api_baseurl/api/s/${site}/cmd/devmgr/upgrade-external" >> "/tmp/EUS/sites/${site}/upgrade/uap_custom_upgrade_output"
-  if grep -iq 'ok' "/tmp/EUS/sites/${site}/upgrade/uap_custom_upgrade_output"; then echo -e "${GREEN}#${RESET} UAP with MAC address '${uap_mac}' from site '${site_desc}' is now upgrading.."; fi
-  if grep -iq 'UpgradeInProgress' "/tmp/EUS/sites/${site}/upgrade/uap_custom_upgrade_output"; then echo -e "${YELLOW}#${RESET} UAP with MAC address '${uap_mac}' from site '${site_desc}' is already upgrading.."; fi
-  rm --force "/tmp/EUS/sites/${site}/upgrade/uap_custom_upgrade_output"
+  echo -e "$(date +%F-%T.%6N) | Sending custom upgrade to UAP '${uap_mac}' on site '${site_desc}' (url='${firmware_url}')." &>> "${eus_dir}/logs/device-upgrade.log"
+  local uap_custom_result
+  uap_custom_result="$("${unifi_api_curl_cmd[@]}" --data "{\"url\":\"${firmware_url}\", \"mac\":\"${uap_mac}\"}" "$unifi_api_baseurl/api/s/${site}/cmd/devmgr/upgrade-external" 2>&1)"
+  if echo "${uap_custom_result}" | grep -iq 'ok'; then
+    echo -e "${GREEN}#${RESET} UAP with MAC address '${uap_mac}' from site '${site_desc}' is now upgrading.."
+    echo -e "$(date +%F-%T.%6N) | Successfully started custom upgrade for UAP '${uap_mac}' (site: '${site_desc}')." &>> "${eus_dir}/logs/device-upgrade.log"
+  elif echo "${uap_custom_result}" | grep -iq 'UpgradeInProgress'; then
+    echo -e "${YELLOW}#${RESET} UAP with MAC address '${uap_mac}' from site '${site_desc}' is already upgrading.."
+    echo -e "$(date +%F-%T.%6N) | UAP '${uap_mac}' (site: '${site_desc}') was already upgrading when command was sent." &>> "${eus_dir}/logs/device-upgrade.log"
+  else
+    echo -e "$(date +%F-%T.%6N) | WARNING | Unexpected response for UAP '${uap_mac}' (site: '${site_desc}'): ${uap_custom_result}" &>> "${eus_dir}/logs/device-upgrade.log"
+  fi
+}
+
+log_site_inventory() {
+  local _site="${1}"
+  local _stat_json="${2}"
+  local _has_any=false
+  while IFS= read -r _line; do
+    [[ -z "${_line}" ]] && continue
+    _has_any=true
+    echo -e "$(date +%F-%T.%6N) | Site '${_site}' | ONLINE  | ${_line}" &>> "${eus_dir}/logs/device-upgrade.log"
+  done < <(jq -r '.data[] | select(.type=="uap" or .type=="usw" or .type=="uxg" or .type=="ugw") | select(.uptime != null) | .type + " | " + .mac + " | model: " + .model + " | version: " + .version + " | upgrade_to: " + (.upgrade_to_firmware // "none") + " | upgradable: " + (.upgradable|tostring)' <<< "${_stat_json}")
+  while IFS= read -r _line; do
+    [[ -z "${_line}" ]] && continue
+    _has_any=true
+    echo -e "$(date +%F-%T.%6N) | Site '${_site}' | OFFLINE | ${_line}" &>> "${eus_dir}/logs/device-upgrade.log"
+  done < <(jq -r '.data[] | select(.type=="uap" or .type=="usw" or .type=="uxg" or .type=="ugw") | select(.uptime == null) | select(.adopted == true) | .type + " | " + .mac + " | model: " + .model + " | version: " + .version + " | offline (adopted, skipped)"' <<< "${_stat_json}")
+  if [[ "${_has_any}" == false ]]; then
+    echo -e "$(date +%F-%T.%6N) | Site '${_site}' | no adopted devices found." &>> "${eus_dir}/logs/device-upgrade.log"
+  fi
 }
 
 uap_upgrade() {
-  while read -r site; do
+  echo -e "${GRAY_R}#${RESET} Checking UniFi Access Points for firmware ${unifi_upgrade_devices_var_2}..."
+  local site raw_uap_macs raw_uap_u6qca_macs stat_json uap_upgrade_result
+  local legacy_uap_models model model_macs uap_count uap_mac
+  for site in "${unifi_sites_list[@]}"; do
+    stat_json="$("${unifi_api_curl_cmd[@]}" "$unifi_api_baseurl/api/s/${site}/stat/device" 2>&1)"
     if [[ "${option_upgrade}" == 'true' ]]; then
-      ${unifi_api_curl_cmd} "$unifi_api_baseurl/api/s/${site}/stat/device" | jq -r '.data[] | select((.type == "uap") and (.version > "3.8") and (.upgradable == true) and (.version | split (".")[-1] | tonumber) < (.upgrade_to_firmware | split (".")[-1] | tonumber) and (.adopted == true) and (.uptime >= 0)) | .mac' &>> "/tmp/EUS/sites/${site}/upgrade/uap_mac" #/tmp/EUS/uaps_upgraded > /dev/null ( tee -a )
-      ${unifi_api_curl_cmd} "$unifi_api_baseurl/api/s/${site}/stat/device" | jq -r '.data[] | select((.type == "uap") and (.model == "UP1", .model == "UP6") and (.upgradable == true) and (.version | split (".")[-1] | tonumber) < (.upgrade_to_firmware | split (".")[-1] | tonumber) and (.adopted == true) and (.uptime >= 0)) | .mac' &>> "/tmp/EUS/sites/${site}/upgrade/uap_mac"
+      raw_uap_macs="$(jq -r '.data[] | select((.type=="uap") and (.version>"3.8") and (.upgradable==true) and (.adopted==true) and (.uptime>=0)) | .mac' <<< "${stat_json}")"
+      raw_uap_macs+=$'\n'"$(jq -r '.data[] | select((.type=="uap") and (.model=="UP1" or .model=="UP6") and (.upgradable==true) and (.adopted==true) and (.uptime>=0)) | .mac' <<< "${stat_json}")"
     else
-      ${unifi_api_curl_cmd} "$unifi_api_baseurl/api/s/${site}/stat/device" | jq -r '.data[] | select((.type == "uap") and (.version > "3.8") and (.upgradable == true) and (.version | split (".")[-1] | tonumber) > (.upgrade_to_firmware | split (".")[-1] | tonumber) and (.adopted == true) and (.uptime >= 0)) | .mac' &>> "/tmp/EUS/sites/${site}/upgrade/uap_mac" #/tmp/EUS/uaps_upgraded > /dev/null ( tee -a )
-      ${unifi_api_curl_cmd} "$unifi_api_baseurl/api/s/${site}/stat/device" | jq -r '.data[] | select((.type == "uap") and (.model == "UP1", .model == "UP6") and (.upgradable == true) and (.version | split (".")[-1] | tonumber) > (.upgrade_to_firmware | split (".")[-1] | tonumber) and (.adopted == true) and (.uptime >= 0)) | .mac' &>> "/tmp/EUS/sites/${site}/upgrade/uap_mac"
+      raw_uap_macs="$(jq -r '.data[] | select((.type=="uap") and (.version>"3.8") and (.upgradable==true) and ((.version|split(".")[-1]|(tonumber? // 0))>(.upgrade_to_firmware|split(".")[-1]|(tonumber? // 0))) and (.adopted==true) and (.uptime>=0)) | .mac' <<< "${stat_json}")"
+      raw_uap_macs+=$'\n'"$(jq -r '.data[] | select((.type=="uap") and (.model=="UP1" or .model=="UP6") and (.upgradable==true) and ((.version|split(".")[-1]|(tonumber? // 0))>(.upgrade_to_firmware|split(".")[-1]|(tonumber? // 0))) and (.adopted==true) and (.uptime>=0)) | .mac' <<< "${stat_json}")"
     fi
-    ${unifi_api_curl_cmd} "$unifi_api_baseurl/api/s/${site}/stat/device" | jq -r '.data[] | select((.type == "uap") and (.model == "UAP6MP", .model == "U6M") and (.version <= "5.66.0") and (.adopted == true) and (.uptime >= 0)) | .mac' &>> "/tmp/EUS/sites/${site}/upgrade/uap_mac_u6qca_special"
-    if ! [[ -s "/tmp/EUS/sites/${site}/upgrade/uap_mac_u6qca_special" ]]; then rm --force "/tmp/EUS/sites/${site}/upgrade/uap_mac_u6qca_special" &> /dev/null; else while read -r mac_u6qca_special; do sed -i "/${mac_u6qca_special}/d" "/tmp/EUS/sites/${site}/upgrade/uap_mac" &> /dev/null; done < "/tmp/EUS/sites/${site}/upgrade/uap_mac_u6qca_special"; fi
-    if ! [[ -s "/tmp/EUS/sites/${site}/upgrade/uap_mac" ]]; then rm --force "/tmp/EUS/sites/${site}/upgrade/uap_mac"; fi
-    if [[ -f "/tmp/EUS/sites/${site}/upgrade/uap_mac" ]] && [[ -s "/tmp/EUS/sites/${site}/upgrade/uap_mac" ]]; then
+    raw_uap_u6qca_macs="$(jq -r '.data[] | select((.type=="uap") and (.model=="UAP6MP" or .model=="U6M") and (.version<="5.66.0") and (.adopted==true) and (.uptime>=0)) | .mac' <<< "${stat_json}")"
+    if [[ -n "${raw_uap_u6qca_macs}" ]]; then
+      uap_mac_u6qca_map["${site}"]="${raw_uap_u6qca_macs}"
+      echo -e "$(date +%F-%T.%6N) | Site '${site}': U6QCA special MACs (U6-Pro/U6-Mesh on old fw): $(echo "${raw_uap_u6qca_macs}" | tr '\n' ' ')." &>> "${eus_dir}/logs/device-upgrade.log"
+      while IFS= read -r uap_mac; do
+        [[ -z "${uap_mac}" ]] && continue
+        raw_uap_macs="$(echo "${raw_uap_macs}" | grep -v "^${uap_mac}$")"
+      done <<< "${raw_uap_u6qca_macs}"
+    fi
+    raw_uap_macs="$(echo "${raw_uap_macs}" | awk 'NF && !a[$0]++')"
+    if [[ -n "${raw_uap_macs}" ]]; then
+      uap_mac_map["${site}"]="${raw_uap_macs}"
+      uap_count="$(echo "${raw_uap_macs}" | wc -l)"
+      echo -e "$(date +%F-%T.%6N) | Site '${site}': ${uap_count} standard upgradable UAP MAC(s) found." &>> "${eus_dir}/logs/device-upgrade.log"
+    fi
+    if [[ -n "${uap_mac_map[${site}]}" ]]; then
       uap_upgrade_done="yes"
-      if [[ "${uap_upgrade_message}" != "true" ]]; then echo -e "${GRAY_R}#${RESET} ${unifi_upgrade_devices_var_1} UniFi Access Points.\\n"; uap_upgrade_message="true"; fi
+      if [[ "${uap_upgrade_message}" != "true" ]]; then echo -e "${GRAY_R}#${RESET} ${unifi_upgrade_devices_var_1^} UniFi Access Points.\\n"; uap_upgrade_message="true"; fi
       get_site_desc
-      while read -r uap_mac; do
-        ${unifi_api_curl_cmd} --data "{\"mac\":\"${uap_mac}\"}" "$unifi_api_baseurl/api/s/${site}/cmd/devmgr/upgrade" >> "/tmp/EUS/sites/${site}/upgrade/uap_upgrade_output"
-        if grep -iq 'ok' "/tmp/EUS/sites/${site}/upgrade/uap_upgrade_output"; then echo -e "${GREEN}#${RESET} UAP with MAC address '${uap_mac}' from site '${site_desc}' is now ${unifi_upgrade_devices_var_1}.."; fi
-        if grep -iq 'UpgradeInProgress' "/tmp/EUS/sites/${site}/upgrade/uap_upgrade_output"; then echo -e "${YELLOW}#${RESET} UAP with MAC address '${uap_mac}' from site '${site_desc}' is already ${unifi_upgrade_devices_var_1}.."; fi
-        rm --force "/tmp/EUS/sites/${site}/upgrade/uap_upgrade_output"
-      done < "/tmp/EUS/sites/${site}/upgrade/uap_mac"
+      while IFS= read -r uap_mac; do
+        [[ -z "${uap_mac}" ]] && continue
+        echo -e "$(date +%F-%T.%6N) | Site '${site_desc}' | Sending standard upgrade to UAP '${uap_mac}'." &>> "${eus_dir}/logs/device-upgrade.log"
+        uap_upgrade_result="$("${unifi_api_curl_cmd[@]}" --data "{\"mac\":\"${uap_mac}\"}" "$unifi_api_baseurl/api/s/${site}/cmd/devmgr/upgrade" 2>&1)"
+        if echo "${uap_upgrade_result}" | grep -iq 'ok'; then
+          echo -e "${GREEN}#${RESET} UAP with MAC address '${uap_mac}' from site '${site_desc}' is now ${unifi_upgrade_devices_var_1}.."
+          echo -e "$(date +%F-%T.%6N) | Successfully started upgrade for UAP '${uap_mac}' (site: '${site_desc}')." &>> "${eus_dir}/logs/device-upgrade.log"
+        elif echo "${uap_upgrade_result}" | grep -iq 'UpgradeInProgress'; then
+          echo -e "${YELLOW}#${RESET} UAP with MAC address '${uap_mac}' from site '${site_desc}' is already ${unifi_upgrade_devices_var_1}.."
+          echo -e "$(date +%F-%T.%6N) | UAP '${uap_mac}' (site: '${site_desc}') was already upgrading." &>> "${eus_dir}/logs/device-upgrade.log"
+        else
+          echo -e "$(date +%F-%T.%6N) | WARNING | Unexpected upgrade response for UAP '${uap_mac}' (site: '${site_desc}'): ${uap_upgrade_result}" &>> "${eus_dir}/logs/device-upgrade.log"
+        fi
+      done <<< "${uap_mac_map[${site}]}"
     fi
-    ${unifi_api_curl_cmd} "$unifi_api_baseurl/api/s/${site}/stat/device" | jq -r '.data[] | select((.type == "uap") and (.version < "3.8")) | .model' | sed '/UP1/d' >> /tmp/EUS/uap_models
-    if [[ -s /tmp/EUS/uap_models ]]; then
+    legacy_uap_models="$(jq -r '.data[] | select((.type=="uap") and (.version<"3.8")) | .model' <<< "${stat_json}" | grep -v 'UP1' | awk '!a[$0]++')"
+    if [[ -n "${legacy_uap_models}" ]]; then
       uap_custom="yes"
       uap_upgrade_done="yes"
-    else
-      rm --force /tmp/EUS/uap_models
+      echo -e "$(date +%F-%T.%6N) | Site '${site}': legacy UAP models (version < 3.8): $(echo "${legacy_uap_models}" | tr '\n' ' ')." &>> "${eus_dir}/logs/device-upgrade.log"
+      uap_models_list=()
+      while IFS= read -r m; do [[ -n "${m}" ]] && uap_models_list+=("${m}"); done <<< "${legacy_uap_models}"
     fi
     if [[ "${uap_custom}" == 'yes' ]]; then
-      while read -r model; do
-        # shellcheck disable=SC2086
-        ${unifi_api_curl_cmd} "$unifi_api_baseurl/api/s/${site}/stat/device" | jq -r '.data[] | select((.type == "uap") and (.version < "3.8") and (.model == "'${model}'") and (.adopted == true) and (.uptime >= 0)) | .mac' &>> "/tmp/EUS/sites/${site}/upgrade/${model}_mac" #/tmp/EUS/uaps_upgraded > /dev/null ( tee -a )
+      for model in "${uap_models_list[@]}"; do
+        model_macs="$(jq -r --arg m "${model}" '.data[] | select((.type=="uap") and (.version<"3.8") and (.model==$m) and (.adopted==true) and (.uptime>=0)) | .mac' <<< "${stat_json}")"
+        custom_mac_map["${site}_${model}"]="${model_macs}"
+        echo -e "$(date +%F-%T.%6N) | Site '${site}': legacy UAP model '${model}' MACs: $(echo "${model_macs}" | tr '\n' ' ')." &>> "${eus_dir}/logs/device-upgrade.log"
         cached_firmware_url
-        if [[ "${uap_custom_upgrade_message}" != "true" ]]; then
-          echo -e "${GRAY_R}#${RESET} Custom upgrading UniFi Access Points! \\n"
-          uap_custom_upgrade_message="true"
+        if [[ "${uap_custom_upgrade_message}" != "true" ]]; then echo -e "${GRAY_R}#${RESET} Custom upgrading UniFi Access Points! \\n"; uap_custom_upgrade_message="true"; fi
+        if [[ "${firmware_cached}" == 'yes' ]]; then
+          firmware_url="http://${application_inform_address}:${cache_fw_port}/dl/firmware-cached/${cached_fw_path}"
+        elif [[ ${U7PG2[*]} =~ ${model} ]]; then
+          firmware_url="$(curl -s "http://fw-update.ui.com/api/firmware-latest?filter=eq~~platform~~U7PG2&filter=eq~~channel~~release" 2>/dev/null | jq -r '._embedded.firmware[]._links.data.href' 2>/dev/null | sed 's/https/http/g')"
+          [[ -z "${firmware_url}" ]] && firmware_url="http://dl.ui.com/unifi/firmware/U7PG2/4.0.80.10875/BZ.qca956x.v4.0.80.10875.200111.2335.bin"
+        elif [[ ${BZ2[*]} =~ ${model} ]]; then
+          firmware_url="http://dl.ui.com/unifi/firmware/BZ2/4.0.10.9653/BZ.ar7240.v4.0.10.9653.181205.1311.bin"
+        elif [[ ${U2Sv2[*]} =~ ${model} ]]; then
+          firmware_url="http://dl.ui.com/unifi/firmware/U2Sv2/4.0.10.9653/BZ.qca9342.v4.0.10.9653.181205.1310.bin"
+        elif [[ ${U2IW[*]} =~ ${model} ]]; then
+          firmware_url="http://dl.ui.com/unifi/firmware/U2IW/4.0.10.9653/BZ.qca933x.v4.0.10.9653.181205.1310.bin"
+        elif [[ ${U7P[*]} =~ ${model} ]]; then
+          firmware_url="http://dl.ui.com/unifi/firmware/U7P/4.0.10.9653/BZ.ar934x.v4.0.10.9653.181205.1310.bin"
+        elif [[ ${U2HSR[*]} =~ ${model} ]]; then
+          firmware_url="http://dl.ui.com/unifi/firmware/U2HSR/4.0.10.9653/BZ.ar7240.v4.0.10.9653.181205.1311.bin"
+        elif [[ ${U7HD[*]} =~ ${model} ]]; then
+          firmware_url="$(curl -s "http://fw-update.ui.com/api/firmware-latest?filter=eq~~platform~~U7HD&filter=eq~~channel~~release" 2>/dev/null | jq -r '._embedded.firmware[]._links.data.href' 2>/dev/null | sed 's/https/http/g')"
+          [[ -z "${firmware_url}" ]] && firmware_url="http://dl.ui.com/unifi/firmware/U7HD/4.0.80.10875/BZ.ipq806x.v4.0.80.10875.200111.1635.bin"
+        elif [[ ${U7E[*]} =~ ${model} ]]; then
+          firmware_url="http://dl.ui.com/unifi/firmware/U7E/3.8.17.6789/BZ.bcm4706.v3.8.17.6789.190110.0913.bin"
+        else
+          echo -e "$(date +%F-%T.%6N) | WARNING | Model '${model}' does not match any known legacy UAP platform — skipping." &>> "${eus_dir}/logs/device-upgrade.log"
+          continue
         fi
-        if [[ ${U7PG2[*]} =~ ${model} ]]; then # -- UAP-AC-Lite/LR/Pro/EDU/M/M-PRO/IW/IW-Pro
-          if [[ "${firmware_cached}" == 'yes' ]]; then
-            firmware_url="http://${application_inform_address}:${cache_fw_port}/dl/firmware-cached/${cached_fw_path}"
-          else
-            firmware_url=$(curl -s "http://fw-update.ui.com/api/firmware-latest?filter=eq~~platform~~U7PG2&filter=eq~~channel~~release" 2> /dev/null | jq -r '._embedded.firmware[]._links.data.href' 2> /dev/null | sed 's/https/http/g')
-            if [[ -z "${firmware_url}" ]]; then firmware_url="http://dl.ui.com/unifi/firmware/U7PG2/4.0.80.10875/BZ.qca956x.v4.0.80.10875.200111.2335.bin"; fi
-          fi
-          while read -r uap_mac; do
-            uap_custom_upgrade_commands
-          done < "/tmp/EUS/sites/${site}/upgrade/${model}_mac"
-        elif [[ ${BZ2[*]} =~ ${model} ]]; then # -- UAP, UAP-LR, UAP-OD, UAP-OD5
-          if [[ "${firmware_cached}" == 'yes' ]]; then
-            firmware_url="http://${application_inform_address}:${cache_fw_port}/dl/firmware-cached/${cached_fw_path}"
-          else
-            firmware_url="http://dl.ui.com/unifi/firmware/BZ2/4.0.10.9653/BZ.ar7240.v4.0.10.9653.181205.1311.bin"
-          fi
-          while read -r uap_mac; do
-            uap_custom_upgrade_commands
-          done < "/tmp/EUS/sites/${site}/upgrade/${model}_mac"
-        elif [[ ${U2Sv2[*]} =~ ${model} ]]; then # -- UAP-v2, UAP-LR-v2
-          if [[ "${firmware_cached}" == 'yes' ]]; then
-            firmware_url="http://${application_inform_address}:${cache_fw_port}/dl/firmware-cached/${cached_fw_path}"
-          else
-            firmware_url="http://dl.ui.com/unifi/firmware/U2Sv2/4.0.10.9653/BZ.qca9342.v4.0.10.9653.181205.1310.bin"
-          fi
-          while read -r uap_mac; do
-            uap_custom_upgrade_commands
-          done < "/tmp/EUS/sites/${site}/upgrade/${model}_mac"
-        elif [[ ${U2IW[*]} =~ ${model} ]]; then # -- UAP-IW
-          if [[ "${firmware_cached}" == 'yes' ]]; then
-            firmware_url="http://${application_inform_address}:${cache_fw_port}/dl/firmware-cached/${cached_fw_path}"
-          else
-            firmware_url="http://dl.ui.com/unifi/firmware/U2IW/4.0.10.9653/BZ.qca933x.v4.0.10.9653.181205.1310.bin"
-          fi
-          while read -r uap_mac; do
-            uap_custom_upgrade_commands
-          done < "/tmp/EUS/sites/${site}/upgrade/${model}_mac"
-        elif [[ ${U7P[*]} =~ ${model} ]]; then # -- UAP-PRO
-          if [[ "${firmware_cached}" == 'yes' ]]; then
-            firmware_url="http://${application_inform_address}:${cache_fw_port}/dl/firmware-cached/${cached_fw_path}"
-          else
-            firmware_url="http://dl.ui.com/unifi/firmware/U7P/4.0.10.9653/BZ.ar934x.v4.0.10.9653.181205.1310.bin"
-          fi
-          while read -r uap_mac; do
-            uap_custom_upgrade_commands
-          done < "/tmp/EUS/sites/${site}/upgrade/${model}_mac"
-        elif [[ ${U2HSR[*]} =~ ${model} ]]; then # -- UAP-OD+
-          if [[ "${firmware_cached}" == 'yes' ]]; then
-            firmware_url="http://${application_inform_address}:${cache_fw_port}/dl/firmware-cached/${cached_fw_path}"
-          else
-            firmware_url="http://dl.ui.com/unifi/firmware/U2HSR/4.0.10.9653/BZ.ar7240.v4.0.10.9653.181205.1311.bin"
-          fi
-          while read -r uap_mac; do
-            uap_custom_upgrade_commands
-          done < "/tmp/EUS/sites/${site}/upgrade/${model}_mac"
-        elif [[ ${U7HD[*]} =~ ${model} ]]; then # -- UAP-HD/SHD/XG/BaseStationXG
-          if [[ "${firmware_cached}" == 'yes' ]]; then
-            firmware_url="http://${application_inform_address}:${cache_fw_port}/dl/firmware-cached/${cached_fw_path}"
-          else
-            firmware_url=$(curl -s "http://fw-update.ui.com/api/firmware-latest?filter=eq~~platform~~U7HD&filter=eq~~channel~~release" 2> /dev/null | jq -r '._embedded.firmware[]._links.data.href' 2> /dev/null | sed 's/https/http/g')
-            if [[ -z "${firmware_url}" ]]; then firmware_url="http://dl.ui.com/unifi/firmware/U7HD/4.0.80.10875/BZ.ipq806x.v4.0.80.10875.200111.1635.bin"; fi
-          fi
-          while read -r uap_mac; do
-            uap_custom_upgrade_commands
-          done < "/tmp/EUS/sites/${site}/upgrade/${model}_mac"
-        elif [[ ${U7E[*]} =~ ${model} ]]; then # -- UAP-AC, UAP-AC v2, UAP-AC-OD
-          if [[ "${firmware_cached}" == 'yes' ]]; then
-            firmware_url="http://${application_inform_address}:${cache_fw_port}/dl/firmware-cached/${cached_fw_path}"
-          else
-            firmware_url="http://dl.ui.com/unifi/firmware/U7E/3.8.17.6789/BZ.bcm4706.v3.8.17.6789.190110.0913.bin"
-          fi
-          while read -r uap_mac; do
-            uap_custom_upgrade_commands
-          done < "/tmp/EUS/sites/${site}/upgrade/${model}_mac"
-        fi
-      done < /tmp/EUS/uap_models
-    fi
-    if [[ -f "/tmp/EUS/sites/${site}/upgrade/uap_mac_u6qca_special" && -s "/tmp/EUS/sites/${site}/upgrade/uap_mac_u6qca_special" ]]; then uap_u6qca_special_custom="yes"; uap_upgrade_done="yes"; else rm --force "/tmp/EUS/sites/${site}/upgrade/uap_mac_u6qca_special"; fi
-    if [[ "${uap_u6qca_special_custom}" == 'yes' ]]; then
-      if [[ "${uap_custom_upgrade_message_u6qca}" != "true" ]]; then echo -e "${GRAY_R}#${RESET} Custom upgrading U6-Pro/U6-Mesh UniFi Access Points! \\n"; uap_custom_upgrade_message_u6qca="true"; fi
-      if [[ -f "/tmp/EUS/sites/${site}/upgrade/uap_mac_u6qca_special" && -s "/tmp/EUS/sites/${site}/upgrade/uap_mac_u6qca_special" ]]; then
-        firmware_url="https://dl.ui.com/unifi/firmware/UAP6MP/5.67.0.13114/BZ.ipq50xx_5.67.0+13114.210608.1558.bin"
-        while read -r uap_mac; do
+        echo -e "$(date +%F-%T.%6N) | Resolved firmware URL for model '${model}': '${firmware_url}'." &>> "${eus_dir}/logs/device-upgrade.log"
+        while IFS= read -r uap_mac; do
+          [[ -z "${uap_mac}" ]] && continue
           uap_custom_upgrade_commands
-        done < "/tmp/EUS/sites/${site}/upgrade/uap_mac_u6qca_special"
-      fi
+        done <<< "${custom_mac_map[${site}_${model}]}"
+      done
     fi
-  done < /tmp/EUS/unifi_sites
+    if [[ -n "${uap_mac_u6qca_map[${site}]}" ]]; then
+      uap_upgrade_done="yes"
+      echo -e "$(date +%F-%T.%6N) | Site '${site}': starting U6QCA intermediate firmware upgrade." &>> "${eus_dir}/logs/device-upgrade.log"
+      if [[ "${uap_custom_upgrade_message_u6qca}" != "true" ]]; then echo -e "${GRAY_R}#${RESET} Custom upgrading U6-Pro/U6-Mesh UniFi Access Points! \\n"; uap_custom_upgrade_message_u6qca="true"; fi
+      firmware_url="https://dl.ui.com/unifi/firmware/UAP6MP/5.67.0.13114/BZ.ipq50xx_5.67.0+13114.210608.1558.bin"
+      echo -e "$(date +%F-%T.%6N) | U6QCA intermediate firmware URL: '${firmware_url}'." &>> "${eus_dir}/logs/device-upgrade.log"
+      while IFS= read -r uap_mac; do
+        [[ -z "${uap_mac}" ]] && continue
+        uap_custom_upgrade_commands
+      done <<< "${uap_mac_u6qca_map[${site}]}"
+    fi
+  done
+  echo -e "$(date +%F-%T.%6N) | UAP upgrade pass complete." &>> "${eus_dir}/logs/device-upgrade.log"
 }
 
 usw_custom_upgrade_commands() {
   get_site_desc
-  ${unifi_api_curl_cmd}  --data "{\"url\":\"${firmware_url}\", \"mac\":\"${usw_mac}\"}" "$unifi_api_baseurl/api/s/${site}/cmd/devmgr/upgrade-external" >> "/tmp/EUS/sites/${site}/upgrade/usw_custom_upgrade_output"
-  if grep -iq 'ok' "/tmp/EUS/sites/${site}/upgrade/usw_custom_upgrade_output"; then echo -e "${GREEN}#${RESET} USW with MAC address '${usw_mac}' from site '${site_desc}' is now upgrading.."; fi
-  if grep -iq 'UpgradeInProgress' "/tmp/EUS/sites/${site}/upgrade/usw_custom_upgrade_output"; then echo -e "${YELLOW}#${RESET} USW with MAC address '${usw_mac}' from site '${site_desc}' is already upgrading.."; fi
-  rm --force "/tmp/EUS/sites/${site}/upgrade/usw_custom_upgrade_output"
+  echo -e "$(date +%F-%T.%6N) | Sending custom upgrade to USW '${usw_mac}' on site '${site_desc}' (url='${firmware_url}')." &>> "${eus_dir}/logs/device-upgrade.log"
+  local usw_custom_result
+  usw_custom_result="$("${unifi_api_curl_cmd[@]}" --data "{\"url\":\"${firmware_url}\", \"mac\":\"${usw_mac}\"}" "$unifi_api_baseurl/api/s/${site}/cmd/devmgr/upgrade-external" 2>&1)"
+  if echo "${usw_custom_result}" | grep -iq 'ok'; then
+    echo -e "${GREEN}#${RESET} USW with MAC address '${usw_mac}' from site '${site_desc}' is now upgrading.."
+    echo -e "$(date +%F-%T.%6N) | Successfully started custom upgrade for USW '${usw_mac}' (site: '${site_desc}')." &>> "${eus_dir}/logs/device-upgrade.log"
+  elif echo "${usw_custom_result}" | grep -iq 'UpgradeInProgress'; then
+    echo -e "${YELLOW}#${RESET} USW with MAC address '${usw_mac}' from site '${site_desc}' is already upgrading.."
+    echo -e "$(date +%F-%T.%6N) | USW '${usw_mac}' (site: '${site_desc}') was already upgrading when command was sent." &>> "${eus_dir}/logs/device-upgrade.log"
+  else
+    echo -e "$(date +%F-%T.%6N) | WARNING | Unexpected response for USW '${usw_mac}' (site: '${site_desc}'): ${usw_custom_result}" &>> "${eus_dir}/logs/device-upgrade.log"
+  fi
 }
 
 usw_upgrade() {
-  while read -r site; do
+  echo -e "${GRAY_R}#${RESET} Checking UniFi Switches for firmware ${unifi_upgrade_devices_var_2}..."
+  local site raw_usw_macs raw_usw_gen2_macs stat_json usw_upgrade_result
+  local legacy_usw_models model model_macs usw_count usw_mac
+  for site in "${unifi_sites_list[@]}"; do
+    stat_json="$("${unifi_api_curl_cmd[@]}" "$unifi_api_baseurl/api/s/${site}/stat/device" 2>&1)"
     if [[ "${option_upgrade}" == 'true' ]]; then
-      ${unifi_api_curl_cmd} "$unifi_api_baseurl/api/s/${site}/stat/device" | jq -r '.data[] | select((.type == "usw") and (.version > "3.8") and (.upgradable == true) and (.version | split (".")[-1] | tonumber) < (.upgrade_to_firmware | split (".")[-1] | tonumber) and (.adopted == true) and (.uptime >= 0)) | .mac' &>> "/tmp/EUS/sites/${site}/upgrade/usw_mac"
-      ${unifi_api_curl_cmd} "$unifi_api_baseurl/api/s/${site}/stat/device" | jq -r '.data[] | select((.type == "usw") and (.model == "USMINI") and (.upgradable == true) and (.version | split (".")[-1] | tonumber) < (.upgrade_to_firmware | split (".")[-1] | tonumber) and (.adopted == true) and (.uptime >= 0)) | .mac' &>> "/tmp/EUS/sites/${site}/upgrade/usw_mac"
+      raw_usw_macs="$(jq -r '.data[] | select((.type=="usw") and (.version>"3.8") and (.upgradable==true) and (.adopted==true) and (.uptime>=0)) | .mac' <<< "${stat_json}")"
+      raw_usw_macs+=$'\n'"$(jq -r '.data[] | select((.type=="usw") and (.model=="USMINI") and (.upgradable==true) and (.adopted==true) and (.uptime>=0)) | .mac' <<< "${stat_json}")"
     else
-      ${unifi_api_curl_cmd} "$unifi_api_baseurl/api/s/${site}/stat/device" | jq -r '.data[] | select((.type == "usw") and (.version > "3.8") and (.upgradable == true) and (.version | split (".")[-1] | tonumber) > (.upgrade_to_firmware | split (".")[-1] | tonumber) and (.adopted == true) and (.uptime >= 0)) | .mac' &>> "/tmp/EUS/sites/${site}/upgrade/usw_mac"
-      ${unifi_api_curl_cmd} "$unifi_api_baseurl/api/s/${site}/stat/device" | jq -r '.data[] | select((.type == "usw") and (.model == "USMINI") and (.upgradable == true) and (.version | split (".")[-1] | tonumber) > (.upgrade_to_firmware | split (".")[-1] | tonumber) and (.adopted == true) and (.uptime >= 0)) | .mac' &>> "/tmp/EUS/sites/${site}/upgrade/usw_mac"
+      raw_usw_macs="$(jq -r '.data[] | select((.type=="usw") and (.version>"3.8") and (.upgradable==true) and ((.version|split(".")[-1]|(tonumber? // 0))>(.upgrade_to_firmware|split(".")[-1]|(tonumber? // 0))) and (.adopted==true) and (.uptime>=0)) | .mac' <<< "${stat_json}")"
+      raw_usw_macs+=$'\n'"$(jq -r '.data[] | select((.type=="usw") and (.model=="USMINI") and (.upgradable==true) and ((.version|split(".")[-1]|(tonumber? // 0))>(.upgrade_to_firmware|split(".")[-1]|(tonumber? // 0))) and (.adopted==true) and (.uptime>=0)) | .mac' <<< "${stat_json}")"
     fi
-    ${unifi_api_curl_cmd} "$unifi_api_baseurl/api/s/${site}/stat/device" | jq -r '.data[] | select((.type == "usw") and (.model == "USL16P", .model == "USL24P") and (.version <= "4.0.50") and (.adopted == true) and (.uptime >= 0)) | .mac' &>> "/tmp/EUS/sites/${site}/upgrade/usw_mac_gen2_special" #/tmp/EUS/usws_upgraded > /dev/null ( tee -a )
-    if ! [[ -s "/tmp/EUS/sites/${site}/upgrade/usw_mac_gen2_special" ]]; then rm --force "/tmp/EUS/sites/${site}/upgrade/usw_mac_gen2_special" &> /dev/null; else while read -r mac_gen2_special; do sed -i "/${mac_gen2_special}/d" "/tmp/EUS/sites/${site}/upgrade/usw_mac" &> /dev/null; done < "/tmp/EUS/sites/${site}/upgrade/usw_mac_gen2_special"; fi
-    if ! [[ -s "/tmp/EUS/sites/${site}/upgrade/usw_mac" ]]; then rm --force "/tmp/EUS/sites/${site}/upgrade/usw_mac" &> /dev/null; fi
-    if [[ -f "/tmp/EUS/sites/${site}/upgrade/usw_mac" && -s "/tmp/EUS/sites/${site}/upgrade/usw_mac" ]]; then
+    raw_usw_gen2_macs="$(jq -r '.data[] | select((.type=="usw") and (.model=="USL16P" or .model=="USL24P") and (.version<="4.0.50") and (.adopted==true) and (.uptime>=0)) | .mac' <<< "${stat_json}")"
+    if [[ -n "${raw_usw_gen2_macs}" ]]; then
+      usw_mac_gen2_map["${site}"]="${raw_usw_gen2_macs}"
+      echo -e "$(date +%F-%T.%6N) | Site '${site}': Gen2 special MACs (USL16P/USL24P <= 4.0.50): $(echo "${raw_usw_gen2_macs}" | tr '\n' ' ')." &>> "${eus_dir}/logs/device-upgrade.log"
+      while IFS= read -r usw_mac; do
+        [[ -z "${usw_mac}" ]] && continue
+        raw_usw_macs="$(echo "${raw_usw_macs}" | grep -v "^${usw_mac}$")"
+        echo -e "$(date +%F-%T.%6N) | Site '${site}': excluded Gen2 MAC '${usw_mac}' from standard USW list." &>> "${eus_dir}/logs/device-upgrade.log"
+      done <<< "${raw_usw_gen2_macs}"
+    fi
+    raw_usw_macs="$(echo "${raw_usw_macs}" | awk 'NF && !a[$0]++')"
+    if [[ -n "${raw_usw_macs}" ]]; then
+      usw_mac_map["${site}"]="${raw_usw_macs}"
+      usw_count="$(echo "${raw_usw_macs}" | wc -l)"
+      echo -e "$(date +%F-%T.%6N) | Site '${site}': ${usw_count} standard upgradable USW MAC(s) found." &>> "${eus_dir}/logs/device-upgrade.log"
+    fi
+    if [[ -n "${usw_mac_map[${site}]}" ]]; then
       usw_upgrade_done="yes"
       if [[ "${check_uap_upgrade}" != 'yes' ]]; then check_uap_upgrades; fi
-      if [[ "${usw_upgrade_message}" != "true" ]]; then echo -e "${GRAY_R}#${RESET} ${unifi_upgrade_devices_var_1} UniFi Switches.\\n"; usw_upgrade_message="true"; fi
+      if [[ "${usw_upgrade_message}" != "true" ]]; then echo -e "${GRAY_R}#${RESET} ${unifi_upgrade_devices_var_1^} UniFi Switches.\\n"; usw_upgrade_message="true"; fi
       get_site_desc
-      while read -r usw_mac; do
-        ${unifi_api_curl_cmd} --data "{\"mac\":\"${usw_mac}\"}" "$unifi_api_baseurl/api/s/${site}/cmd/devmgr/upgrade" >> "/tmp/EUS/sites/${site}/upgrade/usw_upgrade_output"
-        if grep -iq 'ok' "/tmp/EUS/sites/${site}/upgrade/usw_upgrade_output"; then echo -e "${GREEN}#${RESET} USW with MAC address '${usw_mac}' from site '${site_desc}' is now ${unifi_upgrade_devices_var_1}.."; fi
-        if grep -iq 'UpgradeInProgress' "/tmp/EUS/sites/${site}/upgrade/usw_upgrade_output"; then echo -e "${YELLOW}#${RESET} USW with MAC address '${usw_mac}' from site '${site_desc}' is already ${unifi_upgrade_devices_var_1}.."; fi
-        rm --force "/tmp/EUS/sites/${site}/upgrade/usw_upgrade_output"
-      done < "/tmp/EUS/sites/${site}/upgrade/usw_mac"
+      while IFS= read -r usw_mac; do
+        [[ -z "${usw_mac}" ]] && continue
+        echo -e "$(date +%F-%T.%6N) | Site '${site_desc}' | Sending standard upgrade to USW '${usw_mac}'." &>> "${eus_dir}/logs/device-upgrade.log"
+        usw_upgrade_result="$("${unifi_api_curl_cmd[@]}" --data "{\"mac\":\"${usw_mac}\"}" "$unifi_api_baseurl/api/s/${site}/cmd/devmgr/upgrade" 2>&1)"
+        if echo "${usw_upgrade_result}" | grep -iq 'ok'; then
+          echo -e "${GREEN}#${RESET} USW with MAC address '${usw_mac}' from site '${site_desc}' is now ${unifi_upgrade_devices_var_1}.."
+          echo -e "$(date +%F-%T.%6N) | Successfully started upgrade for USW '${usw_mac}' (site: '${site_desc}')." &>> "${eus_dir}/logs/device-upgrade.log"
+        elif echo "${usw_upgrade_result}" | grep -iq 'UpgradeInProgress'; then
+          echo -e "${YELLOW}#${RESET} USW with MAC address '${usw_mac}' from site '${site_desc}' is already ${unifi_upgrade_devices_var_1}.."
+          echo -e "$(date +%F-%T.%6N) | USW '${usw_mac}' (site: '${site_desc}') was already upgrading." &>> "${eus_dir}/logs/device-upgrade.log"
+        else
+          echo -e "$(date +%F-%T.%6N) | WARNING | Unexpected upgrade response for USW '${usw_mac}' (site: '${site_desc}'): ${usw_upgrade_result}" &>> "${eus_dir}/logs/device-upgrade.log"
+        fi
+      done <<< "${usw_mac_map[${site}]}"
     fi
-    ${unifi_api_curl_cmd} "$unifi_api_baseurl/api/s/${site}/stat/device" | jq -r '.data[] | select((.type == "usw") and (.version < "3.8")) | .model' | sed '/USMINI/d' >> /tmp/EUS/usw_models
-    if [[ -s /tmp/EUS/usw_models ]]; then
+    legacy_usw_models="$(jq -r '.data[] | select((.type=="usw") and (.version<"3.8")) | .model' <<< "${stat_json}" | grep -v 'USMINI' | awk '!a[$0]++')"
+    if [[ -n "${legacy_usw_models}" ]]; then
       usw_custom="yes"
       usw_upgrade_done="yes"
-    else
-      rm --force /tmp/EUS/usw_models
+      echo -e "$(date +%F-%T.%6N) | Site '${site}': legacy USW models (version < 3.8): $(echo "${legacy_usw_models}" | tr '\n' ' ')." &>> "${eus_dir}/logs/device-upgrade.log"
+      usw_models_list=()
+      while IFS= read -r m; do [[ -n "${m}" ]] && usw_models_list+=("${m}"); done <<< "${legacy_usw_models}"
     fi
     if [[ "${usw_custom}" == 'yes' ]]; then
-      while read -r model; do
-        # shellcheck disable=SC2086
-        ${unifi_api_curl_cmd} "$unifi_api_baseurl/api/s/${site}/stat/device" | jq -r '.data[] | select((.type == "usw") and (.version < "3.8") and (.model == "'${model}'") and (.adopted == true) and (.uptime >= 0)) | .mac' &>> "/tmp/EUS/sites/${site}/upgrade/${model}_mac" #/tmp/EUS/usws_upgraded > /dev/null ( tee -a )
+      for model in "${usw_models_list[@]}"; do
+        model_macs="$(jq -r --arg m "${model}" '.data[] | select((.type=="usw") and (.version<"3.8") and (.model==$m) and (.adopted==true) and (.uptime>=0)) | .mac' <<< "${stat_json}")"
+        custom_mac_map["${site}_${model}"]="${model_macs}"
+        echo -e "$(date +%F-%T.%6N) | Site '${site}': legacy USW model '${model}' MACs: $(echo "${model_macs}" | tr '\n' ' ')." &>> "${eus_dir}/logs/device-upgrade.log"
         cached_firmware_url
-        if [[ "${check_uap_upgrade}" != 'yes' ]]; then
-          check_uap_upgrades
+        if [[ "${check_uap_upgrade}" != 'yes' ]]; then check_uap_upgrades; fi
+        if [[ "${usw_custom_upgrade_message}" != "true" ]]; then echo -e "${GRAY_R}#${RESET} Custom ${unifi_upgrade_devices_var_1} UniFi Switches! \\n"; usw_custom_upgrade_message="true"; fi
+        if [[ "${firmware_cached}" == 'yes' ]]; then
+          firmware_url="http://${application_inform_address}:${cache_fw_port}/dl/firmware-cached/${cached_fw_path}"
+        elif [[ ${USXG[*]} =~ ${model} ]]; then
+          firmware_url="$(curl -s "http://fw-update.ui.com/api/firmware-latest?filter=eq~~platform~~USXG&filter=eq~~channel~~release" 2>/dev/null | jq -r '._embedded.firmware[]._links.data.href' 2>/dev/null | sed 's/https/http/g')"
+          [[ -z "${firmware_url}" ]] && firmware_url="http://dl.ui.com/unifi/firmware/USXG/4.0.80.10875/US.bcm5341x.v4.0.80.10875.200111.1635.bin"
+        elif [[ ${US24P250[*]} =~ ${model} ]]; then
+          firmware_url="$(curl -s "http://fw-update.ui.com/api/firmware-latest?filter=eq~~platform~~US24P250&filter=eq~~channel~~release" 2>/dev/null | jq -r '._embedded.firmware[]._links.data.href' 2>/dev/null | sed 's/https/http/g')"
+          [[ -z "${firmware_url}" ]] && firmware_url="http://dl.ui.com/unifi/firmware/US24P250/4.0.80.10875/US.bcm5334x.v4.0.80.10875.200111.2335.bin"
+        else
+          echo -e "$(date +%F-%T.%6N) | WARNING | Model '${model}' does not match any known legacy USW platform — skipping." &>> "${eus_dir}/logs/device-upgrade.log"
+          continue
         fi
-        if [[ "${usw_custom_upgrade_message}" != "true" ]]; then
-          echo -e "${GRAY_R}#${RESET} Custom ${unifi_upgrade_devices_var_1} UniFi Switches! \\n"
-          usw_custom_upgrade_message="true"
-        fi
-        if [[ ${USXG[*]} =~ ${model} ]]; then # -- US-16-XG
-          if [[ "${firmware_cached}" == 'yes' ]]; then
-            firmware_url="http://${application_inform_address}:${cache_fw_port}/dl/firmware-cached/${cached_fw_path}"
-          else
-            firmware_url=$(curl -s "http://fw-update.ui.com/api/firmware-latest?filter=eq~~platform~~USXG&filter=eq~~channel~~release" 2> /dev/null | jq -r '._embedded.firmware[]._links.data.href' 2> /dev/null | sed 's/https/http/g')
-            if [[ -z "${firmware_url}" ]]; then firmware_url="http://dl.ui.com/unifi/firmware/USXG/4.0.80.10875/US.bcm5341x.v4.0.80.10875.200111.1635.bin"; fi
-          fi
-          while read -r usw_mac; do
-            usw_custom_upgrade_commands
-          done < "/tmp/EUS/sites/${site}/upgrade/${model}_mac"
-        elif [[ ${US24P250[*]} =~ ${model} ]]; then # -- US/US-POE
-          if [[ "${firmware_cached}" == 'yes' ]]; then
-            firmware_url="http://${application_inform_address}:${cache_fw_port}/dl/firmware-cached/${cached_fw_path}"
-          else
-            firmware_url=$(curl -s "http://fw-update.ui.com/api/firmware-latest?filter=eq~~platform~~US24P250&filter=eq~~channel~~release" 2> /dev/null | jq -r '._embedded.firmware[]._links.data.href' 2> /dev/null | sed 's/https/http/g')
-            if [[ -z "${firmware_url}" ]]; then firmware_url="http://dl.ui.com/unifi/firmware/US24P250/4.0.80.10875/US.bcm5334x.v4.0.80.10875.200111.2335.bin"; fi
-          fi
-          while read -r usw_mac; do
-            usw_custom_upgrade_commands
-          done < "/tmp/EUS/sites/${site}/upgrade/${model}_mac"
-        fi
-      done < /tmp/EUS/usw_models
-    fi
-    if [[ -f "/tmp/EUS/sites/${site}/upgrade/usw_mac_gen2_special" && -s "/tmp/EUS/sites/${site}/upgrade/usw_mac_gen2_special" ]]; then usw_gen2_special_custom="yes"; usw_upgrade_done="yes"; else rm --force "/tmp/EUS/sites/${site}/upgrade/usw_mac_gen2_special"; fi
-    if [[ "${usw_gen2_special_custom}" == 'yes' ]]; then
-      if [[ "${check_uap_upgrade}" != 'yes' ]]; then check_uap_upgrades; fi
-      if [[ "${usw_custom_upgrade_message_gen2}" != "true" ]]; then echo -e "${GRAY_R}#${RESET} Custom upgrading Gen2 UniFi Switches! \\n"; usw_custom_upgrade_message_gen2="true"; fi
-      if [[ -f "/tmp/EUS/sites/${site}/upgrade/usw_mac_gen2_special" && -s "/tmp/EUS/sites/${site}/upgrade/usw_mac_gen2_special" ]]; then
-        firmware_url="https://dl.ui.com/unifi/firmware/USL16P/4.0.49.10569/US.rtl838x.v4.0.49.10569.190708.1559.bin"
-        while read -r usw_mac; do
+        echo -e "$(date +%F-%T.%6N) | Resolved firmware URL for model '${model}': '${firmware_url}'." &>> "${eus_dir}/logs/device-upgrade.log"
+        while IFS= read -r usw_mac; do
+          [[ -z "${usw_mac}" ]] && continue
           usw_custom_upgrade_commands
-        done < "/tmp/EUS/sites/${site}/upgrade/usw_mac_gen2_special"
-      fi
+        done <<< "${custom_mac_map[${site}_${model}]}"
+      done
     fi
-  done < /tmp/EUS/unifi_sites
+    if [[ -n "${usw_mac_gen2_map[${site}]}" ]]; then
+      usw_upgrade_done="yes"
+      if [[ "${check_uap_upgrade}" != 'yes' ]]; then check_uap_upgrades; fi
+      echo -e "$(date +%F-%T.%6N) | Site '${site}': starting Gen2 USW intermediate firmware upgrade." &>> "${eus_dir}/logs/device-upgrade.log"
+      if [[ "${usw_custom_upgrade_message_gen2}" != "true" ]]; then echo -e "${GRAY_R}#${RESET} Custom upgrading Gen2 UniFi Switches! \\n"; usw_custom_upgrade_message_gen2="true"; fi
+      firmware_url="https://dl.ui.com/unifi/firmware/USL16P/4.0.49.10569/US.rtl838x.v4.0.49.10569.190708.1559.bin"
+      echo -e "$(date +%F-%T.%6N) | Gen2 USW intermediate firmware URL: '${firmware_url}'." &>> "${eus_dir}/logs/device-upgrade.log"
+      while IFS= read -r usw_mac; do
+        [[ -z "${usw_mac}" ]] && continue
+        usw_custom_upgrade_commands
+      done <<< "${usw_mac_gen2_map[${site}]}"
+    fi
+  done
+  echo -e "$(date +%F-%T.%6N) | USW upgrade pass complete." &>> "${eus_dir}/logs/device-upgrade.log"
 }
 
 ugw_custom_upgrade_commands() {
   get_site_desc
-  ${unifi_api_curl_cmd}  --data "{\"url\":\"${firmware_url}\", \"mac\":\"${ugw_mac}\"}" "$unifi_api_baseurl/api/s/${site}/cmd/devmgr/upgrade-external" >> "/tmp/EUS/sites/${site}/upgrade/ugw_custom_upgrade_output"
-  if grep -iq 'ok' "/tmp/EUS/sites/${site}/upgrade/ugw_custom_upgrade_output"; then echo -e "${GREEN}#${RESET} UGW with MAC address '${ugw_mac}' from site '${site_desc}' is now upgrading.."; fi
-  if grep -iq 'UpgradeInProgress' "/tmp/EUS/sites/${site}/upgrade/ugw_custom_upgrade_output"; then echo -e "${YELLOW}#${RESET} UGW with MAC address '${ugw_mac}' from site '${site_desc}' is already upgrading.."; fi
-  rm --force "/tmp/EUS/sites/${site}/upgrade/ugw_custom_upgrade_output"
+  echo -e "$(date +%F-%T.%6N) | Sending custom upgrade to UGW '${ugw_mac}' on site '${site_desc}' (url='${firmware_url}')." &>> "${eus_dir}/logs/device-upgrade.log"
+  local ugw_custom_result
+  ugw_custom_result="$("${unifi_api_curl_cmd[@]}" --data "{\"url\":\"${firmware_url}\", \"mac\":\"${ugw_mac}\"}" "$unifi_api_baseurl/api/s/${site}/cmd/devmgr/upgrade-external" 2>&1)"
+  if echo "${ugw_custom_result}" | grep -iq 'ok'; then
+    echo -e "${GREEN}#${RESET} UGW with MAC address '${ugw_mac}' from site '${site_desc}' is now upgrading.."
+    echo -e "$(date +%F-%T.%6N) | Successfully started custom upgrade for UGW '${ugw_mac}' (site: '${site_desc}')." &>> "${eus_dir}/logs/device-upgrade.log"
+  elif echo "${ugw_custom_result}" | grep -iq 'UpgradeInProgress'; then
+    echo -e "${YELLOW}#${RESET} UGW with MAC address '${ugw_mac}' from site '${site_desc}' is already upgrading.."
+    echo -e "$(date +%F-%T.%6N) | UGW '${ugw_mac}' (site: '${site_desc}') was already upgrading when command was sent." &>> "${eus_dir}/logs/device-upgrade.log"
+  else
+    echo -e "$(date +%F-%T.%6N) | WARNING | Unexpected response for UGW '${ugw_mac}' (site: '${site_desc}'): ${ugw_custom_result}" &>> "${eus_dir}/logs/device-upgrade.log"
+  fi
 }
 
 ugw_upgrade() {
-  while read -r site; do
+  echo -e "${GRAY_R}#${RESET} Checking UniFi Gateways and UniFi Security Gateways for firmware ${unifi_upgrade_devices_var_2}..."
+  local site raw_ugw_macs raw_uxg_macs stat_json uxg_upgrade_result ugw_upgrade_result
+  local legacy_ugw_models model model_macs ugw_count uxg_count ugw_mac uxg_mac
+  for site in "${unifi_sites_list[@]}"; do
+    stat_json="$("${unifi_api_curl_cmd[@]}" "$unifi_api_baseurl/api/s/${site}/stat/device" 2>&1)"
     if [[ "${option_upgrade}" == 'true' ]]; then
-      ${unifi_api_curl_cmd} "$unifi_api_baseurl/api/s/${site}/stat/device" | jq -r '.data[] | select((.type == "ugw") and (.version > "4.4.20") and (.upgradable == true) and (.version | split (".")[-1] | tonumber) < (.upgrade_to_firmware | split (".")[-1] | tonumber) and (.adopted == true) and (.uptime >= 0)) | .mac' &>> "/tmp/EUS/sites/${site}/upgrade/ugw_mac" #/tmp/EUS/ugws_upgraded > /dev/null ( tee -a )
-      ${unifi_api_curl_cmd} "$unifi_api_baseurl/api/s/${site}/stat/device" | jq -r '.data[] | select((.type == "uxg") and (.version > "0.1.0") and (.upgradable == true) and (.version | split (".")[-1] | tonumber) < (.upgrade_to_firmware | split (".")[-1] | tonumber) and (.adopted == true) and (.uptime >= 0)) | .mac' &>> "/tmp/EUS/sites/${site}/upgrade/uxg_mac"
+      raw_uxg_macs="$(jq -r '.data[] | select((.type=="uxg") and (.version>"0.1.0") and (.upgradable==true) and (.adopted==true) and (.uptime>=0)) | .mac' <<< "${stat_json}")"
+      raw_ugw_macs="$(jq -r '.data[] | select((.type=="ugw") and (.version>"4.4.20") and (.upgradable==true) and (.adopted==true) and (.uptime>=0)) | .mac' <<< "${stat_json}")"
     else
-      ${unifi_api_curl_cmd} "$unifi_api_baseurl/api/s/${site}/stat/device" | jq -r '.data[] | select((.type == "ugw") and (.version > "4.4.20") and (.upgradable == true) and (.version | split (".")[-1] | tonumber) > (.upgrade_to_firmware | split (".")[-1] | tonumber) and (.adopted == true) and (.uptime >= 0)) | .mac' &>> "/tmp/EUS/sites/${site}/upgrade/ugw_mac" #/tmp/EUS/ugws_upgraded > /dev/null ( tee -a )
-      ${unifi_api_curl_cmd} "$unifi_api_baseurl/api/s/${site}/stat/device" | jq -r '.data[] | select((.type == "uxg") and (.version > "0.1.0") and (.upgradable == true) and (.version | split (".")[-1] | tonumber) > (.upgrade_to_firmware | split (".")[-1] | tonumber) and (.adopted == true) and (.uptime >= 0)) | .mac' &>> "/tmp/EUS/sites/${site}/upgrade/uxg_mac"
+      raw_uxg_macs="$(jq -r '.data[] | select((.type=="uxg") and (.version>"0.1.0") and (.upgradable==true) and ((.version|split(".")[-1]|(tonumber? // 0))>(.upgrade_to_firmware|split(".")[-1]|(tonumber? // 0))) and (.adopted==true) and (.uptime>=0)) | .mac' <<< "${stat_json}")"
+      raw_ugw_macs="$(jq -r '.data[] | select((.type=="ugw") and (.version>"4.4.20") and (.upgradable==true) and ((.version|split(".")[-1]|(tonumber? // 0))>(.upgrade_to_firmware|split(".")[-1]|(tonumber? // 0))) and (.adopted==true) and (.uptime>=0)) | .mac' <<< "${stat_json}")"
     fi
-    if ! [[ -s "/tmp/EUS/sites/${site}/upgrade/uxg_mac" ]]; then rm --force "/tmp/EUS/sites/${site}/upgrade/uxg_mac"; fi
-    if ! [[ -s "/tmp/EUS/sites/${site}/upgrade/ugw_mac" ]]; then rm --force "/tmp/EUS/sites/${site}/upgrade/ugw_mac"; fi
-    if [[ -f "/tmp/EUS/sites/${site}/upgrade/uxg_mac" ]] && [[ -s "/tmp/EUS/sites/${site}/upgrade/uxg_mac" ]]; then
+    raw_uxg_macs="$(echo "${raw_uxg_macs}" | awk 'NF && !a[$0]++')"
+    raw_ugw_macs="$(echo "${raw_ugw_macs}" | awk 'NF && !a[$0]++')"
+    if [[ -n "${raw_uxg_macs}" ]]; then
+      uxg_mac_map["${site}"]="${raw_uxg_macs}"
+      uxg_count="$(echo "${raw_uxg_macs}" | wc -l)"
+      echo -e "$(date +%F-%T.%6N) | Site '${site}': ${uxg_count} upgradable UXG MAC(s) found." &>> "${eus_dir}/logs/device-upgrade.log"
+    fi
+    if [[ -n "${raw_ugw_macs}" ]]; then
+      ugw_mac_map["${site}"]="${raw_ugw_macs}"
+      ugw_count="$(echo "${raw_ugw_macs}" | wc -l)"
+      echo -e "$(date +%F-%T.%6N) | Site '${site}': ${ugw_count} upgradable UGW MAC(s) found." &>> "${eus_dir}/logs/device-upgrade.log"
+    fi
+    if [[ -n "${uxg_mac_map[${site}]}" ]]; then
+      uxg_upgrade_done="yes"
+      if [[ "${check_usw_upgrade}" != 'yes' ]]; then check_usw_upgrades; elif [[ "${check_uap_upgrade}" != 'yes' ]]; then check_uap_upgrades; fi
+      get_site_desc
+      while IFS= read -r uxg_mac; do
+        [[ -z "${uxg_mac}" ]] && continue
+        echo -e "$(date +%F-%T.%6N) | Site '${site_desc}' | Sending standard upgrade to UXG '${uxg_mac}'." &>> "${eus_dir}/logs/device-upgrade.log"
+        uxg_upgrade_result="$("${unifi_api_curl_cmd[@]}" --data "{\"mac\":\"${uxg_mac}\"}" "$unifi_api_baseurl/api/s/${site}/cmd/devmgr/upgrade" 2>&1)"
+        if echo "${uxg_upgrade_result}" | grep -iq 'ok'; then
+          echo -e "${GREEN}#${RESET} UXG with MAC address '${uxg_mac}' from site '${site_desc}' is now ${unifi_upgrade_devices_var_1}.."
+          echo -e "$(date +%F-%T.%6N) | Successfully started upgrade for UXG '${uxg_mac}' (site: '${site_desc}')." &>> "${eus_dir}/logs/device-upgrade.log"
+        elif echo "${uxg_upgrade_result}" | grep -iq 'UpgradeInProgress'; then
+          echo -e "${YELLOW}#${RESET} UXG with MAC address '${uxg_mac}' from site '${site_desc}' is already ${unifi_upgrade_devices_var_1}.."
+          echo -e "$(date +%F-%T.%6N) | UXG '${uxg_mac}' (site: '${site_desc}') was already upgrading." &>> "${eus_dir}/logs/device-upgrade.log"
+        else
+          echo -e "$(date +%F-%T.%6N) | WARNING | Unexpected upgrade response for UXG '${uxg_mac}' (site: '${site_desc}'): ${uxg_upgrade_result}" &>> "${eus_dir}/logs/device-upgrade.log"
+        fi
+      done <<< "${uxg_mac_map[${site}]}"
+    fi
+    if [[ -n "${ugw_mac_map[${site}]}" ]]; then
       ugw_upgrade_done="yes"
       if [[ "${check_usw_upgrade}" != 'yes' ]]; then check_usw_upgrades; elif [[ "${check_uap_upgrade}" != 'yes' ]]; then check_uap_upgrades; fi
-      if [[ "${uxg_upgrade_message}" != "true" ]]; then echo -e "${GRAY_R}#${RESET} ${unifi_upgrade_devices_var_1} UniFi NeXt-Gen Gateways.\\n"; uxg_upgrade_message="true"; fi
       get_site_desc
-      while read -r uxg_mac; do
-        ${unifi_api_curl_cmd} --data "{\"mac\":\"${uxg_mac}\"}" "$unifi_api_baseurl/api/s/${site}/cmd/devmgr/upgrade" >> "/tmp/EUS/sites/${site}/upgrade/uxg_upgrade_output"
-        if grep -iq 'ok' "/tmp/EUS/sites/${site}/upgrade/uxg_upgrade_output"; then echo -e "${GREEN}#${RESET} UXG with MAC address '${uxg_mac}' from site '${site_desc}' is now ${unifi_upgrade_devices_var_1}.."; fi
-        if grep -iq 'UpgradeInProgress' "/tmp/EUS/sites/${site}/upgrade/uxg_upgrade_output"; then echo -e "${YELLOW}#${RESET} UXG with MAC address '${uxg_mac}' from site '${site_desc}' is already ${unifi_upgrade_devices_var_1}.."; fi
-        rm --force "/tmp/EUS/sites/${site}/upgrade/uxg_upgrade_output"
-      done < "/tmp/EUS/sites/${site}/upgrade/uxg_mac"
+      while IFS= read -r ugw_mac; do
+        [[ -z "${ugw_mac}" ]] && continue
+        echo -e "$(date +%F-%T.%6N) | Site '${site_desc}' | Sending standard upgrade to UGW '${ugw_mac}'." &>> "${eus_dir}/logs/device-upgrade.log"
+        ugw_upgrade_result="$("${unifi_api_curl_cmd[@]}" --data "{\"mac\":\"${ugw_mac}\"}" "$unifi_api_baseurl/api/s/${site}/cmd/devmgr/upgrade" 2>&1)"
+        if echo "${ugw_upgrade_result}" | grep -iq 'ok'; then
+          echo -e "${GREEN}#${RESET} UGW with MAC address '${ugw_mac}' from site '${site_desc}' is now ${unifi_upgrade_devices_var_1}.."
+          echo -e "$(date +%F-%T.%6N) | Successfully started upgrade for UGW '${ugw_mac}' (site: '${site_desc}')." &>> "${eus_dir}/logs/device-upgrade.log"
+        elif echo "${ugw_upgrade_result}" | grep -iq 'UpgradeInProgress'; then
+          echo -e "${YELLOW}#${RESET} UGW with MAC address '${ugw_mac}' from site '${site_desc}' is already ${unifi_upgrade_devices_var_1}.."
+          echo -e "$(date +%F-%T.%6N) | UGW '${ugw_mac}' (site: '${site_desc}') was already upgrading." &>> "${eus_dir}/logs/device-upgrade.log"
+        else
+          echo -e "$(date +%F-%T.%6N) | WARNING | Unexpected upgrade response for UGW '${ugw_mac}' (site: '${site_desc}'): ${ugw_upgrade_result}" &>> "${eus_dir}/logs/device-upgrade.log"
+        fi
+      done <<< "${ugw_mac_map[${site}]}"
     fi
-    if [[ -f "/tmp/EUS/sites/${site}/upgrade/ugw_mac" ]] && [[ -s "/tmp/EUS/sites/${site}/upgrade/ugw_mac" ]]; then
-      ugw_upgrade_done="yes"
-      if [[ "${check_usw_upgrade}" != 'yes' ]]; then check_usw_upgrades; elif [[ "${check_uap_upgrade}" != 'yes' ]]; then check_uap_upgrades; fi
-      if [[ "${ugw_upgrade_message}" != "true" ]]; then echo -e "${GRAY_R}#${RESET} ${unifi_upgrade_devices_var_1} UniFi Security Gateways.\\n"; ugw_upgrade_message="true"; fi
-      get_site_desc
-      while read -r ugw_mac; do
-        ${unifi_api_curl_cmd} --data "{\"mac\":\"${ugw_mac}\"}" "$unifi_api_baseurl/api/s/${site}/cmd/devmgr/upgrade" >> "/tmp/EUS/sites/${site}/upgrade/ugw_upgrade_output"
-        if grep -iq 'ok' "/tmp/EUS/sites/${site}/upgrade/ugw_upgrade_output"; then echo -e "${GREEN}#${RESET} UGW with MAC address '${ugw_mac}' from site '${site_desc}' is now ${unifi_upgrade_devices_var_1}.."; fi
-        if grep -iq 'UpgradeInProgress' "/tmp/EUS/sites/${site}/upgrade/ugw_upgrade_output"; then echo -e "${YELLOW}#${RESET} UGW with MAC address '${ugw_mac}' from site '${site_desc}' is already ${unifi_upgrade_devices_var_1}.."; fi
-        rm --force "/tmp/EUS/sites/${site}/upgrade/ugw_upgrade_output"
-      done < "/tmp/EUS/sites/${site}/upgrade/ugw_mac"
-    fi
-    ${unifi_api_curl_cmd} "$unifi_api_baseurl/api/s/${site}/stat/device" | jq -r '.data[] | select((.type == "ugw") and (.version < "4.4.20")) | .model' >> /tmp/EUS/ugw_models
-    if [[ -s /tmp/EUS/ugw_models ]]; then
+    local legacy_ugw_models
+    legacy_ugw_models="$(jq -r '.data[] | select((.type=="ugw") and (.version<"4.4.20")) | .model' <<< "${stat_json}" | awk '!a[$0]++')"
+    if [[ -n "${legacy_ugw_models}" ]]; then
       ugw_custom="yes"
       ugw_upgrade_done="yes"
-    else
-      rm --force /tmp/EUS/ugw_models
+      echo -e "$(date +%F-%T.%6N) | Site '${site}': legacy UGW models (version < 4.4.20): $(echo "${legacy_ugw_models}" | tr '\n' ' ')." &>> "${eus_dir}/logs/device-upgrade.log"
+      ugw_models_list=()
+      while IFS= read -r m; do [[ -n "${m}" ]] && ugw_models_list+=("${m}"); done <<< "${legacy_ugw_models}"
     fi
     if [[ "${ugw_custom}" == 'yes' ]]; then
-      while read -r model; do
-        # shellcheck disable=SC2086
-        ${unifi_api_curl_cmd} "$unifi_api_baseurl/api/s/${site}/stat/device" | jq -r '.data[] | select((.type == "ugw") and (.version < "4.4.20") and (.model == "'${model}'") and (.adopted == true) and (.uptime >= 0)) | .mac' &>> "/tmp/EUS/sites/${site}/upgrade/${model}_mac" #/tmp/EUS/ugws_upgraded > /dev/null ( tee -a )
+      for model in "${ugw_models_list[@]}"; do
+        local model_macs
+        model_macs="$(jq -r --arg m "${model}" '.data[] | select((.type=="ugw") and (.version<"4.4.20") and (.model==$m) and (.adopted==true) and (.uptime>=0)) | .mac' <<< "${stat_json}")"
+        custom_mac_map["${site}_${model}"]="${model_macs}"
+        echo -e "$(date +%F-%T.%6N) | Site '${site}': legacy UGW model '${model}' MACs: $(echo "${model_macs}" | tr '\n' ' ')." &>> "${eus_dir}/logs/device-upgrade.log"
         cached_firmware_url
         if [[ "${ugw_custom_upgrade_message}" != "true" ]]; then
-          if [[ "${check_usw_upgrade}" != 'yes' ]]; then
-            check_usw_upgrades
-          elif [[ "${check_uap_upgrade}" != 'yes' ]]; then
-            check_uap_upgrades
-          fi
-          echo -e "${GRAY_R}#${RESET} Custom upgrading UniFi Security Gateways! \\n"
+          if [[ "${check_usw_upgrade}" != 'yes' ]]; then check_usw_upgrades; elif [[ "${check_uap_upgrade}" != 'yes' ]]; then check_uap_upgrades; fi
+          echo -e "${GRAY_R}#${RESET} Custom upgrading UniFi Security Gateways! \n"
           ugw_custom_upgrade_message="true"
         fi
-        if [[ ${UGW3[*]} =~ ${model} ]]; then # -- USG3
-          if [[ "${firmware_cached}" == 'yes' ]]; then
-            firmware_url="http://${application_inform_address}:${cache_fw_port}/dl/firmware-cached/${cached_fw_path}"
-          else
-            firmware_url=$(curl -s "http://fw-update.ui.com/api/firmware-latest?filter=eq~~platform~~UGW3&filter=eq~~channel~~release" 2> /dev/null | jq -r '._embedded.firmware[]._links.data.href' 2> /dev/null | sed 's/https/http/g')
-            if [[ -z "${firmware_url}" ]]; then firmware_url="http://dl.ui.com/unifi/firmware/UGW3/4.4.51.5287926/UGW3.v4.4.51.5287926.tar"; fi
-          fi
-          while read -r ugw_mac; do
-            ugw_custom_upgrade_commands
-          done < "/tmp/EUS/sites/${site}/upgrade/${model}_mac"
-        elif [[ ${UGW4[*]} =~ ${model} ]]; then # -- USG-PRO-4
-          if [[ "${firmware_cached}" == 'yes' ]]; then
-            firmware_url="http://${application_inform_address}:${cache_fw_port}/dl/firmware-cached/${cached_fw_path}"
-          else
-            firmware_url=$(curl -s "http://fw-update.ui.com/api/firmware-latest?filter=eq~~platform~~UGW4&filter=eq~~channel~~release" 2> /dev/null | jq -r '._embedded.firmware[]._links.data.href' 2> /dev/null | sed 's/https/http/g')
-            if [[ -z "${firmware_url}" ]]; then firmware_url="http://dl.ui.com/unifi/firmware/UGW4/4.4.51.5287926/UGW4.v4.4.51.5287926.tar"; fi
-          fi
-          while read -r ugw_mac; do
-            ugw_custom_upgrade_commands
-          done < "/tmp/EUS/sites/${site}/upgrade/${model}_mac"
+        if [[ "${firmware_cached}" == 'yes' ]]; then
+          firmware_url="http://${application_inform_address}:${cache_fw_port}/dl/firmware-cached/${cached_fw_path}"
+        elif [[ ${UGW3[*]} =~ ${model} ]]; then
+          firmware_url="$(curl -s "http://fw-update.ui.com/api/firmware-latest?filter=eq~~platform~~UGW3&filter=eq~~channel~~release" 2>/dev/null | jq -r '._embedded.firmware[]._links.data.href' 2>/dev/null | sed 's/https/http/g')"
+          [[ -z "${firmware_url}" ]] && firmware_url="http://dl.ui.com/unifi/firmware/UGW3/4.4.51.5287926/UGW3.v4.4.51.5287926.tar"
+        elif [[ ${UGW4[*]} =~ ${model} ]]; then
+          firmware_url="$(curl -s "http://fw-update.ui.com/api/firmware-latest?filter=eq~~platform~~UGW4&filter=eq~~channel~~release" 2>/dev/null | jq -r '._embedded.firmware[]._links.data.href' 2>/dev/null | sed 's/https/http/g')"
+          [[ -z "${firmware_url}" ]] && firmware_url="http://dl.ui.com/unifi/firmware/UGW4/4.4.51.5287926/UGW4.v4.4.51.5287926.tar"
+        else
+          echo -e "$(date +%F-%T.%6N) | WARNING | Model '${model}' does not match any known legacy UGW platform — skipping." &>> "${eus_dir}/logs/device-upgrade.log"
+          continue
         fi
-      done < /tmp/EUS/ugw_models
+        echo -e "$(date +%F-%T.%6N) | Resolved firmware URL for model '${model}': '${firmware_url}'." &>> "${eus_dir}/logs/device-upgrade.log"
+        while IFS= read -r ugw_mac; do
+          [[ -z "${ugw_mac}" ]] && continue
+          ugw_custom_upgrade_commands
+        done <<< "${custom_mac_map[${site}_${model}]}"
+      done
     fi
-  done < /tmp/EUS/unifi_sites
+  done
+  echo -e "$(date +%F-%T.%6N) | UXG/UGW upgrade pass complete." &>> "${eus_dir}/logs/device-upgrade.log"
 }
 
+
 check_uap_upgrades() {
-  if [[ "${uap_upgrade_done}" == 'yes' ]]; then
-    uap_upgrading
-    check_uap_upgrade="yes"
-  fi
+  if [[ "${uap_upgrade_done}" == 'yes' ]]; then uap_upgrading; check_uap_upgrade="yes"; fi
 }
 
 check_usw_upgrades() {
-  if [[ "${usw_upgrade_done}" == 'yes' ]]; then
-    usw_upgrading
-    check_usw_upgrade="yes"
-  fi
+  if [[ "${usw_upgrade_done}" == 'yes' ]]; then usw_upgrading; check_usw_upgrade="yes"; fi
 }
 
 check_uap_upgraded() {
-  if [[ "${uap_upgrade_done}" == 'no' ]]; then echo -e "\\n${GREEN}#${RESET} There were 0 UAP(s) that needed a firmware ${unifi_upgrade_devices_var_2}.."; fi
+  if [[ "${uap_upgrade_done}" == 'no' ]]; then
+    echo -e "${GREEN}#${RESET} There were 0 UniFi Access Point(s) that needed a firmware ${unifi_upgrade_devices_var_2}."
+    echo -e "$(date +%F-%T.%6N) | No UAPs required a firmware ${unifi_upgrade_devices_var_2}." &>> "${eus_dir}/logs/device-upgrade.log"
+  else
+    echo -e "$(date +%F-%T.%6N) | UAP firmware ${unifi_upgrade_devices_var_2} started." &>> "${eus_dir}/logs/device-upgrade.log"
+  fi
+  echo ""
 }
 
 check_usw_upgraded() {
-  if [[ "${usw_upgrade_done}" == 'no' ]]; then echo -e "\\n${GREEN}#${RESET} There were 0 USW(s) that needed a firmware ${unifi_upgrade_devices_var_2}.."; fi
+  if [[ "${usw_upgrade_done}" == 'no' ]]; then
+    echo -e "${GREEN}#${RESET} There were 0 UniFi Switch(es) that needed a firmware ${unifi_upgrade_devices_var_2}."
+    echo -e "$(date +%F-%T.%6N) | No USWs required a firmware ${unifi_upgrade_devices_var_2}." &>> "${eus_dir}/logs/device-upgrade.log"
+  else
+    echo -e "$(date +%F-%T.%6N) | USW firmware ${unifi_upgrade_devices_var_2} started." &>> "${eus_dir}/logs/device-upgrade.log"
+  fi
+  echo ""
 }
 
-check_uxg_upgraded() {
-  if [[ "${ugw_upgrade_done}" == 'no' ]]; then echo -e "\\n${GREEN}#${RESET} There were 0 UXG(s) that needed a firmware ${unifi_upgrade_devices_var_2}.."; fi
-}
-
-check_ugw_upgraded() {
-  if [[ "${ugw_upgrade_done}" == 'no' ]]; then echo -e "\\n${GREEN}#${RESET} There were 0 UGW(s) that needed a firmware ${unifi_upgrade_devices_var_2}.."; fi
+check_gw_upgraded() {
+  if [[ "${uxg_upgrade_done}" == 'no' && "${ugw_upgrade_done}" == 'no' ]]; then
+    echo -e "${GREEN}#${RESET} There were 0 UniFi Gateway(s) or UniFi Security Gateway(s) that needed a firmware ${unifi_upgrade_devices_var_2}."
+    echo -e "$(date +%F-%T.%6N) | No UXG or UGW devices required a firmware ${unifi_upgrade_devices_var_2}." &>> "${eus_dir}/logs/device-upgrade.log"
+  else
+    echo -e "$(date +%F-%T.%6N) | UXG/UGW firmware ${unifi_upgrade_devices_var_2} started." &>> "${eus_dir}/logs/device-upgrade.log"
+  fi
+  echo ""
 }
 
 unifi_upgrade_devices() {
   header
   echo -e "\\n${GRAY_R}#${RESET} Starting the device ${unifi_upgrade_devices_var_2}!"
   echo -e "\\n${GREEN}---${RESET}\\n"
+  echo -e "$(date +%F-%T.%6N) | ========== unifi_upgrade_devices START (${unifi_upgrade_devices_var_2}) ==========" &>> "${eus_dir}/logs/device-upgrade.log"
+  local _inv_stat_json
+  for site in "${unifi_sites_list[@]}"; do
+    _inv_stat_json="$("${unifi_api_curl_cmd[@]}" "$unifi_api_baseurl/api/s/${site}/stat/device" 2>&1)"
+    log_site_inventory "${site}" "${_inv_stat_json}"
+  done
   uap_upgrade
   check_uap_upgraded
   usw_upgrade
   check_usw_upgraded
   ugw_upgrade
-  check_uxg_upgraded
-  check_ugw_upgraded
+  check_gw_upgraded
   sleep 3
+  echo -e "$(date +%F-%T.%6N) | ========== unifi_upgrade_devices END ==========" &>> "${eus_dir}/logs/device-upgrade.log"
 }
 
 ###################################################################################################################################################################################################
@@ -8804,36 +9115,48 @@ unifi_upgrade_devices() {
 ###################################################################################################################################################################################################
 
 check_uap_scheduled() {
-  if [[ "${uap_upgrade_schedule_done}" == 'no' ]] && [[ "${uap_upgrade_schedule_done_message}" != 'yes' ]]; then
-    echo -e "\\n${GREEN}#${RESET} There were 0 UAP(s) that needed a firmware ${unifi_upgrade_devices_var_2}, script didn't schedule any UAPs."
+  if [[ "${uap_upgrade_schedule_done}" == 'no' && "${uap_upgrade_schedule_done_message}" != 'yes' ]]; then
+    echo -e "${GREEN}#${RESET} There were 0 UniFi Access Point(s) that needed a firmware ${unifi_upgrade_devices_var_2}, script didn't schedule any."
+    echo -e "$(date +%F-%T.%6N) | No UAPs were eligible for scheduling." &>> "${eus_dir}/logs/device-schedule.log"
     uap_upgrade_schedule_done_message="yes"
+  else
+    echo -e "$(date +%F-%T.%6N) | UAP scheduling complete." &>> "${eus_dir}/logs/device-schedule.log"
   fi
 }
 
 check_usw_scheduled() {
-  if [[ "${usw_upgrade_schedule_done}" == 'no' ]] && [[ "${usw_upgrade_schedule_done_message}" != 'yes' ]]; then
-    echo -e "\\n${GREEN}#${RESET} There were 0 USW(s) that needed a firmware ${unifi_upgrade_devices_var_2}, script didn't schedule any USWs."
+  if [[ "${usw_upgrade_schedule_done}" == 'no' && "${usw_upgrade_schedule_done_message}" != 'yes' ]]; then
+    echo -e "${GREEN}#${RESET} There were 0 UniFi Switch(es) that needed a firmware ${unifi_upgrade_devices_var_2}, script didn't schedule any."
+    echo -e "$(date +%F-%T.%6N) | No USWs were eligible for scheduling." &>> "${eus_dir}/logs/device-schedule.log"
     usw_upgrade_schedule_done_message="yes"
+  else
+    echo -e "$(date +%F-%T.%6N) | USW scheduling complete." &>> "${eus_dir}/logs/device-schedule.log"
   fi
 }
 
 check_uxg_scheduled() {
-  if [[ "${uxg_upgrade_schedule_done}" == 'no' ]] && [[ "${ugw_upgrade_schedule_done_message}" != 'yes' ]]; then
-    echo -e "\\n${GREEN}#${RESET} There were 0 UXG(s) that needed a firmware ${unifi_upgrade_devices_var_2}, script didn't schedule any UXGs."
+  if [[ "${uxg_upgrade_schedule_done}" == 'no' && "${ugw_upgrade_schedule_done_message}" != 'yes' ]]; then
+    echo -e "${GREEN}#${RESET} There were 0 UniFi Gateway(s) that needed a firmware ${unifi_upgrade_devices_var_2}, script didn't schedule any."
+    echo -e "$(date +%F-%T.%6N) | No UXGs were eligible for scheduling." &>> "${eus_dir}/logs/device-schedule.log"
     ugw_upgrade_schedule_done_message="yes"
+  else
+    echo -e "$(date +%F-%T.%6N) | UXG scheduling complete." &>> "${eus_dir}/logs/device-schedule.log"
   fi
 }
 
 check_ugw_scheduled() {
-  if [[ "${ugw_upgrade_schedule_done}" == 'no' ]] && [[ "${ugw_upgrade_schedule_done_message}" != 'yes' ]]; then
-    echo -e "\\n${GREEN}#${RESET} There were 0 UGW(s) that needed a firmware ${unifi_upgrade_devices_var_2}, script didn't schedule any UGWs."
+  if [[ "${ugw_upgrade_schedule_done}" == 'no' && "${ugw_upgrade_schedule_done_message}" != 'yes' ]]; then
+    echo -e "${GREEN}#${RESET} There were 0 UniFi Security Gateway(s) that needed a firmware ${unifi_upgrade_devices_var_2}, script didn't schedule any."
+    echo -e "$(date +%F-%T.%6N) | No UGWs were eligible for scheduling." &>> "${eus_dir}/logs/device-schedule.log"
     ugw_upgrade_schedule_done_message="yes"
+  else
+    echo -e "$(date +%F-%T.%6N) | UGW scheduling complete." &>> "${eus_dir}/logs/device-schedule.log"
   fi
 }
 
 schedule_time_question() {
   header
-  echo -e "${GRAY_R}#${RESET} Information: The device ${unifi_upgrade_devices_var_2} will be exectured at the choosen time at the sites timezone."
+  echo -e "${GRAY_R}#${RESET} Information: The device ${unifi_upgrade_devices_var_2} will be executed at the chosen time at the site's timezone."
   echo -e "${GRAY_R}#${RESET} At what time do you want to schedule your devices to update?"
   echo -e "\\n${GRAY_R}---${RESET}\\n"
   echo -e " [   ${WHITE_R}1 ${RESET}   ]  |  1 AM          ${GREEN}|${RESET}          [   ${WHITE_R}13${RESET}   ]  |  1 PM"
@@ -8849,17 +9172,18 @@ schedule_time_question() {
   echo -e " [   ${WHITE_R}11${RESET}   ]  |  11 AM         ${GREEN}|${RESET}          [   ${WHITE_R}23${RESET}   ]  |  11 PM"
   echo -e " [   ${WHITE_R}12${RESET}   ]  |  12 PM         ${GREEN}|${RESET}          [   ${WHITE_R}24${RESET}   ]  |  12 AM"
   echo -e "\\n"
+  local choice
   read -rp $'Your choice | \033[39m' choice
   case "$choice" in
-     1) cron_expr='0 1'; cron_expr_human='1 AM';;
-     2) cron_expr='0 2'; cron_expr_human='2 AM';;
-     3) cron_expr='0 3'; cron_expr_human='3 AM';;
-     4) cron_expr='0 4'; cron_expr_human='4 AM';;
-     5) cron_expr='0 5'; cron_expr_human='5 AM';;
-     6) cron_expr='0 6'; cron_expr_human='6 AM';;
-     7) cron_expr='0 7'; cron_expr_human='7 AM';;
-     8) cron_expr='0 8'; cron_expr_human='8 AM';;
-     9) cron_expr='0 9'; cron_expr_human='9 AM';;
+     1)  cron_expr='0 1';  cron_expr_human='1 AM';;
+     2)  cron_expr='0 2';  cron_expr_human='2 AM';;
+     3)  cron_expr='0 3';  cron_expr_human='3 AM';;
+     4)  cron_expr='0 4';  cron_expr_human='4 AM';;
+     5)  cron_expr='0 5';  cron_expr_human='5 AM';;
+     6)  cron_expr='0 6';  cron_expr_human='6 AM';;
+     7)  cron_expr='0 7';  cron_expr_human='7 AM';;
+     8)  cron_expr='0 8';  cron_expr_human='8 AM';;
+     9)  cron_expr='0 9';  cron_expr_human='9 AM';;
      10) cron_expr='0 10'; cron_expr_human='10 AM';;
      11) cron_expr='0 11'; cron_expr_human='11 AM';;
      12) cron_expr='0 12'; cron_expr_human='12 PM';;
@@ -8874,53 +9198,89 @@ schedule_time_question() {
      21) cron_expr='0 21'; cron_expr_human='9 PM';;
      22) cron_expr='0 22'; cron_expr_human='10 PM';;
      23) cron_expr='0 23'; cron_expr_human='11 PM';;
-     24) cron_expr='0 0'; cron_expr_human='12 AM';;
-	 *) 
+     24) cron_expr='0 0';  cron_expr_human='12 AM';;
+     *)
         header_red
         echo -e "${GRAY_R}#${RESET} '${choice}' is not a valid option..." && sleep 2
+        echo -e "$(date +%F-%T.%6N) | WARNING | Invalid schedule time choice '${choice}' — reprompting." &>> "${eus_dir}/logs/device-schedule.log"
         schedule_time_question;;
   esac
+  echo -e "$(date +%F-%T.%6N) | User selected schedule time: ${cron_expr_human} (cron: '${cron_expr}')." &>> "${eus_dir}/logs/device-schedule.log"
 }
 
 device_upgrade_schedule() {
-  echo -e "uap\\nusw\\nuxg\\nugw" &> /tmp/EUS/device_types
-  while read -r device_type; do
-    while read -r site; do
-      ${unifi_api_curl_cmd} "$unifi_api_baseurl/api/s/${site}/rest/scheduletask" | jq -r '.data[] | select(.execute_only_once == true) | .upgrade_targets | .[] | .mac' &> "/tmp/EUS/sites/${site}/scheduletask"
-      if ! [[ -s "/tmp/EUS/sites/${site}/scheduletask" ]]; then rm --force "/tmp/EUS/sites/${site}/scheduletask" &> /dev/null; fi
+  local device_types=("uap" "usw" "uxg" "ugw")
+  local device_type type_2 type_long site site_timezone eligible_macs eligible_count
+  local scheduled_raw mac schedule_name schedule_result
+  echo -e "$(date +%F-%T.%6N) | ========== device_upgrade_schedule START ==========" &>> "${eus_dir}/logs/device-schedule.log"
+  for device_type in "${device_types[@]}"; do
+    case "${device_type}" in
+      uap) type_2="UAP"; type_long="UniFi Access Points";;
+      usw) type_2="USW"; type_long="UniFi Switches";;
+      uxg) type_2="UXG"; type_long="UniFi NeXt-Gen Gateways";;
+      ugw) type_2="UGW"; type_long="UniFi Security Gateways";;
+    esac
+    echo -e "$(date +%F-%T.%6N) | Processing device type: ${type_2} (${type_long})." &>> "${eus_dir}/logs/device-schedule.log"
+    for site in "${unifi_sites_list[@]}"; do
       get_site_desc
-      site_timezone=$(tail -n1 "/tmp/EUS/sites/${site}/site_timezone")
-      type_2=$(echo "${device_type}" | tr '[:lower:]' '[:upper:]')
-      if [[ "${device_type}" == 'uap' ]]; then type_long="UniFi Access Points"; elif [[ "${device_type}" == 'usw' ]]; then type_long="UniFi Switches"; elif [[ "${device_type}" == 'uxg' ]]; then type_long="UniFi NeXt-Gen Gateways"; elif [[ "${device_type}" == 'ugw' ]]; then type_long="UniFi Security Gateways"; fi
-      # shellcheck disable=SC2086
-      if [[ "${option_upgrade}" == 'true' ]]; then
-        ${unifi_api_curl_cmd} "$unifi_api_baseurl/api/s/${site}/stat/device" | jq -r '.data[] | select((.type == "'${device_type}'") and (.upgradable == true) and (.version | split (".")[-1] | tonumber) < (.upgrade_to_firmware | split (".")[-1] | tonumber) and (.adopted == true)) | .mac' &>> "/tmp/EUS/sites/${site}/${device_type}_mac"
+      site_timezone="${site_timezone_map[${site}]}"
+      echo -e "$(date +%F-%T.%6N) | Site '${site}' (${site_desc}, tz: ${site_timezone}) — fetching existing scheduled tasks." &>> "${eus_dir}/logs/device-schedule.log"
+      scheduled_raw="$("${unifi_api_curl_cmd[@]}" "$unifi_api_baseurl/api/s/${site}/rest/scheduletask" | jq -r '.data[] | select(.execute_only_once == true) | .upgrade_targets | .[] | .mac' 2>&1)"
+      scheduled_mac_map["${site}"]="${scheduled_raw}"
+      if [[ -n "${scheduled_raw}" ]]; then
+        echo -e "$(date +%F-%T.%6N) | Site '${site}': $(echo "${scheduled_raw}" | wc -l) already-scheduled MAC(s) found." &>> "${eus_dir}/logs/device-schedule.log"
       else
-        ${unifi_api_curl_cmd} "$unifi_api_baseurl/api/s/${site}/stat/device" | jq -r '.data[] | select((.type == "'${device_type}'") and (.upgradable == true) and (.version | split (".")[-1] | tonumber) > (.upgrade_to_firmware | split (".")[-1] | tonumber) and (.adopted == true)) | .mac' &>> "/tmp/EUS/sites/${site}/${device_type}_mac"
+        echo -e "$(date +%F-%T.%6N) | Site '${site}': no existing scheduled tasks found." &>> "${eus_dir}/logs/device-schedule.log"
       fi
-      if ! [[ -s "/tmp/EUS/sites/${site}/${device_type}_mac" ]]; then rm --force "/tmp/EUS/sites/${site}/${device_type}_mac" &> /dev/null; fi
-      if [[ -f "/tmp/EUS/sites/${site}/${device_type}_mac" ]] && [[ -s "/tmp/EUS/sites/${site}/${device_type}_mac" ]]; then
-        if [[ "${device_type}" == 'uap' ]]; then uap_upgrade_schedule_done="yes"; elif [[ "${device_type}" == 'usw' ]]; then usw_upgrade_schedule_done="yes"; elif [[ "${device_type}" == 'uxg' ]]; then uxg_upgrade_schedule_done="yes"; elif [[ "${device_type}" == 'ugw' ]]; then ugw_upgrade_schedule_done="yes"; fi
-        if ! [[ -f "/tmp/EUS/${device_type}_schedule_message" ]]; then
-          echo -e "${GRAY_R}#${RESET} Scheduling updates for the ${type_long}.\\n"
-          touch "/tmp/EUS/${device_type}_schedule_message"
-        fi
-        while read -r mac; do
-          if grep -iq "${mac}" "/tmp/EUS/sites/${site}/scheduletask" &> /dev/null; then
-            echo -e "${YELLOW}#${RESET} ${type_2} with MAC address '${mac}' from site '${site_desc}' is already scheduled.."
+      if [[ "${option_upgrade}" == 'true' ]]; then
+        eligible_macs="$("${unifi_api_curl_cmd[@]}" "$unifi_api_baseurl/api/s/${site}/stat/device" | jq -r --arg t "${device_type}" '.data[] | select((.type==$t) and (.upgradable==true) and (.adopted==true)) | .mac' 2>&1)"
+      else
+        eligible_macs="$("${unifi_api_curl_cmd[@]}" "$unifi_api_baseurl/api/s/${site}/stat/device" | jq -r --arg t "${device_type}" '.data[] | select((.type==$t) and (.upgradable==true) and ((.version|split(".")[-1]|(tonumber? // 0))>(.upgrade_to_firmware|split(".")[-1]|(tonumber? // 0))) and (.adopted==true)) | .mac' 2>&1)"
+      fi
+      eligible_macs="$(echo "${eligible_macs}" | awk 'NF && !a[$0]++')"
+      if [[ -z "${eligible_macs}" ]]; then
+        echo -e "$(date +%F-%T.%6N) | Site '${site}': no eligible ${type_2} MACs for scheduling." &>> "${eus_dir}/logs/device-schedule.log"
+        continue
+      fi
+      eligible_count="$(echo "${eligible_macs}" | wc -l)"
+      echo -e "$(date +%F-%T.%6N) | Site '${site}': ${eligible_count} eligible ${type_2} MAC(s) found." &>> "${eus_dir}/logs/device-schedule.log"
+      schedule_mac_map["${site}_${device_type}"]="${eligible_macs}"
+      case "${device_type}" in
+        uap) uap_upgrade_schedule_done="yes";;
+        usw) usw_upgrade_schedule_done="yes";;
+        uxg) uxg_upgrade_schedule_done="yes";;
+        ugw) ugw_upgrade_schedule_done="yes";;
+      esac
+      if [[ -z "${device_type_schedule_message[${device_type}]}" ]]; then
+        echo -e "${GRAY_R}#${RESET} Scheduling updates for the ${type_long}.\\n"
+        device_type_schedule_message["${device_type}"]="true"
+      fi
+      while IFS= read -r mac; do
+        [[ -z "${mac}" ]] && continue
+        if echo "${scheduled_mac_map[${site}]}" | grep -iq "^${mac}$"; then
+          echo -e "${YELLOW}#${RESET} ${type_2} with MAC address '${mac}' from site '${site_desc}' is already scheduled.."
+          echo -e "$(date +%F-%T.%6N) | Site '${site_desc}' | ${type_2} '${mac}' is already scheduled — skipping." &>> "${eus_dir}/logs/device-schedule.log"
+        else
+          schedule_name="EUS ${type_2} Upgrade | ${mac}"
+          echo -e "$(date +%F-%T.%6N) | Site '${site_desc}' | Scheduling ${type_2} '${mac}' at ${cron_expr_human} (cron: '${cron_expr} * * *') tz '${site_timezone}'." &>> "${eus_dir}/logs/device-schedule.log"
+          schedule_result="$("${unifi_api_curl_cmd[@]}" --data "{\"cron_expr\":\"${cron_expr} * * *\",\"name\":\"${schedule_name}\",\"execute_only_once\":true,\"action\":\"upgrade\",\"upgrade_targets\":[{\"mac\":\"${mac}\"}]}" "$unifi_api_baseurl/api/s/${site}/rest/scheduletask" 2>&1)"
+          if echo "${schedule_result}" | grep -iq 'ok'; then
+            echo -e "${GREEN}#${RESET} ${type_2} with MAC address '${mac}' from site '${site_desc}' is scheduled to ${unifi_upgrade_devices_var_2} at ${cron_expr_human} ${site_timezone}."
+            echo -e "$(date +%F-%T.%6N) | Successfully scheduled ${type_2} '${mac}' (site: '${site_desc}') for ${unifi_upgrade_devices_var_2} at ${cron_expr_human} ${site_timezone}." &>> "${eus_dir}/logs/device-schedule.log"
           else
-            schedule_name="EUS ${type_2} Upgrade | ${mac}"
-            ${unifi_api_curl_cmd}  --data "{\"cron_expr\":\"${cron_expr} * * *\",\"name\":\"${schedule_name}\",\"execute_only_once\":true,\"action\":\"upgrade\",\"upgrade_targets\":[{\"mac\":\"${mac}\"}]}" "$unifi_api_baseurl/api/s/${site}/rest/scheduletask" >> "/tmp/EUS/sites/${site}/${device_type}_upgrade_schedule_output"
-            if grep -iq 'ok' "/tmp/EUS/sites/${site}/${device_type}_upgrade_schedule_output"; then echo -e "${GREEN}#${RESET} ${type_2} with MAC address '${mac}' from site '${site_desc}' is scheduled to ${unifi_upgrade_devices_var_2} at ${cron_expr_human} ${site_timezone}."; fi
-            rm --force "/tmp/EUS/sites/${site}/${device_type}_upgrade_schedule_output" 2> /dev/null
+            echo -e "$(date +%F-%T.%6N) | ERROR | Failed to schedule ${type_2} '${mac}' (site: '${site_desc}'). API response: ${schedule_result}" &>> "${eus_dir}/logs/device-schedule.log"
           fi
-        done < "/tmp/EUS/sites/${site}/${device_type}_mac"
-      fi
-    done < /tmp/EUS/unifi_sites
-    rm --force "/tmp/EUS/${device_type}_schedule_message" &> /dev/null
-    if [[ "${device_type}" == 'uap' ]]; then check_uap_scheduled; elif [[ "${device_type}" == 'usw' ]]; then check_usw_scheduled; elif [[ "${device_type}" == 'uxg' ]]; then check_uxg_scheduled; elif [[ "${device_type}" == 'ugw' ]]; then check_ugw_scheduled; fi
-  done < /tmp/EUS/device_types
-  rm --force /tmp/EUS/device_types &> /dev/null
+        fi
+      done <<< "${schedule_mac_map[${site}_${device_type}]}"
+    done
+    case "${device_type}" in
+      uap) check_uap_scheduled;;
+      usw) check_usw_scheduled;;
+      uxg) check_uxg_scheduled;;
+      ugw) check_ugw_scheduled;;
+    esac
+  done
+  echo -e "$(date +%F-%T.%6N) | ========== device_upgrade_schedule END ==========" &>> "${eus_dir}/logs/device-schedule.log"
 }
 
 unifi_upgrade_scheduler() {
@@ -8928,8 +9288,10 @@ unifi_upgrade_scheduler() {
   header
   echo -e "\\n${GRAY_R}#${RESET} Starting the device ${unifi_upgrade_devices_var_2} scheduler!"
   echo -e "\\n${GREEN}---${RESET}\\n"
+  echo -e "$(date +%F-%T.%6N) | unifi_upgrade_scheduler started. cron_expr='${cron_expr}', cron_expr_human='${cron_expr_human}'." &>> "${eus_dir}/logs/device-schedule.log"
   device_upgrade_schedule
   sleep 3
+  echo -e "$(date +%F-%T.%6N) | unifi_upgrade_scheduler complete." &>> "${eus_dir}/logs/device-schedule.log"
 }
 
 ###################################################################################################################################################################################################
@@ -8981,11 +9343,11 @@ unifi_backup () {
     output="/usr/lib/unifi/data/backup/glennr-unifi-backups/unifi_backup_${unifi}_${backup_time}.unf"
   fi
   if [[ "${unifi}" =~ ^(5.4.0|5.4.1)$ || "${unifi_release::3}" -lt "54" ]]; then
-    path=$($unifi_api_curl_cmd --data "{\"cmd\":\"backup\",\"days\":\"0\"}" "$unifi_api_baseurl/api/s/${site}/cmd/system" | sed -n 's/.*\(\/dl.*unf\).*/\1/p')
+    path=$("${unifi_api_curl_cmd[@]}" --data "{\"cmd\":\"backup\",\"days\":\"0\"}" "$unifi_api_baseurl/api/s/${site}/cmd/system" | sed -n 's/.*\(\/dl.*unf\).*/\1/p')
   else
-    path=$($unifi_api_curl_cmd --data "{\"cmd\":\"backup\",\"days\":\"0\"}" "$unifi_api_baseurl/api/s/${site}/cmd/backup" | sed -n 's/.*\(\/dl.*unf\).*/\1/p')
+    path=$("${unifi_api_curl_cmd[@]}" --data "{\"cmd\":\"backup\",\"days\":\"0\"}" "$unifi_api_baseurl/api/s/${site}/cmd/backup" | sed -n 's/.*\(\/dl.*unf\).*/\1/p')
   fi
-  ${unifi_api_curl_cmd} "$unifi_api_baseurl$path" -o "$output" --create-dirs
+  "${unifi_api_curl_cmd[@]}" "$unifi_api_baseurl$path" -o "$output" --create-dirs
 }
 
 unifi_backup_check() {
@@ -11101,7 +11463,7 @@ unifi_site_stats() {
   while read -r site; do
     if [[ "${unifi_site_stats_first}" == '1' ]]; then echo -e "\\n${GRAY_R}----${RESET}\\n"; else unifi_site_stats_first="1"; fi
     echo -e "${GREEN}#${RESET} Statistics for site: \"$(cat "/tmp/EUS/sites/${site}/site_desc")\"\\n"
-    ${unifi_api_curl_cmd} "$unifi_api_baseurl/api/s/${site}/stat/health" | jq -r '.data[] | select(.subsystem|test("^wlan","^lan","^wan")) | {site_placeholder: {(.subsystem): {users: .num_user, guests: .num_guest, iot: .num_iot, adopted: .num_adopted, disconnected: .num_disconnected, disabled: .num_disabled, pending: .num_pending}}}' | sed '/null/d' | sed "s/site_placeholder/${site}/g" &> "/tmp/EUS/stats/site_${site}_stats.json"
+    "${unifi_api_curl_cmd[@]}" "$unifi_api_baseurl/api/s/${site}/stat/health" | jq -r '.data[] | select(.subsystem|test("^wlan","^lan","^wan")) | {site_placeholder: {(.subsystem): {users: .num_user, guests: .num_guest, iot: .num_iot, adopted: .num_adopted, disconnected: .num_disconnected, disabled: .num_disabled, pending: .num_pending}}}' | sed '/null/d' | sed "s/site_placeholder/${site}/g" &> "/tmp/EUS/stats/site_${site}_stats.json"
     # shellcheck disable=SC2086
     adopted_devices_wlan=$(jq -r '.["'${site}'"].wlan.adopted | select (.!=null)' "/tmp/EUS/stats/site_${site}_stats.json")
     # shellcheck disable=SC2086
@@ -12133,10 +12495,22 @@ uos_server_upgrade_process() {
     if systemctl is-active --quiet uosserver.service 2>/dev/null; then
       header
       echo -e "${GRAY_R}#${RESET} Stopping the UniFi OS Server service..."
-      echo -e "$(date +%F-%T.%6N) | Stopping uosserver.service before upgrade (version ${uos_version} is below 5.1.15)..." &>> "${eus_dir}/logs/uos-server-update.log"
+      echo -e "$(date +%F-%T.%6N) | Stopping uosserver.service before upgrade (version ${uos_version} is below 5.0.0)..." &>> "${eus_dir}/logs/uos-server-update.log"
       if systemctl stop uosserver.service &>> "${eus_dir}/logs/uos-server-update.log"; then
-        echo -e "${GRAY_R}#${RESET} Successfully stopped the UniFi OS Server service! \\n"
+        echo -e "${GREEN}#${RESET} Successfully stopped the UniFi OS Server service! \\n"
         echo -e "$(date +%F-%T.%6N) | Successfully stopped uosserver.service." &>> "${eus_dir}/logs/uos-server-update.log"
+        # On versions below 4.3.4, the container is not torn down by stopping the service.
+        if ! version_ge "${uos_version}" "4.3.4"; then
+          echo -e "${GRAY_R}#${RESET} Stopping the UniFi OS Server container..."
+          echo -e "$(date +%F-%T.%6N) | Stopping uosserver container (version ${uos_version} is below 4.3.4)..." &>> "${eus_dir}/logs/uos-server-update.log"
+          if uosserver stop &>> "${eus_dir}/logs/uos-server-update.log"; then
+            echo -e "${GREEN}#${RESET} Successfully stopped the UniFi OS Server container! \\n"
+            echo -e "$(date +%F-%T.%6N) | Successfully stopped uosserver container." &>> "${eus_dir}/logs/uos-server-update.log"
+          else
+            echo -e "${GRAY_R}#${RESET} Failed to stop the UniFi OS Server container, continuing anyway... \\n"
+            echo -e "$(date +%F-%T.%6N) | Failed to stop uosserver container, continuing." &>> "${eus_dir}/logs/uos-server-update.log"
+          fi
+        fi
       else
         echo -e "${GRAY_R}#${RESET} Failed to stop the UniFi OS Server service... \\n"
         echo -e "$(date +%F-%T.%6N) | Failed to stop uosserver.service." &>> "${eus_dir}/logs/uos-server-update.log"

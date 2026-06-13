@@ -77,7 +77,7 @@
 
 # Script                | UniFi Network/OS Easy Installation Script
 # Version               | 9.0.2
-# Script Version        | 9.1.9
+# Script Version        | 9.2.0
 # Application version   | 6.0.41
 # Debian Repo version   | 6.0.41-14327-1
 # UOS Server version    | 5.1.15
@@ -3755,7 +3755,6 @@ script_type_check() {
 }
 
 script_version_check() {
-  local local_version
   local online_version
   net_version="$(grep -im1 '# Application version' "$script_location" | awk -F'[|-]' '{gsub(/[[:space:]]/, "", $2); print $2}')"
   uos_version="$(grep -im1 '# UOS Server version' "$script_location" | awk -F'[|-]' '{gsub(/[[:space:]]/, "", $2); print $2}')"
@@ -3787,7 +3786,7 @@ if ! [[ "${os_codename}" =~ (precise|maya|trusty|utopic|vivid|wily|yakkety|zesty
   if [[ -z "$(command -v apt)" ]]; then non_apt_based_linux="true"; fi
   unsupported_no_modify="true"
   get_distro
-  if [[ "${non_apt_based_linux}" != 'true' ]]; then distro_support_missing_report="$(curl "${curl_argument[@]}" -X POST -H "Content-Type: application/json" -d "{\"distribution\": \"${os_id}\", \"codename\": \"${os_codename}\", \"script-name\": \"${script_name}\", \"full-os-details\": \"${full_os_details}\"}" https://api.glennr.nl/api/missing-distro-support 2> /dev/null | jq -r '.[]' 2> /dev/null)"; fi
+  if [[ "${non_apt_based_linux}" != 'true' ]]; then distro_support_missing_report="$(curl "${curl_argument[@]}" -X POST -H "Content-Type: application/json" -d "{\"distribution\": \"${os_id}\", \"codename\": \"${os_codename}\", \"script-name\": \"${script_name}\", \"script-version\": \"${local_version}\", \"full-os-details\": \"${full_os_details}\"}" https://api.glennr.nl/api/missing-distro-support 2> /dev/null | jq -r '.[]' 2> /dev/null)"; fi
   if [[ "${script_option_debug}" != 'true' ]]; then clear; fi
   header_red
   if [[ "${non_apt_based_linux}" == 'true' ]]; then

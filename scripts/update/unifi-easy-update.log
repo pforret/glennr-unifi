@@ -11,6 +11,15 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 10.7.3
+  
+ - Improved missing distro support reporting.
+ - Improved th UniFi OS Server update process.
+ - Reworked the UniFi Device Upgrade process.
+ - Fixed login issues on UniFi OS setups.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 10.7.2
   
  - Added non-interactive mode for UniFi OS Server with --uos-version argument.
