@@ -11,6 +11,12 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Network Application Installation Script  |  Version 9.2.1
+  
+ - Fixed an issue where the script didn't start the UniFi Network Application after UniFi OS Server installation failures.
+ 
+ ####
+
  |  UniFi Network Application Installation Script  |  Version 9.2.0
   
  - Improved missing distro support reporting.

@@ -77,10 +77,10 @@
 
 # Script                | UniFi Network/OS Easy Installation Script
 # Version               | 9.0.2
-# Script Version        | 9.2.0
+# Script Version        | 9.2.1
 # Application version   | 6.0.36
 # Debian Repo version   | 6.0.36-14304-1
-# UOS Server version    | 5.1.15
+# UOS Server version    | 5.1.19
 # Author                | Glenn Rietveld
 # Email                 | glennrietveld8@hotmail.nl
 # Website               | https://GlennR.nl
@@ -1401,6 +1401,18 @@ abort() {
   fi
   if [[ "${set_lc_all}" == 'true' ]]; then if [[ -n "${original_lang}" ]]; then export LANG="${original_lang}"; else unset LANG; fi; if [[ -n "${original_lcall}" ]]; then export LC_ALL="${original_lcall}"; else unset LC_ALL; fi; fi
   if [[ "${stopped_unattended_upgrade}" == 'true' ]]; then systemctl start unattended-upgrades &>> "${eus_dir}/logs/unattended-upgrades.log"; unset stopped_unattended_upgrade; fi
+  if [[ "${unifi_stopped_uos_server_install}" == 'true' ]]; then
+    echo -e "\\n${WHITE_R}#${RESET} Attempting to start service unit unifi.service..."
+    echo -e "$(date +%F-%T.%6N) | Attempting to start service unit unifi.service..." &>> "${eus_dir}/logs/uos-server-start-network-application.log"
+    if systemctl start "unifi.service" &>> "${eus_dir}/logs/uos-server-start-network-application.log"; then
+      echo -e "$(date +%F-%T.%6N) | Successfully started unifi.service!" &>> "${eus_dir}/logs/uos-server-start-network-application.log"
+      echo -e "${GREEN}#${RESET} Successfully started unifi.service!\\n"
+    else
+      echo -e "$(date +%F-%T.%6N) | Failed to start unifi.service" &>> "${eus_dir}/logs/uos-server-start-network-application.log"
+      echo -e "${RED}#${RESET} Failed to start unifi.service, please start it manually!\\n"
+    fi
+    unset unifi_stopped_uos_server_install
+  fi
   if [[ -f /tmp/EUS/services/stopped_list && -s /tmp/EUS/services/stopped_list ]]; then
     while read -r service; do
       echo -e "\\n${GRAY_R}#${RESET} Starting ${service}.."
@@ -3123,6 +3135,18 @@ cancel_script() {
   eus_apt_sha1_disable
   if [[ "${set_lc_all}" == 'true' ]]; then if [[ -n "${original_lang}" ]]; then export LANG="${original_lang}"; else unset LANG; fi; if [[ -n "${original_lcall}" ]]; then export LC_ALL="${original_lcall}"; else unset LC_ALL; fi; fi
   if [[ "${stopped_unattended_upgrade}" == 'true' ]]; then systemctl start unattended-upgrades &>> "${eus_dir}/logs/unattended-upgrades.log"; unset stopped_unattended_upgrade; fi
+  if [[ "${unifi_stopped_uos_server_install}" == 'true' ]]; then
+    echo -e "\\n${WHITE_R}#${RESET} Attempting to start service unit unifi.service..."
+    echo -e "$(date +%F-%T.%6N) | Attempting to start service unit unifi.service..." &>> "${eus_dir}/logs/uos-server-start-network-application.log"
+    if systemctl start "unifi.service" &>> "${eus_dir}/logs/uos-server-start-network-application.log"; then
+      echo -e "$(date +%F-%T.%6N) | Successfully started unifi.service!" &>> "${eus_dir}/logs/uos-server-start-network-application.log"
+      echo -e "${GREEN}#${RESET} Successfully started unifi.service!\\n"
+    else
+      echo -e "$(date +%F-%T.%6N) | Failed to start unifi.service" &>> "${eus_dir}/logs/uos-server-start-network-application.log"
+      echo -e "${RED}#${RESET} Failed to start unifi.service, please start it manually!\\n"
+    fi
+    unset unifi_stopped_uos_server_install
+  fi
   if [[ "${script_option_skip}" == 'true' ]]; then
     echo -e "\\n${GRAY_R}#########################################################################${RESET}\\n"
   elif [[ "${cancel_script_without_clearing_error}" == 'true' ]]; then
@@ -6436,6 +6460,7 @@ uos_server_install_ports_check() {
                 if systemctl stop "${unit}.service" &>> "${eus_dir}/logs/uos-server-ports-check.log"; then
                   echo -e "$(date +%F-%T.%6N) | Successfully stopped ${unit}.service!" &>> "${eus_dir}/logs/uos-server-ports-check.log"
                   echo -e "${GREEN}#${RESET} Successfully stopped ${unit}.service!\\n"
+                  if [[ "${unit}" == "unifi" ]]; then unifi_stopped_uos_server_install="true"; fi
                 else
                   echo -e "$(date +%F-%T.%6N) | Failed to stop ${unit}.service (PID ${pid})" &>> "${eus_dir}/logs/uos-server-ports-check.log"
                   abort_reason="Failed to stop ${unit}.service (PID ${pid}) during the UniFi OS Server ports check process"
@@ -6445,6 +6470,7 @@ uos_server_install_ports_check() {
                 echo -e "\n${WHITE_R}#${RESET} Attempting to stop service ${svc}.service..."
                if systemctl stop "${svc}.service" &>> "${eus_dir}/logs/uos-server-ports-check.log"; then
                   echo -e "${GREEN}#${RESET} Successfully stopped ${svc}.service!\\n"
+                  if [[ "${svc}" == "unifi" ]]; then unifi_stopped_uos_server_install="true"; fi
                 else
                   echo -e "\n${WHITE_R}#${RESET} Attempting to kill PID ${pid} (${svc})..."
                   if kill "$pid" &>> "${eus_dir}/logs/uos-server-ports-check.log"; then
@@ -9127,6 +9153,7 @@ uos_server_install_process() {
     fi
     if "${uos_server_file_temp_file}" --non-interactive "${uos_server_install_flags[@]}" &>> "${eus_dir}/logs/uos-server-install.log"; then
       echo -e "${GREEN}#${RESET} Successfully installed UniFi OS Server version ${uos_version}! \n"
+      unset unifi_stopped_uos_server_install
     else
       abort_reason="Failed to install UniFi OS Server ${uos_version}."
       abort

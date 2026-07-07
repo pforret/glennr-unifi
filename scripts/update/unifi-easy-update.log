@@ -11,6 +11,13 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 10.7.4
+  
+ - Added support for UI Verify push MFA login approvals.
+ - Fixed an issue where backup and setting log levels via API could fail.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 10.7.3
   
  - Improved missing distro support reporting.

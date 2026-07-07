@@ -3,7 +3,7 @@
 # UniFi Network Application Easy Update Script.
 # Script          | UniFi Network Easy Update Script
 # Version         | 9.9.9
-# Script Version  | 10.7.3
+# Script Version  | 10.7.4
 # Author          | Glenn Rietveld
 # Email           | glennrietveld8@hotmail.nl
 # Website         | https://GlennR.nl
@@ -7728,6 +7728,15 @@ if [[ "${script_option_archive_alerts}" == 'true' || "${script_option_delete_eve
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+redact_login_response() {
+  # Fully strips password, MFA bearer token, and phone number (real secrets/PII).
+  sed -E \
+    -e 's/"password":"[^"]*"/"password":"[REDACTED]"/g' \
+    -e 's/"mfa_cookie":"[^"]*"/"mfa_cookie":"[REDACTED]"/g' \
+    -e 's/"phone_number":"[^"]*"/"phone_number":"[REDACTED]"/g' \
+  | perl -pe 's/"(email|ubic_name)":"([^"@]{1,2})[^"@]*([^"@]{0,3}\@[^"]+)"/"$1":"$2......$3"/g'
+}
+
 username_text() {
   header
   if [[ "${unifi_core_system}" == 'true' ]]; then
@@ -7766,6 +7775,82 @@ two_factor_request() {
     header
     echo -e "${GRAY_R}#${RESET} Attempting to login..."
   fi
+  echo -e "$(date +%F-%T.%6N) | 2FA token entered (length=${#ubic_2fa_token})." &>> "${eus_dir}/logs/unifi-login.log"
+}
+
+unifi_api_cookie_set() {
+  local name="$1" value="$2" expiry="${3:-$(( $(date +%s) + 600 ))}"
+  if [[ -f "${unifi_api_cookie}" ]]; then
+    sed -i "/[[:space:]]${name}[[:space:]]/d" "${unifi_api_cookie}"
+  fi
+  printf "localhost\tFALSE\t/\tTRUE\t%s\t%s\t%s\n" "${expiry}" "${name}" "${value}" >> "${unifi_api_cookie}"
+}
+
+unifi_2fa_push_poll() {
+  # $1 = the "data[0]" JSON object from the Ubic2faTokenRequired response
+  local mfa_json="$1"
+  local mfa_cookie push_id max_wait_seconds=90 elapsed=0
+  local poll_response self_response self_name skip_key
+  local poll_pid poll_tmpfile loop_start
+  mfa_cookie=$(echo "${mfa_json}" | jq -r '.mfa_cookie // empty')
+  push_id=$(echo "${mfa_json}" | jq -r '.authenticators[]? | select(.type=="push" and .status=="active") | .id' | head -n1)
+  if [[ -z "${mfa_cookie}" || -z "${push_id}" ]]; then
+    echo -e "$(date +%F-%T.%6N) | No active push authenticator available in login response, falling back to manual 2FA token entry." &>> "${eus_dir}/logs/unifi-login.log"
+    return 1
+  fi
+  echo -e "$(date +%F-%T.%6N) | Push authenticator '${push_id}' found, attempting push-approval login." &>> "${eus_dir}/logs/unifi-login.log"
+  unifi_api_cookie_set "UBIC_2FA" "${mfa_cookie}"
+  header
+  echo -e "${GRAY_R}#${RESET} A push notification was sent to your device."
+  echo -e "${GRAY_R}#${RESET} Approve it to continue, or press any key to enter a 6-digit code instead."
+  echo -e "${GRAY_R}#${RESET} Waiting up to ${max_wait_seconds} seconds...\\n"
+  poll_tmpfile=$(mktemp /tmp/EUS/push_poll_XXXXX)
+  while (( elapsed < max_wait_seconds )); do
+    loop_start=$(date +%s)
+    "${unifi_api_curl_cmd[@]}" --data '{"poll_login":true,"remember":false,"strict":true}' "${unifi_api_baseurl}/api/login" > "${poll_tmpfile}" &
+    poll_pid=$!
+    while kill -0 "${poll_pid}" 2>/dev/null; do
+      # shellcheck disable=SC2034
+      if read -t 0.2 -n 1 -rs skip_key; then
+        echo -e "$(date +%F-%T.%6N) | User pressed a key to skip push waiting after ~$(( elapsed + $(date +%s) - loop_start ))s, falling back to manual token entry." &>> "${eus_dir}/logs/unifi-login.log"
+        kill "${poll_pid}" 2>/dev/null
+        wait "${poll_pid}" 2>/dev/null
+        rm -f "${poll_tmpfile}"
+        return 1
+      fi
+    done
+    wait "${poll_pid}" 2>/dev/null
+    poll_response=$(cat "${poll_tmpfile}")
+    (( elapsed += $(date +%s) - loop_start ))
+    echo -e "$(date +%F-%T.%6N) | Push poll response (elapsed=${elapsed}s): ${poll_response}" &>> "${eus_dir}/logs/unifi-login.log"
+    self_response=$("${unifi_api_curl_cmd[@]}" "${unifi_api_baseurl}/api/self")
+    self_name=$(echo "${self_response}" | jq -r '.data[0].name // .data[0].email // empty' 2>/dev/null)
+    echo -e "$(date +%F-%T.%6N) | Post-poll /api/self check: self_name='${self_name}'." &>> "${eus_dir}/logs/unifi-login.log"
+    if [[ -n "${self_name}" ]]; then
+      echo -e "$(date +%F-%T.%6N) | Push approval confirmed via /api/self as '${self_name}' after ~${elapsed}s." &>> "${eus_dir}/logs/unifi-login.log"
+      if [[ -f "${unifi_api_cookie}" ]]; then
+        sed -i '/[[:space:]]UBIC_2FA[[:space:]]/d' "${unifi_api_cookie}"
+        echo -e "$(date +%F-%T.%6N) | Removed UBIC_2FA cookie from jar post-authentication." &>> "${eus_dir}/logs/unifi-login.log"
+      fi
+      local csrf_token
+      csrf_token=$(awk -F'\t' '$6=="csrf_token" {print $7}' "${unifi_api_cookie}" | tail -n1)
+      if [[ -n "${csrf_token}" ]]; then
+        unifi_api_curl_cmd=(curl --tlsv1 --silent --cookie "${unifi_api_cookie}" --cookie-jar "${unifi_api_cookie}" --insecure --header "X-CSRF-Token: ${csrf_token}")
+        echo -e "$(date +%F-%T.%6N) | Added X-CSRF-Token header (length=${#csrf_token}) to unifi_api_curl_cmd for post-push-login state-changing calls." &>> "${eus_dir}/logs/unifi-login.log"
+      else
+        echo -e "$(date +%F-%T.%6N) | WARNING: no csrf_token cookie found in jar after push approval; state-changing calls may still fail." &>> "${eus_dir}/logs/unifi-login.log"
+      fi
+      echo "${poll_response}" > /tmp/EUS/application/login
+      rm -f "${poll_tmpfile}"
+      return 0
+    fi
+  done
+  rm -f "${poll_tmpfile}"
+  echo -e "$(date +%F-%T.%6N) | Push approval timed out after ${max_wait_seconds}s, falling back to manual 2FA token entry." &>> "${eus_dir}/logs/unifi-login.log"
+  header_red
+  echo -e "${RED}#${RESET} No push approval received in time.\\n"
+  sleep 2
+  return 1
 }
 
 unifi_credentials() {
@@ -7779,6 +7864,7 @@ unifi_credentials() {
     username_text
     read -rp $' Username:\033[39m ' username
   fi
+  echo -e "$(date +%F-%T.%6N) | Username entered: '${username}'." &>> "${eus_dir}/logs/unifi-login.log"
   password_text
   read -srp " Password: " password
   if [[ -z "$password" ]]; then
@@ -7789,44 +7875,75 @@ unifi_credentials() {
     password_text
     read -srp " Password: " password
   fi
+  echo -e "$(date +%F-%T.%6N) | Password entered (length=${#password}, value not logged)." &>> "${eus_dir}/logs/unifi-login.log"
   header
   echo -e "${GRAY_R}#${RESET} Attempting to login..."
 }
 
 username_case_sensitive_check() {
   backup_username="${username}"
-  username="$("${mongocommand}" --quiet --port 27117 ace --eval "${mongoprefix}db.getCollection('admin').find({})${mongosuffix}" | sed 's/\(ObjectId(\|)\|NumberLong(\)//g' | jq -r '.[] | .name, .email' | grep -ix "\\b${username}\\b")"
-  if [[ -z "${username}" ]]; then username="${backup_username}"; unset backup_username; fi
+  local mongo_admin_dump admin_count match_found closest_hint
+  mongo_admin_dump=$("${mongocommand}" --quiet --port 27117 ace --eval "${mongoprefix}db.getCollection('admin').find({})${mongosuffix}" | sed 's/\(ObjectId(\|)\|NumberLong(\)//g')
+  admin_count=$(echo "${mongo_admin_dump}" | jq -r 'length' 2>/dev/null)
+  username="$(echo "${mongo_admin_dump}" | jq -r '.[] | .name, .email' | grep -ix "\\b${backup_username}\\b")"
+  if [[ -z "${username}" ]]; then
+    match_found="false"
+    if [[ ${#backup_username} -ge 3 ]]; then
+      closest_hint=$(echo "${mongo_admin_dump}" | jq -r '.[] | .name, .email' | grep -i "^${backup_username:0:3}" | head -n1)
+    else
+      closest_hint=""
+    fi
+    if [[ -n "${closest_hint}" ]]; then
+      echo -e "$(date +%F-%T.%6N) | username_case_sensitive_check: searched ${admin_count} admin accounts, match_found=${match_found}. A similarly-prefixed account exists (sanitized: '${closest_hint:0:2}***${closest_hint: -2}', length=${#closest_hint}) — likely a typo of an existing account." &>> "${eus_dir}/logs/unifi-login.log"
+    else
+      echo -e "$(date +%F-%T.%6N) | username_case_sensitive_check: searched ${admin_count} admin accounts, match_found=${match_found}. No similarly-prefixed account found — likely an entirely wrong username, not a typo." &>> "${eus_dir}/logs/unifi-login.log"
+    fi
+    username="${backup_username}"
+  else
+    match_found="true"
+    echo -e "$(date +%F-%T.%6N) | username_case_sensitive_check: searched ${admin_count} admin accounts, match_found=${match_found}." &>> "${eus_dir}/logs/unifi-login.log"
+  fi
+  unset backup_username
 }
 
 unifi_login() {
   if [[ "${executed_unifi_login}" != 'true' ]]; then
     username_case_sensitive_check
     if "$(which dpkg)" -l unifi-core 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
+      echo -e "$(date +%F-%T.%6N) | unifi_login: unifi-core detected, using UniFi OS auth endpoint. two_factor='${two_factor}'." &>> "${eus_dir}/logs/unifi-login.log"
       if [[ "${two_factor}" == 'enabled' ]]; then
         jq -n --arg username "$username" --arg password "$password" --arg ubic_2fa_token "$ubic_2fa_token" '{username: $username, password: $password, token: $ubic_2fa_token}' | "${unifi_api_curl_cmd[@]}" -d@- --header "Content-Type: application/json" "https://localhost/api/auth/login" &>> /tmp/EUS/application/login
       else
         jq -n --arg username "$username" --arg password "$password" '{username: $username, password: $password}' | "${unifi_api_curl_cmd[@]}" -d@- --header "Content-Type: application/json" "https://localhost/api/auth/login" &>> /tmp/EUS/application/login
       fi
+      echo -e "$(date +%F-%T.%6N) | UniFi OS login response: $(redact_login_response < /tmp/EUS/application/login)" &>> "${eus_dir}/logs/unifi-login.log"
       csrf_token=$(grep TOKEN "${unifi_api_cookie}" | awk '{print $7}' | awk -F'.' '{print $2}' | base64 -d 2>/dev/null | jq -r '.csrfToken // empty')
       if [[ -n "${csrf_token}" ]]; then
+        echo -e "$(date +%F-%T.%6N) | CSRF token found (length=${#csrf_token}), rebuilding unifi_api_curl_cmd with X-CSRF-Token header." &>> "${eus_dir}/logs/unifi-login.log"
         unifi_api_curl_cmd=(curl --tlsv1 --silent --cookie "${unifi_api_cookie}" --cookie-jar "${unifi_api_cookie}" --insecure --header "X-CSRF-Token: ${csrf_token}")
+      else
+        echo -e "$(date +%F-%T.%6N) | WARNING: No CSRF token found in cookie jar after login attempt." &>> "${eus_dir}/logs/unifi-login.log"
       fi
     else
+      echo -e "$(date +%F-%T.%6N) | unifi_login: legacy/standalone Network Application, using ${unifi_api_baseurl}/api/login. two_factor='${two_factor}'." &>> "${eus_dir}/logs/unifi-login.log"
       if [[ "${two_factor}" == 'enabled' ]]; then
         jq -n --arg username "$username" --arg password "$password" --arg ubic_2fa_token "$ubic_2fa_token" '{username: $username, password: $password, ubic_2fa_token: $ubic_2fa_token}' | "${unifi_api_curl_cmd[@]}" -d@- "$unifi_api_baseurl/api/login" >> /tmp/EUS/application/login
       else
         jq -n --arg username "$username" --arg password "$password" '{username: $username, password: $password}' | "${unifi_api_curl_cmd[@]}" -d@- "$unifi_api_baseurl/api/login" >> /tmp/EUS/application/login
       fi
+      echo -e "$(date +%F-%T.%6N) | Network Application login response: $(redact_login_response < /tmp/EUS/application/login)" &>> "${eus_dir}/logs/unifi-login.log"
     fi
     unifi_login_check
-    super_user_check
-    executed_unifi_login="true"
+    if [[ "${executed_unifi_login}" != 'true' ]]; then
+      super_user_check
+      executed_unifi_login="true"
+    fi
   fi
 }
 
 unifi_logout() {
   "${unifi_api_curl_cmd[@]}" "$unifi_api_baseurl/logout"
+  echo -e "$(date +%F-%T.%6N) | unifi_logout called." &>> "${eus_dir}/logs/unifi-login.log"
   executed_unifi_login="false"
 }
 
@@ -7837,7 +7954,9 @@ super_user_check() {
     #if grep -iq 'true' /tmp/EUS/accounts/super_admin; then user_is_super="true"; fi
     if grep -iq 'admin' /tmp/EUS/accounts/network_permissions; then user_is_admin="true"; fi
     if grep -iq 'readonly' /tmp/EUS/accounts/network_permissions; then user_is_readonly="true"; fi
+    echo -e "$(date +%F-%T.%6N) | super_user_check (UOS): network_permissions=$(cat /tmp/EUS/accounts/network_permissions 2>/dev/null | tr '\n' ','), isSuperAdmin=$(cat /tmp/EUS/accounts/super_admin 2>/dev/null), user_is_admin='${user_is_admin}', user_is_readonly='${user_is_readonly}'." &>> "${eus_dir}/logs/unifi-login.log"
     if [[ "${user_is_readonly}" == 'true' && "${user_is_admin}" == 'true' ]]; then
+      echo -e "$(date +%F-%T.%6N) | User '${username}' rejected: both admin and readonly permissions present." &>> "${eus_dir}/logs/unifi-login.log"
       header_red
       echo -e "${GRAY_R}#${RESET} The user is an Administrator and Read Only user!"
       echo -e "${GRAY_R}#${RESET} Please remove the read only permission or login with administrator account! \\n\\n"
@@ -7865,7 +7984,11 @@ super_user_check() {
       script_admin_id="$("${mongocommand}" --quiet --port 27117 ace --eval "${mongoprefix}db.getCollection('admin').find({email:'${username}'})${mongosuffix}" | sed 's/\(ObjectId(\|)\|NumberLong(\)//g' | jq -r '.[]._id[]' | head -n1)"
       if [[ -z "${script_admin_id}" ]]; then script_admin_id="$("${mongocommand}" --quiet --port 27117 ace --eval "db.getCollection('admin').find({email:'${username}'}).toArray()" | sed 's/\(ObjectId(\|)\|NumberLong(\)//g' | jq -r '.[]._id' | head -n1)"; fi
     fi
-    if ! [[ "${script_admin_id}" =~ ^($("${mongocommand}" --quiet --port 27117 ace --eval "${mongoprefix}db.getCollection('privilege').find({site_id:'${net_super_site_id}', role:'admin'})${mongosuffix}" | sed 's/\(ObjectId(\|)\|NumberLong(\)//g' | jq -r '.[].admin_id' | tr "\n" "|" | sed 's/|$//'))$ ]]; then
+    local privilege_admin_ids
+    privilege_admin_ids=$("${mongocommand}" --quiet --port 27117 ace --eval "${mongoprefix}db.getCollection('privilege').find({site_id:'${net_super_site_id}', role:'admin'})${mongosuffix}" | sed 's/\(ObjectId(\|)\|NumberLong(\)//g' | jq -r '.[].admin_id' | tr "\n" "|" | sed 's/|$//')
+    echo -e "$(date +%F-%T.%6N) | super_user_check: net_super_site_id='${net_super_site_id}', script_admin_id='${script_admin_id}', privilege_admin_ids='${privilege_admin_ids}'." &>> "${eus_dir}/logs/unifi-login.log"
+    if ! [[ "${script_admin_id}" =~ ^($privilege_admin_ids)$ ]]; then
+      echo -e "$(date +%F-%T.%6N) | User '${username}' (admin_id='${script_admin_id}') is NOT in the super-site admin privilege list." &>> "${eus_dir}/logs/unifi-login.log"
       header_red
       echo -e "${GRAY_R}#${RESET} Account/User ${GRAY_R}${username}${RESET} is not a Super Administrator.."
       echo -e "${GRAY_R}#${RESET} Please use the Super Administrator credentials! \\n\\n"
@@ -7894,7 +8017,9 @@ unifi_login_check() {
     net_admin="$("${mongocommand}" --quiet --port 27117 ace --eval "${mongoprefix}db.getCollection('admin').find({email:'${username}'})${mongosuffix}" | sed 's/\(ObjectId(\|)\|NumberLong(\)//g' | jq -r '.[]._id[]')"
     if [[ -z "${net_admin}" ]]; then net_admin="$("${mongocommand}" --quiet --port 27117 ace --eval "db.getCollection('admin').find({email:'${username}'}).toArray()" | sed 's/\(ObjectId(\|)\|NumberLong(\)//g' | jq -r '.[]._id')"; fi
   fi
+  echo -e "$(date +%F-%T.%6N) | unifi_login_check: username='${username}', net_admin='${net_admin}', unifi_core_system='${unifi_core_system}'." &>> "${eus_dir}/logs/unifi-login.log"
   if [[ ( -z "${net_admin}" && "${unifi_core_system}" != 'true' ) ]]; then
+    echo -e "$(date +%F-%T.%6N) | BRANCH: account not found in admin collection by name or email for '${username}'." &>> "${eus_dir}/logs/unifi-login.log"
     header_red
     echo -e "${GRAY_R}#${RESET} Account/User ${GRAY_R}${username}${RESET} does not exist in the database\\n\\n"
     while true; do
@@ -7914,13 +8039,19 @@ unifi_login_check() {
       esac
     done
   elif grep -iq "Ubic2faToken.*Required\\|2fa.*required" /tmp/EUS/application/login; then
+    echo -e "$(date +%F-%T.%6N) | BRANCH: 2FA required." &>> "${eus_dir}/logs/unifi-login.log"
+    mfa_json=$(jq -r '.data[0] // empty' /tmp/EUS/application/login 2>/dev/null)
     unifi_login_cleanup
     header
-    #echo -e "${GRAY_R}#${RESET} You seem to have 2FA enabled on your UBNT account.."
     two_factor=enabled
-    two_factor_request
-    unifi_login
+    if [[ -n "${mfa_json}" ]] && unifi_2fa_push_poll "${mfa_json}"; then
+      unifi_login_check
+    else
+      two_factor_request
+      unifi_login
+    fi
   elif grep -iq "Invalid2FAToken" /tmp/EUS/application/login; then
+    echo -e "$(date +%F-%T.%6N) | BRANCH: invalid 2FA token entered." &>> "${eus_dir}/logs/unifi-login.log"
     unifi_login_cleanup
     header_red
     echo -e "${GRAY_R}#${RESET} Login error... Invalid 2FA Token"
@@ -7928,6 +8059,7 @@ unifi_login_check() {
     two_factor_request
     unifi_login
   elif grep -iq "Invalid.*username.*password" /tmp/EUS/application/login; then
+    echo -e "$(date +%F-%T.%6N) | BRANCH: invalid username/password reported by API for '${username}'." &>> "${eus_dir}/logs/unifi-login.log"
     unifi_login_cleanup
     header_red
     echo -e "${GRAY_R}#${RESET} Invalid username or password..."
@@ -7947,6 +8079,7 @@ unifi_login_check() {
       esac
     done
   elif grep -iq "error\\|Invalid.*username.*password" /tmp/EUS/application/login; then
+    echo -e "$(date +%F-%T.%6N) | BRANCH: generic error/credentials-incorrect for '${unifi_os_or_network}'." &>> "${eus_dir}/logs/unifi-login.log"
     header_red
     echo -e "${GRAY_R}#${RESET} ${unifi_os_or_network} credentials are incorrect, login failed.."
     while true; do
@@ -7965,15 +8098,19 @@ unifi_login_check() {
       esac
     done
   elif grep -iq "ok\\|id" /tmp/EUS/application/login; then
+    echo -e "$(date +%F-%T.%6N) | BRANCH: login success for '${username}'." &>> "${eus_dir}/logs/unifi-login.log"
     application_login="success"
     unifi_login_cleanup
     header
     echo -e "${GRAY_R}#${RESET} Login success! \\n"
     sleep 2
+  else
+    echo -e "$(date +%F-%T.%6N) | BRANCH: none matched, fell through all conditions unhandled. Raw response was: $(sed 's/"password":"[^"]*"/"password":"[REDACTED]"/g' /tmp/EUS/application/login 2>/dev/null)" &>> "${eus_dir}/logs/unifi-login.log"
   fi
 }
 
 login_cleanup() {
+  echo -e "$(date +%F-%T.%6N) | login_cleanup: clearing username/password/2FA vars." &>> "${eus_dir}/logs/unifi-login.log"
   unset username
   unset password
   unset ubic_2fa_token
@@ -7985,18 +8122,25 @@ login_cleanup() {
 }
 
 unifi_login_cleanup() {
+  if [[ -f /tmp/EUS/application/login ]]; then
+    echo -e "$(date +%F-%T.%6N) | unifi_login_cleanup: removing /tmp/EUS/application/login (already logged above)." &>> "${eus_dir}/logs/unifi-login.log"
+  fi
   if ! "$(which dpkg)" -l unifi-core 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then rm --force /tmp/EUS/application/login 2> /dev/null; fi
   if [[ "${application_login}" != 'success' ]]; then rm --force /tmp/EUS/application/login 2> /dev/null; fi
 }
 
 application_login_attempt() {
+  local attempt=0
   unifi_login
   while grep -q "error" /tmp/EUS/application/login &> /dev/null; do
+    ((attempt++))
+    echo -e "$(date +%F-%T.%6N) | application_login_attempt: retry #${attempt} after error in login response." &>> "${eus_dir}/logs/unifi-login.log"
     unifi_login
     unifi_login_cleanup
     application_startup_message
     sleep 5
   done;
+  echo -e "$(date +%F-%T.%6N) | application_login_attempt: login loop exited after ${attempt} retries, application_login='${application_login}'." &>> "${eus_dir}/logs/unifi-login.log"
   unifi_logout
 }
 
@@ -8133,7 +8277,7 @@ ugw_upgrade_schedule_done="no"
 
 ###################################################################################################################################################################################################
 #                                                                                                                                                                                                 #
-#                                                               Firmware Cache — check / model discovery / remove / download                                                                      #
+#                                                               Firmware Cache - check / model discovery / remove / download                                                                      #
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
@@ -8162,7 +8306,7 @@ unifi_cache_models() {
   raw_models="$("${mongocommand}" --quiet --port 27117 ace --eval "${mongoprefix}db.getCollection('device').find({})${mongosuffix}" | jq -r '.[].model' | awk '!a[$0]++')"
   if [[ -z "${raw_models}" ]]; then
     echo -e "${YELLOW}#${RESET} No adopted devices were found on your UniFi Network Application."
-    echo -e "$(date +%F-%T.%6N) | WARNING | MongoDB query returned no device models — no adopted devices found." &>> "${eus_dir}/logs/firmware-cache.log"
+    echo -e "$(date +%F-%T.%6N) | WARNING | MongoDB query returned no device models, no adopted devices found." &>> "${eus_dir}/logs/firmware-cache.log"
     sleep 3
     return
   fi
@@ -8176,7 +8320,7 @@ unifi_cache_models() {
         echo -e "$(date +%F-%T.%6N) | Found special device model: ${model} (excluded from base models, remove-only)." &>> "${eus_dir}/logs/firmware-cache.log"
         ;;
       UDM)
-        echo -e "$(date +%F-%T.%6N) | Skipping UDM — excluded from firmware cache workflow." &>> "${eus_dir}/logs/firmware-cache.log"
+        echo -e "$(date +%F-%T.%6N) | Skipping UDM, excluded from firmware cache workflow." &>> "${eus_dir}/logs/firmware-cache.log"
         ;;
       *)
         device_models_list+=("${model}")
@@ -8186,7 +8330,7 @@ unifi_cache_models() {
   done <<< "${raw_models}"
   if [[ "${#device_models_list[@]}" -gt 0 ]]; then
     echo -e "${GREEN}#${RESET} Successfully found all device models on your UniFi Network Application."
-    echo -e "$(date +%F-%T.%6N) | Model discovery complete — ${#device_models_list[@]} standard model(s), ${#special_devices_list[@]} special model(s)." &>> "${eus_dir}/logs/firmware-cache.log"
+    echo -e "$(date +%F-%T.%6N) | Model discovery complete, ${#device_models_list[@]} standard model(s), ${#special_devices_list[@]} special model(s)." &>> "${eus_dir}/logs/firmware-cache.log"
   else
     echo -e "${YELLOW}#${RESET} No standard adoptable devices were found (only special or excluded models present)."
     echo -e "$(date +%F-%T.%6N) | WARNING | No standard device models after filtering. Special models: ${special_devices_list[*]:-none}." &>> "${eus_dir}/logs/firmware-cache.log"
@@ -8203,7 +8347,7 @@ unifi_cache_remove() {
   cached_fw_json="$("${unifi_api_curl_cmd[@]}" --data '{"cmd":"list-cached"}' "$unifi_api_baseurl/api/s/${site}/cmd/firmware" 2>&1)"
   if [[ -z "${cached_fw_json}" ]] || ! echo "${cached_fw_json}" | jq -e '.data | length > 0' &>/dev/null; then
     echo -e "${YELLOW}#${RESET} No cached firmware found on the UniFi Network Application. \\n"
-    echo -e "$(date +%F-%T.%6N) | WARNING | list-cached returned no entries — no cached firmware present." &>> "${eus_dir}/logs/firmware-cache.log"
+    echo -e "$(date +%F-%T.%6N) | WARNING | list-cached returned no entries, no cached firmware present." &>> "${eus_dir}/logs/firmware-cache.log"
     sleep 3
     return
   fi
@@ -8269,8 +8413,8 @@ unifi_cache_download() {
   done
   echo -e "$(date +%F-%T.%6N) | base_models_list has ${#base_models_list[@]} unique model(s): ${base_models_list[*]}" &>> "${eus_dir}/logs/firmware-cache.log"
   if [[ "${#base_models_list[@]}" -eq 0 ]]; then
-    echo -e "${GREEN}#${RESET} All firmware versions are already up to date and cached — nothing to download."
-    echo -e "$(date +%F-%T.%6N) | base_models_list is empty after querying available/cached — all firmware already current, or list-available returned no data." &>> "${eus_dir}/logs/firmware-cache.log"
+    echo -e "${GREEN}#${RESET} All firmware versions are already up to date and cached, nothing to download."
+    echo -e "$(date +%F-%T.%6N) | base_models_list is empty after querying available/cached, all firmware already current, or list-available returned no data." &>> "${eus_dir}/logs/firmware-cache.log"
     firmware_cached="yes"
     cached_firmware_json="${cached_fw_json}"
     return
@@ -8282,22 +8426,22 @@ unifi_cache_download() {
     removed_cached_fw="false"
     fw_version="$(jq -r --arg m "${device_model}" '.data[] | select(.device == $m) | .version' <<< "${available_fw_json}" | head -n1)"
     cached_fw_version="$(jq -r --arg m "${device_model}" '.data[] | select(.device == $m) | .version' <<< "${cached_fw_json}" | head -n1)"
-    echo -e "$(date +%F-%T.%6N) | ${device_model} — available: '${fw_version:-<none>}', cached: '${cached_fw_version:-<none>}'." &>> "${eus_dir}/logs/firmware-cache.log"
+    echo -e "$(date +%F-%T.%6N) | ${device_model}, available: '${fw_version:-<none>}', cached: '${cached_fw_version:-<none>}'." &>> "${eus_dir}/logs/firmware-cache.log"
     all_cached_versions="$(jq -r --arg m "${device_model}" '.data[] | select(.device == $m) | .version' <<< "${cached_fw_json}")"
     older_cached_fws="$(echo "${all_cached_versions}" | grep -v "^${cached_fw_version}$" || true)"
     if [[ -n "${older_cached_fws}" ]]; then
-      echo -e "$(date +%F-%T.%6N) | ${device_model} — older cached versions found: $(echo "${older_cached_fws}" | tr '\n' ' ')." &>> "${eus_dir}/logs/firmware-cache.log"
+      echo -e "$(date +%F-%T.%6N) | ${device_model}, older cached versions found: $(echo "${older_cached_fws}" | tr '\n' ' ')." &>> "${eus_dir}/logs/firmware-cache.log"
     fi
     if ! jq -e --arg m "${device_model}" '.data[] | select(.device == $m)' <<< "${available_fw_json}" | grep -iq "${device_model}"; then
       if jq -e --arg m "${device_model}" '.data[] | select(.device == $m)' <<< "${cached_fw_json}" | grep -iq "${device_model}"; then
         echo -e "${YELLOW}#${RESET} Firmware version ${cached_fw_version} for ${device_model} is already cached!"
-        echo -e "$(date +%F-%T.%6N) | ${device_model} not in available list but already cached at ${cached_fw_version} — nothing to do." &>> "${eus_dir}/logs/firmware-cache.log"
+        echo -e "$(date +%F-%T.%6N) | ${device_model} not in available list but already cached at ${cached_fw_version}, nothing to do." &>> "${eus_dir}/logs/firmware-cache.log"
       else
-        echo -e "$(date +%F-%T.%6N) | WARNING | ${device_model} not found in available or cached firmware — skipping." &>> "${eus_dir}/logs/firmware-cache.log"
+        echo -e "$(date +%F-%T.%6N) | WARNING | ${device_model} not found in available or cached firmware, skipping." &>> "${eus_dir}/logs/firmware-cache.log"
       fi
     elif [[ "${cached_fw_version}" != "${fw_version}" && -n "${cached_fw_version}" ]]; then
       echo -ne "${GRAY_R}#${RESET} Removing cached firmware version ${cached_fw_version} for ${device_model}..."
-      echo -e "$(date +%F-%T.%6N) | Cached version (${cached_fw_version}) differs from available (${fw_version}) for ${device_model} — removing." &>> "${eus_dir}/logs/firmware-cache.log"
+      echo -e "$(date +%F-%T.%6N) | Cached version (${cached_fw_version}) differs from available (${fw_version}) for ${device_model}, removing." &>> "${eus_dir}/logs/firmware-cache.log"
       remove_result="$("${unifi_api_curl_cmd[@]}" --data "{\"cmd\":\"remove\", \"device\":\"${device_model}\", \"version\":\"${cached_fw_version}\"}" "$unifi_api_baseurl/api/s/${site}/cmd/firmware" 2>&1)"
       if echo "${remove_result}" | grep -iq 'result.*true'; then
         echo -e "\\r${GREEN}#${RESET} Successfully removed cached firmware version ${cached_fw_version} for ${device_model}!"
@@ -8366,7 +8510,7 @@ unifi_cache_download() {
           echo -e "$(date +%F-%T.%6N) | WARNING | Unexpected response removing ${device_model} version ${sp_cached_version}: ${sp_remove_result}" &>> "${eus_dir}/logs/firmware-cache.log"
         fi
       else
-        echo -e "$(date +%F-%T.%6N) | No cached firmware found for special device ${device_model} — nothing to remove." &>> "${eus_dir}/logs/firmware-cache.log"
+        echo -e "$(date +%F-%T.%6N) | No cached firmware found for special device ${device_model}, nothing to remove." &>> "${eus_dir}/logs/firmware-cache.log"
       fi
     done
   fi
@@ -8377,10 +8521,10 @@ unifi_cache_download() {
   echo -e "$(date +%F-%T.%6N) | Post-download cached firmware list received (${#cached_firmware_json} bytes)." &>> "${eus_dir}/logs/firmware-cache.log"
   if [[ "${cache_download_failed}" != 'yes' ]]; then
     firmware_cached="yes"
-    echo -e "$(date +%F-%T.%6N) | Firmware cache pass completed successfully — firmware_cached=yes." &>> "${eus_dir}/logs/firmware-cache.log"
+    echo -e "$(date +%F-%T.%6N) | Firmware cache pass completed successfully, firmware_cached=yes." &>> "${eus_dir}/logs/firmware-cache.log"
   else
     firmware_cached="no"
-    echo -e "$(date +%F-%T.%6N) | ERROR | Firmware cache pass completed with failures — firmware_cached=no." &>> "${eus_dir}/logs/firmware-cache.log"
+    echo -e "$(date +%F-%T.%6N) | ERROR | Firmware cache pass completed with failures, firmware_cached=no." &>> "${eus_dir}/logs/firmware-cache.log"
   fi
 }
 
@@ -8397,7 +8541,7 @@ firmware_cache_question() {
            unifi_cache_models
            if [[ "${#device_models_list[@]}" -eq 0 ]]; then
              echo -e "${YELLOW}#${RESET} Skipping firmware cache as there are no adopted devices. \\n"
-             echo -e "$(date +%F-%T.%6N) | WARNING | Skipping firmware cache — device_models_list is empty after unifi_cache_models." &>> "${eus_dir}/logs/firmware-cache.log"
+             echo -e "$(date +%F-%T.%6N) | WARNING | Skipping firmware cache, device_models_list is empty after unifi_cache_models." &>> "${eus_dir}/logs/firmware-cache.log"
              sleep 3
              break
            fi
@@ -8405,23 +8549,23 @@ firmware_cache_question() {
            firmware_cache_free_kb="$(df -k /usr/lib/unifi/data/ | awk '{print $4}' | tail -n1)"
            echo -e "$(date +%F-%T.%6N) | Available disk space at /usr/lib/unifi/data/: ${firmware_cache_free_kb} KB." &>> "${eus_dir}/logs/firmware-cache.log"
            if [[ "${firmware_cache_free_kb}" -ge '1000000' ]]; then
-             echo -e "$(date +%F-%T.%6N) | Sufficient disk space — proceeding with firmware cache download." &>> "${eus_dir}/logs/firmware-cache.log"
+             echo -e "$(date +%F-%T.%6N) | Sufficient disk space, proceeding with firmware cache download." &>> "${eus_dir}/logs/firmware-cache.log"
              unifi_cache_download
              firmware_cached="yes"
            else
              header_red
              echo -e "${RED}#${RESET} There is not enough disk space to download the firmware..\\n\\n"
-             echo -e "$(date +%F-%T.%6N) | ERROR | Insufficient disk space — ${firmware_cache_free_kb} KB available, 1000000 KB required." &>> "${eus_dir}/logs/firmware-cache.log"
+             echo -e "$(date +%F-%T.%6N) | ERROR | Insufficient disk space, ${firmware_cache_free_kb} KB available, 1000000 KB required." &>> "${eus_dir}/logs/firmware-cache.log"
              sleep 3
            fi
            break;;
         [Nn]*)
-           echo -e "$(date +%F-%T.%6N) | User declined firmware caching (input: '${yes_no}') — running firmware check only." &>> "${eus_dir}/logs/firmware-cache.log"
+           echo -e "$(date +%F-%T.%6N) | User declined firmware caching (input: '${yes_no}'), running firmware check only." &>> "${eus_dir}/logs/firmware-cache.log"
            unifi_firmware_check
            break;;
         *)
            echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"
-           echo -e "$(date +%F-%T.%6N) | WARNING | Invalid user input '${yes_no}' — reprompting." &>> "${eus_dir}/logs/firmware-cache.log"
+           echo -e "$(date +%F-%T.%6N) | WARNING | Invalid user input '${yes_no}', reprompting." &>> "${eus_dir}/logs/firmware-cache.log"
            sleep 3;;
     esac
   done
@@ -8429,7 +8573,7 @@ firmware_cache_question() {
 
 firmware_cache_remove_question() {
   if [[ "${firmware_cached}" != 'yes' ]]; then
-    echo -e "$(date +%F-%T.%6N) | firmware_cached is '${firmware_cached:-<unset>}' — skipping cache remove/keep prompt." &>> "${eus_dir}/logs/firmware-cache.log"
+    echo -e "$(date +%F-%T.%6N) | firmware_cached is '${firmware_cached:-<unset>}', skipping cache remove/keep prompt." &>> "${eus_dir}/logs/firmware-cache.log"
     return
   fi
   local fw_dir_size firmware_choice yes_no
@@ -8438,7 +8582,7 @@ firmware_cache_remove_question() {
   header
 
   if [[ "${uap_upgrade_done}" == 'no' && "${uap_upgrade_schedule_done}" == 'no' && "${usw_upgrade_done}" == 'no' && "${usw_upgrade_schedule_done}" == 'no' && "${uxg_upgrade_done}" == 'no' && "${uxg_upgrade_schedule_done}" == 'no' && "${ugw_upgrade_done}" == 'no' && "${ugw_upgrade_schedule_done}" == 'no' ]]; then
-    echo -e "$(date +%F-%T.%6N) | No devices were upgraded or scheduled — prompting user to keep or remove cached firmware." &>> "${eus_dir}/logs/firmware-cache.log"
+    echo -e "$(date +%F-%T.%6N) | No devices were upgraded or scheduled, prompting user to keep or remove cached firmware." &>> "${eus_dir}/logs/firmware-cache.log"
     echo -e "${GRAY_R}#${RESET} There were 0 devices that required an upgrade, therefore we don't need the cached firmware anymore.."
     echo -e "${GRAY_R}#${RESET} Removing cached firmware will free up ${fw_dir_size} on your disk..\\n"
     echo -e "${GRAY_R}#${RESET} What would you like to do with the cached firmware?\\n\\n"
@@ -8448,7 +8592,7 @@ firmware_cache_remove_question() {
     case "$firmware_choice" in
         1|"") echo -e "$(date +%F-%T.%6N) | User chose to keep cached firmware (choice: '${firmware_choice:-default}')." &>> "${eus_dir}/logs/firmware-cache.log";;
         2) echo -e "$(date +%F-%T.%6N) | User chose to remove cached firmware (choice: 2)." &>> "${eus_dir}/logs/firmware-cache.log"; unifi_cache_remove;;
-        *) echo -e "$(date +%F-%T.%6N) | Unrecognised choice '${firmware_choice}' — keeping cached firmware by default." &>> "${eus_dir}/logs/firmware-cache.log";;
+        *) echo -e "$(date +%F-%T.%6N) | Unrecognised choice '${firmware_choice}', keeping cached firmware by default." &>> "${eus_dir}/logs/firmware-cache.log";;
     esac
 
   elif [[ "${uap_upgrade_schedule_done}" == 'yes' || "${usw_upgrade_schedule_done}" == 'yes' || "${uxg_upgrade_schedule_done}" == 'yes' || "${ugw_upgrade_schedule_done}" == 'yes' ]]; then
@@ -8470,7 +8614,7 @@ firmware_cache_remove_question() {
                  scheduled_day="$(grep /root/EUS/remove_firmware_cache.sh /etc/cron.d/eus_firmware_removal_script | awk '{print $5}')"
                  if [[ "${scheduled_time_hour}" =~ ^[0-9]$ ]]; then scheduled_time_hour="0${scheduled_time_hour}"; fi
                  echo -e "${GRAY_R}#${RESET} The script already seems to be scheduled for: '${scheduled_day} ${scheduled_time_hour}:00'.."
-                 echo -e "$(date +%F-%T.%6N) | Firmware removal cron already exists — scheduled ${scheduled_day} at ${scheduled_time_hour}:00. No changes made." &>> "${eus_dir}/logs/firmware-cache.log"
+                 echo -e "$(date +%F-%T.%6N) | Firmware removal cron already exists, scheduled ${scheduled_day} at ${scheduled_time_hour}:00. No changes made." &>> "${eus_dir}/logs/firmware-cache.log"
                  sleep 6
                else
                  if curl "${curl_argument[@]}" --output "/root/EUS/remove_firmware_cache.sh" 'https://get.glennr.nl/unifi/extra/remove_firmware_cache.sh'; then
@@ -8486,19 +8630,19 @@ ${cron_expr} * * ${cron_day} root /bin/bash /root/EUS/remove_firmware_cache.sh
 EOF
                    echo -e "$(date +%F-%T.%6N) | Created cron entry '${cron_expr} * * ${cron_day}' for /root/EUS/remove_firmware_cache.sh." &>> "${eus_dir}/logs/firmware-cache.log"
                  else
-                   echo -e "$(date +%F-%T.%6N) | ERROR | Failed to download remove_firmware_cache.sh — cron not created." &>> "${eus_dir}/logs/firmware-cache.log"
+                   echo -e "$(date +%F-%T.%6N) | ERROR | Failed to download remove_firmware_cache.sh, cron not created." &>> "${eus_dir}/logs/firmware-cache.log"
                  fi
                fi
                break;;
             [Nn]*) echo -e "$(date +%F-%T.%6N) | User declined scheduling firmware removal (input: '${yes_no}')." &>> "${eus_dir}/logs/firmware-cache.log"; break;;
             *)
               echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"
-              echo -e "$(date +%F-%T.%6N) | WARNING | Invalid input '${yes_no}' — reprompting." &>> "${eus_dir}/logs/firmware-cache.log"
+              echo -e "$(date +%F-%T.%6N) | WARNING | Invalid input '${yes_no}', reprompting." &>> "${eus_dir}/logs/firmware-cache.log"
               sleep 3;;
         esac
       done
     else
-      echo -e "$(date +%F-%T.%6N) | Two-factor auth enabled — skipping firmware removal scheduling (credentials cannot be embedded)." &>> "${eus_dir}/logs/firmware-cache.log"
+      echo -e "$(date +%F-%T.%6N) | Two-factor auth enabled, skipping firmware removal scheduling (credentials cannot be embedded)." &>> "${eus_dir}/logs/firmware-cache.log"
     fi
   else
     echo -e "$(date +%F-%T.%6N) | Upgrades in progress. Presenting cache disposition options (two_factor=${two_factor:-<unset>})." &>> "${eus_dir}/logs/firmware-cache.log"
@@ -8536,7 +8680,7 @@ EOF
                      if [[ "${scheduled_time_hour}" =~ ^[0-9]$ ]]; then scheduled_time_hour="0${scheduled_time_hour}"; fi
                      if [[ "${scheduled_time_minute}" =~ ^[0-9]$ ]]; then scheduled_time_minute="0${scheduled_time_minute}"; fi
                      echo -e "${GRAY_R}#${RESET} The script seems to be scheduled already at '${scheduled_time_hour}:${scheduled_time_minute}'.."
-                     echo -e "$(date +%F-%T.%6N) | Existing cron found — already scheduled at ${scheduled_time_hour}:${scheduled_time_minute}. No changes made." &>> "${eus_dir}/logs/firmware-cache.log"
+                     echo -e "$(date +%F-%T.%6N) | Existing cron found, already scheduled at ${scheduled_time_hour}:${scheduled_time_minute}. No changes made." &>> "${eus_dir}/logs/firmware-cache.log"
                      sleep 6
                    else
                      if curl "${curl_argument[@]}" --output "/root/EUS/remove_firmware_cache.sh" 'https://get.glennr.nl/unifi/extra/remove_firmware_cache.sh'; then
@@ -8558,7 +8702,7 @@ ${time_minute} ${cron_time_hour} * * * root /bin/bash /root/EUS/remove_firmware_
 EOF
                        echo -e "$(date +%F-%T.%6N) | Created 1-hour cron: minute=${time_minute}, hour=${cron_time_hour} for /root/EUS/remove_firmware_cache.sh." &>> "${eus_dir}/logs/firmware-cache.log"
                      else
-                       echo -e "$(date +%F-%T.%6N) | ERROR | Failed to download remove_firmware_cache.sh — 1-hour cron not created." &>> "${eus_dir}/logs/firmware-cache.log"
+                       echo -e "$(date +%F-%T.%6N) | ERROR | Failed to download remove_firmware_cache.sh, 1-hour cron not created." &>> "${eus_dir}/logs/firmware-cache.log"
                      fi
                    fi;;
                 [Nn]*|"") echo -e "$(date +%F-%T.%6N) | User declined 1-hour removal scheduling (input: '${yes_no:-empty}')." &>> "${eus_dir}/logs/firmware-cache.log";;
@@ -8567,7 +8711,7 @@ EOF
             echo -e "$(date +%F-%T.%6N) | User chose to wait 10 minutes then remove cached firmware (choice: 3)." &>> "${eus_dir}/logs/firmware-cache.log"
             sleep 600
             unifi_cache_remove;;
-          *) echo -e "$(date +%F-%T.%6N) | WARNING | Unrecognised choice '${firmware_choice}' — keeping cached firmware by default." &>> "${eus_dir}/logs/firmware-cache.log";;
+          *) echo -e "$(date +%F-%T.%6N) | WARNING | Unrecognised choice '${firmware_choice}', keeping cached firmware by default." &>> "${eus_dir}/logs/firmware-cache.log";;
       esac
     else
       case "$firmware_choice" in
@@ -8576,7 +8720,7 @@ EOF
             echo -e "$(date +%F-%T.%6N) | User chose to wait 10 minutes then remove cached firmware with 2FA enabled (choice: 2)." &>> "${eus_dir}/logs/firmware-cache.log"
             sleep 600
             unifi_cache_remove;;
-          *) echo -e "$(date +%F-%T.%6N) | WARNING | Unrecognised choice '${firmware_choice}' with 2FA enabled — keeping by default." &>> "${eus_dir}/logs/firmware-cache.log";;
+          *) echo -e "$(date +%F-%T.%6N) | WARNING | Unrecognised choice '${firmware_choice}' with 2FA enabled, keeping by default." &>> "${eus_dir}/logs/firmware-cache.log";;
       esac
     fi
   fi
@@ -8602,7 +8746,7 @@ unifi_list_sites() {
   fi
   header
   echo -e "${GRAY_R}#${RESET} Catching all the site names! \\n\\n"
-  local sites_json site desc tz
+  local sites_json desc tz
   sites_json="$("${unifi_api_curl_cmd[@]}" "$unifi_api_baseurl/api/self/sites" 2>&1)"
   unifi_sites_list=()
   while IFS= read -r site; do
@@ -8704,7 +8848,7 @@ log_site_inventory() {
 
 uap_upgrade() {
   echo -e "${GRAY_R}#${RESET} Checking UniFi Access Points for firmware ${unifi_upgrade_devices_var_2}..."
-  local site raw_uap_macs raw_uap_u6qca_macs stat_json uap_upgrade_result
+  local raw_uap_macs raw_uap_u6qca_macs stat_json uap_upgrade_result
   local legacy_uap_models model model_macs uap_count uap_mac
   for site in "${unifi_sites_list[@]}"; do
     stat_json="$("${unifi_api_curl_cmd[@]}" "$unifi_api_baseurl/api/s/${site}/stat/device" 2>&1)"
@@ -8785,7 +8929,7 @@ uap_upgrade() {
         elif [[ ${U7E[*]} =~ ${model} ]]; then
           firmware_url="http://dl.ui.com/unifi/firmware/U7E/3.8.17.6789/BZ.bcm4706.v3.8.17.6789.190110.0913.bin"
         else
-          echo -e "$(date +%F-%T.%6N) | WARNING | Model '${model}' does not match any known legacy UAP platform — skipping." &>> "${eus_dir}/logs/device-upgrade.log"
+          echo -e "$(date +%F-%T.%6N) | WARNING | Model '${model}' does not match any known legacy UAP platform, skipping." &>> "${eus_dir}/logs/device-upgrade.log"
           continue
         fi
         echo -e "$(date +%F-%T.%6N) | Resolved firmware URL for model '${model}': '${firmware_url}'." &>> "${eus_dir}/logs/device-upgrade.log"
@@ -8828,7 +8972,7 @@ usw_custom_upgrade_commands() {
 
 usw_upgrade() {
   echo -e "${GRAY_R}#${RESET} Checking UniFi Switches for firmware ${unifi_upgrade_devices_var_2}..."
-  local site raw_usw_macs raw_usw_gen2_macs stat_json usw_upgrade_result
+  local raw_usw_macs raw_usw_gen2_macs stat_json usw_upgrade_result
   local legacy_usw_models model model_macs usw_count usw_mac
   for site in "${unifi_sites_list[@]}"; do
     stat_json="$("${unifi_api_curl_cmd[@]}" "$unifi_api_baseurl/api/s/${site}/stat/device" 2>&1)"
@@ -8900,7 +9044,7 @@ usw_upgrade() {
           firmware_url="$(curl -s "http://fw-update.ui.com/api/firmware-latest?filter=eq~~platform~~US24P250&filter=eq~~channel~~release" 2>/dev/null | jq -r '._embedded.firmware[]._links.data.href' 2>/dev/null | sed 's/https/http/g')"
           [[ -z "${firmware_url}" ]] && firmware_url="http://dl.ui.com/unifi/firmware/US24P250/4.0.80.10875/US.bcm5334x.v4.0.80.10875.200111.2335.bin"
         else
-          echo -e "$(date +%F-%T.%6N) | WARNING | Model '${model}' does not match any known legacy USW platform — skipping." &>> "${eus_dir}/logs/device-upgrade.log"
+          echo -e "$(date +%F-%T.%6N) | WARNING | Model '${model}' does not match any known legacy USW platform, skipping." &>> "${eus_dir}/logs/device-upgrade.log"
           continue
         fi
         echo -e "$(date +%F-%T.%6N) | Resolved firmware URL for model '${model}': '${firmware_url}'." &>> "${eus_dir}/logs/device-upgrade.log"
@@ -8944,7 +9088,7 @@ ugw_custom_upgrade_commands() {
 
 ugw_upgrade() {
   echo -e "${GRAY_R}#${RESET} Checking UniFi Gateways and UniFi Security Gateways for firmware ${unifi_upgrade_devices_var_2}..."
-  local site raw_ugw_macs raw_uxg_macs stat_json uxg_upgrade_result ugw_upgrade_result
+  local raw_ugw_macs raw_uxg_macs stat_json uxg_upgrade_result ugw_upgrade_result
   local legacy_ugw_models model model_macs ugw_count uxg_count ugw_mac uxg_mac
   for site in "${unifi_sites_list[@]}"; do
     stat_json="$("${unifi_api_curl_cmd[@]}" "$unifi_api_baseurl/api/s/${site}/stat/device" 2>&1)"
@@ -9035,7 +9179,7 @@ ugw_upgrade() {
           firmware_url="$(curl -s "http://fw-update.ui.com/api/firmware-latest?filter=eq~~platform~~UGW4&filter=eq~~channel~~release" 2>/dev/null | jq -r '._embedded.firmware[]._links.data.href' 2>/dev/null | sed 's/https/http/g')"
           [[ -z "${firmware_url}" ]] && firmware_url="http://dl.ui.com/unifi/firmware/UGW4/4.4.51.5287926/UGW4.v4.4.51.5287926.tar"
         else
-          echo -e "$(date +%F-%T.%6N) | WARNING | Model '${model}' does not match any known legacy UGW platform — skipping." &>> "${eus_dir}/logs/device-upgrade.log"
+          echo -e "$(date +%F-%T.%6N) | WARNING | Model '${model}' does not match any known legacy UGW platform, skipping." &>> "${eus_dir}/logs/device-upgrade.log"
           continue
         fi
         echo -e "$(date +%F-%T.%6N) | Resolved firmware URL for model '${model}': '${firmware_url}'." &>> "${eus_dir}/logs/device-upgrade.log"
@@ -9202,7 +9346,7 @@ schedule_time_question() {
      *)
         header_red
         echo -e "${GRAY_R}#${RESET} '${choice}' is not a valid option..." && sleep 2
-        echo -e "$(date +%F-%T.%6N) | WARNING | Invalid schedule time choice '${choice}' — reprompting." &>> "${eus_dir}/logs/device-schedule.log"
+        echo -e "$(date +%F-%T.%6N) | WARNING | Invalid schedule time choice '${choice}', reprompting." &>> "${eus_dir}/logs/device-schedule.log"
         schedule_time_question;;
   esac
   echo -e "$(date +%F-%T.%6N) | User selected schedule time: ${cron_expr_human} (cron: '${cron_expr}')." &>> "${eus_dir}/logs/device-schedule.log"
@@ -9224,7 +9368,7 @@ device_upgrade_schedule() {
     for site in "${unifi_sites_list[@]}"; do
       get_site_desc
       site_timezone="${site_timezone_map[${site}]}"
-      echo -e "$(date +%F-%T.%6N) | Site '${site}' (${site_desc}, tz: ${site_timezone}) — fetching existing scheduled tasks." &>> "${eus_dir}/logs/device-schedule.log"
+      echo -e "$(date +%F-%T.%6N) | Site '${site}' (${site_desc}, tz: ${site_timezone}), fetching existing scheduled tasks." &>> "${eus_dir}/logs/device-schedule.log"
       scheduled_raw="$("${unifi_api_curl_cmd[@]}" "$unifi_api_baseurl/api/s/${site}/rest/scheduletask" | jq -r '.data[] | select(.execute_only_once == true) | .upgrade_targets | .[] | .mac' 2>&1)"
       scheduled_mac_map["${site}"]="${scheduled_raw}"
       if [[ -n "${scheduled_raw}" ]]; then
@@ -9259,7 +9403,7 @@ device_upgrade_schedule() {
         [[ -z "${mac}" ]] && continue
         if echo "${scheduled_mac_map[${site}]}" | grep -iq "^${mac}$"; then
           echo -e "${YELLOW}#${RESET} ${type_2} with MAC address '${mac}' from site '${site_desc}' is already scheduled.."
-          echo -e "$(date +%F-%T.%6N) | Site '${site_desc}' | ${type_2} '${mac}' is already scheduled — skipping." &>> "${eus_dir}/logs/device-schedule.log"
+          echo -e "$(date +%F-%T.%6N) | Site '${site_desc}' | ${type_2} '${mac}' is already scheduled, skipping." &>> "${eus_dir}/logs/device-schedule.log"
         else
           schedule_name="EUS ${type_2} Upgrade | ${mac}"
           echo -e "$(date +%F-%T.%6N) | Site '${site_desc}' | Scheduling ${type_2} '${mac}' at ${cron_expr_human} (cron: '${cron_expr} * * *') tz '${site_timezone}'." &>> "${eus_dir}/logs/device-schedule.log"
@@ -9305,8 +9449,10 @@ unifi_backup () {
   header
   echo -e "${GRAY_R}#${RESET} Creating the backup!"
   echo -e "${GRAY_R}#${RESET} This can take a while for big setups! \\n\\n"
+  echo -e "$(date +%F-%T.%6N) | unifi_backup started. site='${site}', unifi='${unifi}', unifi_release='${unifi_release}'." &>> "${eus_dir}/logs/unifi-network-backup.log"
   sleep 2
   auto_dir=$(grep ^autobackup.dir /var/lib/unifi/system.properties 2> /dev/null | sed 's/autobackup.dir=//g')
+  echo -e "$(date +%F-%T.%6N) | auto_dir='${auto_dir}'." &>> "${eus_dir}/logs/unifi-network-backup.log"
   if grep -q "^unifi:" /etc/group && grep -q "^unifi:" /etc/passwd; then
     if sudo -u unifi [ -w "${auto_dir}" ]; then touch /tmp/EUS/application/dir_writable; fi
     if [[ -f /tmp/EUS/application/dir_writable ]]; then
@@ -9319,6 +9465,7 @@ unifi_backup () {
   if ! [[ "${unifi}" =~ ^(5.6.0|5.6.1|5.6.2|5.6.3)$ || "${unifi_release::3}" -lt "56" ]]; then
     unifi_write_permission=pass
   fi
+  echo -e "$(date +%F-%T.%6N) | unifi_write_permission='${unifi_write_permission}'." &>> "${eus_dir}/logs/unifi-network-backup.log"
   # shellcheck disable=SC2012
   if [[ -n "$auto_dir" && "${unifi_write_permission}" =~ (true|pass) || $(ls -ld "${auto_dir}" 2> /dev/null | awk '{print $3":"$4}') == "unifi:unifi" ]]; then
     backup_location=custom
@@ -9328,7 +9475,7 @@ unifi_backup () {
     else
       if ! [[ -d "${auto_dir}/glennr-unifi-backups/" ]]; then mkdir "${auto_dir}/glennr-unifi-backups/"; fi
       output="${auto_dir}/glennr-unifi-backups/unifi_backup_${unifi}_${backup_time}.unf"
-	fi
+    fi
   elif [[ -d /data/autobackup/ ]]; then
     if ! [[ -d /data/glennr-unifi-backups/ ]]; then mkdir /data/glennr-unifi-backups/; fi
     backup_location="sd_card"
@@ -9342,15 +9489,31 @@ unifi_backup () {
     backup_location="unifi_dir"
     output="/usr/lib/unifi/data/backup/glennr-unifi-backups/unifi_backup_${unifi}_${backup_time}.unf"
   fi
+  echo -e "$(date +%F-%T.%6N) | backup_location='${backup_location}', output='${output}'." &>> "${eus_dir}/logs/unifi-network-backup.log"
+  local backup_endpoint backup_trigger_response
   if [[ "${unifi}" =~ ^(5.4.0|5.4.1)$ || "${unifi_release::3}" -lt "54" ]]; then
-    path=$("${unifi_api_curl_cmd[@]}" --data "{\"cmd\":\"backup\",\"days\":\"0\"}" "$unifi_api_baseurl/api/s/${site}/cmd/system" | sed -n 's/.*\(\/dl.*unf\).*/\1/p')
+    backup_endpoint="$unifi_api_baseurl/api/s/${site}/cmd/system"
   else
-    path=$("${unifi_api_curl_cmd[@]}" --data "{\"cmd\":\"backup\",\"days\":\"0\"}" "$unifi_api_baseurl/api/s/${site}/cmd/backup" | sed -n 's/.*\(\/dl.*unf\).*/\1/p')
+    backup_endpoint="$unifi_api_baseurl/api/s/${site}/cmd/backup"
   fi
-  "${unifi_api_curl_cmd[@]}" "$unifi_api_baseurl$path" -o "$output" --create-dirs
+  echo -e "$(date +%F-%T.%6N) | Triggering backup via '${backup_endpoint}'..." &>> "${eus_dir}/logs/unifi-network-backup.log"
+  backup_trigger_response=$("${unifi_api_curl_cmd[@]}" --data "{\"cmd\":\"backup\",\"days\":\"0\"}" "${backup_endpoint}")
+  echo -e "$(date +%F-%T.%6N) | Backup trigger raw response: '${backup_trigger_response}'" &>> "${eus_dir}/logs/unifi-network-backup.log"
+  path=$(echo "${backup_trigger_response}" | sed -n 's/.*\(\/dl.*unf\).*/\1/p')
+  if [[ -z "${path}" ]]; then
+    echo -e "$(date +%F-%T.%6N) | Could not extract a download path from the backup trigger response. Aborting download to avoid saving a bogus/empty backup file." &>> "${eus_dir}/logs/unifi-network-backup.log"
+    return 1
+  fi
+  echo -e "$(date +%F-%T.%6N) | Downloading backup from '${unifi_api_baseurl}${path}' to '${output}'..." &>> "${eus_dir}/logs/unifi-network-backup.log"
+  if "${unifi_api_curl_cmd[@]}" "$unifi_api_baseurl$path" -o "$output" --create-dirs &>> "${eus_dir}/logs/unifi-network-backup.log"; then
+    echo -e "$(date +%F-%T.%6N) | Backup download curl command completed." &>> "${eus_dir}/logs/unifi-network-backup.log"
+  else
+    echo -e "$(date +%F-%T.%6N) | Backup download curl command failed (exit code $?)." &>> "${eus_dir}/logs/unifi-network-backup.log"
+  fi
 }
 
 unifi_backup_check() {
+  echo -e "$(date +%F-%T.%6N) | unifi_backup_check started. output='${output}'." &>> "${eus_dir}/logs/unifi-network-backup.log"
   if [[ -f "${output}" && -s "${output}" ]]; then
     while true; do
       header
@@ -9360,9 +9523,11 @@ unifi_backup_check() {
         stat_1=$(stat -c%s "${output}")
         sleep 10
         stat_2=$(stat -c%s "${output}")
+        echo -e "$(date +%F-%T.%6N) | Size check: stat_1=${stat_1}, stat_2=${stat_2}." &>> "${eus_dir}/logs/unifi-network-backup.log"
         if [[ "${stat_1}" -eq "${stat_2}" ]]; then
           header
           echo -e "${GREEN}#${RESET} UniFi Network Application backup was successful!"
+          echo -e "$(date +%F-%T.%6N) | Backup file size stable at ${stat_2} bytes, marking as success." &>> "${eus_dir}/logs/unifi-network-backup.log"
           sleep 2
           glennr_unifi_backup="success"
           break
@@ -9374,30 +9539,32 @@ unifi_backup_check() {
     done
     if [[ "${glennr_unifi_backup}" == 'success' ]]; then
       echo -e "${GREEN}#${RESET} Changing backup file permissions to unifi:unifi!"
+      echo -e "$(date +%F-%T.%6N) | Setting ownership to unifi:unifi for backup_location='${backup_location}'." &>> "${eus_dir}/logs/unifi-network-backup.log"
       if [[ "${backup_location}" == 'custom' ]]; then
         if ! [[ "${unifi}" =~ ^(5.6.0|5.6.1|5.6.2|5.6.3)$ || "${unifi_release::3}" -lt "56" ]]; then
           if echo "$auto_dir" | grep -q '/$'; then
-            chown -R unifi:unifi "${auto_dir}glennr-unifi-backups/"
+            chown -R unifi:unifi "${auto_dir}glennr-unifi-backups/" &>> "${eus_dir}/logs/unifi-network-backup.log"
           else
-            chown -R unifi:unifi "${auto_dir}/glennr-unifi-backups/"
+            chown -R unifi:unifi "${auto_dir}/glennr-unifi-backups/" &>> "${eus_dir}/logs/unifi-network-backup.log"
           fi
         fi
       elif [[ "${backup_location}" == 'sd_card' ]]; then
         if ! [[ "${unifi}" =~ ^(5.6.0|5.6.1|5.6.2|5.6.3)$ || "${unifi_release::3}" -lt "56" ]]; then
-          chown -R unifi:unifi /data/glennr-unifi-backups/
+          chown -R unifi:unifi /data/glennr-unifi-backups/ &>> "${eus_dir}/logs/unifi-network-backup.log"
         fi
       elif [[ "${backup_location}" == 'sd_card_unifi_os' ]]; then
         if ! [[ "${unifi}" =~ ^(5.6.0|5.6.1|5.6.2|5.6.3)$ || "${unifi_release::3}" -lt "56" ]]; then
-          chown -R unifi:unifi /sdcard/glennr-unifi-backups/
+          chown -R unifi:unifi /sdcard/glennr-unifi-backups/ &>> "${eus_dir}/logs/unifi-network-backup.log"
         fi
       elif [[ "${backup_location}" == 'unifi_dir' ]]; then
         if ! [[ "${unifi}" =~ ^(5.6.0|5.6.1|5.6.2|5.6.3)$ || "${unifi_release::3}" -lt "56" ]]; then
-          chown -R unifi:unifi /usr/lib/unifi/data/backup/glennr-unifi-backups/
+          chown -R unifi:unifi /usr/lib/unifi/data/backup/glennr-unifi-backups/ &>> "${eus_dir}/logs/unifi-network-backup.log"
         fi
       fi
       sleep 3
     fi
   else
+    echo -e "$(date +%F-%T.%6N) | Backup file '${output}' missing or empty (likely due to failed trigger or download step logged above)." &>> "${eus_dir}/logs/unifi-network-backup.log"
     header_red
     echo -e "${RED}#${RESET} UniFi Network Application backup seems to have failed.."
     while true; do
@@ -9410,6 +9577,7 @@ unifi_backup_check() {
          [Nn]*)
             header
             echo -e "${GRAY_R}#${RESET} Skipping the UniFi Network Application backup.."; sleep 3
+            echo -e "$(date +%F-%T.%6N) | User chose to skip the backup after a failed attempt." &>> "${eus_dir}/logs/unifi-network-backup.log"
             break;;
          *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
       esac
