@@ -3,7 +3,7 @@
 # UniFi Network Application Easy Update Script.
 # Script          | UniFi Network Easy Update Script
 # Version         | 9.9.9
-# Script Version  | 10.7.4
+# Script Version  | 10.7.5
 # Author          | Glenn Rietveld
 # Email           | glennrietveld8@hotmail.nl
 # Website         | https://GlennR.nl
@@ -7894,7 +7894,7 @@ username_case_sensitive_check() {
       closest_hint=""
     fi
     if [[ -n "${closest_hint}" ]]; then
-      echo -e "$(date +%F-%T.%6N) | username_case_sensitive_check: searched ${admin_count} admin accounts, match_found=${match_found}. A similarly-prefixed account exists (sanitized: '${closest_hint:0:2}***${closest_hint: -2}', length=${#closest_hint}) — likely a typo of an existing account." &>> "${eus_dir}/logs/unifi-login.log"
+      echo -e "$(date +%F-%T.%6N) | username_case_sensitive_check: searched ${admin_count} admin accounts, match_found=${match_found}. A similarly-prefixed account exists (sanitized: '${closest_hint:0:2}***${closest_hint: -2}', length=${#closest_hint}), likely a typo of an existing account." &>> "${eus_dir}/logs/unifi-login.log"
     else
       echo -e "$(date +%F-%T.%6N) | username_case_sensitive_check: searched ${admin_count} admin accounts, match_found=${match_found}. No similarly-prefixed account found — likely an entirely wrong username, not a typo." &>> "${eus_dir}/logs/unifi-login.log"
     fi
@@ -11627,23 +11627,80 @@ mongodb_upgrade() {
 ###################################################################################################################################################################################################
 
 unifi_site_stats() {
+  local site health_json site_json
+  local adopted_aps adopted_switches adopted_gateways adopted_total
+  local max_name_len=30 name_col_width=4 rule i sum_of_sites=0
+  local aps_col_width=3 switches_col_width=2 gateways_col_width=2 total_col_width=5
+  local site_names=() site_aps=() site_switches=() site_gateways=() site_total=()
+  local display_name
+  site_stats_json_array=()
+  for site in "${unifi_sites_list[@]}"; do
+    health_json=$("${unifi_api_curl_cmd[@]}" "${unifi_api_baseurl}/api/s/${site}/stat/health")
+    echo -e "$(date +%F-%T.%6N) | unifi_site_stats: fetched health for site '${site}' (desc='${site_desc_map[${site}]}')." &>> "${eus_dir}/logs/unifi-statistics.log"
+    site_json=$(echo "${health_json}" | jq --arg site "${site}" --arg desc "${site_desc_map[${site}]}" '
+      {
+        ($site): {
+          description: $desc,
+          devices: (
+            [.data[]? | select(.subsystem | test("^wlan|^lan|^wan"))
+              | {
+                  key: (if .subsystem == "wlan" then "access_points"
+                        elif .subsystem == "lan" then "switches"
+                        else "gateways" end),
+                  value: {
+                    users: (.num_user // 0),
+                    guests: (.num_guest // 0),
+                    iot: (.num_iot // 0),
+                    adopted: (.num_adopted // 0),
+                    disconnected: (.num_disconnected // 0),
+                    disabled: (.num_disabled // 0),
+                    pending: (.num_pending // 0)
+                  }
+                }]
+            | from_entries
+          )
+        }
+      }')
+    adopted_aps=$(echo "${site_json}" | jq -r --arg site "${site}" '.[$site].devices.access_points.adopted // 0')
+    adopted_switches=$(echo "${site_json}" | jq -r --arg site "${site}" '.[$site].devices.switches.adopted // 0')
+    adopted_gateways=$(echo "${site_json}" | jq -r --arg site "${site}" '.[$site].devices.gateways.adopted // 0')
+    adopted_total=$(( adopted_aps + adopted_switches + adopted_gateways ))
+    site_json=$(echo "${site_json}" | jq --arg site "${site}" --argjson total "${adopted_total}" '.[$site] += {total_adopted: $total}')
+    site_stats_json_array+=("${site_json}")
+    # Truncate very long site names so the table stays readable; full name is still in the JSON.
+    display_name="${site_desc_map[${site}]}"
+    if [[ "${#display_name}" -gt "${max_name_len}" ]]; then
+      display_name="${display_name:0:$(( max_name_len - 1 ))}…"
+    fi
+    site_names+=("${display_name}")
+    site_aps+=("${adopted_aps}")
+    site_switches+=("${adopted_switches}")
+    site_gateways+=("${adopted_gateways}")
+    site_total+=("${adopted_total}")
+    (( sum_of_sites += adopted_total ))
+    if [[ "${#display_name}" -gt "${name_col_width}" ]]; then name_col_width="${#display_name}"; fi
+    if [[ "${#adopted_aps}" -gt "${aps_col_width}" ]]; then aps_col_width="${#adopted_aps}"; fi
+    if [[ "${#adopted_switches}" -gt "${switches_col_width}" ]]; then switches_col_width="${#adopted_switches}"; fi
+    if [[ "${#adopted_gateways}" -gt "${gateways_col_width}" ]]; then gateways_col_width="${#adopted_gateways}"; fi
+    if [[ "${#adopted_total}" -gt "${total_col_width}" ]]; then total_col_width="${#adopted_total}"; fi
+    echo -e "$(date +%F-%T.%6N) | unifi_site_stats: site '${site}' total_adopted=${adopted_total} (access_points=${adopted_aps}, switches=${adopted_switches}, gateways=${adopted_gateways})." &>> "${eus_dir}/logs/unifi-statistics.log"
+  done
+  (( aps_col_width += 2 ))
+  (( switches_col_width += 2 ))
+  (( gateways_col_width += 2 ))
+  (( total_col_width += 2 ))
   header
-  while read -r site; do
-    if [[ "${unifi_site_stats_first}" == '1' ]]; then echo -e "\\n${GRAY_R}----${RESET}\\n"; else unifi_site_stats_first="1"; fi
-    echo -e "${GREEN}#${RESET} Statistics for site: \"$(cat "/tmp/EUS/sites/${site}/site_desc")\"\\n"
-    "${unifi_api_curl_cmd[@]}" "$unifi_api_baseurl/api/s/${site}/stat/health" | jq -r '.data[] | select(.subsystem|test("^wlan","^lan","^wan")) | {site_placeholder: {(.subsystem): {users: .num_user, guests: .num_guest, iot: .num_iot, adopted: .num_adopted, disconnected: .num_disconnected, disabled: .num_disabled, pending: .num_pending}}}' | sed '/null/d' | sed "s/site_placeholder/${site}/g" &> "/tmp/EUS/stats/site_${site}_stats.json"
-    # shellcheck disable=SC2086
-    adopted_devices_wlan=$(jq -r '.["'${site}'"].wlan.adopted | select (.!=null)' "/tmp/EUS/stats/site_${site}_stats.json")
-    # shellcheck disable=SC2086
-    adopted_devices_lan=$(jq -r '.["'${site}'"].lan.adopted | select (.!=null)' "/tmp/EUS/stats/site_${site}_stats.json")
-    # shellcheck disable=SC2086
-    adopted_devices_wan=$(jq -r '.["'${site}'"].wan.adopted | select (.!=null)' "/tmp/EUS/stats/site_${site}_stats.json")
-	adopted_devices_total=$(("${adopted_devices_wlan}" + "${adopted_devices_lan}" + "${adopted_devices_wan}"))
-    echo -e "${GRAY_R}#${RESET} Total adopted devices: ${GREEN}${adopted_devices_total}${RESET}"
-    echo -e "${GRAY_R}#${RESET} WLAN: ${adopted_devices_wlan}"
-    echo -e "${GRAY_R}#${RESET} LAN: ${adopted_devices_lan}"
-    echo -e "${GRAY_R}#${RESET} Gateway: ${adopted_devices_wan}"
-  done < /tmp/EUS/unifi_sites
+  echo -e "${GREEN}#${RESET} UniFi Network Application Statistics"
+  echo -e "${GRAY_R}#${RESET} APs = Access Points, SW = Switches, GW = Gateways\\n"
+  printf " %-${name_col_width}s  %${aps_col_width}s%${switches_col_width}s%${gateways_col_width}s%${total_col_width}s\n" "Site" "APs" "SW" "GW" "Total"
+  rule="$(printf '%*s' "$(( name_col_width + aps_col_width + switches_col_width + gateways_col_width + total_col_width + 1 ))" '' | tr ' ' '-')"
+  echo " ${rule}"
+  for i in "${!site_names[@]}"; do
+    printf " %-${name_col_width}s  %${aps_col_width}s%${switches_col_width}s%${gateways_col_width}s%${total_col_width}s\n" "${site_names[$i]}" "${site_aps[$i]}" "${site_switches[$i]}" "${site_gateways[$i]}" "${site_total[$i]}"
+  done
+  echo " ${rule}"
+  printf " %-${name_col_width}s  %${aps_col_width}s%${switches_col_width}s%${gateways_col_width}s${GREEN}%${total_col_width}s${RESET}\n" "TOTAL" "" "" "" "${sum_of_sites}"
+  echo ""
 }
 
 application_statistics() {
@@ -11651,23 +11708,47 @@ application_statistics() {
     unifi_credentials
     executed_unifi_credentials="true"
   fi
+  echo -e "$(date +%F-%T.%6N) | application_statistics started." &>> "${eus_dir}/logs/unifi-statistics.log"
   unifi_login
   unifi_list_sites
-  eus_directory_location="/tmp/EUS"
-  eus_create_directories "stats"
-  total_adopted="$("${mongocommand}" --quiet --port 27117 ace --eval "${mongoprefix}db.device.stats() )" | jq '.count')"
-  # shellcheck disable=SC2016
-  jq -n --arg total "${total_adopted}" '{"total_adopted":$total}' > "/tmp/EUS/stats/total_adopted.json"
+  if [[ "${#unifi_sites_list[@]}" -eq 0 ]]; then
+    echo -e "$(date +%F-%T.%6N) | application_statistics: no sites found via unifi_sites_list, aborting." &>> "${eus_dir}/logs/unifi-statistics.log"
+    header_red
+    echo -e "${RED}#${RESET} No sites were found, unable to generate statistics.\\n"
+    author
+    eus_exit 1
+  fi
+  total_adopted="$("${mongocommand}" --quiet --port 27117 ace --eval "${mongoprefix}db.device.stats() )" | jq -r '.count // 0')"
+  if ! [[ "${total_adopted}" =~ ^[0-9]+$ ]]; then
+    echo -e "$(date +%F-%T.%6N) | application_statistics: total_adopted value '${total_adopted}' was not a valid integer, defaulting to 0." &>> "${eus_dir}/logs/unifi-statistics.log"
+    total_adopted=0
+  fi
+  echo -e "$(date +%F-%T.%6N) | application_statistics: total_adopted=${total_adopted} (from db.device.stats())." &>> "${eus_dir}/logs/unifi-statistics.log"
   unifi_site_stats
-  jq -s '.' "/tmp/EUS/stats/total_adopted.json" /tmp/EUS/stats/site_*_stats.json > "/tmp/EUS/stats/complete_stats.json"
+  local sites_json complete_stats_json
+  sites_json=$(printf '%s\n' "${site_stats_json_array[@]}" | jq -s 'add // {}')
+  complete_stats_json=$(jq -n \
+    --arg generated_at "$(date -Iseconds)" \
+    --arg unifi_version "${unifi}" \
+    --argjson total_adopted "${total_adopted}" \
+    --argjson sites "${sites_json}" \
+    '{
+      generated_at: $generated_at,
+      unifi_version: $unifi_version,
+      total_adopted_devices: $total_adopted,
+      sites: $sites
+    }')
   json_time="$(date "+%Y%m%d_%H%M")"
+  eus_directory_location="${eus_dir}"
   eus_create_directories "stats"
-  mv "/tmp/EUS/stats/complete_stats.json" "${eus_dir}/stats/complete_stats_${json_time}.json"
-  mv "/tmp/EUS/stats/total_adopted.json" "${eus_dir}/stats/total_adopted_${json_time}.json"
-  # shellcheck disable=SC2012
-  ls -t "${eus_dir}/stats/complete_stats_*" 2> /dev/null | awk 'NR>10' | xargs rm -f 2> /dev/null
-  # shellcheck disable=SC2012
-  ls -t "${eus_dir}/stats/total_adopted_*" 2> /dev/null | awk 'NR>10' | xargs rm -f 2> /dev/null
+  echo "${complete_stats_json}" | jq '.' > "${eus_dir}/stats/complete_stats_${json_time}.json"
+  jq -n --argjson total "${total_adopted}" '{total_adopted_devices: $total}' > "${eus_dir}/stats/total_adopted_${json_time}.json"
+  echo -e "$(date +%F-%T.%6N) | application_statistics: wrote complete_stats_${json_time}.json and total_adopted_${json_time}.json." &>> "${eus_dir}/logs/unifi-statistics.log"
+  # Keep only the 10 most recent of each file type.
+  # shellcheck disable=SC2012,SC2086
+  ls -t ${eus_dir}/stats/complete_stats_*.json 2> /dev/null | awk 'NR>10' | xargs -r rm -f
+  # shellcheck disable=SC2012,SC2086
+  ls -t ${eus_dir}/stats/total_adopted_*.json 2> /dev/null | awk 'NR>10' | xargs -r rm -f
   echo -e "\\n\\n${GREEN}#########################################################################${RESET}\\n"
   echo -e "${GRAY_R}#${RESET} Total adopted devices on this UniFi Network Application: ${GREEN}${total_adopted}${RESET}\\n"
   echo -e "${GRAY_R}#${RESET} Statistics json file is saved on the locations below: \\n${GRAY_R}-${RESET} \"${eus_dir}/stats/complete_stats_${json_time}.json\" \\n${GRAY_R}-${RESET} \"${eus_dir}/stats/total_adopted_${json_time}.json\"\\n\\n"
@@ -12821,6 +12902,7 @@ run_upgrade_menu_for() {
         "8.5.6-1x29lm155t" "8.6.9-0f45j609pu" "9.0.114-k5dy363g65" "9.1.120-e1aep1zs38"
         "9.2.87-uf39xch68k" "9.3.45-9iw96x349g" "9.4.19-0f76duk082" "9.5.21-6nxxr6v29z"
         "10.0.162-07s9p09k3a" "10.1.89" "10.2.105-2yiwv9j6z9" "10.3.58-2kp7io9bd2"
+        "10.4.57-sdmmd510h6" "10.5.54-z03fnq3ux7"
       )
       app_pretty="UniFi Network Application"
       current="${unifi}"
@@ -12829,7 +12911,7 @@ run_upgrade_menu_for() {
       latest_rc="${latest_net_release_candidate}"
       ;;
     uosserver)
-      fallback_versions=("4.2.23" "4.3.6" "5.0.6")
+      fallback_versions=("4.2.23" "4.3.6" "5.0.8" "5.1.21")
       app_pretty="UniFi OS Server"
       get_uos_server_version
       current="${uos_version}"
