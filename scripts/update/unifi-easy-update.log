@@ -11,6 +11,13 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 10.7.6
+  
+ - Fixed an issue where UI Verify push accepts didn't work for UniFi OS.
+ - Fixed an issue where backup prompt was shown during OS Upgrades for UniFi OS Server setups.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 10.7.5
   
  - Improved Application Statistics output. 

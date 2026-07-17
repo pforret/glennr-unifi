@@ -3,7 +3,7 @@
 # UniFi Network Application Easy Update Script.
 # Script          | UniFi Network Easy Update Script
 # Version         | 9.9.9
-# Script Version  | 10.7.5
+# Script Version  | 10.7.6
 # Author          | Glenn Rietveld
 # Email           | glennrietveld8@hotmail.nl
 # Website         | https://GlennR.nl
@@ -7728,13 +7728,66 @@ if [[ "${script_option_archive_alerts}" == 'true' || "${script_option_delete_eve
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+mask_partial() {
+  local s="$1" keep="${2:-2}"
+  local len=${#s}
+  if [[ -z "${s}" ]]; then
+    echo ""
+    return
+  fi
+  if (( len <= keep * 2 )); then
+    echo "${s:0:1}***"
+  else
+    echo "${s:0:keep}***${s: -keep}"
+  fi
+}
+
+mask_email() {
+  local addr="$1"
+  if [[ -z "${addr}" ]]; then
+    echo ""
+    return
+  fi
+  echo "${addr}" | perl -pe 's/^([^@]{1,2})[^@]*(\@.+)$/$1......$2/'
+}
+
+log_username() {
+  local u="$1"
+  if [[ -z "${u}" ]]; then
+    echo ""
+    return
+  fi
+  if [[ "${u}" == *"@"* ]]; then
+    mask_email "${u}"
+  else
+    mask_partial "${u}"
+  fi
+}
+
 redact_login_response() {
-  # Fully strips password, MFA bearer token, and phone number (real secrets/PII).
-  sed -E \
-    -e 's/"password":"[^"]*"/"password":"[REDACTED]"/g' \
-    -e 's/"mfa_cookie":"[^"]*"/"mfa_cookie":"[REDACTED]"/g' \
-    -e 's/"phone_number":"[^"]*"/"phone_number":"[REDACTED]"/g' \
-  | perl -pe 's/"(email|ubic_name)":"([^"@]{1,2})[^"@]*([^"@]{0,3}\@[^"]+)"/"$1":"$2......$3"/g'
+  # Strips real secrets/credentials (password, MFA cookie, session tokens,
+  # phone number) completely, and partially masks PII (emails, names,
+  # usernames) so entries stay traceable without exposing full details.
+  perl -pe '
+    BEGIN {
+      sub mask_val {
+        my ($s) = @_;
+        return $s if length($s) == 0;
+        if ($s =~ /^([^@]{1,2})[^@]*(\@.+)$/) { return "$1......$2"; }
+        my $len = length($s);
+        return substr($s,0,1)."***" if $len <= 4;
+        return substr($s,0,2)."***".substr($s,-2);
+      }
+    }
+    s/"password":"[^"]*"/"password":"[REDACTED]"/g;
+    s/"mfa_cookie":"[^"]*"/"mfa_cookie":"[REDACTED]"/g;
+    s/"mfaCookie":"[^"]*"/"mfaCookie":"[REDACTED]"/g;
+    s/"phone_number":"[^"]*"/"phone_number":"[REDACTED]"/g;
+    s/"deviceToken":"[^"]*"/"deviceToken":"[REDACTED]"/g;
+    s/("ssoAuth":\{[^}]*"value":")[^"]*(")/$1\[REDACTED\]$2/g;
+    s/"previous_full_name":\[([^\]]*)\]/qq{"previous_full_name":[} . join(",", map { my $x=$_; $x=~s{^"|"$}{}g; qq{"} . mask_val($x) . qq{"} } split(\/,\/, $1)) . qq{]}/ge;
+    s/"(email|ubic_name|user_email|sso_account|first_name|last_name|full_name|sso_username)":"([^"]*)"/qq{"$1":"} . mask_val($2) . qq{"}/ge;
+  '
 }
 
 username_text() {
@@ -7787,19 +7840,31 @@ unifi_api_cookie_set() {
 }
 
 unifi_2fa_push_poll() {
-  # $1 = the "data[0]" JSON object from the Ubic2faTokenRequired response
+  # $1 = the "data" JSON object from the MFA_AUTH_REQUIRED / Ubic2faTokenRequired response
   local mfa_json="$1"
-  local mfa_cookie push_id max_wait_seconds=90 elapsed=0
+  local mfa_cookie_full mfa_cookie_raw push_id max_wait_seconds=90 elapsed=0
   local poll_response self_response self_name skip_key
-  local poll_pid poll_tmpfile loop_start
-  mfa_cookie=$(echo "${mfa_json}" | jq -r '.mfa_cookie // empty')
+  local poll_pid poll_tmpfile loop_start poll_url poll_body
+  if [[ "${unifi_core_system}" == 'true' ]]; then
+    poll_url="https://localhost/api/auth/login/poll"
+  else
+    poll_url="${unifi_api_baseurl}/api/login"
+  fi
+  mfa_cookie_full=$(echo "${mfa_json}" | jq -r '.mfaCookie // empty')
+  mfa_cookie_raw="${mfa_cookie_full#UBIC_2FA=}"
   push_id=$(echo "${mfa_json}" | jq -r '.authenticators[]? | select(.type=="push" and .status=="active") | .id' | head -n1)
-  if [[ -z "${mfa_cookie}" || -z "${push_id}" ]]; then
+  if [[ "${unifi_core_system}" == 'true' && ( -z "${mfa_cookie_full}" || -z "${push_id}" ) ]]; then
     echo -e "$(date +%F-%T.%6N) | No active push authenticator available in login response, falling back to manual 2FA token entry." &>> "${eus_dir}/logs/unifi-login.log"
     return 1
   fi
-  echo -e "$(date +%F-%T.%6N) | Push authenticator '${push_id}' found, attempting push-approval login." &>> "${eus_dir}/logs/unifi-login.log"
-  unifi_api_cookie_set "UBIC_2FA" "${mfa_cookie}"
+  if [[ "${unifi_core_system}" != 'true' && -z "${push_id}" ]]; then
+    echo -e "$(date +%F-%T.%6N) | No active push authenticator available in login response, falling back to manual 2FA token entry." &>> "${eus_dir}/logs/unifi-login.log"
+    return 1
+  fi
+  echo -e "$(date +%F-%T.%6N) | Push authenticator '${push_id}' found, attempting push-approval login (poll_url='${poll_url}')." &>> "${eus_dir}/logs/unifi-login.log"
+  if [[ "${unifi_core_system}" == 'true' ]]; then
+    unifi_api_cookie_set "UBIC_2FA" "${mfa_cookie_raw}"
+  fi
   header
   echo -e "${GRAY_R}#${RESET} A push notification was sent to your device."
   echo -e "${GRAY_R}#${RESET} Approve it to continue, or press any key to enter a 6-digit code instead."
@@ -7807,7 +7872,12 @@ unifi_2fa_push_poll() {
   poll_tmpfile=$(mktemp /tmp/EUS/push_poll_XXXXX)
   while (( elapsed < max_wait_seconds )); do
     loop_start=$(date +%s)
-    "${unifi_api_curl_cmd[@]}" --data '{"poll_login":true,"remember":false,"strict":true}' "${unifi_api_baseurl}/api/login" > "${poll_tmpfile}" &
+    if [[ "${unifi_core_system}" == 'true' ]]; then
+      poll_body=$(jq -n --arg mfaCookie "${mfa_cookie_full}" '{mfaCookie: $mfaCookie, rememberMe: false}')
+      echo "${poll_body}" | "${unifi_api_curl_cmd[@]}" --header "Content-Type: application/json" -d@- "${poll_url}" > "${poll_tmpfile}" &
+    else
+      "${unifi_api_curl_cmd[@]}" --data '{"poll_login":true,"remember":false,"strict":true}' "${poll_url}" > "${poll_tmpfile}" &
+    fi
     poll_pid=$!
     while kill -0 "${poll_pid}" 2>/dev/null; do
       # shellcheck disable=SC2034
@@ -7822,12 +7892,17 @@ unifi_2fa_push_poll() {
     wait "${poll_pid}" 2>/dev/null
     poll_response=$(cat "${poll_tmpfile}")
     (( elapsed += $(date +%s) - loop_start ))
-    echo -e "$(date +%F-%T.%6N) | Push poll response (elapsed=${elapsed}s): ${poll_response}" &>> "${eus_dir}/logs/unifi-login.log"
-    self_response=$("${unifi_api_curl_cmd[@]}" "${unifi_api_baseurl}/api/self")
-    self_name=$(echo "${self_response}" | jq -r '.data[0].name // .data[0].email // empty' 2>/dev/null)
-    echo -e "$(date +%F-%T.%6N) | Post-poll /api/self check: self_name='${self_name}'." &>> "${eus_dir}/logs/unifi-login.log"
+    echo -e "$(date +%F-%T.%6N) | Push poll response (elapsed=${elapsed}s): $(redact_login_response <<< "${poll_response}")" &>> "${eus_dir}/logs/unifi-login.log"
+    if [[ "${unifi_core_system}" == 'true' ]]; then
+      self_name=$(echo "${poll_response}" | jq -r '.email // .sso_account // empty' 2>/dev/null)
+      echo -e "$(date +%F-%T.%6N) | Post-poll check: self_name='$(log_username "${self_name}")'." &>> "${eus_dir}/logs/unifi-login.log"
+    else
+      self_response=$("${unifi_api_curl_cmd[@]}" "${unifi_api_baseurl}/api/self")
+      self_name=$(echo "${self_response}" | jq -r '.data[0].name // .data[0].email // empty' 2>/dev/null)
+      echo -e "$(date +%F-%T.%6N) | Post-poll /api/self check: self_name='$(log_username "${self_name}")'." &>> "${eus_dir}/logs/unifi-login.log"
+    fi
     if [[ -n "${self_name}" ]]; then
-      echo -e "$(date +%F-%T.%6N) | Push approval confirmed via /api/self as '${self_name}' after ~${elapsed}s." &>> "${eus_dir}/logs/unifi-login.log"
+      echo -e "$(date +%F-%T.%6N) | Push approval confirmed as '$(log_username "${self_name}")' after ~${elapsed}s." &>> "${eus_dir}/logs/unifi-login.log"
       if [[ -f "${unifi_api_cookie}" ]]; then
         sed -i '/[[:space:]]UBIC_2FA[[:space:]]/d' "${unifi_api_cookie}"
         echo -e "$(date +%F-%T.%6N) | Removed UBIC_2FA cookie from jar post-authentication." &>> "${eus_dir}/logs/unifi-login.log"
@@ -7840,7 +7915,8 @@ unifi_2fa_push_poll() {
       else
         echo -e "$(date +%F-%T.%6N) | WARNING: no csrf_token cookie found in jar after push approval; state-changing calls may still fail." &>> "${eus_dir}/logs/unifi-login.log"
       fi
-      echo "${poll_response}" > /tmp/EUS/application/login
+      ( umask 077; echo "${poll_response}" > /tmp/EUS/application/login )
+      chmod 600 /tmp/EUS/application/login 2>/dev/null
       rm -f "${poll_tmpfile}"
       return 0
     fi
@@ -7864,7 +7940,7 @@ unifi_credentials() {
     username_text
     read -rp $' Username:\033[39m ' username
   fi
-  echo -e "$(date +%F-%T.%6N) | Username entered: '${username}'." &>> "${eus_dir}/logs/unifi-login.log"
+  echo -e "$(date +%F-%T.%6N) | Username entered: '$(log_username "${username}")'." &>> "${eus_dir}/logs/unifi-login.log"
   password_text
   read -srp " Password: " password
   if [[ -z "$password" ]]; then
@@ -7894,9 +7970,9 @@ username_case_sensitive_check() {
       closest_hint=""
     fi
     if [[ -n "${closest_hint}" ]]; then
-      echo -e "$(date +%F-%T.%6N) | username_case_sensitive_check: searched ${admin_count} admin accounts, match_found=${match_found}. A similarly-prefixed account exists (sanitized: '${closest_hint:0:2}***${closest_hint: -2}', length=${#closest_hint}), likely a typo of an existing account." &>> "${eus_dir}/logs/unifi-login.log"
+      echo -e "$(date +%F-%T.%6N) | username_case_sensitive_check: searched ${admin_count} admin accounts, match_found=${match_found}. A similarly-prefixed account exists (sanitized: '$(mask_partial "${closest_hint}")', length=${#closest_hint}), likely a typo of an existing account." &>> "${eus_dir}/logs/unifi-login.log"
     else
-      echo -e "$(date +%F-%T.%6N) | username_case_sensitive_check: searched ${admin_count} admin accounts, match_found=${match_found}. No similarly-prefixed account found — likely an entirely wrong username, not a typo." &>> "${eus_dir}/logs/unifi-login.log"
+      echo -e "$(date +%F-%T.%6N) | username_case_sensitive_check: searched ${admin_count} admin accounts, match_found=${match_found}. No similarly-prefixed account found, likely an entirely wrong username, not a typo." &>> "${eus_dir}/logs/unifi-login.log"
     fi
     username="${backup_username}"
   else
@@ -7912,10 +7988,11 @@ unifi_login() {
     if "$(which dpkg)" -l unifi-core 2> /dev/null | awk '{print $1}' | grep -iq "^ii\\|^hi\\|^ri\\|^pi\\|^ui"; then
       echo -e "$(date +%F-%T.%6N) | unifi_login: unifi-core detected, using UniFi OS auth endpoint. two_factor='${two_factor}'." &>> "${eus_dir}/logs/unifi-login.log"
       if [[ "${two_factor}" == 'enabled' ]]; then
-        jq -n --arg username "$username" --arg password "$password" --arg ubic_2fa_token "$ubic_2fa_token" '{username: $username, password: $password, token: $ubic_2fa_token}' | "${unifi_api_curl_cmd[@]}" -d@- --header "Content-Type: application/json" "https://localhost/api/auth/login" &>> /tmp/EUS/application/login
+        ( umask 077; jq -n --arg username "$username" --arg password "$password" --arg ubic_2fa_token "$ubic_2fa_token" '{username: $username, password: $password, token: $ubic_2fa_token}' | "${unifi_api_curl_cmd[@]}" -d@- --header "Content-Type: application/json" "https://localhost/api/auth/login" &>> /tmp/EUS/application/login )
       else
-        jq -n --arg username "$username" --arg password "$password" '{username: $username, password: $password}' | "${unifi_api_curl_cmd[@]}" -d@- --header "Content-Type: application/json" "https://localhost/api/auth/login" &>> /tmp/EUS/application/login
+        ( umask 077; jq -n --arg username "$username" --arg password "$password" '{username: $username, password: $password}' | "${unifi_api_curl_cmd[@]}" -d@- --header "Content-Type: application/json" "https://localhost/api/auth/login" &>> /tmp/EUS/application/login )
       fi
+      chmod 600 /tmp/EUS/application/login 2>/dev/null
       echo -e "$(date +%F-%T.%6N) | UniFi OS login response: $(redact_login_response < /tmp/EUS/application/login)" &>> "${eus_dir}/logs/unifi-login.log"
       csrf_token=$(grep TOKEN "${unifi_api_cookie}" | awk '{print $7}' | awk -F'.' '{print $2}' | base64 -d 2>/dev/null | jq -r '.csrfToken // empty')
       if [[ -n "${csrf_token}" ]]; then
@@ -7925,18 +8002,20 @@ unifi_login() {
         echo -e "$(date +%F-%T.%6N) | WARNING: No CSRF token found in cookie jar after login attempt." &>> "${eus_dir}/logs/unifi-login.log"
       fi
     else
-      echo -e "$(date +%F-%T.%6N) | unifi_login: legacy/standalone Network Application, using ${unifi_api_baseurl}/api/login. two_factor='${two_factor}'." &>> "${eus_dir}/logs/unifi-login.log"
+      echo -e "$(date +%F-%T.%6N) | unifi_login: standalone Network Application, using ${unifi_api_baseurl}/api/login. two_factor='${two_factor}'." &>> "${eus_dir}/logs/unifi-login.log"
       if [[ "${two_factor}" == 'enabled' ]]; then
-        jq -n --arg username "$username" --arg password "$password" --arg ubic_2fa_token "$ubic_2fa_token" '{username: $username, password: $password, ubic_2fa_token: $ubic_2fa_token}' | "${unifi_api_curl_cmd[@]}" -d@- "$unifi_api_baseurl/api/login" >> /tmp/EUS/application/login
+        ( umask 077; jq -n --arg username "$username" --arg password "$password" --arg ubic_2fa_token "$ubic_2fa_token" '{username: $username, password: $password, ubic_2fa_token: $ubic_2fa_token}' | "${unifi_api_curl_cmd[@]}" -d@- "$unifi_api_baseurl/api/login" >> /tmp/EUS/application/login )
       else
-        jq -n --arg username "$username" --arg password "$password" '{username: $username, password: $password}' | "${unifi_api_curl_cmd[@]}" -d@- "$unifi_api_baseurl/api/login" >> /tmp/EUS/application/login
+        ( umask 077; jq -n --arg username "$username" --arg password "$password" '{username: $username, password: $password}' | "${unifi_api_curl_cmd[@]}" -d@- "$unifi_api_baseurl/api/login" >> /tmp/EUS/application/login )
       fi
+      chmod 600 /tmp/EUS/application/login 2>/dev/null
       echo -e "$(date +%F-%T.%6N) | Network Application login response: $(redact_login_response < /tmp/EUS/application/login)" &>> "${eus_dir}/logs/unifi-login.log"
     fi
     unifi_login_check
     if [[ "${executed_unifi_login}" != 'true' ]]; then
       super_user_check
       executed_unifi_login="true"
+      shred -u /tmp/EUS/application/login 2>/dev/null || rm -f /tmp/EUS/application/login 2>/dev/null
     fi
   fi
 }
@@ -7956,7 +8035,7 @@ super_user_check() {
     if grep -iq 'readonly' /tmp/EUS/accounts/network_permissions; then user_is_readonly="true"; fi
     echo -e "$(date +%F-%T.%6N) | super_user_check (UOS): network_permissions=$(cat /tmp/EUS/accounts/network_permissions 2>/dev/null | tr '\n' ','), isSuperAdmin=$(cat /tmp/EUS/accounts/super_admin 2>/dev/null), user_is_admin='${user_is_admin}', user_is_readonly='${user_is_readonly}'." &>> "${eus_dir}/logs/unifi-login.log"
     if [[ "${user_is_readonly}" == 'true' && "${user_is_admin}" == 'true' ]]; then
-      echo -e "$(date +%F-%T.%6N) | User '${username}' rejected: both admin and readonly permissions present." &>> "${eus_dir}/logs/unifi-login.log"
+      echo -e "$(date +%F-%T.%6N) | User '$(log_username "${username}")' rejected: both admin and readonly permissions present." &>> "${eus_dir}/logs/unifi-login.log"
       header_red
       echo -e "${GRAY_R}#${RESET} The user is an Administrator and Read Only user!"
       echo -e "${GRAY_R}#${RESET} Please remove the read only permission or login with administrator account! \\n\\n"
@@ -7988,7 +8067,7 @@ super_user_check() {
     privilege_admin_ids=$("${mongocommand}" --quiet --port 27117 ace --eval "${mongoprefix}db.getCollection('privilege').find({site_id:'${net_super_site_id}', role:'admin'})${mongosuffix}" | sed 's/\(ObjectId(\|)\|NumberLong(\)//g' | jq -r '.[].admin_id' | tr "\n" "|" | sed 's/|$//')
     echo -e "$(date +%F-%T.%6N) | super_user_check: net_super_site_id='${net_super_site_id}', script_admin_id='${script_admin_id}', privilege_admin_ids='${privilege_admin_ids}'." &>> "${eus_dir}/logs/unifi-login.log"
     if ! [[ "${script_admin_id}" =~ ^($privilege_admin_ids)$ ]]; then
-      echo -e "$(date +%F-%T.%6N) | User '${username}' (admin_id='${script_admin_id}') is NOT in the super-site admin privilege list." &>> "${eus_dir}/logs/unifi-login.log"
+      echo -e "$(date +%F-%T.%6N) | User '$(log_username "${username}")' (admin_id='${script_admin_id}') is NOT in the super-site admin privilege list." &>> "${eus_dir}/logs/unifi-login.log"
       header_red
       echo -e "${GRAY_R}#${RESET} Account/User ${GRAY_R}${username}${RESET} is not a Super Administrator.."
       echo -e "${GRAY_R}#${RESET} Please use the Super Administrator credentials! \\n\\n"
@@ -8017,9 +8096,9 @@ unifi_login_check() {
     net_admin="$("${mongocommand}" --quiet --port 27117 ace --eval "${mongoprefix}db.getCollection('admin').find({email:'${username}'})${mongosuffix}" | sed 's/\(ObjectId(\|)\|NumberLong(\)//g' | jq -r '.[]._id[]')"
     if [[ -z "${net_admin}" ]]; then net_admin="$("${mongocommand}" --quiet --port 27117 ace --eval "db.getCollection('admin').find({email:'${username}'}).toArray()" | sed 's/\(ObjectId(\|)\|NumberLong(\)//g' | jq -r '.[]._id')"; fi
   fi
-  echo -e "$(date +%F-%T.%6N) | unifi_login_check: username='${username}', net_admin='${net_admin}', unifi_core_system='${unifi_core_system}'." &>> "${eus_dir}/logs/unifi-login.log"
+  echo -e "$(date +%F-%T.%6N) | unifi_login_check: username='$(log_username "${username}")', net_admin='${net_admin}', unifi_core_system='${unifi_core_system}'." &>> "${eus_dir}/logs/unifi-login.log"
   if [[ ( -z "${net_admin}" && "${unifi_core_system}" != 'true' ) ]]; then
-    echo -e "$(date +%F-%T.%6N) | BRANCH: account not found in admin collection by name or email for '${username}'." &>> "${eus_dir}/logs/unifi-login.log"
+    echo -e "$(date +%F-%T.%6N) | BRANCH: account not found in admin collection by name or email for '$(log_username "${username}")'." &>> "${eus_dir}/logs/unifi-login.log"
     header_red
     echo -e "${GRAY_R}#${RESET} Account/User ${GRAY_R}${username}${RESET} does not exist in the database\\n\\n"
     while true; do
@@ -8038,9 +8117,13 @@ unifi_login_check() {
           *) echo -e "\\n${RED}#${RESET} Invalid input, please answer Yes or No (y/n)...\\n"; sleep 3;;
       esac
     done
-  elif grep -iq "Ubic2faToken.*Required\\|2fa.*required" /tmp/EUS/application/login; then
+  elif grep -iq "Ubic2faToken.*Required\\|2fa.*required\\|MFA token required\\|MFA_AUTH_REQUIRED" /tmp/EUS/application/login; then
     echo -e "$(date +%F-%T.%6N) | BRANCH: 2FA required." &>> "${eus_dir}/logs/unifi-login.log"
-    mfa_json=$(jq -r '.data[0] // empty' /tmp/EUS/application/login 2>/dev/null)
+    if [[ "${unifi_core_system}" == 'true' ]]; then
+      mfa_json=$(jq -r '.data // empty' /tmp/EUS/application/login 2>/dev/null)
+    else
+      mfa_json=$(jq -r '.data[0] // empty' /tmp/EUS/application/login 2>/dev/null)
+    fi
     unifi_login_cleanup
     header
     two_factor=enabled
@@ -8059,7 +8142,7 @@ unifi_login_check() {
     two_factor_request
     unifi_login
   elif grep -iq "Invalid.*username.*password" /tmp/EUS/application/login; then
-    echo -e "$(date +%F-%T.%6N) | BRANCH: invalid username/password reported by API for '${username}'." &>> "${eus_dir}/logs/unifi-login.log"
+    echo -e "$(date +%F-%T.%6N) | BRANCH: invalid username/password reported by API for '$(log_username "${username}")'." &>> "${eus_dir}/logs/unifi-login.log"
     unifi_login_cleanup
     header_red
     echo -e "${GRAY_R}#${RESET} Invalid username or password..."
@@ -8098,14 +8181,14 @@ unifi_login_check() {
       esac
     done
   elif grep -iq "ok\\|id" /tmp/EUS/application/login; then
-    echo -e "$(date +%F-%T.%6N) | BRANCH: login success for '${username}'." &>> "${eus_dir}/logs/unifi-login.log"
+    echo -e "$(date +%F-%T.%6N) | BRANCH: login success for '$(log_username "${username}")'." &>> "${eus_dir}/logs/unifi-login.log"
     application_login="success"
     unifi_login_cleanup
     header
     echo -e "${GRAY_R}#${RESET} Login success! \\n"
     sleep 2
   else
-    echo -e "$(date +%F-%T.%6N) | BRANCH: none matched, fell through all conditions unhandled. Raw response was: $(sed 's/"password":"[^"]*"/"password":"[REDACTED]"/g' /tmp/EUS/application/login 2>/dev/null)" &>> "${eus_dir}/logs/unifi-login.log"
+    echo -e "$(date +%F-%T.%6N) | BRANCH: none matched, fell through all conditions unhandled. Raw response was: $(redact_login_response < /tmp/EUS/application/login 2>/dev/null)" &>> "${eus_dir}/logs/unifi-login.log"
   fi
 }
 
@@ -9805,7 +9888,7 @@ mongodb_upgrade_check() {
   done < <("$(which dpkg)" -l | awk '{print $1,$2}' | awk '/ii.*mongo/ {print $2}' | sed 's/:.*//')
 }
 
-os_upgrade () {
+os_upgrade() {
   cleanup_codename_mismatch_repos
   remove_apt_options="true"
   get_apt_options
@@ -9816,14 +9899,20 @@ os_upgrade () {
   echo -e "${GRAY_R}#${RESET} You're about to upgrade/update the OS with all it's packages, I recommend"
   echo -e "${GRAY_R}#${RESET} creating a backup/snapshot of the current state of the machine/VM.\\n"
   echo -e " [   ${WHITE_R}1${RESET}   ]  |  Continue with the upgrade/update"
-  echo -e " [   ${WHITE_R}2${RESET}   ]  |  Create a UniFi Network Application backup before the upgrade/update"
-  echo -e " [   ${WHITE_R}3${RESET}   ]  |  Cancel\\n\\n"
+  if [[ "${network_server_host}" == "true" ]]; then
+    echo -e " [   ${WHITE_R}2${RESET}   ]  |  Create a UniFi Network Application backup before the upgrade/update"
+    echo -e " [   ${WHITE_R}3${RESET}   ]  |  Cancel"
+  else
+    echo -e " [   ${WHITE_R}2${RESET}   ]  |  Cancel"
+  fi
+  echo ""
   read -rp $'Your choice | \033[39m' OS_EASY_UPDATE
-  case "$OS_EASY_UPDATE" in
+  if [[ "${network_server_host}" == "true" ]]; then
+    case "$OS_EASY_UPDATE" in
       1*) ;;
       2*)
         header
-        echo -e "${GRAY_R}#${RESET} Starting the UniFi Network Application backup.\\n\\n"
+        echo -e "${GRAY_R}#${RESET} Starting the UniFi Network Application backup.\n\n"
         unifi_credentials
         unifi_login
         if [[ "${unifi_backup_cancel}" != 'true' ]]; then
@@ -9833,9 +9922,16 @@ os_upgrade () {
           unifi_backup_check
         fi
         unifi_logout
-        login_cleanup;;
-       3|*) cancel_script;;
-  esac
+        login_cleanup
+        ;;
+      3|*) cancel_script ;;
+    esac
+  else
+    case "$OS_EASY_UPDATE" in
+      1*) ;;
+      2|*) cancel_script ;;
+    esac
+  fi
   header
   echo -e "${GRAY_R}#${RESET} Starting the OS update/upgrade.\\n"
   sleep 2
@@ -12240,6 +12336,7 @@ build_menu() {
     add_menu_item "Cancel Script|cancel_script"
   else
     if "$(which dpkg)" -l unifi 2>/dev/null | awk '{print $1}' | grep -iqE "^ii|^hi"; then
+      network_server_host="true"
       add_menu_item "Update the UniFi Network Application|perform_application_upgrade=true"
       add_menu_item "Update UniFi Devices|only_run_unifi_devices_upgrade"
       add_menu_item "Update the Operating System|os_upgrade"
@@ -12248,6 +12345,7 @@ build_menu() {
       add_menu_item "Get UniFi Network Application Statistics|application_statistics"
     fi
     if systemctl list-unit-files uosserver.service 2>/dev/null | grep -q 'enabled\|disabled'; then
+      network_server_host="false"
       add_menu_item "Update the UniFi OS Server|perform_uos_upgrade=true"
       add_menu_item "Update the Operating System|os_upgrade"
     fi
