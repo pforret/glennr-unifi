@@ -11,6 +11,12 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Encrypt Script  |  Version 3.8.8
+  
+ - Added support for BunsenLabs Linux (Carbon).
+ 
+ ####
+
  |  UniFi Easy Encrypt Script  |  Version 3.8.7
   
  - Improved missing distro support reporting.
