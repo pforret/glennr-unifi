@@ -3,7 +3,7 @@
 # UniFi Network Application Easy Update Script.
 # Script          | UniFi Network Easy Update Script
 # Version         | 9.9.9
-# Script Version  | 10.7.7
+# Script Version  | 10.7.8
 # Author          | Glenn Rietveld
 # Email           | glennrietveld8@hotmail.nl
 # Website         | https://GlennR.nl
@@ -1240,6 +1240,33 @@ support_file() {
   journalctl -u unifi -p debug --since "1 week ago" --no-pager &> "${support_dir}/ujournal.log"
   journalctl --since yesterday --no-pager &> "${support_dir}/journal.log"
   [[ -e "${support_dir}/no-disk-space-info" ]] && rm --force "${support_dir}/no-disk-space-info" &> /dev/null
+  # --- UniFi OS Server details ---
+  if [[ -f /etc/systemd/system/uosserver.service || -f /etc/systemd/system/uosserver-updater.service ]]; then
+    {
+      if [[ -f /etc/systemd/system/uosserver.service ]]; then
+        echo -e "-----( cat /etc/systemd/system/uosserver.service )----- \n"
+        cat /etc/systemd/system/uosserver.service
+      fi
+      if [[ -f /etc/systemd/system/uosserver-updater.service ]]; then
+        echo -e "\n-----( cat /etc/systemd/system/uosserver-updater.service )----- \n"
+        cat /etc/systemd/system/uosserver-updater.service
+      fi
+      if systemctl list-unit-files uosserver.service &> /dev/null; then
+        echo -e "\n-----( systemctl status uosserver --no-pager -l )----- \n"
+        systemctl status uosserver --no-pager -l
+      fi
+      if systemctl list-unit-files uosserver-updater.service &> /dev/null; then
+        echo -e "\n-----( systemctl status uosserver-updater --no-pager -l )----- \n"
+        systemctl status uosserver-updater --no-pager -l
+      fi
+      if command -v journalctl > /dev/null 2>&1; then
+        echo -e "\n-----( journalctl -u uosserver --no-pager -n 500 )----- \n"
+        journalctl -u uosserver --no-pager -n 500
+        echo -e "\n-----( journalctl -u uosserver-updater --no-pager -n 500 )----- \n"
+        journalctl -u uosserver-updater --no-pager -n 500
+      fi
+    } &>> "${support_dir}/uosserver-details"
+  fi
   while read -r ood_dir; do
     {
       echo -e "-----( du -sh ${ood_dir} )----- \n" &>> "${support_dir}/no-disk-space-info"
@@ -12837,8 +12864,8 @@ uos_server_upgrade_process() {
     echo -e "$(date +%F-%T.%6N) | uosserver.service is running; PIDs exempt from port conflict check: ${uos_server_own_pids[*]}" &>> "${eus_dir}/logs/uos-server-ports-check.log"
   fi
   uos_server_ports_check
-  # On versions below 5.0.0, stop uosserver before the upgrade attempt.
-  if ! version_ge "${uos_version}" "5.0.0"; then
+  # On versions below 5.1.0, stop uosserver before the upgrade attempt.
+  if ! version_ge "${uos_version}" "5.1.0"; then
     if systemctl is-active --quiet uosserver.service 2>/dev/null; then
       header
       echo -e "${GRAY_R}#${RESET} Stopping the UniFi OS Server service..."

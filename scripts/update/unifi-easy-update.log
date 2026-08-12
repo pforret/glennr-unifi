@@ -11,6 +11,13 @@
 #                                                                                                                                                                                                 #
 ###################################################################################################################################################################################################
 
+ |  UniFi Easy Update Script  |  Version 10.7.8
+  
+ - Improved support files.
+ - Improved the UniFi OS Server upgrade process.
+
+ ####
+
  |  UniFi Easy Update Script  |  Version 10.7.7
   
  - Added support for BunsenLabs Linux (Carbon).
