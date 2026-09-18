@@ -3,7 +3,7 @@
 # UniFi Easy Encrypt script.
 # Script          | UniFi Network Easy Encrypt Script
 # Version         | 3.7.6
-# Script Version  | 3.8.8
+# Script Version  | 3.8.9
 # Author          | Glenn Rietveld
 # Email           | glennrietveld8@hotmail.nl
 # Website         | https://GlennR.nl
@@ -4296,7 +4296,7 @@ SSL
       fi
     fi
     if [[ "\${uosserver_status}" == "active" ]]; then
-      uosserver stop &>> "${eus_dir}/logs/uos-server-certificates.log"
+      systemctl stop uosserver &>> "${eus_dir}/logs/uos-server-certificates.log"
       if [[ ! -d /home/uosserver/.local/share/containers/storage/volumes/uosserver_data/_data/eus_certificates/ ]]; then
         mkdir -p /home/uosserver/.local/share/containers/storage/volumes/uosserver_data/_data/eus_certificates/
         chown -R uosserver:uosserver /home/uosserver/.local/share/containers/storage/volumes/uosserver_data/_data/eus_certificates/
@@ -4355,7 +4355,7 @@ SSL
       fi
       chown -R uosserver:uosserver /home/uosserver/.local/share/containers/storage/volumes/uosserver_data/_data/eus_certificates/
       chown -R uosserver:uosserver /home/uosserver/.local/share/containers/storage/volumes/uosserver_data/_data/unifi-core/config/overrides/
-      uosserver start &>> "${eus_dir}/logs/uos-server-certificates.log"
+      systemctl start uosserver &>> "${eus_dir}/logs/uos-server-certificates.log"
     fi
     if [[ "\${unifi_status}" == "active" ]] && [[ "\${skip_network_application}" != 'true' ]] || [[ -e "/usr/lib/unifi/data/keystore" && "\${skip_network_application}" != 'true' ]]; then
       if [[ "\${unifi_native_system}" == 'true' ]]; then
@@ -4613,7 +4613,7 @@ cloudkey_unifi_talk() {
 }
 
 uosserver_certificates() {
-  if uosserver stop &>> "${eus_dir}/logs/uos-server-certificates.log"; then
+  if systemctl stop uosserver &>> "${eus_dir}/logs/uos-server-certificates.log"; then
     echo -e "${GREEN}#${RESET} Successfully stopped the UniFi OS Server!"
   else
     abort_reason="Failed to stop the UniFi OS Server"
@@ -4678,7 +4678,7 @@ SSL
   fi
   chown -R uosserver:uosserver /home/uosserver/.local/share/containers/storage/volumes/uosserver_data/_data/eus_certificates/
   chown -R uosserver:uosserver /home/uosserver/.local/share/containers/storage/volumes/uosserver_data/_data/unifi-core/config/overrides/
-  if uosserver start &>> "${eus_dir}/logs/uos-server-certificates.log"; then
+  if systemctl start uosserver &>> "${eus_dir}/logs/uos-server-certificates.log"; then
     echo -e "${GREEN}#${RESET} Successfully started the UniFi OS Server!"
   else
     abort_reason="Failed to start the UniFi OS Server"
