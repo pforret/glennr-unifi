@@ -80,7 +80,7 @@
 # Script Version        | 9.2.3
 # Application version   | 5.11.50
 # Debian Repo version   | 5.11.50-12745-1
-# UOS Server version    | 5.1.21
+# UOS Server version    | 5.1.42
 # Author                | Glenn Rietveld
 # Email                 | glennrietveld8@hotmail.nl
 # Website               | https://GlennR.nl
@@ -3832,9 +3832,9 @@ script_version_check() {
 }
 if [[ "$(command -v curl)" ]]; then script_version_check; fi
 
-if ! [[ "${os_codename}" =~ (precise|maya|trusty|utopic|vivid|wily|yakkety|zesty|artful|qiana|rebecca|rafaela|rosa|xenial|sarah|serena|sonya|sylvia|bionic|tara|tessa|tina|tricia|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky|questing|resolute|stonking|wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky|unstable) ]] || [[ -z "$(command -v apt)" ]]; then
+if ! [[ "${os_codename}" =~ (precise|maya|trusty|utopic|vivid|wily|yakkety|zesty|artful|qiana|rebecca|rafaela|rosa|xenial|sarah|serena|sonya|sylvia|bionic|tara|tessa|tina|tricia|cosmic|disco|eoan|focal|groovy|hirsute|impish|jammy|kinetic|lunar|mantic|noble|oracular|plucky|questing|resolute|stonking|wheezy|jessie|stretch|buster|bullseye|bookworm|trixie|forky|unstable) ]] || [[ -z "$(command -v apt)" || -z "$(command -v dpkg)" ]]; then
   if [[ -e "/etc/os-release" ]]; then full_os_details="$(sed ':a;N;$!ba;s/\n/\\n/g' /etc/os-release | sed 's/"/\\"/g')"; fi
-  if [[ -z "$(command -v apt)" ]]; then non_apt_based_linux="true"; fi
+  if [[ -z "$(command -v apt)" || -z "$(command -v dpkg)" ]]; then non_apt_based_linux="true"; fi
   unsupported_no_modify="true"
   get_distro
   if [[ "${non_apt_based_linux}" != 'true' ]]; then distro_support_missing_report="$(curl "${curl_argument[@]}" -X POST -H "Content-Type: application/json" -d "{\"distribution\": \"${os_id}\", \"codename\": \"${os_codename}\", \"script-name\": \"${script_name}\", \"script-version\": \"${local_version}\", \"full-os-details\": \"${full_os_details}\"}" https://api.glennr.nl/api/missing-distro-support 2> /dev/null | jq -r '.[]' 2> /dev/null)"; fi
